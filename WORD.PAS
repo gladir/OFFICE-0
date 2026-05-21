@@ -146,6 +146,14 @@ Const
  MAX_TEXT_LEN          = 240;
  MAX_DOC_FILENAME      = 80;
 
+ { --- Limites tableaux (Phase 11) --- }
+ MAX_TABLES            = 32;
+ MAX_TBL_ROWS          = 16;
+ MAX_TBL_COLS          = 6;
+ MAX_CELL_TEXT_LEN     = 80;
+ TBL_CELL_HEIGHT       = 16;
+ TBL_CELL_PAD          = 3;
+
  { --- Styles caract??res (bitmask) --- }
  STY_BOLD              = 1;
  STY_ITALIC            = 2;
@@ -187,6 +195,17 @@ Type
   IsImage         : Boolean;
   ImgW, ImgH      : Integer;
   ImgData         : Pointer;     { palette indices 0..15, W*H octets }
+  TableIdx        : Integer;     { 0 = pas table; sinon index dans Tables }
+ End;
+
+ { --- Cellule de tableau : texte simple (Phase 11) --- }
+ TTableCell = String[MAX_CELL_TEXT_LEN];
+
+ TTable = Record
+  Used  : Boolean;
+  Rows  : Byte;       { 1..MAX_TBL_ROWS }
+  Cols  : Byte;       { 1..MAX_TBL_COLS }
+  Cells : Array[1..MAX_TBL_ROWS, 1..MAX_TBL_COLS] Of TTableCell;
  End;
 
  { --- Document --- }
@@ -337,6 +356,9 @@ Var
  CurrentAlign   : Byte;
  CurrentPage    : Integer;           { page affich?e }
  ScrollY        : Integer;           { d?filement vertical (Phase 10) }
+
+ { Pool de tableaux (Phase 11) }
+ Tables         : Array[1..MAX_TABLES] Of TTable;
 
  { Selection de texte (ancre + extr?mit? = Cursor) }
  Sel            : Record
@@ -1163,6 +1185,8 @@ Type
   Height    : Integer;       { hauteur pixel (LINE_HEIGHT ou ImgH) }
   Alignment : Byte;
   IsImage   : Boolean;
+  IsTable   : Boolean;       { Phase 11 : ligne de tableau }
+  TblRow    : Integer;       { 1..Rows si IsTable, sinon 0 }
  End;
 
 Var
@@ -1448,6 +1472,129 @@ Begin
  End;
 End;
 
+{ ============================================================ }
+{ ===================  PHASE 11 - TABLEAUX  ================== }
+{ ============================================================ }
+
+Procedure ResetTablePool;
+Var I: Integer;
+Begin
+ For I := 1 To MAX_TABLES Do Begin
+  Tables[I].Used := False;
+  Tables[I].Rows := 0;
+  Tables[I].Cols := 0;
+  FillChar(Tables[I].Cells, SizeOf(Tables[I].Cells), 0);
+ End;
+End;
+
+Function AllocTable(Rows, Cols: Integer): Integer;
+Var I, R, C: Integer;
+Begin
+ AllocTable := 0;
+ If Rows < 1 Then Rows := 1;
+ If Rows > MAX_TBL_ROWS Then Rows := MAX_TBL_ROWS;
+ If Cols < 1 Then Cols := 1;
+ If Cols > MAX_TBL_COLS Then Cols := MAX_TBL_COLS;
+ For I := 1 To MAX_TABLES Do
+  If Not Tables[I].Used Then Begin
+   Tables[I].Used := True;
+   Tables[I].Rows := Rows;
+   Tables[I].Cols := Cols;
+   For R := 1 To MAX_TBL_ROWS Do
+    For C := 1 To MAX_TBL_COLS Do
+     Tables[I].Cells[R, C] := '';
+   AllocTable := I;
+   Exit;
+  End;
+End;
+
+Procedure FreeTable(Idx: Integer);
+Begin
+ If (Idx < 1) Or (Idx > MAX_TABLES) Then Exit;
+ Tables[Idx].Used := False;
+ Tables[Idx].Rows := 0;
+ Tables[Idx].Cols := 0;
+ FillChar(Tables[Idx].Cells, SizeOf(Tables[Idx].Cells), 0);
+End;
+
+Function ParaIsTable(P: Integer): Boolean;
+Begin
+ ParaIsTable := False;
+ If (P < 1) Or (P > Doc.ParaCount) Then Exit;
+ If Doc.Paragraphs[P].TableIdx <= 0 Then Exit;
+ If Doc.Paragraphs[P].TableIdx > MAX_TABLES Then Exit;
+ ParaIsTable := Tables[Doc.Paragraphs[P].TableIdx].Used;
+End;
+
+Function ParaTablePtr(P: Integer): Integer;
+Begin
+ If ParaIsTable(P) Then ParaTablePtr := Doc.Paragraphs[P].TableIdx
+ Else                  ParaTablePtr := 0;
+End;
+
+Function CursorInTable: Boolean;
+Begin
+ CursorInTable := ParaIsTable(Cursor.ParaIdx);
+End;
+
+Procedure GetCursorCell(Var Row, Col: Integer);
+Var TIdx, Lin, NCols: Integer;
+Begin
+ Row := 1; Col := 1;
+ TIdx := ParaTablePtr(Cursor.ParaIdx);
+ If TIdx = 0 Then Exit;
+ NCols := Tables[TIdx].Cols;
+ Lin := Cursor.RunIdx;
+ If Lin < 1 Then Lin := 1;
+ Row := ((Lin - 1) Div NCols) + 1;
+ Col := ((Lin - 1) Mod NCols) + 1;
+ If Row < 1 Then Row := 1;
+ If Row > Tables[TIdx].Rows Then Row := Tables[TIdx].Rows;
+ If Col < 1 Then Col := 1;
+ If Col > NCols Then Col := NCols;
+End;
+
+Procedure SetCursorToCell(P, Row, Col, Ofs: Integer);
+Var TIdx, NCols, L: Integer;
+Begin
+ If Not ParaIsTable(P) Then Exit;
+ TIdx := Doc.Paragraphs[P].TableIdx;
+ NCols := Tables[TIdx].Cols;
+ If Row < 1 Then Row := 1;
+ If Row > Tables[TIdx].Rows Then Row := Tables[TIdx].Rows;
+ If Col < 1 Then Col := 1;
+ If Col > NCols Then Col := NCols;
+ L := Length(Tables[TIdx].Cells[Row, Col]);
+ If Ofs < 0 Then Ofs := 0;
+ If Ofs > L Then Ofs := L;
+ Cursor.ParaIdx := P;
+ Cursor.RunIdx  := (Row - 1) * NCols + Col;
+ Cursor.CharIdx := Ofs;
+End;
+
+Function CellTextOf(P, Row, Col: Integer): String;
+Var TIdx: Integer;
+Begin
+ CellTextOf := '';
+ TIdx := ParaTablePtr(P);
+ If TIdx = 0 Then Exit;
+ If (Row < 1) Or (Row > Tables[TIdx].Rows) Then Exit;
+ If (Col < 1) Or (Col > Tables[TIdx].Cols) Then Exit;
+ CellTextOf := Tables[TIdx].Cells[Row, Col];
+End;
+
+Procedure SetCellTextOf(P, Row, Col: Integer; Const S: String);
+Var TIdx: Integer; T: String;
+Begin
+ TIdx := ParaTablePtr(P);
+ If TIdx = 0 Then Exit;
+ If (Row < 1) Or (Row > Tables[TIdx].Rows) Then Exit;
+ If (Col < 1) Or (Col > Tables[TIdx].Cols) Then Exit;
+ T := S;
+ If Length(T) > MAX_CELL_TEXT_LEN Then T := Copy(T, 1, MAX_CELL_TEXT_LEN);
+ Tables[TIdx].Cells[Row, Col] := T;
+End;
+
 { ----- Layout : word-wrap + pagination ------------------------- }
 
 Procedure LayoutDocument;
@@ -1465,6 +1612,7 @@ Var
  PageTopAbs                            : Integer;
  SettledLineEnd                        : Integer;
  PAlign                                : Byte;
+ TblP, TblR                            : Integer;
 
  Function ComputeLineX(LW: Integer; AL: Byte): Integer;
  Begin
@@ -1490,6 +1638,26 @@ Var
   VLines[VLineCount].Height    := LH;
   VLines[VLineCount].Alignment := AL;
   VLines[VLineCount].IsImage   := IsImg;
+  VLines[VLineCount].IsTable   := False;
+  VLines[VLineCount].TblRow    := 0;
+ End;
+
+ Procedure EmitTableRow(PI, RowIdx, LY: Integer);
+ Begin
+  If VLineCount >= MAX_VLINES Then Exit;
+  Inc(VLineCount);
+  VLines[VLineCount].ParaIdx   := PI;
+  VLines[VLineCount].CharStart := 1;
+  VLines[VLineCount].CharLen   := 0;
+  VLines[VLineCount].PageIdx   := PageIdx;
+  VLines[VLineCount].X         := PageContentL;
+  VLines[VLineCount].Y         := LY;
+  VLines[VLineCount].Width     := AvailW;
+  VLines[VLineCount].Height    := TBL_CELL_HEIGHT;
+  VLines[VLineCount].Alignment := ALIGN_LEFT;
+  VLines[VLineCount].IsImage   := False;
+  VLines[VLineCount].IsTable   := True;
+  VLines[VLineCount].TblRow    := RowIdx;
  End;
 
 Begin
@@ -1526,6 +1694,23 @@ Begin
             Doc.Paragraphs[P].ImgW, Doc.Paragraphs[P].ImgH,
             PAlign, True);
    Inc(CurY, Doc.Paragraphs[P].ImgH + 4);
+   Continue;
+  End;
+
+  { Paragraphe tableau : 1 VLine par ligne du tableau }
+  If ParaIsTable(P) Then Begin
+   TblP := Doc.Paragraphs[P].TableIdx;
+   For TblR := 1 To Tables[TblP].Rows Do Begin
+    If CurY + TBL_CELL_HEIGHT > PageContentBottom Then Begin
+     Inc(PageIdx);
+     CurY := PAGE_MARGIN_T;
+    End;
+    PageTopAbs := DOCAREA_TOP + 8 + (PageIdx-1)*(PAGE_H + 12);
+    LineYAbs := PageTopAbs + CurY;
+    EmitTableRow(P, TblR, LineYAbs);
+    Inc(CurY, TBL_CELL_HEIGHT);
+   End;
+   Inc(CurY, 4);   { petit espace apres le tableau }
    Continue;
   End;
 
@@ -1597,9 +1782,17 @@ End;
 { ----- Recherche ligne du curseur + position ??cran ------------ }
 
 Function FindCursorVLine: Integer;
-Var I, R, LastInPara: Integer;
+Var I, R, LastInPara, CurRow, CurCol: Integer;
 Begin
  R := 0; LastInPara := 0;
+ If CursorInTable Then Begin
+  GetCursorCell(CurRow, CurCol);
+  For I := 1 To VLineCount Do
+   If (VLines[I].ParaIdx = Cursor.ParaIdx) And VLines[I].IsTable And
+      (VLines[I].TblRow = CurRow) Then Begin
+    FindCursorVLine := I; Exit;
+   End;
+ End;
  For I := 1 To VLineCount Do
   If VLines[I].ParaIdx = Cursor.ParaIdx Then Begin
    LastInPara := I;
@@ -1619,7 +1812,18 @@ Var
  I, Limit, J, LastNonSpaceAbs, EffW, Idx  : Integer;
  ParaStr, Sub                             : String;
  IsLastInPara                             : Boolean;
+ CurRow, CurCol, CellW, NCols, TblP       : Integer;
 Begin
+ If VLines[L].IsTable Then Begin
+  TblP := Doc.Paragraphs[VLines[L].ParaIdx].TableIdx;
+  GetCursorCell(CurRow, CurCol);
+  NCols := Tables[TblP].Cols;
+  CellW := VLines[L].Width Div NCols;
+  Sub := Copy(Tables[TblP].Cells[CurRow, CurCol], 1, Cursor.CharIdx);
+  SetTextStyle(DefaultFont, HorizDir, 1);
+  CursorScreenX := VLines[L].X + (CurCol - 1) * CellW + TBL_CELL_PAD + TextWidth(Sub);
+  Exit;
+ End;
  Off := Cursor.CharIdx - (VLines[L].CharStart - 1);
  If Off < 0 Then Off := 0;
  If Off > VLines[L].CharLen Then Off := VLines[L].CharLen;
@@ -1889,6 +2093,9 @@ Var
  IW, IH                   : Integer;
  PB                       : ^Byte;
  LineLastNSAbs, LastVisOff : Integer;
+ TblPRen, NColsRen, NRowsRen, RowR, ColC : Integer;
+ CellW, CellX, CellY, TextX, TextY        : Integer;
+ CellTxt                                  : String;
 Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
  For I := 1 To VLineCount Do Begin
@@ -1912,6 +2119,39 @@ Begin
     For IxImg := 0 To IW-1 Do Begin
      PutPixel(VLines[I].X + IxImg, ScreenY + IyImg, PB^ And 15);
      Inc(PB);
+    End;
+   End;
+   Continue;
+  End;
+
+  { Table row ? }
+  If VLines[I].IsTable Then Begin
+   P := VLines[I].ParaIdx;
+   TblPRen := Doc.Paragraphs[P].TableIdx;
+   If (TblPRen < 1) Or (TblPRen > MAX_TABLES) Then Continue;
+   If Not Tables[TblPRen].Used Then Continue;
+   NColsRen := Tables[TblPRen].Cols;
+   NRowsRen := Tables[TblPRen].Rows;
+   RowR := VLines[I].TblRow;
+   If (RowR < 1) Or (RowR > NRowsRen) Then Continue;
+   CellW := VLines[I].Width Div NColsRen;
+   CellY := ScreenY;
+   For ColC := 1 To NColsRen Do Begin
+    CellX := VLines[I].X + (ColC-1) * CellW;
+    SetColor(Black);
+    Line(CellX, CellY, CellX + CellW, CellY);
+    Line(CellX, CellY, CellX, CellY + TBL_CELL_HEIGHT);
+    If ColC = NColsRen Then
+     Line(CellX + CellW, CellY, CellX + CellW, CellY + TBL_CELL_HEIGHT);
+    If RowR = NRowsRen Then
+     Line(CellX, CellY + TBL_CELL_HEIGHT, CellX + CellW, CellY + TBL_CELL_HEIGHT);
+    CellTxt := Tables[TblPRen].Cells[RowR, ColC];
+    If Length(CellTxt) > 0 Then Begin
+     TextX := CellX + TBL_CELL_PAD;
+     TextY := CellY + (TBL_CELL_HEIGHT - 8) Div 2;
+     SetTextStyle(DefaultFont, HorizDir, 1);
+     SetColor(Black);
+     OutTextXY(TextX, TextY, CellTxt);
     End;
    End;
    Continue;
@@ -2099,8 +2339,22 @@ Var
  Tail                : String;
  ParaLen             : Integer;
  Sty                 : TCharStyle;
+ CRow, CCol          : Integer;
+ CellTxt             : String;
 Begin
  P := Cursor.ParaIdx;
+ { Edition dans une cellule de tableau. }
+ If CursorInTable Then Begin
+  GetCursorCell(CRow, CCol);
+  CellTxt := CellTextOf(P, CRow, CCol);
+  If Length(CellTxt) >= MAX_CELL_TEXT_LEN Then Exit;
+  Insert(Ch, CellTxt, Cursor.CharIdx + 1);
+  SetCellTextOf(P, CRow, CCol, CellTxt);
+  Inc(Cursor.CharIdx);
+  Doc.Modified  := True;
+  NeedsRelayout := True;
+  Exit;
+ End;
  ParaLen := Length(ParaText(P));
  If ParaLen >= MAX_TEXT_LEN Then Exit;
  Sty := CurrentStyle;
@@ -2170,8 +2424,22 @@ Var
  P, RIdx, ROff, I    : Integer;
  LastRun             : Integer;
  ParaLenPrev         : Integer;
+ CRow, CCol          : Integer;
+ CellTxt             : String;
 Begin
  P := Cursor.ParaIdx;
+ If CursorInTable Then Begin
+  If Cursor.CharIdx > 0 Then Begin
+   GetCursorCell(CRow, CCol);
+   CellTxt := CellTextOf(P, CRow, CCol);
+   Delete(CellTxt, Cursor.CharIdx, 1);
+   SetCellTextOf(P, CRow, CCol, CellTxt);
+   Dec(Cursor.CharIdx);
+   Doc.Modified  := True;
+   NeedsRelayout := True;
+  End;
+  Exit;
+ End;
  If Cursor.CharIdx > 0 Then Begin
   LocateChar(P, Cursor.CharIdx - 1, RIdx, ROff);
   Delete(Doc.Paragraphs[P].Runs[RIdx].Text, ROff + 1, 1);
@@ -2210,8 +2478,21 @@ Procedure DeleteAtCursor;
 Var
  P, RIdx, ROff, I   : Integer;
  ParaLen, LastRun   : Integer;
+ CRow, CCol         : Integer;
+ CellTxt            : String;
 Begin
  P := Cursor.ParaIdx;
+ If CursorInTable Then Begin
+  GetCursorCell(CRow, CCol);
+  CellTxt := CellTextOf(P, CRow, CCol);
+  If Cursor.CharIdx < Length(CellTxt) Then Begin
+   Delete(CellTxt, Cursor.CharIdx + 1, 1);
+   SetCellTextOf(P, CRow, CCol, CellTxt);
+   Doc.Modified  := True;
+   NeedsRelayout := True;
+  End;
+  Exit;
+ End;
  ParaLen := Length(ParaText(P));
  If Cursor.CharIdx < ParaLen Then Begin
   LocateChar(P, Cursor.CharIdx, RIdx, ROff);
@@ -2246,7 +2527,29 @@ Var
  P, RIdx, ROff, NewIdx, I, K : Integer;
  Tail                        : String;
  OldRunCount                 : Integer;
+ CRow, CCol, NCols, NRows, TIdx : Integer;
 Begin
+ If CursorInTable Then Begin
+  { Enter dans un tableau = passer a la cellule suivante. }
+  P := Cursor.ParaIdx;
+  TIdx := Doc.Paragraphs[P].TableIdx;
+  GetCursorCell(CRow, CCol);
+  NCols := Tables[TIdx].Cols;
+  NRows := Tables[TIdx].Rows;
+  If CCol < NCols Then
+   SetCursorToCell(P, CRow, CCol + 1, 0)
+  Else If CRow < NRows Then
+   SetCursorToCell(P, CRow + 1, 1, 0)
+  Else Begin
+   { Sortie : aller au paragraphe suivant. }
+   If P < Doc.ParaCount Then Begin
+    Cursor.ParaIdx := P + 1;
+    Cursor.RunIdx  := 1;
+    Cursor.CharIdx := 0;
+   End;
+  End;
+  Exit;
+ End;
  If Doc.ParaCount >= MAX_PARAS_PER_DOC Then Exit;
  P := Cursor.ParaIdx;
  NewIdx := P + 1;
@@ -2315,7 +2618,26 @@ End;
 { ----- Navigation curseur ------------------------------------- }
 
 Procedure CursorMoveLeft;
+Var CRow, CCol, P, TIdx: Integer;
 Begin
+ If CursorInTable Then Begin
+  P := Cursor.ParaIdx;
+  TIdx := Doc.Paragraphs[P].TableIdx;
+  GetCursorCell(CRow, CCol);
+  If Cursor.CharIdx > 0 Then Dec(Cursor.CharIdx)
+  Else If CCol > 1 Then
+   SetCursorToCell(P, CRow, CCol - 1,
+    Length(Tables[TIdx].Cells[CRow, CCol - 1]))
+  Else If CRow > 1 Then
+   SetCursorToCell(P, CRow - 1, Tables[TIdx].Cols,
+    Length(Tables[TIdx].Cells[CRow - 1, Tables[TIdx].Cols]))
+  Else If P > 1 Then Begin
+   Dec(Cursor.ParaIdx);
+   Cursor.RunIdx := 1;
+   Cursor.CharIdx := Length(ParaText(Cursor.ParaIdx));
+  End;
+  Exit;
+ End;
  If Cursor.CharIdx > 0 Then Dec(Cursor.CharIdx)
  Else If Cursor.ParaIdx > 1 Then Begin
   Dec(Cursor.ParaIdx);
@@ -2325,8 +2647,25 @@ Begin
 End;
 
 Procedure CursorMoveRight;
-Var L: Integer;
+Var L, CRow, CCol, P, TIdx, CellLen: Integer;
 Begin
+ If CursorInTable Then Begin
+  P := Cursor.ParaIdx;
+  TIdx := Doc.Paragraphs[P].TableIdx;
+  GetCursorCell(CRow, CCol);
+  CellLen := Length(Tables[TIdx].Cells[CRow, CCol]);
+  If Cursor.CharIdx < CellLen Then Inc(Cursor.CharIdx)
+  Else If CCol < Tables[TIdx].Cols Then
+   SetCursorToCell(P, CRow, CCol + 1, 0)
+  Else If CRow < Tables[TIdx].Rows Then
+   SetCursorToCell(P, CRow + 1, 1, 0)
+  Else If P < Doc.ParaCount Then Begin
+   Inc(Cursor.ParaIdx);
+   Cursor.RunIdx := 1;
+   Cursor.CharIdx := 0;
+  End;
+  Exit;
+ End;
  L := Length(ParaText(Cursor.ParaIdx));
  If Cursor.CharIdx < L Then Inc(Cursor.CharIdx)
  Else If Cursor.ParaIdx < Doc.ParaCount Then Begin
@@ -2339,6 +2678,7 @@ End;
 Procedure CursorMoveHome;
 Var L: Integer;
 Begin
+ If CursorInTable Then Begin Cursor.CharIdx := 0; Exit; End;
  L := FindCursorVLine;
  If L > 0 Then
   Cursor.CharIdx := VLines[L].CharStart - 1
@@ -2347,8 +2687,14 @@ Begin
 End;
 
 Procedure CursorMoveEnd;
-Var L: Integer;
+Var L, CRow, CCol, TIdx: Integer;
 Begin
+ If CursorInTable Then Begin
+  GetCursorCell(CRow, CCol);
+  TIdx := Doc.Paragraphs[Cursor.ParaIdx].TableIdx;
+  Cursor.CharIdx := Length(Tables[TIdx].Cells[CRow, CCol]);
+  Exit;
+ End;
  L := FindCursorVLine;
  If L > 0 Then
   Cursor.CharIdx := VLines[L].CharStart + VLines[L].CharLen - 1
@@ -2361,7 +2707,26 @@ Var
  L, NL, Off, BestOff, BestDist, D : Integer;
  TargetX, TestX                   : Integer;
  ParaStr, Pre                     : String;
+ CRow, CCol, TIdx, NewRow         : Integer;
 Begin
+ If CursorInTable Then Begin
+  TIdx := Doc.Paragraphs[Cursor.ParaIdx].TableIdx;
+  GetCursorCell(CRow, CCol);
+  NewRow := CRow + Delta;
+  If (NewRow >= 1) And (NewRow <= Tables[TIdx].Rows) Then
+   SetCursorToCell(Cursor.ParaIdx, NewRow, CCol, 0)
+  Else If Delta > 0 Then Begin
+   { Sortir vers paragraphe suivant. }
+   If Cursor.ParaIdx < Doc.ParaCount Then Begin
+    Inc(Cursor.ParaIdx); Cursor.RunIdx := 1; Cursor.CharIdx := 0;
+   End;
+  End Else Begin
+   If Cursor.ParaIdx > 1 Then Begin
+    Dec(Cursor.ParaIdx); Cursor.RunIdx := 1; Cursor.CharIdx := 0;
+   End;
+  End;
+  Exit;
+ End;
  L := FindCursorVLine;
  If L = 0 Then Exit;
  NL := L + Delta;
@@ -4121,6 +4486,63 @@ Begin
  NeedsRelayout  := True;
 End;
 
+{ ----- Insertion d'un tableau au curseur (Phase 11) ----------- }
+
+Procedure InsertTableAtCursor(Rows, Cols: Integer);
+Var
+ NewIdx, P, I, TIdx : Integer;
+Begin
+ If Doc.ParaCount >= MAX_PARAS_PER_DOC - 1 Then Exit;
+ TIdx := AllocTable(Rows, Cols);
+ If TIdx = 0 Then Exit;
+ If Cursor.CharIdx > 0 Then NewParagraphAtCursor;
+ P := Cursor.ParaIdx;
+ NewIdx := P + 1;
+ For I := Doc.ParaCount Downto NewIdx Do
+  Doc.Paragraphs[I+1] := Doc.Paragraphs[I];
+ Inc(Doc.ParaCount);
+ FillChar(Doc.Paragraphs[NewIdx], SizeOf(TParagraph), 0);
+ Doc.Paragraphs[NewIdx].Alignment := ALIGN_LEFT;
+ Doc.Paragraphs[NewIdx].TableIdx  := TIdx;
+ { Para vide ensuite pour permettre saisie sous le tableau. }
+ If (NewIdx = Doc.ParaCount) And (Doc.ParaCount < MAX_PARAS_PER_DOC) Then Begin
+  Inc(Doc.ParaCount);
+  FillChar(Doc.Paragraphs[NewIdx+1], SizeOf(TParagraph), 0);
+  Doc.Paragraphs[NewIdx+1].RunCount := 1;
+  Doc.Paragraphs[NewIdx+1].Runs[1].Style := CurrentStyle;
+  Doc.Paragraphs[NewIdx+1].Runs[1].Text := '';
+ End;
+ { Curseur dans la cellule (1,1). }
+ SetCursorToCell(NewIdx, 1, 1, 0);
+ Doc.Modified   := True;
+ NeedsRelayout  := True;
+End;
+
+{ Supprime le tableau dont le paragraphe est P, libere son slot. }
+Procedure DeleteTableAtPara(P: Integer);
+Var I, TIdx: Integer;
+Begin
+ If Not ParaIsTable(P) Then Exit;
+ TIdx := Doc.Paragraphs[P].TableIdx;
+ FreeTable(TIdx);
+ For I := P To Doc.ParaCount - 1 Do
+  Doc.Paragraphs[I] := Doc.Paragraphs[I+1];
+ FillChar(Doc.Paragraphs[Doc.ParaCount], SizeOf(TParagraph), 0);
+ Dec(Doc.ParaCount);
+ If Doc.ParaCount < 1 Then Begin
+  Doc.ParaCount := 1;
+  Doc.Paragraphs[1].RunCount := 1;
+  Doc.Paragraphs[1].Runs[1].Style := CurrentStyle;
+  Doc.Paragraphs[1].Runs[1].Text := '';
+ End;
+ If Cursor.ParaIdx > Doc.ParaCount Then Cursor.ParaIdx := Doc.ParaCount;
+ If Cursor.ParaIdx < 1 Then Cursor.ParaIdx := 1;
+ Cursor.RunIdx  := 1;
+ Cursor.CharIdx := 0;
+ Doc.Modified   := True;
+ NeedsRelayout  := True;
+End;
+
 { ============================================================ }
 { =================  PHASE 7 - DEFLATE / ZIP  ================ }
 { ============================================================ }
@@ -4775,6 +5197,7 @@ End;
 Procedure InitDocument;
 Begin
  FreeAllDocImages;
+ ResetTablePool;
  FillChar(Doc, SizeOf(Doc), 0);
  Doc.ParaCount := 1;
  Doc.PageCount := 1;
@@ -7211,7 +7634,12 @@ Begin
                      NeedsRedraw := True;
                     End;
   ACT_INS_SYMBOL  : ShowMessage('Insert Symbol: a venir');
-  ACT_INS_TABLE   : ShowMessage('Insert Table: a venir');
+  ACT_INS_TABLE   : Begin
+                     MarkMutation(2);
+                     InsertTableAtCursor(3, 3);
+                     NeedsRelayout := True;
+                     NeedsRedraw   := True;
+                    End;
 
   ACT_FMT_FONT    : ShowMessage('Font dialog: Phase 3');
   ACT_FMT_PARA    : ShowMessage('Paragraph dialog: Phase 4');
@@ -7292,8 +7720,21 @@ Begin
   ACT_TLS_WORDS   : ShowWordCountDialog;
   ACT_TLS_OPTIONS : ShowMessage('Options: a venir');
 
-  ACT_TBL_INSERT  : ShowMessage('Insert Table: a venir');
-  ACT_TBL_DELETE  : ShowMessage('Delete Table: a venir');
+  ACT_TBL_INSERT  : Begin
+                     MarkMutation(2);
+                     InsertTableAtCursor(3, 3);
+                     NeedsRelayout := True;
+                     NeedsRedraw   := True;
+                    End;
+  ACT_TBL_DELETE  : Begin
+                     If CursorInTable Then Begin
+                      MarkMutation(2);
+                      DeleteTableAtPara(Cursor.ParaIdx);
+                      NeedsRelayout := True;
+                      NeedsRedraw   := True;
+                     End Else
+                      ShowMessage('Le curseur n''est pas dans un tableau.');
+                    End;
 
   ACT_WIN_CASCADE : StatusMsg := 'Cascade (single-doc)';
 
@@ -7501,7 +7942,10 @@ Begin
   KEY_BACKSPACE: Begin MarkMutation(2); BackspaceAtCursor; End;
   KEY_DEL      : Begin MarkMutation(2); DeleteAtCursor; End;
   KEY_ENTER    : Begin MarkMutation(2); NewParagraphAtCursor; End;
-  KEY_TAB      : Begin MarkMutation(1); InsertCharAtCursor(' '); End;
+  KEY_TAB      : Begin
+                  If CursorInTable Then NewParagraphAtCursor   { tab = cellule suivante }
+                  Else Begin MarkMutation(1); InsertCharAtCursor(' '); End;
+                 End;
  Else
   If (K >= 32) And (K <= 126) Then Begin
    MarkMutation(1);
