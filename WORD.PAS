@@ -7736,6 +7736,13 @@ BEGIN
  InitDocument;
  UndoCount := 0; RedoCount := 0; LastMutate := 0;
  LastFindStr := ''; LastReplStr := '';
+ { Argument ligne de commande : nom de fichier a ouvrir au demarrage. }
+ If ParamCount >= 1 Then Begin
+  If LoadAnyDocument(ParamStr(1)) Then
+   Doc.FileName := ParamStr(1)
+  Else
+   ShowMessage('Cannot open file: ' + ParamStr(1));
+ End;
  MsAvailable := MouseDriverFound;
  If MsAvailable Then ShowMouse;
  MainLoop;
