@@ -1418,6 +1418,36 @@ Begin
  SetColor(Sty.Color);
 End;
 
+{ Dessine S en (X,Y) avec gras (double-frappe +1px) et/ou italique
+  (cisaillement : moitie haute decalee de +1 px) selon Sty.Style.
+  La police 8x8 par defaut de BGI n'a pas de variante italique :
+  on simule via deux SetViewPort qui clippent le haut et le bas du
+  glyphe et redessinent avec un decalage horizontal. }
+Procedure DrawStyledText(X, Y: Integer; Const S: String;
+                         Const Sty: TCharStyle);
+Var
+ VP : ViewPortType;
+ TW : Integer;
+Begin
+ If (Sty.Style And STY_ITALIC) <> 0 Then Begin
+  TW := TextWidth(S);
+  If (Sty.Style And STY_BOLD) <> 0 Then Inc(TW);
+  GetViewSettings(VP);
+  { Moitie haute (rangees 0..3) decalee de +1 px vers la droite }
+  SetViewPort(X, Y, X + TW + 2, Y + 3, ClipOn);
+  OutTextXY(1, 0, S);
+  If (Sty.Style And STY_BOLD) <> 0 Then OutTextXY(2, 0, S);
+  { Moitie basse (rangees 4..7) sans decalage }
+  SetViewPort(X, Y + 4, X + TW + 2, Y + 7, ClipOn);
+  OutTextXY(0, -4, S);
+  If (Sty.Style And STY_BOLD) <> 0 Then OutTextXY(1, -4, S);
+  SetViewPort(VP.X1, VP.Y1, VP.X2, VP.Y2, VP.Clip);
+ End Else Begin
+  OutTextXY(X, Y, S);
+  If (Sty.Style And STY_BOLD) <> 0 Then OutTextXY(X + 1, Y, S);
+ End;
+End;
+
 { ----- Layout : word-wrap + pagination ------------------------- }
 
 Procedure LayoutDocument;
@@ -1855,9 +1885,7 @@ Begin
    ApplyRunStyle(Sty);
 
    If Not Justify Then Begin
-    OutTextXY(ScreenX, ScreenY, Sub);
-    If (Sty.Style And STY_BOLD) <> 0 Then
-     OutTextXY(ScreenX + 1, ScreenY, Sub);
+    DrawStyledText(ScreenX, ScreenY, Sub, Sty);
     SegW := TextWidth(Sub);
     If (Sty.Style And STY_UNDERLINE) <> 0 Then Begin
      SetColor(Sty.Color);
@@ -1871,9 +1899,7 @@ Begin
     SegStartX := ScreenX;
     For SegOff := 1 To SegLen Do Begin
      OneCh := Copy(Sub, SegOff, 1);
-     OutTextXY(ScreenX, ScreenY, OneCh);
-     If (Sty.Style And STY_BOLD) <> 0 Then
-      OutTextXY(ScreenX + 1, ScreenY, OneCh);
+     DrawStyledText(ScreenX, ScreenY, OneCh, Sty);
      CharW := TextWidth(OneCh);
      ExtraThis := 0;
      If OneCh[1] = ' ' Then Begin
