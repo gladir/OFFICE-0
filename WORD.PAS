@@ -335,8 +335,16 @@ Var
  Cursor         : TCursorPos;
  CurrentStyle   : TCharStyle;        { style actif (pour saisie future) }
  CurrentAlign   : Byte;
- CurrentPage    : Integer;           { page affich??e }
- ScrollY        : Integer;           { d??filement vertical (Phase 10) }
+ CurrentPage    : Integer;           { page affich?e }
+ ScrollY        : Integer;           { d?filement vertical (Phase 10) }
+
+ { Selection de texte (ancre + extr?mit? = Cursor) }
+ Sel            : Record
+                   Active     : Boolean;
+                   AnchorPara : Integer;
+                   AnchorChar : Integer;
+                  End;
+ MouseSelecting : Boolean;          { drag souris en cours }
 
  { Souris (pr??fixe Ms* pour ??viter conflit avec PtcMouse.MsX/MsY) }
  MsAvailable : Boolean;
@@ -1283,6 +1291,125 @@ Begin
  End;
 End;
 
+{ Forward : helpers selection definis plus bas (apres CursorScreenX). }
+Function  SelHasRange: Boolean; Forward;
+Procedure SelGetRange(Var P1, C1, P2, C2: Integer); Forward;
+
+{ Garantit une frontiere de run au caractere CharOff (0-based) du
+  paragraphe P. Si CharOff tombe au milieu d'un run, le decoupe en
+  deux runs adjacents de meme style. Retourne True en cas de succes
+  (False uniquement si MAX_RUNS_PER_PARA atteint). }
+Function SplitRunAtChar(P, CharOff: Integer): Boolean;
+Var
+ RIdx, ROff, ParaLen : Integer;
+ Tail                : String;
+Begin
+ SplitRunAtChar := True;
+ ParaLen := Length(ParaText(P));
+ If CharOff <= 0 Then Exit;
+ If CharOff >= ParaLen Then Exit;
+ LocateChar(P, CharOff, RIdx, ROff);
+ If ROff = 0 Then Exit;   { deja sur une frontiere }
+ If Doc.Paragraphs[P].RunCount >= MAX_RUNS_PER_PARA Then Begin
+  SplitRunAtChar := False; Exit;
+ End;
+ Tail := Copy(Doc.Paragraphs[P].Runs[RIdx].Text, ROff + 1,
+              Length(Doc.Paragraphs[P].Runs[RIdx].Text) - ROff);
+ Doc.Paragraphs[P].Runs[RIdx].Text :=
+  Copy(Doc.Paragraphs[P].Runs[RIdx].Text, 1, ROff);
+ If Not InsertRunAt(P, RIdx + 1) Then Begin
+  { rollback }
+  Doc.Paragraphs[P].Runs[RIdx].Text :=
+   Doc.Paragraphs[P].Runs[RIdx].Text + Tail;
+  SplitRunAtChar := False; Exit;
+ End;
+ Doc.Paragraphs[P].Runs[RIdx + 1].Style := Doc.Paragraphs[P].Runs[RIdx].Style;
+ Doc.Paragraphs[P].Runs[RIdx + 1].Text  := Tail;
+End;
+
+{ True si tous les caracteres de [C1..C2) du paragraphe P portent
+  le bit StyBit. Retourne True si l'intervalle est vide. }
+Function ParaRangeAllHaveStyle(P, C1, C2: Integer; StyBit: Byte): Boolean;
+Var
+ K, Acc, RL, SegStart, SegEnd : Integer;
+Begin
+ ParaRangeAllHaveStyle := True;
+ If C2 <= C1 Then Exit;
+ Acc := 0;
+ For K := 1 To Doc.Paragraphs[P].RunCount Do Begin
+  RL := Length(Doc.Paragraphs[P].Runs[K].Text);
+  SegStart := Acc;   If C1 > SegStart Then SegStart := C1;
+  SegEnd   := Acc + RL; If C2 < SegEnd Then SegEnd := C2;
+  If SegEnd > SegStart Then
+   If (Doc.Paragraphs[P].Runs[K].Style.Style And StyBit) = 0 Then Begin
+    ParaRangeAllHaveStyle := False; Exit;
+   End;
+  Inc(Acc, RL);
+ End;
+End;
+
+{ Applique (Set=True) ou retire (Set=False) le bit StyBit sur tous les
+  runs couvrant [C1..C2) du paragraphe P. Decoupe les runs aux bornes. }
+Procedure ParaApplyStyleBit(P, C1, C2: Integer; StyBit: Byte; SetIt: Boolean);
+Var
+ K, Acc, RL, NewStyle : Integer;
+Begin
+ If C2 <= C1 Then Exit;
+ { Decouper aux deux bornes (l'ordre importe : C2 d'abord pour ne pas
+   invalider l'offset de C1 -- en fait c'est l'inverse, decouper C1
+   peut decaler les runs apres C1 mais pas les chars; les offsets de
+   caracteres sont absolus dans le paragraphe et ne bougent pas). }
+ If Not SplitRunAtChar(P, C1) Then Exit;
+ If Not SplitRunAtChar(P, C2) Then Exit;
+ Acc := 0;
+ For K := 1 To Doc.Paragraphs[P].RunCount Do Begin
+  RL := Length(Doc.Paragraphs[P].Runs[K].Text);
+  If (Acc >= C1) And (Acc + RL <= C2) And (RL > 0) Then Begin
+   NewStyle := Doc.Paragraphs[P].Runs[K].Style.Style;
+   If SetIt Then NewStyle := NewStyle Or StyBit
+   Else NewStyle := NewStyle And (Not StyBit);
+   Doc.Paragraphs[P].Runs[K].Style.Style := Byte(NewStyle);
+  End;
+  Inc(Acc, RL);
+ End;
+ MergeAdjacentSameStyleRuns(P);
+End;
+
+{ Applique le bit StyBit sur l'ensemble de la selection en cours, en
+  basculant : si TOUS les caracteres l'ont deja, on le retire ; sinon
+  on l'ajoute partout. Aucun effet si pas de selection active. }
+Procedure SelApplyStyleBit(StyBit: Byte);
+Var
+ P1, C1, P2, C2, P, ParaLen, RangeL, RangeR : Integer;
+ AllSet                                     : Boolean;
+Begin
+ If Not SelHasRange Then Exit;
+ SelGetRange(P1, C1, P2, C2);
+ AllSet := True;
+ For P := P1 To P2 Do Begin
+  ParaLen := Length(ParaText(P));
+  If P = P1 Then RangeL := C1 Else RangeL := 0;
+  If P = P2 Then RangeR := C2 Else RangeR := ParaLen;
+  If RangeL < 0 Then RangeL := 0;
+  If RangeR > ParaLen Then RangeR := ParaLen;
+  If RangeR > RangeL Then
+   If Not ParaRangeAllHaveStyle(P, RangeL, RangeR, StyBit) Then Begin
+    AllSet := False; Break;
+   End;
+ End;
+ For P := P1 To P2 Do Begin
+  ParaLen := Length(ParaText(P));
+  If P = P1 Then RangeL := C1 Else RangeL := 0;
+  If P = P2 Then RangeR := C2 Else RangeR := ParaLen;
+  If RangeL < 0 Then RangeL := 0;
+  If RangeR > ParaLen Then RangeR := ParaLen;
+  If RangeR > RangeL Then
+   ParaApplyStyleBit(P, RangeL, RangeR, StyBit, Not AllSet);
+ End;
+ Doc.Modified  := True;
+ NeedsRelayout := True;
+End;
+
 { Applique la fonte/agrandissement n?cessaires ? un style donn?.
   Phase 3 : tailles toutes ? mag 1, gras simul? par overstrike. }
 Procedure ApplyRunStyle(Const Sty: TCharStyle);
@@ -1500,6 +1627,88 @@ Begin
  CursorScreenX := VLines[L].X + TextWidth(Sub) + Extra;
 End;
 
+{ Position ecran X de la limite gauche du caractere a l'offset
+  AbsCharIdx (0-based dans le paragraphe) sur la ligne visuelle L.
+  Identique a CursorScreenX mais parametre par AbsCharIdx. }
+Function LineCharScreenX(L, AbsCharIdx: Integer): Integer;
+Var
+ Off, AvailW, SpaceCnt, Slack             : Integer;
+ PerSpace, Remainder, Extra, SpacesSeen   : Integer;
+ I, Limit                                 : Integer;
+ ParaStr, Sub                             : String;
+ IsLastInPara                             : Boolean;
+Begin
+ Off := AbsCharIdx - (VLines[L].CharStart - 1);
+ If Off < 0 Then Off := 0;
+ If Off > VLines[L].CharLen Then Off := VLines[L].CharLen;
+ ParaStr := ParaText(VLines[L].ParaIdx);
+ Sub := Copy(ParaStr, VLines[L].CharStart, Off);
+ SetTextStyle(DefaultFont, HorizDir, 1);
+ Extra := 0;
+ If VLines[L].Alignment = ALIGN_JUSTIFY Then Begin
+  If L >= VLineCount Then IsLastInPara := True
+  Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
+  If Not IsLastInPara Then Begin
+   AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+   SpaceCnt := 0;
+   For I := VLines[L].CharStart To
+           VLines[L].CharStart + VLines[L].CharLen - 1 Do
+    If (I >= 1) And (I <= Length(ParaStr)) Then
+     If ParaStr[I] = ' ' Then Inc(SpaceCnt);
+   Slack := AvailW - VLines[L].Width;
+   If (SpaceCnt > 0) And (Slack > 0) Then Begin
+    PerSpace  := Slack Div SpaceCnt;
+    Remainder := Slack Mod SpaceCnt;
+    SpacesSeen := 0;
+    Limit := VLines[L].CharStart + Off - 1;
+    For I := VLines[L].CharStart To Limit Do
+     If (I >= 1) And (I <= Length(ParaStr)) Then
+      If ParaStr[I] = ' ' Then Begin
+       Inc(SpacesSeen);
+       Inc(Extra, PerSpace);
+       If SpacesSeen <= Remainder Then Inc(Extra);
+      End;
+   End;
+  End;
+ End;
+ LineCharScreenX := VLines[L].X + TextWidth(Sub) + Extra;
+End;
+
+{ ----- Helpers selection -------------------------------------- }
+
+Function SelHasRange: Boolean;
+Begin
+ SelHasRange := Sel.Active And
+                ((Sel.AnchorPara <> Cursor.ParaIdx) Or
+                 (Sel.AnchorChar <> Cursor.CharIdx));
+End;
+
+Procedure SelClear;
+Begin
+ Sel.Active := False;
+End;
+
+Procedure SelStartFromCursor;
+Begin
+ Sel.Active := True;
+ Sel.AnchorPara := Cursor.ParaIdx;
+ Sel.AnchorChar := Cursor.CharIdx;
+End;
+
+Procedure SelGetRange(Var P1, C1, P2, C2: Integer);
+Var Swap: Boolean;
+Begin
+ P1 := Sel.AnchorPara; C1 := Sel.AnchorChar;
+ P2 := Cursor.ParaIdx; C2 := Cursor.CharIdx;
+ Swap := False;
+ If P1 > P2 Then Swap := True
+ Else If (P1 = P2) And (C1 > C2) Then Swap := True;
+ If Swap Then Begin
+  P1 := Cursor.ParaIdx; C1 := Cursor.CharIdx;
+  P2 := Sel.AnchorPara; C2 := Sel.AnchorChar;
+ End;
+End;
+
 { ----- Helpers justification (Phase 4) ------------------------- }
 
 Function VLineIsLastInPara(L: Integer): Boolean;
@@ -1702,6 +1911,45 @@ Begin
  If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DOCAREA_BOTTOM) Then Exit;
  SetColor(Black);
  Line(X, Y, X, Y + LINE_HEIGHT - 2);
+End;
+
+{ Rendu de la selection : inversion video (XOR avec blanc) sur les
+  portions de chaque ligne visuelle couvertes par [P1,C1]..[P2,C2]. }
+Procedure RenderSelection;
+Var
+ P1, C1, P2, C2, I    : Integer;
+ LineL, LineR         : Integer;
+ SegL, SegR           : Integer;
+ X1, X2, Y, YY        : Integer;
+Begin
+ If Not Sel.Active Then Exit;
+ SelGetRange(P1, C1, P2, C2);
+ If (P1 = P2) And (C1 = C2) Then Exit;
+ SetTextStyle(DefaultFont, HorizDir, 1);
+ For I := 1 To VLineCount Do Begin
+  If VLines[I].IsImage Then Continue;
+  If (VLines[I].ParaIdx < P1) Or (VLines[I].ParaIdx > P2) Then Continue;
+  LineL := VLines[I].CharStart - 1;
+  LineR := LineL + VLines[I].CharLen;
+  If VLines[I].ParaIdx = P1 Then Begin
+   SegL := C1; If SegL < LineL Then SegL := LineL;
+  End Else SegL := LineL;
+  If VLines[I].ParaIdx = P2 Then Begin
+   SegR := C2; If SegR > LineR Then SegR := LineR;
+  End Else SegR := LineR;
+  If SegR <= SegL Then Continue;
+  X1 := LineCharScreenX(I, SegL);
+  X2 := LineCharScreenX(I, SegR);
+  If X2 <= X1 Then Continue;
+  Y := VLines[I].Y - ScrollY;
+  If (Y + LINE_HEIGHT - 1 < DOCAREA_TOP) Or (Y > DOCAREA_BOTTOM) Then Continue;
+  SetWriteMode(XORPut);
+  SetColor(White);
+  For YY := Y To Y + LINE_HEIGHT - 1 Do
+   Line(X1, YY, X2 - 1, YY);
+  SetWriteMode(NormalPut);
+ End;
+ SetColor(Black);
 End;
 
 { Bascule (XOR) le caret texte sans repeindre tout l'ecran. }
@@ -4497,6 +4745,7 @@ Begin
 
  { ----- Texte du document + curseur ----- }
  RenderDocText;
+ RenderSelection;
  RenderTextCursor;
 End;
 
@@ -6730,16 +6979,28 @@ Begin
   ACT_FMT_FONT    : ShowMessage('Font dialog: Phase 3');
   ACT_FMT_PARA    : ShowMessage('Paragraph dialog: Phase 4');
   ACT_FMT_BOLD    : Begin
+                     If SelHasRange Then Begin
+                      MarkMutation(2);
+                      SelApplyStyleBit(STY_BOLD);
+                     End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_BOLD;
                      FmtBar[1].Pressed := (CurrentStyle.Style And STY_BOLD) <> 0;
                      StatusMsg := 'Toggle Bold';
                     End;
   ACT_FMT_ITALIC  : Begin
+                     If SelHasRange Then Begin
+                      MarkMutation(2);
+                      SelApplyStyleBit(STY_ITALIC);
+                     End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_ITALIC;
                      FmtBar[2].Pressed := (CurrentStyle.Style And STY_ITALIC) <> 0;
                      StatusMsg := 'Toggle Italic';
                     End;
   ACT_FMT_UNDER   : Begin
+                     If SelHasRange Then Begin
+                      MarkMutation(2);
+                      SelApplyStyleBit(STY_UNDERLINE);
+                     End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_UNDERLINE;
                      FmtBar[3].Pressed := (CurrentStyle.Style And STY_UNDERLINE) <> 0;
                      StatusMsg := 'Toggle Underline';
@@ -6964,6 +7225,13 @@ Begin
   Exit;
  End;
 
+ { Toute action de navigation / edition annule la selection en cours. }
+ If Sel.Active Then
+  If (K = KEY_LEFT) Or (K = KEY_RIGHT) Or (K = KEY_UP) Or (K = KEY_DOWN) Or
+     (K = KEY_HOME) Or (K = KEY_END) Or (K = KEY_PGUP) Or (K = KEY_PGDN) Or
+     (K = KEY_BACKSPACE) Or (K = KEY_DEL) Or (K = KEY_ENTER) Or
+     (K = KEY_TAB) Or ((K >= 32) And (K <= 126)) Then SelClear;
+
  Case K Of
   KEY_F10: Begin
    ActiveMenu := 1; MenuItemHover := 1; MenuKeyboardMode := True;
@@ -7074,11 +7342,54 @@ Begin
  FmtBtnAtPoint := R;
 End;
 
+{ Convertit (Mx,My) en position document la plus proche.
+  Renvoie False si aucune ligne visuelle disponible. }
+Function MouseToDocPos(Mx, My: LongInt; Var P, C: Integer): Boolean;
+Var
+ I, Best, Off, BestOff, BestDist, D : Integer;
+ TestX, LineY                       : Integer;
+ ParaStr, Pre                       : String;
+Begin
+ P := 0; C := 0;
+ If VLineCount = 0 Then Begin MouseToDocPos := False; Exit; End;
+ Best := 0;
+ BestDist := 32767;
+ SetTextStyle(DefaultFont, HorizDir, 1);
+ For I := 1 To VLineCount Do Begin
+  If VLines[I].IsImage Then Continue;
+  LineY := VLines[I].Y - ScrollY;
+  If My < LineY Then D := LineY - My
+  Else If My > LineY + LINE_HEIGHT - 1 Then D := My - (LineY + LINE_HEIGHT - 1)
+  Else D := 0;
+  If D < BestDist Then Begin BestDist := D; Best := I; End;
+ End;
+ If Best = 0 Then Begin MouseToDocPos := False; Exit; End;
+ ParaStr := ParaText(VLines[Best].ParaIdx);
+ BestOff := 0;
+ BestDist := 32767;
+ For Off := 0 To VLines[Best].CharLen Do Begin
+  Pre := Copy(ParaStr, VLines[Best].CharStart, Off);
+  TestX := VLines[Best].X + TextWidth(Pre);
+  D := TestX - Mx;
+  If D < 0 Then D := -D;
+  If D < BestDist Then Begin BestDist := D; BestOff := Off; End;
+ End;
+ P := VLines[Best].ParaIdx;
+ C := VLines[Best].CharStart - 1 + BestOff;
+ MouseToDocPos := True;
+End;
+
+Function PointInDocArea(X, Y: LongInt): Boolean;
+Begin
+ PointInDocArea := (Y >= DOCAREA_TOP) And (Y <= DOCAREA_BOTTOM);
+End;
+
 Procedure HandleMouse;
 Var
  LeftDown, LeftPressed, LeftReleased: Boolean;
  RightDown                          : Boolean;
  M, Itm, B                          : Integer;
+ NewP, NewC                         : Integer;
 Begin
  LastMsBtn := MsBtn;
  GetMouseStateLI(MsX, MsY, MsBtn);
@@ -7134,11 +7445,43 @@ Begin
    { rien : on agit au release pour effet bouton enfonc?? visuel }
   End Else If HoveredFmtBtn > 0 Then Begin
    { idem }
+  End Else If PointInDocArea(MsX, MsY) Then Begin
+   { Clic dans la zone document : positionne le curseur et amorce
+     une selection. Drag etend la selection. }
+   If MouseToDocPos(MsX, MsY, NewP, NewC) Then Begin
+    Cursor.ParaIdx := NewP;
+    Cursor.RunIdx  := 1;
+    Cursor.CharIdx := NewC;
+    SelStartFromCursor;
+    MouseSelecting := True;
+    CursorBlinkOn  := True;
+    CursorBlinkCnt := 0;
+    NeedsRedraw    := True;
+   End;
+  End;
+ End;
+
+ { ----- Drag gauche : extension de la selection ----- }
+ If LeftDown And MouseSelecting And (Not LeftPressed) Then Begin
+  If MouseToDocPos(MsX, MsY, NewP, NewC) Then Begin
+   If (NewP <> Cursor.ParaIdx) Or (NewC <> Cursor.CharIdx) Then Begin
+    Cursor.ParaIdx := NewP;
+    Cursor.RunIdx  := 1;
+    Cursor.CharIdx := NewC;
+    CursorBlinkOn  := True;
+    CursorBlinkCnt := 0;
+    NeedsRedraw    := True;
+   End;
   End;
  End;
 
  { ----- Release gauche ----- }
  If LeftReleased Then Begin
+  If MouseSelecting Then Begin
+   MouseSelecting := False;
+   { Selection vide => on efface l'etat selection (juste un clic). }
+   If Not SelHasRange Then SelClear;
+  End;
   If (ActiveMenu = 0) And (HoveredStdBtn > 0) Then
    ExecAction(StdBar[HoveredStdBtn].ActionId);
   If (ActiveMenu = 0) And (HoveredFmtBtn > 0) Then
@@ -7205,6 +7548,8 @@ Begin
  PrevHovFmt     := 0;
  CursorBlinkOn := True;
  CursorBlinkCnt:= 0;
+ Sel.Active     := False;
+ MouseSelecting := False;
  StatusMsg     := 'Pret. F10=menu, fleches=naviguer, Alt+X=quitter.';
 
  LayoutDocument;
