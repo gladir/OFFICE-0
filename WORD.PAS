@@ -7091,10 +7091,24 @@ Begin
  HoveredStdBtn := StdBtnAtPoint(MsX, MsY);
  HoveredFmtBtn := FmtBtnAtPoint(MsX, MsY);
 
- { Survol dropdown menu actif }
+ { Survol barre de menus : si un menu est deja ouvert et la souris
+   passe au-dessus d'un AUTRE menu de la barre, on bascule. }
+ If ActiveMenu > 0 Then Begin
+  M := MenuAtPoint(MsX, MsY);
+  If (M > 0) And (M <> ActiveMenu) Then Begin
+   ActiveMenu := M;
+   MenuItemHover := 1;
+   MenuKeyboardMode := False;
+  End;
+ End;
+
+ { Survol dropdown menu actif : la souris choisit l'item courant. }
  If ActiveMenu > 0 Then Begin
   Itm := DropItemAtPoint(MsX, MsY);
-  If Itm > 0 Then MenuItemHover := Itm;
+  If (Itm > 0) And (Not Menus[ActiveMenu].Items[Itm].Separator) Then Begin
+   MenuItemHover := Itm;
+   MenuKeyboardMode := False;
+  End;
  End;
 
  { ----- Click gauche ----- }
@@ -7164,11 +7178,15 @@ End;
 
 Procedure MainLoop;
 Var
- K           : Word;
- RedrawAfter : Boolean;
- MouseOnly   : Boolean;
- CursorOnly  : Boolean;
- PrevMx,PrevMy: LongInt;
+ K              : Word;
+ RedrawAfter    : Boolean;
+ MouseOnly      : Boolean;
+ CursorOnly     : Boolean;
+ PrevMx,PrevMy  : LongInt;
+ PrevActiveMenu : Integer;
+ PrevMenuHover  : Integer;
+ PrevHovStd     : Integer;
+ PrevHovFmt     : Integer;
 Begin
  AppShouldExit := False;
  ActiveMenu    := 0;
@@ -7181,6 +7199,10 @@ Begin
  MsY        := SCREEN_H Div 2;
  PrevMx        := -1;
  PrevMy        := -1;
+ PrevActiveMenu := 0;
+ PrevMenuHover  := 0;
+ PrevHovStd     := 0;
+ PrevHovFmt     := 0;
  CursorBlinkOn := True;
  CursorBlinkCnt:= 0;
  StatusMsg     := 'Pret. F10=menu, fleches=naviguer, Alt+X=quitter.';
@@ -7210,6 +7232,13 @@ Begin
   If MsBtn <> LastMsBtn Then RedrawAfter := True
   Else If (MsX <> PrevMx) Or (MsY <> PrevMy) Then MouseOnly := True;
 
+  { Tout changement d'etat de menu/toolbar du au survol force un RenderAll. }
+  If (ActiveMenu <> PrevActiveMenu) Or (MenuItemHover <> PrevMenuHover) Or
+     (HoveredStdBtn <> PrevHovStd) Or (HoveredFmtBtn <> PrevHovFmt) Then Begin
+   RedrawAfter := True;
+   MouseOnly   := False;
+  End;
+
   If NeedsRedraw Then Begin RedrawAfter := True; NeedsRedraw := False; End;
   If NeedsRelayout Then Begin
    LayoutDocument;
@@ -7229,6 +7258,10 @@ Begin
    RenderAll;
    PrevMx := MsX;
    PrevMy := MsY;
+   PrevActiveMenu := ActiveMenu;
+   PrevMenuHover  := MenuItemHover;
+   PrevHovStd     := HoveredStdBtn;
+   PrevHovFmt     := HoveredFmtBtn;
   End Else If MouseOnly Then Begin
    {$IFDEF FPC}
    EraseSoftCursor;
