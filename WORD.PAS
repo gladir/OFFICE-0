@@ -5118,8 +5118,10 @@ Begin
  If Length(S) > 0 Then BufAppendBytes(B, @S[1], Length(S));
 End;
 
+Function Cp437ToUni(B: Byte): Word; Forward;
+
 Procedure BufAppendXmlText(Var B: TByteBuf; Const S: String);
-Var I: Integer; C: Char; Tmp: Byte;
+Var I: Integer; C: Char; Tmp: Byte; W: Word; B0,B1,B2: Byte;
 Begin
  For I := 1 To Length(S) Do Begin
   C := S[I];
@@ -5131,7 +5133,21 @@ Begin
    #39: BufAppendStr(B, '&apos;');
   Else
    Tmp := Byte(C);
-   BufAppendBytes(B, @Tmp, 1);
+   If Tmp < $80 Then BufAppendBytes(B, @Tmp, 1)
+   Else Begin
+    W := Cp437ToUni(Tmp);
+    If W < $0800 Then Begin
+     B0 := $C0 Or Byte(W Shr 6);
+     B1 := $80 Or Byte(W And $3F);
+     BufAppendBytes(B, @B0, 1); BufAppendBytes(B, @B1, 1);
+    End Else Begin
+     B0 := $E0 Or Byte(W Shr 12);
+     B1 := $80 Or Byte((W Shr 6) And $3F);
+     B2 := $80 Or Byte(W And $3F);
+     BufAppendBytes(B, @B0, 1); BufAppendBytes(B, @B1, 1);
+     BufAppendBytes(B, @B2, 1);
+    End;
+   End;
   End;
  End;
 End;
@@ -5435,6 +5451,124 @@ Begin
  SaveDocxToFile := OK;
 End;
 
+{ ---------- Conversion Unicode <-> CP437 ----------------------- }
+{ Mappage Unicode (BMP) -> CP437 pour les caracteres frequents.   }
+{ Retourne 0 si pas de glyphe correspondant (l'appelant met '?'). }
+
+Function UniToCp437(W: Word): Byte;
+Begin
+ UniToCp437 := 0;
+ If W < 128 Then Begin UniToCp437 := Byte(W); Exit; End;
+ Case W Of
+  $00A0: UniToCp437 := 32;     { NBSP -> espace }
+  $00A1: UniToCp437 := 173;    $00A2: UniToCp437 := 155;
+  $00A3: UniToCp437 := 156;    $00A5: UniToCp437 := 157;
+  $00AA: UniToCp437 := 166;    $00AB: UniToCp437 := 174;
+  $00AC: UniToCp437 := 170;    $00B0: UniToCp437 := 248;
+  $00B1: UniToCp437 := 241;    $00B2: UniToCp437 := 253;
+  $00B5: UniToCp437 := 230;    $00B7: UniToCp437 := 250;
+  $00BA: UniToCp437 := 167;    $00BB: UniToCp437 := 175;
+  $00BC: UniToCp437 := 172;    $00BD: UniToCp437 := 171;
+  $00BF: UniToCp437 := 168;
+  $00C0: UniToCp437 := 65;     { A grave -> A (pas de glyphe CP437) }
+  $00C2: UniToCp437 := 65;     { A circ  -> A }
+  $00C4: UniToCp437 := 142;    $00C5: UniToCp437 := 143;
+  $00C6: UniToCp437 := 146;    $00C7: UniToCp437 := 128;
+  $00C8: UniToCp437 := 69;     $00C9: UniToCp437 := 144;
+  $00CA: UniToCp437 := 69;     $00CB: UniToCp437 := 69;
+  $00CE: UniToCp437 := 73;     $00CF: UniToCp437 := 73;
+  $00D1: UniToCp437 := 165;    $00D4: UniToCp437 := 79;
+  $00D6: UniToCp437 := 153;    $00D9: UniToCp437 := 85;
+  $00DB: UniToCp437 := 85;     $00DC: UniToCp437 := 154;
+  $00DF: UniToCp437 := 225;
+  $00E0: UniToCp437 := 133;    $00E1: UniToCp437 := 160;
+  $00E2: UniToCp437 := 131;    $00E4: UniToCp437 := 132;
+  $00E5: UniToCp437 := 134;    $00E6: UniToCp437 := 145;
+  $00E7: UniToCp437 := 135;    $00E8: UniToCp437 := 138;
+  $00E9: UniToCp437 := 130;    $00EA: UniToCp437 := 136;
+  $00EB: UniToCp437 := 137;    $00EC: UniToCp437 := 141;
+  $00ED: UniToCp437 := 161;    $00EE: UniToCp437 := 140;
+  $00EF: UniToCp437 := 139;    $00F1: UniToCp437 := 164;
+  $00F2: UniToCp437 := 149;    $00F3: UniToCp437 := 162;
+  $00F4: UniToCp437 := 147;    $00F6: UniToCp437 := 148;
+  $00F7: UniToCp437 := 246;    $00F9: UniToCp437 := 151;
+  $00FA: UniToCp437 := 163;    $00FB: UniToCp437 := 150;
+  $00FC: UniToCp437 := 129;    $00FF: UniToCp437 := 152;
+  $0152: UniToCp437 := 79;     { OE ligature -> O (approx) }
+  $0153: UniToCp437 := 111;    { oe ligature -> o }
+  $2013, $2014, $2212: UniToCp437 := 45;       { tirets -> '-' }
+  $2018, $2019, $201A, $2032: UniToCp437 := 39; { quotes -> ' }
+  $201C, $201D, $201E: UniToCp437 := 34;
+  $2022: UniToCp437 := 7;      { puce }
+  $2026: UniToCp437 := 46;     { ... -> '.' (laissera 1 point) }
+  $20AC: UniToCp437 := 69;     { Euro -> 'E' }
+ End;
+End;
+
+Function Cp437ToUni(B: Byte): Word;
+Const
+ Hi128: Array[128..255] Of Word = (
+  $00C7,$00FC,$00E9,$00E2,$00E4,$00E0,$00E5,$00E7,
+  $00EA,$00EB,$00E8,$00EF,$00EE,$00EC,$00C4,$00C5,
+  $00C9,$00E6,$00C6,$00F4,$00F6,$00F2,$00FB,$00F9,
+  $00FF,$00D6,$00DC,$00A2,$00A3,$00A5,$20A7,$0192,
+  $00E1,$00ED,$00F3,$00FA,$00F1,$00D1,$00AA,$00BA,
+  $00BF,$2310,$00AC,$00BD,$00BC,$00A1,$00AB,$00BB,
+  $2591,$2592,$2593,$2502,$2524,$2561,$2562,$2556,
+  $2555,$2563,$2551,$2557,$255D,$255C,$255B,$2510,
+  $2514,$2534,$252C,$251C,$2500,$253C,$255E,$255F,
+  $255A,$2554,$2569,$2566,$2560,$2550,$256C,$2567,
+  $2568,$2564,$2565,$2559,$2558,$2552,$2553,$256B,
+  $256A,$2518,$250C,$2588,$2584,$258C,$2590,$2580,
+  $03B1,$00DF,$0393,$03C0,$03A3,$03C3,$00B5,$03C4,
+  $03A6,$0398,$03A9,$03B4,$221E,$03C6,$03B5,$2229,
+  $2261,$00B1,$2265,$2264,$2320,$2321,$00F7,$2248,
+  $00B0,$2219,$00B7,$221A,$207F,$00B2,$25A0,$00A0);
+Begin
+ If B < 128 Then Cp437ToUni := B
+ Else Cp437ToUni := Hi128[B];
+End;
+
+Function Utf8ToCp437(Const S: String): String;
+Var
+ I, L     : Integer;
+ B0,B1,B2 : Byte;
+ W        : LongInt;
+ Mapped   : Byte;
+ R        : String;
+Begin
+ R := ''; I := 1; L := Length(S);
+ While I <= L Do Begin
+  B0 := Byte(S[I]);
+  If B0 < $80 Then Begin
+   R := R + Chr(B0); Inc(I);
+  End Else If (B0 And $E0) = $C0 Then Begin
+   If I+1 > L Then Begin R := R + '?'; Inc(I); Continue; End;
+   B1 := Byte(S[I+1]);
+   W := (LongInt(B0 And $1F) Shl 6) Or (B1 And $3F);
+   Mapped := UniToCp437(Word(W));
+   If Mapped <> 0 Then R := R + Chr(Mapped) Else R := R + '?';
+   Inc(I, 2);
+  End Else If (B0 And $F0) = $E0 Then Begin
+   If I+2 > L Then Begin R := R + '?'; Inc(I); Continue; End;
+   B1 := Byte(S[I+1]); B2 := Byte(S[I+2]);
+   W := (LongInt(B0 And $0F) Shl 12) Or
+        (LongInt(B1 And $3F) Shl 6) Or (B2 And $3F);
+   If W <= $FFFF Then Mapped := UniToCp437(Word(W)) Else Mapped := 0;
+   If Mapped <> 0 Then R := R + Chr(Mapped) Else R := R + '?';
+   Inc(I, 3);
+  End Else If (B0 And $F8) = $F0 Then Begin
+   { 4 octets : hors BMP, pas de mapping }
+   R := R + '?'; Inc(I, 4);
+  End Else Begin
+   { Octet de continuation isole ou invalide }
+   R := R + '?'; Inc(I);
+  End;
+  If Length(R) >= 240 Then Begin Utf8ToCp437 := R; Exit; End;
+ End;
+ Utf8ToCp437 := R;
+End;
+
 { ---------- DOCX reader ---------- }
 
 Function LoadDocxFromFile(Const FName: String): Boolean;
@@ -5602,7 +5736,7 @@ Begin
      TLen := Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text);
      AvailLen := MAX_TEXT_LEN - TLen;
      If AvailLen > 0 Then Begin
-      TxtPiece := TokText;
+      TxtPiece := Utf8ToCp437(TokText);
       If Length(TxtPiece) > AvailLen Then TxtPiece := Copy(TxtPiece, 1, AvailLen);
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + TxtPiece;
