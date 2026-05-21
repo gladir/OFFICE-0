@@ -1616,7 +1616,7 @@ Function CursorScreenX(L: Integer): Integer;
 Var
  Off, AvailW, SpaceCnt, Slack             : Integer;
  PerSpace, Remainder, Extra, SpacesSeen   : Integer;
- I, Limit                                 : Integer;
+ I, Limit, J, LastNonSpaceAbs, EffW, Idx  : Integer;
  ParaStr, Sub                             : String;
  IsLastInPara                             : Boolean;
 Begin
@@ -1633,19 +1633,31 @@ Begin
   Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
   If Not IsLastInPara Then Begin
    AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+   { Determine la position 1-based dans le para du dernier non-espace. }
+   LastNonSpaceAbs := 0;
+   For J := 1 To VLines[L].CharLen Do Begin
+    Idx := VLines[L].CharStart + J - 1;
+    If (Idx >= 1) And (Idx <= Length(ParaStr)) Then
+     If ParaStr[Idx] <> ' ' Then LastNonSpaceAbs := Idx;
+   End;
    SpaceCnt := 0;
-   For I := VLines[L].CharStart To
-           VLines[L].CharStart + VLines[L].CharLen - 1 Do
-    If (I >= 1) And (I <= Length(ParaStr)) Then
-     If ParaStr[I] = ' ' Then Inc(SpaceCnt);
-   Slack := AvailW - VLines[L].Width;
+   If LastNonSpaceAbs > 0 Then
+    For I := VLines[L].CharStart To LastNonSpaceAbs - 1 Do
+     If (I >= 1) And (I <= Length(ParaStr)) Then
+      If ParaStr[I] = ' ' Then Inc(SpaceCnt);
+   If LastNonSpaceAbs > 0 Then
+    EffW := TextWidth(Copy(ParaStr, VLines[L].CharStart,
+                            LastNonSpaceAbs - VLines[L].CharStart + 1))
+   Else
+    EffW := 0;
+   Slack := AvailW - EffW;
    If (SpaceCnt > 0) And (Slack > 0) Then Begin
     PerSpace  := Slack Div SpaceCnt;
     Remainder := Slack Mod SpaceCnt;
     SpacesSeen := 0;
     Limit := VLines[L].CharStart + Off - 1;
     For I := VLines[L].CharStart To Limit Do
-     If (I >= 1) And (I <= Length(ParaStr)) Then
+     If (I >= 1) And (I <= Length(ParaStr)) And (I < LastNonSpaceAbs) Then
       If ParaStr[I] = ' ' Then Begin
        Inc(SpacesSeen);
        Inc(Extra, PerSpace);
@@ -1664,7 +1676,7 @@ Function LineCharScreenX(L, AbsCharIdx: Integer): Integer;
 Var
  Off, AvailW, SpaceCnt, Slack             : Integer;
  PerSpace, Remainder, Extra, SpacesSeen   : Integer;
- I, Limit                                 : Integer;
+ I, Limit, J, LastNonSpaceAbs, EffW, Idx  : Integer;
  ParaStr, Sub                             : String;
  IsLastInPara                             : Boolean;
 Begin
@@ -1680,19 +1692,30 @@ Begin
   Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
   If Not IsLastInPara Then Begin
    AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+   LastNonSpaceAbs := 0;
+   For J := 1 To VLines[L].CharLen Do Begin
+    Idx := VLines[L].CharStart + J - 1;
+    If (Idx >= 1) And (Idx <= Length(ParaStr)) Then
+     If ParaStr[Idx] <> ' ' Then LastNonSpaceAbs := Idx;
+   End;
    SpaceCnt := 0;
-   For I := VLines[L].CharStart To
-           VLines[L].CharStart + VLines[L].CharLen - 1 Do
-    If (I >= 1) And (I <= Length(ParaStr)) Then
-     If ParaStr[I] = ' ' Then Inc(SpaceCnt);
-   Slack := AvailW - VLines[L].Width;
+   If LastNonSpaceAbs > 0 Then
+    For I := VLines[L].CharStart To LastNonSpaceAbs - 1 Do
+     If (I >= 1) And (I <= Length(ParaStr)) Then
+      If ParaStr[I] = ' ' Then Inc(SpaceCnt);
+   If LastNonSpaceAbs > 0 Then
+    EffW := TextWidth(Copy(ParaStr, VLines[L].CharStart,
+                            LastNonSpaceAbs - VLines[L].CharStart + 1))
+   Else
+    EffW := 0;
+   Slack := AvailW - EffW;
    If (SpaceCnt > 0) And (Slack > 0) Then Begin
     PerSpace  := Slack Div SpaceCnt;
     Remainder := Slack Mod SpaceCnt;
     SpacesSeen := 0;
     Limit := VLines[L].CharStart + Off - 1;
     For I := VLines[L].CharStart To Limit Do
-     If (I >= 1) And (I <= Length(ParaStr)) Then
+     If (I >= 1) And (I <= Length(ParaStr)) And (I < LastNonSpaceAbs) Then
       If ParaStr[I] = ' ' Then Begin
        Inc(SpacesSeen);
        Inc(Extra, PerSpace);
@@ -1758,29 +1781,70 @@ Begin
  VLineSpaceCount := N;
 End;
 
+{ Statistiques pour la justification : exclut les espaces terminaux
+  de la ligne (sinon, le slack se deverse sur l'espace de fin de ligne
+  consomme par le wrap, ce qui rend l'expansion invisible).
+  - InterSpaceCnt : nombre d'espaces ENTRE mots (non-terminaux).
+  - EffWidth      : largeur pixel de la ligne sans les espaces terminaux.
+  - LastVisOff    : offset 1-based dans la ligne du dernier caractere
+                    non-espace (0 si la ligne ne contient que des espaces).
+  Pre-condition : SetTextStyle(DefaultFont, ...) deja actif. }
+Procedure VLineJustifyStats(L: Integer;
+                            Var InterSpaceCnt, EffWidth,
+                                LastVisOff: Integer);
+Var
+ I, Idx, LastNonSpace, Cnt : Integer;
+ ParaStr                   : String;
+Begin
+ ParaStr := ParaText(VLines[L].ParaIdx);
+ LastNonSpace := 0;
+ For I := 1 To VLines[L].CharLen Do Begin
+  Idx := VLines[L].CharStart + I - 1;
+  If (Idx >= 1) And (Idx <= Length(ParaStr)) Then
+   If ParaStr[Idx] <> ' ' Then LastNonSpace := I;
+ End;
+ LastVisOff := LastNonSpace;
+ Cnt := 0;
+ If LastNonSpace > 1 Then
+  For I := 1 To LastNonSpace - 1 Do Begin
+   Idx := VLines[L].CharStart + I - 1;
+   If (Idx >= 1) And (Idx <= Length(ParaStr)) Then
+    If ParaStr[Idx] = ' ' Then Inc(Cnt);
+  End;
+ InterSpaceCnt := Cnt;
+ If LastNonSpace > 0 Then
+  EffWidth := TextWidth(Copy(ParaStr, VLines[L].CharStart, LastNonSpace))
+ Else
+  EffWidth := 0;
+End;
+
 { Retourne True si la ligne L doit ?tre justifi?e ; renseigne Slack et
-  SpaceCnt. Slack = pixels ? r?partir entre les espaces. }
+  SpaceCnt. Slack = pixels ? r?partir entre les espaces inter-mots.
+  SpaceCnt exclut les espaces terminaux. }
 Function LineNeedsJustify(L: Integer; Var Slack, SpaceCnt: Integer): Boolean;
-Var AvailW: Integer;
+Var AvailW, EffW, LastVis: Integer;
 Begin
  LineNeedsJustify := False;
  Slack := 0; SpaceCnt := 0;
  If VLines[L].Alignment <> ALIGN_JUSTIFY Then Exit;
  If VLineIsLastInPara(L) Then Exit;
  AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
- SpaceCnt := VLineSpaceCount(L);
+ VLineJustifyStats(L, SpaceCnt, EffW, LastVis);
  If SpaceCnt = 0 Then Exit;
- Slack := AvailW - VLines[L].Width;
+ Slack := AvailW - EffW;
  If Slack <= 0 Then Begin Slack := 0; Exit; End;
  LineNeedsJustify := True;
 End;
 
 { Pixels extras ajout?s avant le caract?re ? l'offset OffInLine
-  (0..CharLen). Pour usage par CursorScreenX en mode justify. }
+  (0..CharLen). Pour usage par CursorScreenX en mode justify.
+  Les espaces terminaux ne recoivent PAS d'extra. }
 Function CursorJustifyExtra(L, OffInLine, Slack, SpaceCnt: Integer): Integer;
 Var
  I, Limit, SpacesSeen, PerSpace, Remainder, Extra : Integer;
- ParaStr : String;
+ LastVisAbs                                       : Integer;
+ EffWDummy, InterDummy, LastVis                   : Integer;
+ ParaStr                                          : String;
 Begin
  If (Slack <= 0) Or (SpaceCnt <= 0) Then Begin
   CursorJustifyExtra := 0; Exit;
@@ -1788,10 +1852,12 @@ Begin
  PerSpace  := Slack Div SpaceCnt;
  Remainder := Slack Mod SpaceCnt;
  ParaStr := ParaText(VLines[L].ParaIdx);
+ VLineJustifyStats(L, InterDummy, EffWDummy, LastVis);
+ LastVisAbs := VLines[L].CharStart + LastVis - 1;  { 1-based dans Para }
  SpacesSeen := 0; Extra := 0;
  Limit := VLines[L].CharStart + OffInLine - 1;
  For I := VLines[L].CharStart To Limit Do Begin
-  If (I >= 1) And (I <= Length(ParaStr)) Then
+  If (I >= 1) And (I <= Length(ParaStr)) And (I < LastVisAbs) Then
    If ParaStr[I] = ' ' Then Begin
     Inc(SpacesSeen);
     Inc(Extra, PerSpace);
@@ -1822,6 +1888,7 @@ Var
  IxImg, IyImg             : Integer;
  IW, IH                   : Integer;
  PB                       : ^Byte;
+ LineLastNSAbs, LastVisOff : Integer;
 Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
  For I := 1 To VLineCount Do Begin
@@ -1865,8 +1932,13 @@ Begin
   If Justify Then Begin
    PerSpace  := Slack Div SpaceCnt;
    Remainder := Slack Mod SpaceCnt;
+   { Position 1-based dans le paragraphe du dernier non-espace de la ligne :
+     les espaces strictement au-dela ne recoivent PAS de pixels extras. }
+   VLineJustifyStats(I, J, SegW, LastVisOff);
+   LineLastNSAbs := VLines[I].CharStart + LastVisOff - 1;
   End Else Begin
    PerSpace := 0; Remainder := 0;
+   LineLastNSAbs := MaxInt;
   End;
   SpacesSeen := 0;
 
@@ -1903,9 +1975,14 @@ Begin
      CharW := TextWidth(OneCh);
      ExtraThis := 0;
      If OneCh[1] = ' ' Then Begin
-      Inc(SpacesSeen);
-      ExtraThis := PerSpace;
-      If SpacesSeen <= Remainder Then Inc(ExtraThis);
+      { (SegStart + SegOff) = position 1-based dans le para de ce char.
+        Espaces terminaux : pas d'extra (sinon poussent rien et le slack
+        est gaspille sur l'espace de fin de ligne). }
+      If (SegStart + SegOff) < LineLastNSAbs Then Begin
+       Inc(SpacesSeen);
+       ExtraThis := PerSpace;
+       If SpacesSeen <= Remainder Then Inc(ExtraThis);
+      End;
      End;
      Inc(ScreenX, CharW + ExtraThis);
      If (Sty.Style And STY_BOLD) <> 0 Then Inc(ScreenX);
