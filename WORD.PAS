@@ -488,25 +488,67 @@ Begin
 End;
 
 { Dessine une cha??ne avec un caract??re soulign?? (raccourci Alt). }
+{ Retire les marqueurs '&' d'une chaine (utilise pour le calcul de largeur). }
+Function StripAmp(Const S: String): String;
+Var I: Integer; R: String;
+Begin
+ R := '';
+ I := 1;
+ While I <= Length(S) Do Begin
+  If (S[I] = '&') And (I < Length(S)) Then Begin
+   R := R + S[I+1];
+   Inc(I, 2);
+  End Else Begin
+   R := R + S[I];
+   Inc(I);
+  End;
+ End;
+ StripAmp := R;
+End;
+
 Procedure DrawTextWithAlt(X, Y: Integer; Const S: String;
                           AltCh: Char; Color: Integer);
 Var
- I, Px : Integer;
- Found : Boolean;
- Up    : Char;
+ I, Px, UX, UW : Integer;
+ Disp          : String;
+ HasAmp        : Boolean;
+ Found         : Boolean;
+ Up            : Char;
 Begin
  SetColor(Color);
- OutTextXY(X, Y, S);
+ { Analyse '&' : construit la chaine sans '&' et repere le caractere souligne. }
+ Disp := '';
+ HasAmp := False;
+ UX := X; UW := 0;
+ I := 1;
+ While I <= Length(S) Do Begin
+  If (S[I] = '&') And (I < Length(S)) Then Begin
+   HasAmp := True;
+   UX := X + TextWidth(Disp);
+   UW := TextWidth(S[I+1]);
+   Disp := Disp + S[I+1];
+   Inc(I, 2);
+  End Else Begin
+   Disp := Disp + S[I];
+   Inc(I);
+  End;
+ End;
+ OutTextXY(X, Y, Disp);
+ If HasAmp Then Begin
+  Line(UX, Y+8, UX + UW - 1, Y+8);
+  Exit;
+ End;
+ { Aucun '&' explicite : utiliser AltCh par recherche du premier caractere correspondant. }
  If AltCh = #0 Then Exit;
  Found := False;
  Px := X;
  Up := UpCase(AltCh);
- For I := 1 To Length(S) Do Begin
-  If (Not Found) And (UpCase(S[I]) = Up) Then Begin
-   Line(Px, Y+8, Px+TextWidth('M')-2, Y+8);
+ For I := 1 To Length(Disp) Do Begin
+  If (Not Found) And (UpCase(Disp[I]) = Up) Then Begin
+   Line(Px, Y+8, Px + TextWidth(Disp[I]) - 1, Y+8);
    Found := True;
   End;
-  Inc(Px, TextWidth(S[I]));
+  Inc(Px, TextWidth(Disp[I]));
  End;
 End;
 
@@ -594,90 +636,90 @@ Var I, MaxW, W, J, X: Integer;
 Begin
  MenuCount := 9;
  { --- D??finition des menus --- }
- Menus[1].Caption := '&File';   Menus[1].AltKey := 'F';
- Menus[2].Caption := '&Edit';   Menus[2].AltKey := 'E';
- Menus[3].Caption := '&View';   Menus[3].AltKey := 'V';
- Menus[4].Caption := '&Insert'; Menus[4].AltKey := 'I';
- Menus[5].Caption := 'F&ormat'; Menus[5].AltKey := 'O';
- Menus[6].Caption := '&Tools';  Menus[6].AltKey := 'T';
- Menus[7].Caption := 'T&able';  Menus[7].AltKey := 'A';
- Menus[8].Caption := '&Window'; Menus[8].AltKey := 'W';
- Menus[9].Caption := '&Help';   Menus[9].AltKey := 'H';
+ Menus[1].Caption := '&Fichier';   Menus[1].AltKey := 'F';
+ Menus[2].Caption := '&Edition';   Menus[2].AltKey := 'E';
+ Menus[3].Caption := '&Affichage'; Menus[3].AltKey := 'A';
+ Menus[4].Caption := '&Insertion'; Menus[4].AltKey := 'I';
+ Menus[5].Caption := 'F&ormat';    Menus[5].AltKey := 'O';
+ Menus[6].Caption := 'O&utils';    Menus[6].AltKey := 'U';
+ Menus[7].Caption := '&Tableau';   Menus[7].AltKey := 'T';
+ Menus[8].Caption := 'Fe&netre';   Menus[8].AltKey := 'N';
+ Menus[9].Caption := 'Ai&de';      Menus[9].AltKey := 'D';
 
- { File }
+ { Fichier }
  Menus[1].ItemCount := 7;
- SetMenuItem(1,1,'New',           'Ctrl+N','N',False, ACT_FILE_NEW);
- SetMenuItem(1,2,'Open...',       'Ctrl+O','O',False, ACT_FILE_OPEN);
- SetMenuItem(1,3,'Save',          'Ctrl+S','S',False, ACT_FILE_SAVE);
- SetMenuItem(1,4,'Save As...',    '',      'A',False, ACT_FILE_SAVEAS);
- SetMenuItem(1,5,'-',             '',      #0, True, ACT_NONE);
- SetMenuItem(1,6,'Print...',      'Ctrl+P','P',False, ACT_FILE_PRINT);
- SetMenuItem(1,7,'Exit',          'Alt+X', 'X',False, ACT_FILE_EXIT);
+ SetMenuItem(1,1,'&Nouveau',              'Ctrl+N','N',False, ACT_FILE_NEW);
+ SetMenuItem(1,2,'&Ouvrir...',            'Ctrl+O','O',False, ACT_FILE_OPEN);
+ SetMenuItem(1,3,'&Enregistrer',          'Ctrl+S','E',False, ACT_FILE_SAVE);
+ SetMenuItem(1,4,'Enregistrer &sous...',  '',      'S',False, ACT_FILE_SAVEAS);
+ SetMenuItem(1,5,'-',                     '',      #0, True, ACT_NONE);
+ SetMenuItem(1,6,'&Imprimer...',          'Ctrl+P','I',False, ACT_FILE_PRINT);
+ SetMenuItem(1,7,'&Quitter',              'Alt+X', 'Q',False, ACT_FILE_EXIT);
 
- { Edit }
+ { Edition }
  Menus[2].ItemCount := 9;
- SetMenuItem(2,1,'Undo',          'Ctrl+Z','U',False, ACT_EDIT_UNDO);
- SetMenuItem(2,2,'Redo',          'Ctrl+Y','R',False, ACT_EDIT_REDO);
- SetMenuItem(2,3,'-',             '',      #0, True, ACT_NONE);
- SetMenuItem(2,4,'Cut',           'Ctrl+X','t',False, ACT_EDIT_CUT);
- SetMenuItem(2,5,'Copy',          'Ctrl+C','C',False, ACT_EDIT_COPY);
- SetMenuItem(2,6,'Paste',         'Ctrl+V','P',False, ACT_EDIT_PASTE);
- SetMenuItem(2,7,'Find...',       'Ctrl+F','F',False, ACT_EDIT_FIND);
- SetMenuItem(2,8,'Find Next',     'F3',    'N',False, ACT_EDIT_FIND_NEXT);
- SetMenuItem(2,9,'Replace...',    'Ctrl+H','e',False, ACT_EDIT_REPL);
+ SetMenuItem(2,1,'&Annuler',              'Ctrl+Z','A',False, ACT_EDIT_UNDO);
+ SetMenuItem(2,2,'&Retablir',             'Ctrl+Y','R',False, ACT_EDIT_REDO);
+ SetMenuItem(2,3,'-',                     '',      #0, True, ACT_NONE);
+ SetMenuItem(2,4,'Co&uper',               'Ctrl+X','U',False, ACT_EDIT_CUT);
+ SetMenuItem(2,5,'&Copier',               'Ctrl+C','C',False, ACT_EDIT_COPY);
+ SetMenuItem(2,6,'Co&ller',               'Ctrl+V','L',False, ACT_EDIT_PASTE);
+ SetMenuItem(2,7,'Rec&hercher...',        'Ctrl+F','H',False, ACT_EDIT_FIND);
+ SetMenuItem(2,8,'Rechercher &suivant',   'F3',    'S',False, ACT_EDIT_FIND_NEXT);
+ SetMenuItem(2,9,'Re&mplacer...',         'Ctrl+H','M',False, ACT_EDIT_REPL);
 
- { View }
+ { Affichage }
  Menus[3].ItemCount := 4;
- SetMenuItem(3,1,'Normal',        '',      'N',False, ACT_VIEW_NORMAL);
- SetMenuItem(3,2,'Page Layout',   '',      'P',False, ACT_VIEW_PAGE);
- SetMenuItem(3,3,'Ruler',         '',      'R',False, ACT_VIEW_RULER);
- SetMenuItem(3,4,'Zoom...',       '',      'Z',False, ACT_VIEW_ZOOM);
+ SetMenuItem(3,1,'&Normal',               '',      'N',False, ACT_VIEW_NORMAL);
+ SetMenuItem(3,2,'&Mise en page',         '',      'M',False, ACT_VIEW_PAGE);
+ SetMenuItem(3,3,'&Regle',                '',      'R',False, ACT_VIEW_RULER);
+ SetMenuItem(3,4,'&Zoom...',              '',      'Z',False, ACT_VIEW_ZOOM);
 
- { Insert }
+ { Insertion }
  Menus[4].ItemCount := 4;
- SetMenuItem(4,1,'Page Break',    'Ctrl+Enter','B',False, ACT_INS_PAGEBRK);
- SetMenuItem(4,2,'Picture...',    '',      'P',False, ACT_INS_IMAGE);
- SetMenuItem(4,3,'Symbol...',     '',      'S',False, ACT_INS_SYMBOL);
- SetMenuItem(4,4,'Table...',      '',      'T',False, ACT_INS_TABLE);
+ SetMenuItem(4,1,'&Saut de page',         'Ctrl+Enter','S',False, ACT_INS_PAGEBRK);
+ SetMenuItem(4,2,'&Image...',             '',      'I',False, ACT_INS_IMAGE);
+ SetMenuItem(4,3,'Symbo&le...',           '',      'L',False, ACT_INS_SYMBOL);
+ SetMenuItem(4,4,'&Tableau...',           '',      'T',False, ACT_INS_TABLE);
 
  { Format }
  Menus[5].ItemCount := 10;
- SetMenuItem(5,1,'Font...',       '',      'F',False, ACT_FMT_FONT);
- SetMenuItem(5,2,'Paragraph...',  '',      'P',False, ACT_FMT_PARA);
- SetMenuItem(5,3,'-',             '',      #0, True, ACT_NONE);
- SetMenuItem(5,4,'Bold',          'Ctrl+B','B',False, ACT_FMT_BOLD);
- SetMenuItem(5,5,'Italic',        'Ctrl+I','I',False, ACT_FMT_ITALIC);
- SetMenuItem(5,6,'Underline',     'Ctrl+U','U',False, ACT_FMT_UNDER);
- SetMenuItem(5,7,'-',             '',      #0, True, ACT_NONE);
- SetMenuItem(5,8,'Align Left',    'Ctrl+L','L',False, ACT_FMT_LEFT);
- SetMenuItem(5,9,'Align Center',  'Ctrl+E','C',False, ACT_FMT_CENTER);
- SetMenuItem(5,10,'Align Right',  'Ctrl+R','R',False, ACT_FMT_RIGHT);
+ SetMenuItem(5,1,'&Police...',            '',      'P',False, ACT_FMT_FONT);
+ SetMenuItem(5,2,'Para&graphe...',        '',      'G',False, ACT_FMT_PARA);
+ SetMenuItem(5,3,'-',                     '',      #0, True, ACT_NONE);
+ SetMenuItem(5,4,'G&ras',                 'Ctrl+B','R',False, ACT_FMT_BOLD);
+ SetMenuItem(5,5,'&Italique',             'Ctrl+I','I',False, ACT_FMT_ITALIC);
+ SetMenuItem(5,6,'&Souligne',             'Ctrl+U','S',False, ACT_FMT_UNDER);
+ SetMenuItem(5,7,'-',                     '',      #0, True, ACT_NONE);
+ SetMenuItem(5,8,'Aligner a g&auche',     'Ctrl+L','A',False, ACT_FMT_LEFT);
+ SetMenuItem(5,9,'&Centrer',              'Ctrl+E','C',False, ACT_FMT_CENTER);
+ SetMenuItem(5,10,'Aligner a &droite',    'Ctrl+R','D',False, ACT_FMT_RIGHT);
 
- { Tools }
+ { Outils }
  Menus[6].ItemCount := 3;
- SetMenuItem(6,1,'Spelling...',   'F7',    'S',False, ACT_TLS_SPELL);
- SetMenuItem(6,2,'Word Count...', '',      'W',False, ACT_TLS_WORDS);
- SetMenuItem(6,3,'Options...',    '',      'O',False, ACT_TLS_OPTIONS);
+ SetMenuItem(6,1,'&Orthographe...',       'F7',    'O',False, ACT_TLS_SPELL);
+ SetMenuItem(6,2,'Stat&istiques...',      '',      'I',False, ACT_TLS_WORDS);
+ SetMenuItem(6,3,'O&ptions...',           '',      'P',False, ACT_TLS_OPTIONS);
 
- { Table }
+ { Tableau }
  Menus[7].ItemCount := 2;
- SetMenuItem(7,1,'Insert Table...','',     'I',False, ACT_TBL_INSERT);
- SetMenuItem(7,2,'Delete Table',  '',      'D',False, ACT_TBL_DELETE);
+ SetMenuItem(7,1,'&Inserer un tableau...','',      'I',False, ACT_TBL_INSERT);
+ SetMenuItem(7,2,'&Supprimer le tableau', '',      'S',False, ACT_TBL_DELETE);
 
- { Window }
+ { Fenetre }
  Menus[8].ItemCount := 1;
- SetMenuItem(8,1,'Cascade',       '',      'C',False, ACT_WIN_CASCADE);
+ SetMenuItem(8,1,'&Cascade',              '',      'C',False, ACT_WIN_CASCADE);
 
- { Help }
+ { Aide }
  Menus[9].ItemCount := 2;
- SetMenuItem(9,1,'Contents...',   'F1',    'C',False, ACT_HLP_CONTENT);
- SetMenuItem(9,2,'About Word...', '',      'A',False, ACT_HLP_ABOUT);
+ SetMenuItem(9,1,'&Sommaire...',          'F1',    'S',False, ACT_HLP_CONTENT);
+ SetMenuItem(9,2,'A &propos...',          '',      'P',False, ACT_HLP_ABOUT);
 
  { --- Calcul positions X dans la barre de menus --- }
  X := 6;
  For I := 1 To MenuCount Do Begin
   Menus[I].X1 := X;
-  W := TextWidth(Menus[I].Caption) + 12;   { padding }
+  W := TextWidth(StripAmp(Menus[I].Caption)) + 12;   { padding }
   Menus[I].X2 := X + W;
   X := X + W + 2;
  End;
@@ -686,7 +728,7 @@ Begin
  For I := 1 To MenuCount Do Begin
   MaxW := 0;
   For J := 1 To Menus[I].ItemCount Do Begin
-   W := TextWidth(Menus[I].Items[J].Caption);
+   W := TextWidth(StripAmp(Menus[I].Items[J].Caption));
    If Menus[I].Items[J].Shortcut <> '' Then
     W := W + 24 + TextWidth(Menus[I].Items[J].Shortcut);
    If W > MaxW Then MaxW := W;
@@ -1660,6 +1702,25 @@ Begin
  If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DOCAREA_BOTTOM) Then Exit;
  SetColor(Black);
  Line(X, Y, X, Y + LINE_HEIGHT - 2);
+End;
+
+{ Bascule (XOR) le caret texte sans repeindre tout l'ecran. }
+Procedure ToggleTextCursor;
+Var L, X, Y: Integer;
+Begin
+ If VLineCount = 0 Then Exit;
+ If ActiveMenu > 0 Then Exit;
+ L := FindCursorVLine;
+ If L = 0 Then Exit;
+ X := CursorScreenX(L);
+ Y := VLines[L].Y - ScrollY;
+ If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DOCAREA_BOTTOM) Then Exit;
+ {$IFDEF FPC} EraseSoftCursor; {$ENDIF}
+ SetWriteMode(XORPut);
+ SetColor(White);
+ Line(X, Y, X, Y + LINE_HEIGHT - 2);
+ SetWriteMode(NormalPut);
+ {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 End;
 
 { ----- Suivi curseur : auto-scroll + page courante ------------- }
@@ -7105,6 +7166,8 @@ Procedure MainLoop;
 Var
  K           : Word;
  RedrawAfter : Boolean;
+ MouseOnly   : Boolean;
+ CursorOnly  : Boolean;
  PrevMx,PrevMy: LongInt;
 Begin
  AppShouldExit := False;
@@ -7127,6 +7190,8 @@ Begin
 
  While Not AppShouldExit Do Begin
   RedrawAfter := False;
+  MouseOnly   := False;
+  CursorOnly  := False;
 
   If KeyPressed Then Begin
    K := ReadKeyEx;
@@ -7135,12 +7200,16 @@ Begin
     LayoutDocument;
     EnsureCursorVisible;
    End;
+   { Reset blink ON pendant la frappe : caret toujours visible }
+   CursorBlinkOn := True;
+   CursorBlinkCnt := 0;
    RedrawAfter := True;
   End;
 
   HandleMouse;
-  If (MsX <> PrevMx) Or (MsY <> PrevMy) Or
-     (MsBtn <> LastMsBtn) Then RedrawAfter := True;
+  If MsBtn <> LastMsBtn Then RedrawAfter := True
+  Else If (MsX <> PrevMx) Or (MsY <> PrevMy) Then MouseOnly := True;
+
   If NeedsRedraw Then Begin RedrawAfter := True; NeedsRedraw := False; End;
   If NeedsRelayout Then Begin
    LayoutDocument;
@@ -7148,18 +7217,27 @@ Begin
    RedrawAfter := True;
   End;
 
-  { Clignotement curseur texte }
+  { Clignotement curseur texte : XOR-toggle si rien d'autre a redessiner }
   Inc(CursorBlinkCnt);
   If CursorBlinkCnt >= CURSOR_BLINK_TICKS Then Begin
    CursorBlinkCnt := 0;
    CursorBlinkOn := Not CursorBlinkOn;
-   RedrawAfter := True;
+   If Not RedrawAfter Then CursorOnly := True;
   End;
 
   If RedrawAfter Then Begin
    RenderAll;
    PrevMx := MsX;
    PrevMy := MsY;
+  End Else If MouseOnly Then Begin
+   {$IFDEF FPC}
+   EraseSoftCursor;
+   DrawSoftCursor(MsX, MsY);
+   {$ENDIF}
+   PrevMx := MsX;
+   PrevMy := MsY;
+  End Else If CursorOnly Then Begin
+   ToggleTextCursor;
   End;
 
   Delay(20);
