@@ -7668,8 +7668,9 @@ Begin
    HandleKey(K);
    If NeedsRelayout Then Begin
     LayoutDocument;
-    EnsureCursorVisible;
    End;
+   { Toujours s'assurer que le curseur reste visible (defile la page si besoin). }
+   EnsureCursorVisible;
    { Reset blink ON pendant la frappe : caret toujours visible }
    CursorBlinkOn := True;
    CursorBlinkCnt := 0;
