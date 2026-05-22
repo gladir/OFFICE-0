@@ -192,6 +192,7 @@ Const
  ACT_HELP_TOPIC = 80; ACT_HELP_TUTOR = 81; ACT_HELP_ABOUT = 82;
  ACT_LINK = 90; ACT_UNLINK = 91; ACT_INDENT = 92; ACT_OUTDENT = 93;
  ACT_TASKINFO = 94; ACT_SCROLL_TASK = 95;
+ ACT_RES_SHEET = 96;
 
  ICO_NEW = 1; ICO_OPEN = 2; ICO_SAVE = 3; ICO_PRINT = 4;
  ICO_CUT = 5; ICO_COPY = 6; ICO_PASTE = 7;
@@ -2345,6 +2346,958 @@ Begin
 End;
 
 { ====================================================================== }
+{                       FRAMEWORK DIALOGUES                              }
+{ ====================================================================== }
+
+Procedure DlgFrame(X1, Y1, X2, Y2: Integer; Const Title: String);
+Begin
+ FillBox(X1 + 5, Y2 + 1, X2 + 5, Y2 + 4, CLR_BLACK);
+ FillBox(X2 + 1, Y1 + 5, X2 + 4, Y2 + 4, CLR_BLACK);
+ DrawRaised(X1, Y1, X2, Y2, CLR_DLG_BG, CLR_WIN_HI, CLR_WIN_LO);
+ FillBox(X1 + 2, Y1 + 2, X2 - 2, Y1 + 17, CLR_DLG_TITLE_BG);
+ SetColor(CLR_DLG_TITLE_FG);
+ OutTextXY(X1 + 8, Y1 + 5, Title);
+ FillBox(X2 - 18, Y1 + 4, X2 - 6, Y1 + 14, CLR_LGRAY);
+ SetColor(CLR_BLACK);
+ OutTextXY(X2 - 15, Y1 + 5, 'x');
+End;
+
+Procedure DlgBtn(X1, Y1, X2, Y2: Integer; Const Caption: String;
+                 Pressed, Focused: Boolean);
+Var Tw: Integer;
+Begin
+ If Pressed Then
+  DrawRaised(X1, Y1, X2, Y2, CLR_LGRAY, CLR_WIN_LO, CLR_WIN_HI)
+ Else
+  DrawRaised(X1, Y1, X2, Y2, CLR_LGRAY, CLR_WIN_HI, CLR_WIN_LO);
+ If Focused Then Begin
+  SetColor(CLR_BLACK);
+  Rectangle(X1 + 3, Y1 + 3, X2 - 3, Y2 - 3);
+ End;
+ SetColor(CLR_BLACK);
+ Tw := TextWidth(Caption);
+ OutTextXY(X1 + ((X2 - X1) - Tw) Div 2 + Ord(Pressed),
+           Y1 + ((Y2 - Y1) - 8) Div 2 + Ord(Pressed), Caption);
+End;
+
+Procedure DlgEdit(X1, Y1, X2, Y2: Integer; Const Text: String;
+                  Focused: Boolean; Caret: Integer);
+Var S: String; Cx: Integer;
+Begin
+ FillBox(X1, Y1, X2, Y2, CLR_WHITE);
+ SetColor(CLR_WIN_LO); Rectangle(X1, Y1, X2, Y2);
+ S := Text;
+ While (Length(S) > 0) And (TextWidth(S) > X2 - X1 - 6) Do
+  S := Copy(S, 2, Length(S) - 1);
+ SetColor(CLR_BLACK);
+ OutTextXY(X1 + 3, Y1 + 3, S);
+ If Focused And BlinkState Then Begin
+  If Caret < 0 Then Caret := Length(Text);
+  Cx := X1 + 3 + TextWidth(Copy(Text, 1, Caret));
+  If Cx > X2 - 2 Then Cx := X2 - 2;
+  VLine(Cx, Y1 + 2, Y2 - 2, CLR_BLACK);
+ End;
+End;
+
+Procedure DlgLabel(X, Y: Integer; Const S: String);
+Begin
+ SetColor(CLR_BLACK);
+ OutTextXY(X, Y, S);
+End;
+
+Procedure DlgCheck(X, Y: Integer; Const Caption: String;
+                   Checked, Focused: Boolean);
+Begin
+ FillBox(X, Y, X + 12, Y + 12, CLR_WHITE);
+ SetColor(CLR_WIN_LO); Rectangle(X, Y, X + 12, Y + 12);
+ If Checked Then Begin
+  SetColor(CLR_BLACK);
+  Line(X + 2, Y + 6, X + 5, Y + 9);
+  Line(X + 5, Y + 9, X + 10, Y + 3);
+  Line(X + 2, Y + 7, X + 5, Y + 10);
+  Line(X + 5, Y + 10, X + 10, Y + 4);
+ End;
+ SetColor(CLR_BLACK);
+ OutTextXY(X + 18, Y + 2, Caption);
+ If Focused Then Begin
+  SetColor(CLR_BLACK);
+  Rectangle(X + 16, Y, X + 20 + TextWidth(Caption), Y + 12);
+ End;
+End;
+
+Procedure DlgGroup(X1, Y1, X2, Y2: Integer; Const Caption: String);
+Begin
+ SetColor(CLR_WIN_LO);
+ Line(X1, Y1 + 4, X1, Y2);
+ Line(X1, Y2, X2, Y2);
+ Line(X2, Y2, X2, Y1 + 4);
+ Line(X1, Y1 + 4, X1 + 6, Y1 + 4);
+ Line(X1 + 14 + TextWidth(Caption), Y1 + 4, X2, Y1 + 4);
+ SetColor(CLR_WIN_HI);
+ Line(X1 + 1, Y1 + 5, X1 + 1, Y2 - 1);
+ Line(X1 + 1, Y2 - 1, X2 - 1, Y2 - 1);
+ SetColor(CLR_BLACK);
+ OutTextXY(X1 + 10, Y1, Caption);
+End;
+
+Procedure DlgTab(X, Y, W: Integer; Const Caption: String; Active: Boolean);
+Var Bg, Tw: Integer;
+Begin
+ If Active Then Bg := CLR_DLG_BG Else Bg := CLR_LGRAY;
+ FillBox(X + 2, Y, X + W - 2, Y + 22, Bg);
+ SetColor(CLR_WIN_HI);
+ Line(X, Y + 2, X + 2, Y);
+ Line(X + 2, Y, X + W - 2, Y);
+ Line(X, Y + 2, X, Y + 22);
+ SetColor(CLR_WIN_LO);
+ Line(X + W - 2, Y, X + W, Y + 2);
+ Line(X + W, Y + 2, X + W, Y + 22);
+ If Active Then Begin
+  SetColor(Bg);
+  HLine(X + 1, X + W - 1, Y + 22, Bg);
+ End;
+ SetColor(CLR_BLACK);
+ Tw := TextWidth(Caption);
+ OutTextXY(X + (W - Tw) Div 2, Y + 7, Caption);
+End;
+
+{ Modal helpers: wait for redraw needs etc. }
+Var DlgNeedRedraw: Boolean;
+    DlgResult: Integer;     { 0=none, 1=OK, 2=Cancel }
+
+Procedure DlgPumpRedraw;
+Begin
+ If DlgNeedRedraw Then DlgNeedRedraw := False;
+End;
+
+{ ====================================================================== }
+{                       DIALOGUE INFOS PROJET                            }
+{ ====================================================================== }
+
+Procedure DoProjectInfoDialog;
+Var X1, Y1, X2, Y2: Integer;
+    BufTitle, BufMgr, BufComp, BufStart, BufStatus, BufNotes: String;
+    Focus, I: Integer;
+    Buf: ^String;
+    Caret: Integer;
+    K, K2: Char;
+    Done: Boolean;
+    BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2: Integer;
+    BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2: Integer;
+    NewStart: TDate;
+
+  Procedure FocusBuf;
+  Begin
+   Case Focus Of
+    0: Buf := @BufTitle;
+    1: Buf := @BufMgr;
+    2: Buf := @BufComp;
+    3: Buf := @BufStart;
+    4: Buf := @BufStatus;
+    5: Buf := @BufNotes;
+   Else Buf := Nil;
+   End;
+   If Buf <> Nil Then Caret := Length(Buf^);
+  End;
+
+  Procedure DrawDlg;
+  Var L: Integer;
+  Begin
+   HideMouse;
+   DlgFrame(X1, Y1, X2, Y2, 'Informations sur le projet');
+   L := X1 + 20;
+   DlgLabel(L, Y1 + 36, 'Titre :');
+   DlgEdit (L + 100, Y1 + 32, L + 320, Y1 + 50, BufTitle,  Focus = 0,
+            Caret * Ord(Focus = 0));
+   DlgLabel(L, Y1 + 60, 'Gestionnaire :');
+   DlgEdit (L + 100, Y1 + 56, L + 320, Y1 + 74, BufMgr,    Focus = 1,
+            Caret * Ord(Focus = 1));
+   DlgLabel(L, Y1 + 84, 'Societe :');
+   DlgEdit (L + 100, Y1 + 80, L + 320, Y1 + 98, BufComp,   Focus = 2,
+            Caret * Ord(Focus = 2));
+   DlgLabel(L, Y1 + 108, 'Date debut :');
+   DlgEdit (L + 100, Y1 + 104, L + 200, Y1 + 122, BufStart, Focus = 3,
+            Caret * Ord(Focus = 3));
+   DlgLabel(L + 210, Y1 + 108, 'Etat :');
+   DlgEdit (L + 260, Y1 + 104, L + 360, Y1 + 122, BufStatus, Focus = 4,
+            Caret * Ord(Focus = 4));
+   DlgLabel(L, Y1 + 132, 'Fin calculee :');
+   SetColor(CLR_BLACK);
+   OutTextXY(L + 100, Y1 + 132, ShortDateStr(Project.FinishDate)
+             + '   Duree : '
+             + IntToStr(Project.FinishDate - Project.StartDate + 1) + ' j');
+   DlgLabel(L, Y1 + 156, 'Notes :');
+   DlgEdit (L + 100, Y1 + 152, L + 320, Y1 + 170, BufNotes,   Focus = 5,
+            Caret * Ord(Focus = 5));
+   DlgLabel(L, Y1 + 184, 'Calendrier : Standard');
+   DlgLabel(L, Y1 + 200, 'Taches : ' + IntToStr(Project.TaskCount)
+            + '    Ressources : ' + IntToStr(Project.ResCount));
+   DlgBtn(BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2, 'OK',     False, Focus = 6);
+   DlgBtn(BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2, 'Annuler', False, Focus = 7);
+   ShowMouse;
+  End;
+
+  Procedure Validate;
+  Begin
+   Project.Title   := Copy(BufTitle,  1, 60);
+   Project.Manager := Copy(BufMgr,    1, 40);
+   Project.Company := Copy(BufComp,   1, 40);
+   If ParseDateStr(BufStart, NewStart) Then Project.StartDate := NewStart;
+   If ParseDateStr(BufStatus, NewStart) Then Project.StatusDate := NewStart;
+   Project.Comments := Copy(BufNotes, 1, 120);
+   Project.Dirty := True;
+   CPMRecompute;
+  End;
+
+  Procedure HandleChar(C: Char);
+  Begin
+   If Buf = Nil Then Exit;
+   If (C >= ' ') And (Length(Buf^) < 120) Then Begin
+    Insert(C, Buf^, Caret + 1);
+    Inc(Caret);
+   End;
+  End;
+
+Begin
+ X1 := 140; Y1 := 80; X2 := 500; Y2 := 380;
+ BtnOkX1 := X2 - 180; BtnOkY1 := Y2 - 38; BtnOkX2 := X2 - 110; BtnOkY2 := Y2 - 14;
+ BtnCnX1 := X2 - 100; BtnCnY1 := Y2 - 38; BtnCnX2 := X2 - 30;  BtnCnY2 := Y2 - 14;
+ BufTitle := Project.Title;
+ BufMgr   := Project.Manager;
+ BufComp  := Project.Company;
+ BufStart := ShortDateStr(Project.StartDate);
+ BufStatus:= ShortDateStr(Project.StatusDate);
+ BufNotes := Project.Comments;
+ Focus := 0;
+ FocusBuf;
+ Done := False;
+ DrawDlg;
+ Repeat
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #15: Begin                              { Shift+Tab }
+           If Focus > 0 Then Dec(Focus) Else Focus := 7;
+           FocusBuf;
+          End;
+     #75: If (Buf <> Nil) And (Caret > 0) Then Dec(Caret);
+     #77: If (Buf <> Nil) And (Caret < Length(Buf^)) Then Inc(Caret);
+     #71: If Buf <> Nil Then Caret := 0;
+     #79: If Buf <> Nil Then Caret := Length(Buf^);
+     #83: If (Buf <> Nil) And (Caret < Length(Buf^)) Then
+           Delete(Buf^, Caret + 1, 1);
+    End;
+   End
+   Else
+    Case K Of
+     #9:  Begin
+           If Focus < 7 Then Inc(Focus) Else Focus := 0;
+           FocusBuf;
+          End;
+     #13: Begin Validate; Done := True; End;
+     #27: Done := True;
+     #8:  If (Buf <> Nil) And (Caret > 0) Then Begin
+           Delete(Buf^, Caret, 1); Dec(Caret);
+          End;
+    Else HandleChar(K);
+    End;
+   BlinkState := True;
+   DrawDlg;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2) Then
+    Begin Validate; Done := True; End
+   Else If InRect(Mouse.X, Mouse.Y, BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2) Then
+    Done := True
+   Else Begin
+    For I := 0 To 5 Do
+     If InRect(Mouse.X, Mouse.Y, X1 + 120, Y1 + 32 + I * 24,
+               X1 + 340, Y1 + 50 + I * 24) Then Begin
+      Focus := I; FocusBuf; DrawDlg; Break;
+     End;
+   End;
+  End;
+  Inc(TickCount);
+  If TickCount Mod 8 = 0 Then Begin
+   BlinkState := Not BlinkState;
+   If Focus <= 5 Then DrawDlg;
+  End;
+ Until Done;
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{                       DIALOGUE INFOS TACHE                             }
+{ ====================================================================== }
+
+Procedure DoTaskInfoDialog;
+Var X1, Y1, X2, Y2: Integer;
+    Tab, Focus, I, J: Integer;
+    BufName, BufDur, BufStart, BufFinish, BufPct, BufPrio,
+    BufWBS, BufCost, BufWork, BufNotes, BufRes,
+    BufPred, BufConstrDt: String;
+    BufConstr: Integer;
+    BufMilestone, BufSummary: Boolean;
+    Buf: ^String;
+    Caret: Integer;
+    K, K2: Char; Done: Boolean;
+    BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2: Integer;
+    BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2: Integer;
+    T: PTask;
+    Tabs: Array[0..3] Of String;
+    TabX: Array[0..3] Of Integer;
+    NewDt: TDate;
+
+  Procedure FocusBuf;
+  Begin
+   Buf := Nil;
+   Case Tab Of
+    0: Case Focus Of                  { General }
+        0: Buf := @BufName;
+        1: Buf := @BufDur;
+        2: Buf := @BufStart;
+        3: Buf := @BufFinish;
+        4: Buf := @BufPct;
+        5: Buf := @BufPrio;
+       End;
+    1: Case Focus Of                  { Predecesseurs }
+        0: Buf := @BufPred;
+       End;
+    2: Case Focus Of                  { Ressources }
+        0: Buf := @BufRes;
+       End;
+    3: Case Focus Of                  { Avancees }
+        0: Buf := @BufWBS;
+        1: Buf := @BufCost;
+        2: Buf := @BufWork;
+        3: Buf := @BufConstrDt;
+        4: Buf := @BufNotes;
+       End;
+   End;
+   If Buf <> Nil Then Caret := Length(Buf^);
+  End;
+
+  Function ConstrName(C: Integer): String;
+  Begin
+   Case C Of
+    CT_ASAP:    ConstrName := 'Des que possible';
+    CT_ALAP:    ConstrName := 'Le plus tard possible';
+    CT_MSO:     ConstrName := 'Doit commencer le';
+    CT_MFO:     ConstrName := 'Doit finir le';
+    CT_SNET:    ConstrName := 'Debut au plus tot le';
+    CT_FNLT:    ConstrName := 'Fin au plus tard le';
+   Else ConstrName := '?';
+   End;
+  End;
+
+  Procedure DrawTabs;
+  Var IT: Integer;
+  Begin
+   For IT := 0 To 3 Do
+    DlgTab(TabX[IT], Y1 + 24, 90, Tabs[IT], IT = Tab);
+   SetColor(CLR_WIN_HI);
+   HLine(X1 + 8, X2 - 8, Y1 + 46, CLR_WIN_HI);
+  End;
+
+  Procedure DrawGeneral;
+  Var L: Integer;
+  Begin
+   L := X1 + 20;
+   DlgLabel(L, Y1 + 64, 'Nom :');
+   DlgEdit (L + 80, Y1 + 60, L + 340, Y1 + 78, BufName, (Focus = 0), Caret * Ord(Focus = 0));
+   DlgLabel(L, Y1 + 88, 'Duree :');
+   DlgEdit (L + 80, Y1 + 84, L + 180, Y1 + 102, BufDur, (Focus = 1), Caret * Ord(Focus = 1));
+   DlgLabel(L + 200, Y1 + 88, '% acheve :');
+   DlgEdit (L + 280, Y1 + 84, L + 340, Y1 + 102, BufPct, (Focus = 4), Caret * Ord(Focus = 4));
+   DlgLabel(L, Y1 + 112, 'Debut :');
+   DlgEdit (L + 80, Y1 + 108, L + 180, Y1 + 126, BufStart, (Focus = 2), Caret * Ord(Focus = 2));
+   DlgLabel(L + 200, Y1 + 112, 'Fin :');
+   DlgEdit (L + 280, Y1 + 108, L + 380, Y1 + 126, BufFinish, (Focus = 3), Caret * Ord(Focus = 3));
+   DlgLabel(L, Y1 + 136, 'Priorite :');
+   DlgEdit (L + 80, Y1 + 132, L + 140, Y1 + 150, BufPrio, (Focus = 5), Caret * Ord(Focus = 5));
+   DlgCheck(L + 200, Y1 + 134, 'Jalon',      BufMilestone, Focus = 6);
+   DlgCheck(L + 280, Y1 + 134, 'Recap.',     BufSummary,   Focus = 7);
+   DlgLabel(L, Y1 + 160, 'Marge totale : ' + IntToStr(T^.TotalSlack) + ' j');
+   DlgLabel(L + 200, Y1 + 160, 'Marge libre : ' + IntToStr(T^.FreeSlack) + ' j');
+   If T^.Critical Then DlgLabel(L, Y1 + 178, 'TACHE CRITIQUE');
+  End;
+
+  Procedure DrawPredecessors;
+  Var L, Y, IP, PIdx: Integer; P: PTask; LT: String;
+  Begin
+   L := X1 + 20;
+   DlgLabel(L, Y1 + 60, 'Liste des predecesseurs (Id, Type, Decalage) :');
+   For IP := 1 To T^.PredCount Do Begin
+    Y := Y1 + 80 + (IP - 1) * 16;
+    If Y > Y2 - 80 Then Break;
+    PIdx := FindTaskByIdField(T^.Pred[IP].TaskId);
+    Case T^.Pred[IP].LinkType Of
+     LT_FS: LT := 'FD';
+     LT_SS: LT := 'DD';
+     LT_FF: LT := 'FF';
+     LT_SF: LT := 'DF';
+    Else LT := '??';
+    End;
+    SetColor(CLR_BLACK);
+    OutTextXY(L, Y, IntToStr(T^.Pred[IP].TaskId) + '  ' + LT + '  '
+              + IntToStr(T^.Pred[IP].Lag) + 'j  ');
+    If (PIdx > 0) And (Project.Tasks[PIdx] <> Nil) Then
+     OutTextXY(L + 140, Y, Project.Tasks[PIdx]^.Name);
+   End;
+   DlgLabel(L, Y2 - 70, 'Saisir (ex: 3FD+2j, 5DD) :');
+   DlgEdit (L + 180, Y2 - 74, L + 340, Y2 - 56, BufPred, Focus = 0,
+            Caret * Ord(Focus = 0));
+   DlgBtn  (L + 350, Y2 - 76, L + 410, Y2 - 56, 'Ajouter', False, False);
+  End;
+
+  Procedure DrawResources;
+  Var L, Y, IR: Integer;
+  Begin
+   L := X1 + 20;
+   DlgLabel(L, Y1 + 60, 'Ressources affectees :');
+   SetColor(CLR_BLACK);
+   OutTextXY(L, Y1 + 80, T^.Resources);
+   DlgLabel(L, Y1 + 110, 'Pool de ressources :');
+   For IR := 1 To Project.ResCount Do Begin
+    Y := Y1 + 130 + (IR - 1) * 14;
+    If Y > Y2 - 80 Then Break;
+    If Project.Resources[IR] <> Nil Then
+     OutTextXY(L + 20, Y, IntToStr(IR) + '. '
+               + Project.Resources[IR]^.Name + '  ('
+               + Project.Resources[IR]^.Initials + ')');
+   End;
+   DlgLabel(L, Y2 - 70, 'Editer (CSV) :');
+   DlgEdit (L + 100, Y2 - 74, L + 420, Y2 - 56, BufRes, Focus = 0,
+            Caret * Ord(Focus = 0));
+  End;
+
+  Procedure DrawAdvanced;
+  Var L: Integer;
+  Begin
+   L := X1 + 20;
+   DlgLabel(L, Y1 + 64, 'WBS :');
+   DlgEdit (L + 100, Y1 + 60, L + 260, Y1 + 78, BufWBS, Focus = 0,
+            Caret * Ord(Focus = 0));
+   DlgLabel(L, Y1 + 88, 'Cout fixe :');
+   DlgEdit (L + 100, Y1 + 84, L + 260, Y1 + 102, BufCost, Focus = 1,
+            Caret * Ord(Focus = 1));
+   DlgLabel(L, Y1 + 112, 'Travail (h) :');
+   DlgEdit (L + 100, Y1 + 108, L + 260, Y1 + 126, BufWork, Focus = 2,
+            Caret * Ord(Focus = 2));
+   DlgLabel(L, Y1 + 136, 'Contrainte :');
+   SetColor(CLR_WIN_LO);
+   Rectangle(L + 100, Y1 + 132, L + 280, Y1 + 150);
+   SetColor(CLR_BLACK);
+   OutTextXY(L + 104, Y1 + 135, ConstrName(BufConstr));
+   DlgLabel(L + 290, Y1 + 136, 'Date :');
+   DlgEdit (L + 340, Y1 + 132, L + 440, Y1 + 150, BufConstrDt, Focus = 3,
+            Caret * Ord(Focus = 3));
+   DlgLabel(L, Y1 + 160, 'Notes :');
+   DlgEdit (L + 100, Y1 + 156, L + 440, Y1 + 174, BufNotes, Focus = 4,
+            Caret * Ord(Focus = 4));
+  End;
+
+  Procedure DrawDlg;
+  Begin
+   HideMouse;
+   DlgFrame(X1, Y1, X2, Y2, 'Informations sur la tache - '
+            + IntToStr(T^.Id) + ' ' + T^.Name);
+   DrawTabs;
+   FillBox(X1 + 4, Y1 + 47, X2 - 4, Y2 - 50, CLR_DLG_BG);
+   Case Tab Of
+    0: DrawGeneral;
+    1: DrawPredecessors;
+    2: DrawResources;
+    3: DrawAdvanced;
+   End;
+   DlgBtn(BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2, 'OK', False, False);
+   DlgBtn(BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2, 'Annuler', False, False);
+   ShowMouse;
+  End;
+
+  Procedure CycleConstr;
+  Begin
+   Inc(BufConstr);
+   If BufConstr > CT_FNLT Then BufConstr := CT_ASAP;
+  End;
+
+  Procedure ParsePredAdd;
+  Var S: String; IT, K3, Lag: Integer; LtCode: Integer; TaskRef: Integer;
+  Begin
+   S := TrimStr(BufPred);
+   If S = '' Then Exit;
+   K3 := 1;
+   While (K3 <= Length(S)) And (S[K3] >= '0') And (S[K3] <= '9') Do Inc(K3);
+   TaskRef := StrToIntDef(Copy(S, 1, K3 - 1), 0);
+   If TaskRef = 0 Then Exit;
+   LtCode := LT_FS;
+   If K3 + 1 <= Length(S) Then Begin
+    If (UpCase(S[K3]) = 'F') And (UpCase(S[K3 + 1]) = 'D') Then LtCode := LT_FS
+    Else If (UpCase(S[K3]) = 'D') And (UpCase(S[K3 + 1]) = 'D') Then LtCode := LT_SS
+    Else If (UpCase(S[K3]) = 'F') And (UpCase(S[K3 + 1]) = 'F') Then LtCode := LT_FF
+    Else If (UpCase(S[K3]) = 'D') And (UpCase(S[K3 + 1]) = 'F') Then LtCode := LT_SF;
+    Inc(K3, 2);
+   End;
+   Lag := 0;
+   If K3 <= Length(S) Then Begin
+    IT := K3;
+    If (S[K3] = '+') Or (S[K3] = '-') Then Inc(K3);
+    While (K3 <= Length(S)) And (S[K3] >= '0') And (S[K3] <= '9') Do Inc(K3);
+    Lag := StrToIntDef(Copy(S, IT, K3 - IT), 0);
+   End;
+   If T^.PredCount >= MAX_PRED Then Exit;
+   Inc(T^.PredCount);
+   T^.Pred[T^.PredCount].TaskId   := TaskRef;
+   T^.Pred[T^.PredCount].LinkType := LtCode;
+   T^.Pred[T^.PredCount].Lag      := Lag;
+   BufPred := '';
+   Caret := 0;
+  End;
+
+  Procedure Validate;
+  Begin
+   T^.Name     := Copy(BufName, 1, 60);
+   T^.Duration := StrToIntDef(BufDur, T^.Duration Div 10) * 10;
+   If ParseDateStr(BufStart, NewDt) Then T^.Start := NewDt;
+   If ParseDateStr(BufFinish, NewDt) Then T^.Finish := NewDt;
+   T^.PercentDone := StrToIntDef(BufPct, T^.PercentDone);
+   If T^.PercentDone > 100 Then T^.PercentDone := 100;
+   T^.Priority := StrToIntDef(BufPrio, T^.Priority);
+   T^.IsMilestone := BufMilestone;
+   T^.IsSummary   := BufSummary;
+   T^.WBS    := Copy(BufWBS, 1, 20);
+   T^.Cost   := StrToIntDef(BufCost, T^.Cost Div 100) * 100;
+   T^.Work   := StrToIntDef(BufWork, T^.Work Div 10) * 10;
+   T^.ConstraintTyp := BufConstr;
+   If ParseDateStr(BufConstrDt, NewDt) Then T^.ConstraintDt := NewDt;
+   T^.Notes  := Copy(BufNotes, 1, 120);
+   T^.Resources := Copy(BufRes, 1, 60);
+   Project.Dirty := True;
+   CPMRecompute;
+  End;
+
+  Procedure HandleChar(C: Char);
+  Begin
+   If Buf = Nil Then Exit;
+   If (C >= ' ') And (Length(Buf^) < 120) Then Begin
+    Insert(C, Buf^, Caret + 1);
+    Inc(Caret);
+   End;
+  End;
+
+Begin
+ If (CurTaskIdx < 1) Or (CurTaskIdx > Project.TaskCount) Then Exit;
+ T := Project.Tasks[CurTaskIdx];
+ If T = Nil Then Exit;
+ X1 := 80; Y1 := 50; X2 := 560; Y2 := 420;
+ BtnOkX1 := X2 - 180; BtnOkY1 := Y2 - 38; BtnOkX2 := X2 - 110; BtnOkY2 := Y2 - 14;
+ BtnCnX1 := X2 - 100; BtnCnY1 := Y2 - 38; BtnCnX2 := X2 - 30;  BtnCnY2 := Y2 - 14;
+ Tabs[0] := 'General';
+ Tabs[1] := 'Predecesseurs';
+ Tabs[2] := 'Ressources';
+ Tabs[3] := 'Avancees';
+ For I := 0 To 3 Do TabX[I] := X1 + 10 + I * 92;
+ BufName    := T^.Name;
+ BufDur     := IntToStr(T^.Duration Div 10);
+ BufStart   := ShortDateStr(T^.Start);
+ BufFinish  := ShortDateStr(T^.Finish);
+ BufPct     := IntToStr(T^.PercentDone);
+ BufPrio    := IntToStr(T^.Priority);
+ BufMilestone := T^.IsMilestone;
+ BufSummary   := T^.IsSummary;
+ BufWBS     := T^.WBS;
+ BufCost    := IntToStr(T^.Cost Div 100);
+ BufWork    := IntToStr(T^.Work Div 10);
+ BufConstr  := T^.ConstraintTyp;
+ BufConstrDt:= ShortDateStr(T^.ConstraintDt);
+ BufNotes   := T^.Notes;
+ BufRes     := T^.Resources;
+ BufPred    := '';
+ Tab := 0; Focus := 0;
+ FocusBuf;
+ Done := False;
+ DrawDlg;
+ Repeat
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #75: If (Buf <> Nil) And (Caret > 0) Then Dec(Caret);
+     #77: If (Buf <> Nil) And (Caret < Length(Buf^)) Then Inc(Caret);
+     #71: If Buf <> Nil Then Caret := 0;
+     #79: If Buf <> Nil Then Caret := Length(Buf^);
+     #83: If (Buf <> Nil) And (Caret < Length(Buf^)) Then
+           Delete(Buf^, Caret + 1, 1);
+     #59,#60,#61,#62: Begin                 { F1..F4 = changement onglet }
+      Tab := Ord(K2) - 59;
+      Focus := 0; FocusBuf;
+     End;
+    End;
+   End
+   Else
+    Case K Of
+     #9:  Begin
+           Inc(Focus);
+           Case Tab Of
+            0: If Focus > 7 Then Begin
+                Focus := 0;
+                Inc(Tab); If Tab > 3 Then Tab := 0;
+               End;
+            1: If Focus > 0 Then Begin Focus := 0; Inc(Tab); If Tab > 3 Then Tab := 0; End;
+            2: If Focus > 0 Then Begin Focus := 0; Inc(Tab); If Tab > 3 Then Tab := 0; End;
+            3: If Focus > 4 Then Begin Focus := 0; Inc(Tab); If Tab > 3 Then Tab := 0; End;
+           End;
+           FocusBuf;
+          End;
+     #13: Begin
+           If (Tab = 0) And (Focus = 6) Then BufMilestone := Not BufMilestone
+           Else If (Tab = 0) And (Focus = 7) Then BufSummary := Not BufSummary
+           Else If Tab = 1 Then ParsePredAdd
+           Else Begin Validate; Done := True; End;
+          End;
+     #27: Done := True;
+     #32: If (Tab = 0) And (Focus = 6) Then BufMilestone := Not BufMilestone
+          Else If (Tab = 0) And (Focus = 7) Then BufSummary := Not BufSummary
+          Else HandleChar(K);
+     #8:  If (Buf <> Nil) And (Caret > 0) Then Begin
+           Delete(Buf^, Caret, 1); Dec(Caret);
+          End;
+    Else HandleChar(K);
+    End;
+   BlinkState := True;
+   DrawDlg;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2) Then
+    Begin Validate; Done := True; End
+   Else If InRect(Mouse.X, Mouse.Y, BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2) Then
+    Done := True
+   Else Begin
+    For J := 0 To 3 Do
+     If InRect(Mouse.X, Mouse.Y, TabX[J], Y1 + 24, TabX[J] + 88, Y1 + 46) Then Begin
+      Tab := J; Focus := 0; FocusBuf; DrawDlg; Break;
+     End;
+    If (Tab = 3) And InRect(Mouse.X, Mouse.Y, X1 + 120, Y1 + 132,
+                              X1 + 300, Y1 + 150) Then Begin
+     CycleConstr; DrawDlg;
+    End;
+   End;
+  End;
+  Inc(TickCount);
+  If TickCount Mod 8 = 0 Then Begin
+   BlinkState := Not BlinkState;
+   If Buf <> Nil Then DrawDlg;
+  End;
+ Until Done;
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{                       DIALOGUE TABLEAU RESSOURCES                      }
+{ ====================================================================== }
+
+Procedure DoResourceSheetDialog;
+Var X1, Y1, X2, Y2: Integer;
+    SelRow, ScrollY, FocusCol: Integer;
+    EditingCell: Boolean;
+    Caret: Integer;
+    EditTxt: String;
+    K, K2: Char; Done: Boolean;
+    BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2: Integer;
+    BtnAddX1, BtnAddX2: Integer;
+    BtnDelX1, BtnDelX2: Integer;
+    BtnY1, BtnY2: Integer;
+    RowH, HdrY, BodyY1, BodyY2: Integer;
+    ColX: Array[0..6] Of Integer;
+    ColW: Array[0..5] Of Integer;
+    ColLbl: Array[0..5] Of String;
+    I, J, RowCnt: Integer;
+    R: PResource;
+
+  Function VisibleRows: Integer;
+  Begin
+   VisibleRows := (BodyY2 - BodyY1) Div RowH;
+  End;
+
+  Procedure CellTextOf(R: PResource; Col: Integer; Var S: String);
+  Begin
+   Case Col Of
+    0: S := IntToStr(R^.Id);
+    1: S := R^.Name;
+    2: S := R^.Initials;
+    3: S := R^.Grp;
+    4: S := IntToStr(R^.MaxUnits) + '%';
+    5: S := IntToStr(R^.StdRate Div 100);
+   Else S := '';
+   End;
+  End;
+
+  Procedure CommitCell;
+  Var V: LongInt;
+  Begin
+   If Not EditingCell Then Exit;
+   If (SelRow < 1) Or (SelRow > Project.ResCount) Then Begin
+    EditingCell := False; Exit;
+   End;
+   R := Project.Resources[SelRow];
+   If R = Nil Then Begin EditingCell := False; Exit; End;
+   Case FocusCol Of
+    1: R^.Name := Copy(EditTxt, 1, 40);
+    2: R^.Initials := Copy(EditTxt, 1, 8);
+    3: R^.Grp    := Copy(EditTxt, 1, 20);
+    4: Begin
+        V := StrToIntDef(EditTxt, 100);
+        If V < 0 Then V := 0; If V > 1000 Then V := 1000;
+        R^.MaxUnits := V;
+       End;
+    5: Begin
+        V := StrToIntDef(EditTxt, 0);
+        R^.StdRate := V * 100;
+       End;
+   End;
+   EditingCell := False;
+   Project.Dirty := True;
+  End;
+
+  Procedure StartEdit;
+  Var S: String;
+  Begin
+   If FocusCol = 0 Then Exit;
+   If (SelRow < 1) Or (SelRow > Project.ResCount) Then Exit;
+   R := Project.Resources[SelRow];
+   If R = Nil Then Exit;
+   CellTextOf(R, FocusCol, S);
+   EditTxt := S;
+   Caret := Length(EditTxt);
+   EditingCell := True;
+  End;
+
+  Procedure DrawHdr;
+  Var IC, Cx: Integer;
+  Begin
+   FillBox(X1 + 8, HdrY, X2 - 8, HdrY + RowH - 1, CLR_LGRAY);
+   SetColor(CLR_WIN_LO);
+   HLine(X1 + 8, X2 - 8, HdrY + RowH - 1, CLR_WIN_LO);
+   For IC := 0 To 5 Do Begin
+    Cx := ColX[IC];
+    SetColor(CLR_BLACK);
+    OutTextXY(Cx + 4, HdrY + 4, ColLbl[IC]);
+    SetColor(CLR_WIN_LO);
+    VLine(ColX[IC + 1] - 1, HdrY, HdrY + RowH - 1, CLR_WIN_LO);
+   End;
+  End;
+
+  Procedure DrawRow(RowIdx, ResIdx: Integer);
+  Var Y, IC, Cx: Integer; Rr: PResource; S: String; Bg, Fg: Integer;
+  Begin
+   Y := BodyY1 + RowIdx * RowH;
+   If Y + RowH > BodyY2 Then Exit;
+   If ResIdx = SelRow Then Begin Bg := CLR_GRID_SEL_BG; Fg := CLR_WHITE; End
+   Else Begin Bg := CLR_WHITE; Fg := CLR_BLACK; End;
+   FillBox(X1 + 8, Y, X2 - 8, Y + RowH - 1, Bg);
+   If (ResIdx < 1) Or (ResIdx > Project.ResCount) Then Exit;
+   Rr := Project.Resources[ResIdx];
+   If Rr = Nil Then Exit;
+   For IC := 0 To 5 Do Begin
+    Cx := ColX[IC];
+    CellTextOf(Rr, IC, S);
+    If EditingCell And (ResIdx = SelRow) And (IC = FocusCol) Then Begin
+     FillBox(Cx + 1, Y + 1, ColX[IC + 1] - 2, Y + RowH - 2, CLR_WHITE);
+     SetColor(CLR_BLACK);
+     OutTextXY(Cx + 4, Y + 4, EditTxt);
+     If BlinkState Then
+      VLine(Cx + 4 + TextWidth(Copy(EditTxt, 1, Caret)),
+            Y + 2, Y + RowH - 3, CLR_BLACK);
+    End
+    Else Begin
+     SetColor(Fg);
+     OutTextXY(Cx + 4, Y + 4, S);
+    End;
+    SetColor(CLR_GRID_LINE);
+    VLine(ColX[IC + 1] - 1, Y, Y + RowH - 1, CLR_GRID_LINE);
+   End;
+   HLine(X1 + 8, X2 - 8, Y + RowH - 1, CLR_GRID_LINE);
+  End;
+
+  Procedure DrawDlg;
+  Var IR: Integer;
+  Begin
+   HideMouse;
+   DlgFrame(X1, Y1, X2, Y2, 'Tableau des ressources');
+   DrawHdr;
+   RowCnt := VisibleRows;
+   For IR := 0 To RowCnt - 1 Do
+    DrawRow(IR, ScrollY + IR + 1);
+   DlgBtn(BtnAddX1, BtnY1, BtnAddX2, BtnY2, 'Ajouter', False, False);
+   DlgBtn(BtnDelX1, BtnY1, BtnDelX2, BtnY2, 'Supprimer', False, False);
+   DlgBtn(BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2, 'OK', False, False);
+   ShowMouse;
+  End;
+
+  Procedure AddResource;
+  Var Rn: PResource;
+  Begin
+   If Project.ResCount >= MAX_RESOURCES Then Exit;
+   Rn := NewResource;
+   Inc(Project.ResCount);
+   Rn^.Id := Project.ResCount;
+   Rn^.Name := 'Nouvelle ressource';
+   Rn^.Initials := 'NR';
+   Rn^.MaxUnits := 100;
+   Rn^.StdRate := 5000;
+   Project.Resources[Project.ResCount] := Rn;
+   SelRow := Project.ResCount;
+   Project.Dirty := True;
+  End;
+
+  Procedure DelResource;
+  Var IX: Integer;
+  Begin
+   If (SelRow < 1) Or (SelRow > Project.ResCount) Then Exit;
+   If Project.Resources[SelRow] <> Nil Then
+    FreeMem(Project.Resources[SelRow], SizeOf(TResource));
+   For IX := SelRow To Project.ResCount - 1 Do Begin
+    Project.Resources[IX] := Project.Resources[IX + 1];
+    If Project.Resources[IX] <> Nil Then Project.Resources[IX]^.Id := IX;
+   End;
+   Project.Resources[Project.ResCount] := Nil;
+   Dec(Project.ResCount);
+   If SelRow > Project.ResCount Then SelRow := Project.ResCount;
+   If SelRow < 1 Then SelRow := 1;
+   Project.Dirty := True;
+  End;
+
+  Procedure HandleChar(C: Char);
+  Begin
+   If Not EditingCell Then Exit;
+   If (C >= ' ') And (Length(EditTxt) < 60) Then Begin
+    Insert(C, EditTxt, Caret + 1);
+    Inc(Caret);
+   End;
+  End;
+
+  Procedure EnsureVisible;
+  Begin
+   If SelRow - 1 < ScrollY Then ScrollY := SelRow - 1;
+   If SelRow - 1 >= ScrollY + VisibleRows Then
+    ScrollY := SelRow - VisibleRows;
+   If ScrollY < 0 Then ScrollY := 0;
+  End;
+
+Begin
+ X1 := 60; Y1 := 60; X2 := 580; Y2 := 410;
+ RowH := 16;
+ HdrY := Y1 + 28;
+ BodyY1 := HdrY + RowH;
+ BodyY2 := Y2 - 50;
+ BtnOkY1 := Y2 - 38; BtnOkY2 := Y2 - 14;
+ BtnOkX1 := X2 - 100; BtnOkX2 := X2 - 20;
+ BtnY1 := Y2 - 38; BtnY2 := Y2 - 14;
+ BtnAddX1 := X1 + 20; BtnAddX2 := X1 + 110;
+ BtnDelX1 := X1 + 120; BtnDelX2 := X1 + 220;
+ ColW[0] := 30; ColW[1] := 160; ColW[2] := 60; ColW[3] := 100;
+ ColW[4] := 60; ColW[5] := 80;
+ ColLbl[0] := 'Id'; ColLbl[1] := 'Nom'; ColLbl[2] := 'Init.';
+ ColLbl[3] := 'Groupe'; ColLbl[4] := 'Max'; ColLbl[5] := 'Cout/h';
+ ColX[0] := X1 + 8;
+ For I := 1 To 6 Do ColX[I] := ColX[I - 1] + ColW[I - 1];
+ SelRow := 1; ScrollY := 0; FocusCol := 1;
+ EditingCell := False;
+ If Project.ResCount = 0 Then SelRow := 0;
+ Done := False;
+ DrawDlg;
+ Repeat
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #72: Begin
+           If EditingCell Then CommitCell;
+           If SelRow > 1 Then Dec(SelRow); EnsureVisible;
+          End;
+     #80: Begin
+           If EditingCell Then CommitCell;
+           If SelRow < Project.ResCount Then Inc(SelRow); EnsureVisible;
+          End;
+     #75: If EditingCell Then Begin
+           If Caret > 0 Then Dec(Caret);
+          End
+          Else If FocusCol > 1 Then Dec(FocusCol);
+     #77: If EditingCell Then Begin
+           If Caret < Length(EditTxt) Then Inc(Caret);
+          End
+          Else If FocusCol < 5 Then Inc(FocusCol);
+     #71: If EditingCell Then Caret := 0;
+     #79: If EditingCell Then Caret := Length(EditTxt);
+     #83: If EditingCell And (Caret < Length(EditTxt)) Then
+           Delete(EditTxt, Caret + 1, 1);
+     #82: AddResource;       { Ins }
+     #93: DelResource;       { Shift+Del approx }
+    End;
+   End
+   Else
+    Case K Of
+     #13: If EditingCell Then Begin CommitCell;
+           If SelRow < Project.ResCount Then Inc(SelRow);
+          End
+          Else StartEdit;
+     #9:  Begin
+           If EditingCell Then CommitCell;
+           If FocusCol < 5 Then Inc(FocusCol) Else FocusCol := 1;
+          End;
+     #27: If EditingCell Then EditingCell := False Else Done := True;
+     #8:  If EditingCell And (Caret > 0) Then Begin
+           Delete(EditTxt, Caret, 1); Dec(Caret);
+          End;
+    Else
+     If (K >= ' ') And Not EditingCell Then Begin
+      StartEdit;
+      EditTxt := '';
+      Caret := 0;
+      HandleChar(K);
+     End
+     Else HandleChar(K);
+    End;
+   BlinkState := True;
+   DrawDlg;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2) Then Begin
+    If EditingCell Then CommitCell;
+    Done := True;
+   End
+   Else If InRect(Mouse.X, Mouse.Y, BtnAddX1, BtnY1, BtnAddX2, BtnY2) Then
+    Begin AddResource; DrawDlg; End
+   Else If InRect(Mouse.X, Mouse.Y, BtnDelX1, BtnY1, BtnDelX2, BtnY2) Then
+    Begin DelResource; DrawDlg; End
+   Else If InRect(Mouse.X, Mouse.Y, X1 + 8, BodyY1, X2 - 8, BodyY2) Then Begin
+    If EditingCell Then CommitCell;
+    SelRow := ScrollY + (Mouse.Y - BodyY1) Div RowH + 1;
+    If SelRow > Project.ResCount Then SelRow := Project.ResCount;
+    For J := 0 To 5 Do
+     If (Mouse.X >= ColX[J]) And (Mouse.X < ColX[J + 1]) Then Begin
+      FocusCol := J; Break;
+     End;
+    DrawDlg;
+   End;
+  End;
+  Inc(TickCount);
+  If TickCount Mod 8 = 0 Then Begin
+   BlinkState := Not BlinkState;
+   If EditingCell Then DrawDlg;
+  End;
+ Until Done;
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
 {                       ACTIONS                                          }
 { ====================================================================== }
 
@@ -2502,18 +3455,19 @@ End;
 
 Procedure ActionProjInfo;
 Begin
- MessageBox('Informations sur le projet',
-            Project.Title + '   Debut: ' + ShortDateStr(Project.StartDate));
+ DoProjectInfoDialog;
 End;
 
 Procedure ActionTaskInfo;
-Var T: PTask;
 Begin
  If (CurTaskIdx < 1) Or (CurTaskIdx > Project.TaskCount) Then Exit;
- T := Project.Tasks[CurTaskIdx];
- If T = Nil Then Exit;
- MessageBox('Informations sur la tache',
-            T^.Name + '  Id: ' + IntToStr(T^.Id));
+ If Project.Tasks[CurTaskIdx] = Nil Then Exit;
+ DoTaskInfoDialog;
+End;
+
+Procedure ActionResourceSheet;
+Begin
+ DoResourceSheetDialog;
 End;
 
 Procedure DoAction(A: Integer);
@@ -2539,6 +3493,7 @@ Begin
   ACT_VIEW_CAL:   ActionView(VIEW_CALENDAR);
   ACT_PROJ_INFO:  ActionProjInfo;
   ACT_TASKINFO:   ActionTaskInfo;
+  ACT_RES_SHEET:  ActionResourceSheet;
  Else
   StatusMsg := 'Action non implementee : ' + IntToStr(A);
   NeedStatRedraw := True;
