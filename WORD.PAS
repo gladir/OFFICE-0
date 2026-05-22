@@ -81,10 +81,12 @@ Const
  { --- Page virtuelle (Letter 8.5"x11" ?? ~50 dpi visuel) --- }
  PAGE_W                = 460;        { largeur page ?? l'??cran }
  PAGE_H                = 600;        { hauteur page ?? l'??cran }
- PAGE_MARGIN_L         = 60;         { marge gauche dans la page }
- PAGE_MARGIN_R         = 60;
- PAGE_MARGIN_T         = 60;
- PAGE_MARGIN_B         = 60;
+ { Marges en pixels - typed const, donc modifiables a l'execution selon sectPr }
+ PAGE_MARGIN_L : Integer = 60;       { marge gauche dans la page }
+ PAGE_MARGIN_R : Integer = 60;
+ PAGE_MARGIN_T : Integer = 60;
+ PAGE_MARGIN_B : Integer = 60;
+ PAGE_MARGIN_DEFAULT   = 60;         { valeur par defaut, pour reset }
  PAGE_BG               = 15;         { blanc }
  PAGE_SHADOW           = 8;
  PAGE_BORDER           = 0;
@@ -141,7 +143,7 @@ Const
 
  { --- Limites document (Phase 1: structures pr??par??es) --- }
  MAX_RUNS_PER_PARA     = 32;
- MAX_PARAS_PER_DOC     = 200;
+ MAX_PARAS_PER_DOC     = 500;
  MAX_PAGES             = 50;
  MAX_TEXT_LEN          = 240;
  MAX_DOC_FILENAME      = 80;
@@ -356,6 +358,9 @@ Var
  CurrentAlign   : Byte;
  CurrentPage    : Integer;           { page affich?e }
  ScrollY        : Integer;           { d?filement vertical (Phase 10) }
+ { En-tete et pied de page extraits du DOCX charge (vides sinon). }
+ DocxHeaderText : String;
+ DocxFooterText : String;
 
  { Pool de tableaux (Phase 11) }
  Tables         : Array[1..MAX_TABLES] Of TTable;
@@ -5524,12 +5529,26 @@ Begin
   Rectangle(PX1+PAGE_MARGIN_L, PY1+PAGE_MARGIN_T,
             PX2-PAGE_MARGIN_R, PY2-PAGE_MARGIN_B);
 
+  { En-tete DOCX (si charge depuis word/header*.xml) }
+  If Length(DocxHeaderText) > 0 Then Begin
+   SetColor(DarkGray);
+   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxHeaderText) Div 2,
+             PY1 + (PAGE_MARGIN_T Div 2) - 4, DocxHeaderText);
+  End;
+
   { Num??ro de page en bas }
   SetColor(DarkGray);
   Str(P, StatusMsg);    { r??utilisation tampon }
   StatusMsg := 'Page ' + StatusMsg;
   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,
             PY2-12, StatusMsg);
+
+  { Pied de page DOCX (au-dessus du numero de page) }
+  If Length(DocxFooterText) > 0 Then Begin
+   SetColor(DarkGray);
+   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxFooterText) Div 2,
+             PY2 - 12 - 10, DocxFooterText);
+  End;
  End;
  StatusMsg := '';
 
@@ -6256,6 +6275,422 @@ End;
 
 { ---------- DOCX reader ---------- }
 
+{ ----- Tables auxiliaires DOCX (styles, numerotation, en-tetes/pieds) ----- }
+
+Const
+ MAX_DOCX_STYLES   = 64;
+ MAX_DOCX_NUMS     = 32;
+ MAX_DOCX_ABSNUMS  = 32;
+
+ NFMT_BULLET       = 0;
+ NFMT_DECIMAL      = 1;
+ NFMT_LOWERLETTER  = 2;
+ NFMT_UPPERLETTER  = 3;
+ NFMT_LOWERROMAN   = 4;
+ NFMT_UPPERROMAN   = 5;
+
+Type
+ TDocxStyleEntry = Record
+  StyleId  : String[40];
+  Sty      : Byte;
+  Size     : Byte;
+  HasAlign : Boolean;
+  Align    : Byte;
+ End;
+ TDocxAbsNum = Record
+  AbsId : Integer;
+  Fmt   : Array[0..8] Of Byte;
+ End;
+ TDocxNum = Record
+  NumId : Integer;
+  AbsId : Integer;
+ End;
+
+Var
+ DocxStyleCount  : Integer;
+ DocxStyles      : Array[1..MAX_DOCX_STYLES] Of TDocxStyleEntry;
+ DocxNumCount    : Integer;
+ DocxNums        : Array[1..MAX_DOCX_NUMS] Of TDocxNum;
+ DocxAbsNumCount : Integer;
+ DocxAbsNums     : Array[1..MAX_DOCX_ABSNUMS] Of TDocxAbsNum;
+ ListCounters    : Array[1..MAX_DOCX_NUMS, 0..8] Of Integer;
+ DocxPgMarL, DocxPgMarR, DocxPgMarT, DocxPgMarB : Integer;
+ DocxPgMarValid  : Boolean;
+
+Procedure ResetDocxAux;
+Var I, J: Integer;
+Begin
+ DocxStyleCount  := 0;
+ DocxNumCount    := 0;
+ DocxAbsNumCount := 0;
+ DocxHeaderText  := '';
+ DocxFooterText  := '';
+ DocxPgMarValid  := False;
+ For I := 1 To MAX_DOCX_NUMS Do
+  For J := 0 To 8 Do ListCounters[I, J] := 0;
+End;
+
+Function FindDocxStyle(Const Id: String): Integer;
+Var I: Integer;
+Begin
+ FindDocxStyle := 0;
+ For I := 1 To DocxStyleCount Do
+  If DocxStyles[I].StyleId = Id Then Begin FindDocxStyle := I; Exit; End;
+End;
+
+Function FindDocxNum(N: Integer): Integer;
+Var I: Integer;
+Begin
+ FindDocxNum := 0;
+ For I := 1 To DocxNumCount Do
+  If DocxNums[I].NumId = N Then Begin FindDocxNum := I; Exit; End;
+End;
+
+Function FindDocxAbsNum(A: Integer): Integer;
+Var I: Integer;
+Begin
+ FindDocxAbsNum := 0;
+ For I := 1 To DocxAbsNumCount Do
+  If DocxAbsNums[I].AbsId = A Then Begin FindDocxAbsNum := I; Exit; End;
+End;
+
+{ Convertir un entier en notation alphabetique a..z, aa..zz, ... (style Word). }
+Function IntToAlpha(N: Integer; Upper: Boolean): String;
+Var R: String; D: Integer; Base: Char;
+Begin
+ If Upper Then Base := 'A' Else Base := 'a';
+ R := '';
+ If N < 1 Then N := 1;
+ While N > 0 Do Begin
+  Dec(N);
+  D := N Mod 26;
+  R := Char(Byte(Base) + D) + R;
+  N := N Div 26;
+ End;
+ IntToAlpha := R;
+End;
+
+Function IntToRoman(N: Integer; Upper: Boolean): String;
+Const
+ Vals : Array[1..13] Of Integer = (1000,900,500,400,100,90,50,40,10,9,5,4,1);
+ Syms : Array[1..13] Of String[2] = ('M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I');
+Var R, S: String; I, K: Integer;
+Begin
+ R := '';
+ If N < 1 Then N := 1;
+ If N > 3999 Then N := 3999;
+ For I := 1 To 13 Do
+  While N >= Vals[I] Do Begin
+   S := Syms[I];
+   If Not Upper Then
+    For K := 1 To Length(S) Do
+     S[K] := Char(Byte(S[K]) + 32);
+   R := R + S;
+   Dec(N, Vals[I]);
+  End;
+ IntToRoman := R;
+End;
+
+Function BuildListPrefix(NumId, Ilvl: Integer): String;
+Var Nidx, AnIdx, Fmt: Integer; Marker, Indent: String; J: Integer;
+Begin
+ BuildListPrefix := '';
+ If (Ilvl < 0) Or (Ilvl > 8) Then Ilvl := 0;
+ Indent := '';
+ For J := 1 To Ilvl Do Indent := Indent + '  ';
+ Fmt := NFMT_BULLET;
+ Nidx := FindDocxNum(NumId);
+ If Nidx > 0 Then Begin
+  AnIdx := FindDocxAbsNum(DocxNums[Nidx].AbsId);
+  If AnIdx > 0 Then Fmt := DocxAbsNums[AnIdx].Fmt[Ilvl];
+ End;
+ If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then
+  Inc(ListCounters[NumId, Ilvl]);
+ Case Fmt Of
+  NFMT_DECIMAL :
+   Begin
+    If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then Begin
+     Str(ListCounters[NumId, Ilvl], Marker);
+     Marker := Marker + '.';
+    End Else
+     Marker := '1.';
+   End;
+  NFMT_LOWERLETTER :
+   If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then
+    Marker := IntToAlpha(ListCounters[NumId, Ilvl], False) + '.'
+   Else Marker := 'a.';
+  NFMT_UPPERLETTER :
+   If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then
+    Marker := IntToAlpha(ListCounters[NumId, Ilvl], True) + '.'
+   Else Marker := 'A.';
+  NFMT_LOWERROMAN :
+   If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then
+    Marker := IntToRoman(ListCounters[NumId, Ilvl], False) + '.'
+   Else Marker := 'i.';
+  NFMT_UPPERROMAN :
+   If (NumId >= 1) And (NumId <= MAX_DOCX_NUMS) Then
+    Marker := IntToRoman(ListCounters[NumId, Ilvl], True) + '.'
+   Else Marker := 'I.';
+ Else
+  Marker := #7;     { puce CP437 }
+ End;
+ BuildListPrefix := Indent + Marker + ' ';
+End;
+
+{ Charger styles.xml dans DocxStyles[]. Le buffer DocxBuf/Size doit etre }
+{ alloue par l'appelant pour le contenu de styles.xml.                    }
+Procedure DocxParseStyles;
+Var
+ InStyle, InRPr, InPPr  : Boolean;
+ CurId                  : String[40];
+ CurSty                 : Byte;
+ CurSize                : Byte;
+ CurAlign               : Byte;
+ CurHasAlign            : Boolean;
+ Tn, AttrVal            : String;
+ SzHP, Code             : Integer;
+Begin
+ InStyle := False; InRPr := False; InPPr := False;
+ CurId := ''; CurSty := 0; CurSize := 0; CurAlign := ALIGN_LEFT;
+ CurHasAlign := False;
+ Repeat
+  DocxNextToken;
+  Case TokKind Of
+   DTK_START : Begin
+    Tn := TokName;
+    If Tn = 'w:style' Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:styleId');
+     CurId := Copy(AttrVal, 1, 40);
+     CurSty := 0; CurSize := 0; CurAlign := ALIGN_LEFT;
+     CurHasAlign := False;
+     InStyle := True;
+    End
+    Else If Tn = 'w:rPr' Then InRPr := True
+    Else If Tn = 'w:pPr' Then InPPr := True;
+   End;
+   DTK_EMPTY : Begin
+    Tn := TokName;
+    If InRPr Then Begin
+     If Tn = 'w:b' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or STY_BOLD;
+     End
+     Else If Tn = 'w:i' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or STY_ITALIC;
+     End
+     Else If Tn = 'w:u' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If AttrVal <> 'none' Then CurSty := CurSty Or STY_UNDERLINE;
+     End
+     Else If Tn = 'w:sz' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      Val(AttrVal, SzHP, Code);
+      If Code = 0 Then Begin
+       SzHP := SzHP Div 2;
+       If SzHP < 6  Then SzHP := 6;
+       If SzHP > 72 Then SzHP := 72;
+       CurSize := SzHP;
+      End;
+     End;
+    End
+    Else If InPPr Then Begin
+     If Tn = 'w:jc' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If      AttrVal = 'center'  Then CurAlign := ALIGN_CENTER
+      Else If AttrVal = 'right'   Then CurAlign := ALIGN_RIGHT
+      Else If AttrVal = 'both'    Then CurAlign := ALIGN_JUSTIFY
+      Else If AttrVal = 'justify' Then CurAlign := ALIGN_JUSTIFY
+      Else                             CurAlign := ALIGN_LEFT;
+      CurHasAlign := True;
+     End;
+    End;
+   End;
+   DTK_END : Begin
+    Tn := TokName;
+    If Tn = 'w:rPr' Then InRPr := False
+    Else If Tn = 'w:pPr' Then InPPr := False
+    Else If Tn = 'w:style' Then Begin
+     If InStyle And (Length(CurId) > 0) And
+        (DocxStyleCount < MAX_DOCX_STYLES) Then Begin
+      Inc(DocxStyleCount);
+      DocxStyles[DocxStyleCount].StyleId  := CurId;
+      DocxStyles[DocxStyleCount].Sty      := CurSty;
+      DocxStyles[DocxStyleCount].Size     := CurSize;
+      DocxStyles[DocxStyleCount].HasAlign := CurHasAlign;
+      DocxStyles[DocxStyleCount].Align    := CurAlign;
+     End;
+     InStyle := False;
+    End;
+   End;
+  End;
+ Until TokKind = DTK_EOF;
+End;
+
+{ Charger numbering.xml. }
+Procedure DocxParseNumbering;
+Var
+ InAbs, InLvl, InNum     : Boolean;
+ CurAbsId, CurNumId      : Integer;
+ CurILvl                 : Integer;
+ LvlFmt                  : Array[0..8] Of Byte;
+ J, NIv, Code            : Integer;
+ Tn, AttrVal             : String;
+Begin
+ InAbs := False; InLvl := False; InNum := False;
+ CurAbsId := -1; CurNumId := -1; CurILvl := -1;
+ For J := 0 To 8 Do LvlFmt[J] := NFMT_BULLET;
+ Repeat
+  DocxNextToken;
+  Case TokKind Of
+   DTK_START : Begin
+    Tn := TokName;
+    If Tn = 'w:abstractNum' Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:abstractNumId');
+     Val(AttrVal, CurAbsId, Code);
+     If Code <> 0 Then CurAbsId := -1;
+     For J := 0 To 8 Do LvlFmt[J] := NFMT_BULLET;
+     InAbs := True;
+    End
+    Else If (Tn = 'w:lvl') And InAbs Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:ilvl');
+     Val(AttrVal, CurILvl, Code);
+     If (Code <> 0) Or (CurILvl < 0) Or (CurILvl > 8) Then CurILvl := -1;
+     InLvl := True;
+    End
+    Else If Tn = 'w:num' Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:numId');
+     Val(AttrVal, CurNumId, Code);
+     If Code <> 0 Then CurNumId := -1;
+     InNum := True;
+    End;
+   End;
+   DTK_EMPTY : Begin
+    Tn := TokName;
+    If InLvl And (Tn = 'w:numFmt') Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+     If (CurILvl >= 0) And (CurILvl <= 8) Then Begin
+      If      AttrVal = 'decimal'      Then LvlFmt[CurILvl] := NFMT_DECIMAL
+      Else If AttrVal = 'lowerLetter'  Then LvlFmt[CurILvl] := NFMT_LOWERLETTER
+      Else If AttrVal = 'upperLetter'  Then LvlFmt[CurILvl] := NFMT_UPPERLETTER
+      Else If AttrVal = 'lowerRoman'   Then LvlFmt[CurILvl] := NFMT_LOWERROMAN
+      Else If AttrVal = 'upperRoman'   Then LvlFmt[CurILvl] := NFMT_UPPERROMAN
+      Else                                  LvlFmt[CurILvl] := NFMT_BULLET;
+     End;
+    End
+    Else If InNum And (Tn = 'w:abstractNumId') Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+     Val(AttrVal, NIv, Code);
+     If (Code = 0) And (CurNumId >= 0) And
+        (DocxNumCount < MAX_DOCX_NUMS) Then Begin
+      Inc(DocxNumCount);
+      DocxNums[DocxNumCount].NumId := CurNumId;
+      DocxNums[DocxNumCount].AbsId := NIv;
+     End;
+    End;
+   End;
+   DTK_END : Begin
+    Tn := TokName;
+    If Tn = 'w:lvl' Then InLvl := False
+    Else If Tn = 'w:abstractNum' Then Begin
+     If InAbs And (CurAbsId >= 0) And
+        (DocxAbsNumCount < MAX_DOCX_ABSNUMS) Then Begin
+      Inc(DocxAbsNumCount);
+      DocxAbsNums[DocxAbsNumCount].AbsId := CurAbsId;
+      For J := 0 To 8 Do
+       DocxAbsNums[DocxAbsNumCount].Fmt[J] := LvlFmt[J];
+     End;
+     InAbs := False;
+    End
+    Else If Tn = 'w:num' Then InNum := False;
+   End;
+  End;
+ Until TokKind = DTK_EOF;
+End;
+
+{ Extraire le texte concatene des elements <w:t> dans un buffer XML. }
+Function DocxExtractAllText: String;
+Var R, TxtPiece: String; InT: Boolean; Tn: String;
+Begin
+ R := ''; InT := False;
+ Repeat
+  DocxNextToken;
+  Case TokKind Of
+   DTK_START : Begin
+    Tn := TokName;
+    If Tn = 'w:t' Then InT := True
+    Else If Tn = 'w:tab' Then If Length(R) < 200 Then R := R + ' '
+    Else If Tn = 'w:br'  Then If Length(R) < 200 Then R := R + ' ';
+   End;
+   DTK_EMPTY : Begin
+    Tn := TokName;
+    If Tn = 'w:tab' Then If Length(R) < 200 Then R := R + ' '
+    Else If Tn = 'w:br' Then If Length(R) < 200 Then R := R + ' ';
+   End;
+   DTK_END : If TokName = 'w:t' Then InT := False;
+   DTK_TEXT :
+    If InT Then Begin
+     TxtPiece := Utf8ToCp437(TokText);
+     If Length(R) + Length(TxtPiece) > 200 Then
+      TxtPiece := Copy(TxtPiece, 1, 200 - Length(R));
+     R := R + TxtPiece;
+    End;
+  End;
+ Until TokKind = DTK_EOF;
+ DocxExtractAllText := R;
+End;
+
+Procedure DocxLoadAuxParts(Var Z: TZipReader);
+Var
+ Idx, I    : Integer;
+ Buf       : Pointer;
+ Size      : LongInt;
+ Nm        : String;
+ SavedBuf  : Pointer;
+ SavedPos, SavedSize : LongInt;
+Begin
+ SavedBuf := DocxBuf; SavedPos := DocxPos; SavedSize := DocxSize;
+ { styles.xml }
+ Idx := ZipRead_Find(Z, 'word/styles.xml');
+ If (Idx >= 0) And ZipRead_Extract(Z, Idx, Buf, Size) Then Begin
+  DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
+  DocxParseStyles;
+  FreeMem(Buf, Size);
+ End;
+ { numbering.xml }
+ Idx := ZipRead_Find(Z, 'word/numbering.xml');
+ If (Idx >= 0) And ZipRead_Extract(Z, Idx, Buf, Size) Then Begin
+  DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
+  DocxParseNumbering;
+  FreeMem(Buf, Size);
+ End;
+ { Premier header*.xml }
+ For I := 1 To Z.EntryCount Do Begin
+  Nm := Z.Entries[I].Name;
+  If (Length(Nm) >= 11) And (Copy(Nm, 1, 11) = 'word/header') Then Begin
+   If ZipRead_Extract(Z, I, Buf, Size) Then Begin
+    DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
+    DocxHeaderText := DocxExtractAllText;
+    FreeMem(Buf, Size);
+   End;
+   Break;
+  End;
+ End;
+ { Premier footer*.xml }
+ For I := 1 To Z.EntryCount Do Begin
+  Nm := Z.Entries[I].Name;
+  If (Length(Nm) >= 11) And (Copy(Nm, 1, 11) = 'word/footer') Then Begin
+   If ZipRead_Extract(Z, I, Buf, Size) Then Begin
+    DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
+    DocxFooterText := DocxExtractAllText;
+    FreeMem(Buf, Size);
+   End;
+   Break;
+  End;
+ End;
+ DocxBuf := SavedBuf; DocxPos := SavedPos; DocxSize := SavedSize;
+End;
+
 Function LoadDocxFromFile(Const FName: String): Boolean;
 Var
  Z          : TZipReader;
@@ -6266,11 +6701,24 @@ Var
  RunIdx     : Integer;
  InP, InR   : Boolean;
  InRPr, InPPr, InT : Boolean;
+ InNumPr    : Boolean;
+ InSectPr   : Boolean;
  PendingPB  : Boolean;
  CurAlign   : Byte;
  RunSty     : Byte;
  RunSize    : Byte;
  RunStyleSet: Boolean;
+ ParaForceSty  : Byte;
+ ParaForceSize : Byte;
+ ParaHasNum    : Boolean;
+ ParaIlvl      : Integer;
+ ParaNumId     : Integer;
+ StyIdx        : Integer;
+ PgMarT, PgMarB, PgMarL, PgMarR : LongInt;
+ EffSty     : Byte;
+ EffSize    : Byte;
+ BulletS    : String;
+ NIv        : Integer;
  AttrVal    : String;
  Tn         : String;
  SzHP       : Integer;
@@ -6279,10 +6727,18 @@ Var
  TxtPiece   : String;
 Begin
  LoadDocxFromFile := False;
+ { Reinitialiser tables auxiliaires et marges par defaut }
+ ResetDocxAux;
+ PAGE_MARGIN_L := PAGE_MARGIN_DEFAULT;
+ PAGE_MARGIN_R := PAGE_MARGIN_DEFAULT;
+ PAGE_MARGIN_T := PAGE_MARGIN_DEFAULT;
+ PAGE_MARGIN_B := PAGE_MARGIN_DEFAULT;
  If Not ZipRead_Open(Z, FName) Then Exit;
  Idx := ZipRead_Find(Z, 'word/document.xml');
  If Idx < 0 Then Begin ZipRead_Close(Z); Exit; End;
  If Not ZipRead_Extract(Z, Idx, Buf, Size) Then Begin ZipRead_Close(Z); Exit; End;
+ { Charger styles, numerotation, en-tete, pied avant la lecture de document.xml }
+ DocxLoadAuxParts(Z);
  ZipRead_Close(Z);
 
  DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
@@ -6292,9 +6748,12 @@ Begin
  Doc.PageCount := 1;
  ParaIdx := 0; RunIdx := 0;
  InP := False; InR := False; InRPr := False; InPPr := False; InT := False;
+ InNumPr := False; InSectPr := False;
  PendingPB := False;
  CurAlign := ALIGN_LEFT;
  RunSty := 0; RunSize := 12; RunStyleSet := False;
+ ParaForceSty := 0; ParaForceSize := 0;
+ ParaHasNum := False; ParaIlvl := 0; ParaNumId := -1;
  OK := True;
 
  Repeat
@@ -6316,8 +6775,14 @@ Begin
      Doc.Paragraphs[ParaIdx].IsImage := False;
      InP := True;
      CurAlign := ALIGN_LEFT;
+     ParaForceSty := 0; ParaForceSize := 0;
+     ParaHasNum := False; ParaIlvl := 0; ParaNumId := -1;
     End
     Else If Tn = 'w:pPr' Then InPPr := True
+    Else If Tn = 'w:sectPr' Then InSectPr := True
+    Else If (Tn = 'w:numPr') And InPPr Then Begin
+     InNumPr := True; ParaHasNum := True;
+    End
     Else If (Tn = 'w:r') And InP Then Begin
      If Doc.Paragraphs[ParaIdx].RunCount < MAX_RUNS_PER_PARA Then Begin
       Inc(Doc.Paragraphs[ParaIdx].RunCount);
@@ -6347,11 +6812,92 @@ Begin
      End
      Else If Tn = 'w:pageBreakBefore' Then Begin
       If InP Then Doc.Paragraphs[ParaIdx].PageBreakBefore := True;
+     End
+     Else If Tn = 'w:pStyle' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      { Reconnaitre styles de titre courants : Heading1..6, Title, Subtitle. }
+      If      (AttrVal = 'Heading1') Or (AttrVal = 'heading 1') Then Begin
+       ParaForceSty := STY_BOLD; ParaForceSize := 18;
+      End
+      Else If (AttrVal = 'Heading2') Or (AttrVal = 'heading 2') Then Begin
+       ParaForceSty := STY_BOLD; ParaForceSize := 16;
+      End
+      Else If (AttrVal = 'Heading3') Or (AttrVal = 'heading 3') Then Begin
+       ParaForceSty := STY_BOLD; ParaForceSize := 14;
+      End
+      Else If (AttrVal = 'Heading4') Or (AttrVal = 'heading 4') Or
+              (AttrVal = 'Heading5') Or (AttrVal = 'heading 5') Or
+              (AttrVal = 'Heading6') Or (AttrVal = 'heading 6') Then Begin
+       ParaForceSty := STY_BOLD Or STY_ITALIC; ParaForceSize := 12;
+      End
+      Else If (AttrVal = 'Title') Then Begin
+       ParaForceSty := STY_BOLD; ParaForceSize := 22;
+      End
+      Else If (AttrVal = 'Subtitle') Then Begin
+       ParaForceSty := STY_ITALIC; ParaForceSize := 14;
+      End
+      Else Begin
+       { Style personnalise : chercher dans styles.xml }
+       StyIdx := FindDocxStyle(AttrVal);
+       If StyIdx > 0 Then Begin
+        ParaForceSty := DocxStyles[StyIdx].Sty;
+        If DocxStyles[StyIdx].Size > 0 Then ParaForceSize := DocxStyles[StyIdx].Size;
+        If DocxStyles[StyIdx].HasAlign Then CurAlign := DocxStyles[StyIdx].Align;
+       End;
+      End;
+     End
+     Else If InNumPr Then Begin
+      If Tn = 'w:ilvl' Then Begin
+       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+       Val(AttrVal, NIv, Code);
+       If (Code = 0) And (NIv >= 0) And (NIv <= 8) Then ParaIlvl := NIv;
+      End
+      Else If Tn = 'w:numId' Then Begin
+       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+       Val(AttrVal, NIv, Code);
+       If Code = 0 Then ParaNumId := NIv;
+      End;
      End;
     End
+    Else If InSectPr And (Tn = 'w:pgMar') Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'w:top');    Val(AttrVal, PgMarT, Code);
+     If Code <> 0 Then PgMarT := -1;
+     AttrVal := DocxGetAttr(TokAttrs, 'w:bottom'); Val(AttrVal, PgMarB, Code);
+     If Code <> 0 Then PgMarB := -1;
+     AttrVal := DocxGetAttr(TokAttrs, 'w:left');   Val(AttrVal, PgMarL, Code);
+     If Code <> 0 Then PgMarL := -1;
+     AttrVal := DocxGetAttr(TokAttrs, 'w:right');  Val(AttrVal, PgMarR, Code);
+     If Code <> 0 Then PgMarR := -1;
+     { Conversion twips -> pixels (8.5 po = 12240 twips = PAGE_W pixels). }
+     If PgMarL >= 0 Then PAGE_MARGIN_L := Integer((PgMarL * LongInt(PAGE_W)) Div 12240);
+     If PgMarR >= 0 Then PAGE_MARGIN_R := Integer((PgMarR * LongInt(PAGE_W)) Div 12240);
+     If PgMarT >= 0 Then PAGE_MARGIN_T := Integer((PgMarT * LongInt(PAGE_H)) Div 15840);
+     If PgMarB >= 0 Then PAGE_MARGIN_B := Integer((PgMarB * LongInt(PAGE_H)) Div 15840);
+     { Bornes raisonnables : eviter zones de texte ridiculement petites. }
+     If PAGE_MARGIN_L < 10 Then PAGE_MARGIN_L := 10;
+     If PAGE_MARGIN_R < 10 Then PAGE_MARGIN_R := 10;
+     If PAGE_MARGIN_T < 10 Then PAGE_MARGIN_T := 10;
+     If PAGE_MARGIN_B < 10 Then PAGE_MARGIN_B := 10;
+     If PAGE_MARGIN_L > (PAGE_W Div 3) Then PAGE_MARGIN_L := PAGE_W Div 3;
+     If PAGE_MARGIN_R > (PAGE_W Div 3) Then PAGE_MARGIN_R := PAGE_W Div 3;
+     If PAGE_MARGIN_T > (PAGE_H Div 3) Then PAGE_MARGIN_T := PAGE_H Div 3;
+     If PAGE_MARGIN_B > (PAGE_H Div 3) Then PAGE_MARGIN_B := PAGE_H Div 3;
+    End
     Else If InRPr Then Begin
-     If      Tn = 'w:b' Then RunSty := RunSty Or STY_BOLD
-     Else If Tn = 'w:i' Then RunSty := RunSty Or STY_ITALIC
+     If Tn = 'w:b' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If (AttrVal = '0') Or (AttrVal = 'false') Then
+       RunSty := RunSty And (Not STY_BOLD)
+      Else
+       RunSty := RunSty Or STY_BOLD;
+     End
+     Else If Tn = 'w:i' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      If (AttrVal = '0') Or (AttrVal = 'false') Then
+       RunSty := RunSty And (Not STY_ITALIC)
+      Else
+       RunSty := RunSty Or STY_ITALIC;
+     End
      Else If Tn = 'w:u' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
       If AttrVal <> 'none' Then RunSty := RunSty Or STY_UNDERLINE;
@@ -6371,10 +6917,33 @@ Begin
     Else If InR Then Begin
      If Tn = 'w:br' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:type');
-      If AttrVal = 'page' Then PendingPB := True;
+      If AttrVal = 'page' Then PendingPB := True
+      Else Begin
+       { Saut de ligne souple : creer un nouveau paragraphe heritant }
+       { du style et de l'alignement courants, et continuer dedans.   }
+       If ParaIdx < MAX_PARAS_PER_DOC Then Begin
+        Inc(ParaIdx);
+        Doc.Paragraphs[ParaIdx].Alignment := CurAlign;
+        Doc.Paragraphs[ParaIdx].PageBreakBefore := False;
+        Doc.Paragraphs[ParaIdx].RunCount := 1;
+        Doc.Paragraphs[ParaIdx].IsImage := False;
+        RunIdx := 1;
+        EffSty := RunSty; If ParaForceSty <> 0 Then EffSty := EffSty Or ParaForceSty;
+        EffSize := RunSize;
+        If (ParaForceSize > 0) And (RunSize = 12) Then EffSize := ParaForceSize;
+        Doc.Paragraphs[ParaIdx].Runs[1].Text := '';
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := EffSty;
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := EffSize;
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
+       End;
+      End;
      End
      Else If Tn = 'w:tab' Then Begin
-      If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) < MAX_TEXT_LEN Then
+      { Tabulation : 4 espaces (faute de tabulateurs reels) }
+      If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) + 4 <= MAX_TEXT_LEN Then
+       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
+        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + '    '
+      Else If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) < MAX_TEXT_LEN Then
        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
         Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + ' ';
      End;
@@ -6384,18 +6953,21 @@ Begin
    DTK_END : Begin
     Tn := TokName;
     If Tn = 'w:t' Then InT := False
+    Else If Tn = 'w:numPr' Then InNumPr := False
+    Else If Tn = 'w:sectPr' Then InSectPr := False
     Else If Tn = 'w:rPr' Then Begin
      InRPr := False;
-     If InR Then Begin
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Style    := RunSty;
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.FontSize := RunSize;
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Color    := Black;
-     End;
+     { Le commit definitif des styles est fait a </w:r> pour pouvoir }
+     { appliquer ParaForceSty/Size hericies du pStyle.               }
     End
     Else If Tn = 'w:r' Then Begin
-     If InR And (Not RunStyleSet) Then Begin
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Style    := RunSty;
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.FontSize := RunSize;
+     If InR Then Begin
+      EffSty  := RunSty;
+      EffSize := RunSize;
+      If ParaForceSty <> 0 Then EffSty := EffSty Or ParaForceSty;
+      If (ParaForceSize > 0) And (RunSize = 12) Then EffSize := ParaForceSize;
+      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Style    := EffSty;
+      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.FontSize := EffSize;
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Color    := Black;
      End;
      InR := False;
@@ -6403,6 +6975,16 @@ Begin
     Else If Tn = 'w:pPr' Then Begin
      InPPr := False;
      If InP Then Doc.Paragraphs[ParaIdx].Alignment := CurAlign;
+     { Inserer le marqueur de liste (puce, decimal, lettre, romain) }
+     If InP And ParaHasNum And
+        (Doc.Paragraphs[ParaIdx].RunCount = 0) Then Begin
+      BulletS := BuildListPrefix(ParaNumId, ParaIlvl);
+      Inc(Doc.Paragraphs[ParaIdx].RunCount);
+      Doc.Paragraphs[ParaIdx].Runs[1].Text := BulletS;
+      Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := 0;
+      Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := 12;
+      Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
+     End;
     End
     Else If Tn = 'w:p' Then Begin
      If (ParaIdx > 0) And (Doc.Paragraphs[ParaIdx].RunCount = 0) Then Begin
