@@ -1595,6 +1595,78 @@ Begin
  Tables[TIdx].Cells[Row, Col] := T;
 End;
 
+{ Insertion d'une ligne dans le tableau, avant AtRow (1..Rows+1).
+  AtRow=Rows+1 = ajout en fin. Renvoie False si plein. }
+Function TableInsertRow(TIdx, AtRow: Integer): Boolean;
+Var R, C: Integer;
+Begin
+ TableInsertRow := False;
+ If (TIdx < 1) Or (TIdx > MAX_TABLES) Then Exit;
+ If Not Tables[TIdx].Used Then Exit;
+ If Tables[TIdx].Rows >= MAX_TBL_ROWS Then Exit;
+ If AtRow < 1 Then AtRow := 1;
+ If AtRow > Tables[TIdx].Rows + 1 Then AtRow := Tables[TIdx].Rows + 1;
+ For R := Tables[TIdx].Rows Downto AtRow Do
+  For C := 1 To Tables[TIdx].Cols Do
+   Tables[TIdx].Cells[R + 1, C] := Tables[TIdx].Cells[R, C];
+ For C := 1 To Tables[TIdx].Cols Do
+  Tables[TIdx].Cells[AtRow, C] := '';
+ Inc(Tables[TIdx].Rows);
+ TableInsertRow := True;
+End;
+
+Function TableDeleteRow(TIdx, AtRow: Integer): Boolean;
+Var R, C: Integer;
+Begin
+ TableDeleteRow := False;
+ If (TIdx < 1) Or (TIdx > MAX_TABLES) Then Exit;
+ If Not Tables[TIdx].Used Then Exit;
+ If Tables[TIdx].Rows <= 1 Then Exit;
+ If (AtRow < 1) Or (AtRow > Tables[TIdx].Rows) Then Exit;
+ For R := AtRow To Tables[TIdx].Rows - 1 Do
+  For C := 1 To Tables[TIdx].Cols Do
+   Tables[TIdx].Cells[R, C] := Tables[TIdx].Cells[R + 1, C];
+ For C := 1 To Tables[TIdx].Cols Do
+  Tables[TIdx].Cells[Tables[TIdx].Rows, C] := '';
+ Dec(Tables[TIdx].Rows);
+ TableDeleteRow := True;
+End;
+
+Function TableInsertCol(TIdx, AtCol: Integer): Boolean;
+Var R, C: Integer;
+Begin
+ TableInsertCol := False;
+ If (TIdx < 1) Or (TIdx > MAX_TABLES) Then Exit;
+ If Not Tables[TIdx].Used Then Exit;
+ If Tables[TIdx].Cols >= MAX_TBL_COLS Then Exit;
+ If AtCol < 1 Then AtCol := 1;
+ If AtCol > Tables[TIdx].Cols + 1 Then AtCol := Tables[TIdx].Cols + 1;
+ For R := 1 To Tables[TIdx].Rows Do Begin
+  For C := Tables[TIdx].Cols Downto AtCol Do
+   Tables[TIdx].Cells[R, C + 1] := Tables[TIdx].Cells[R, C];
+  Tables[TIdx].Cells[R, AtCol] := '';
+ End;
+ Inc(Tables[TIdx].Cols);
+ TableInsertCol := True;
+End;
+
+Function TableDeleteCol(TIdx, AtCol: Integer): Boolean;
+Var R, C: Integer;
+Begin
+ TableDeleteCol := False;
+ If (TIdx < 1) Or (TIdx > MAX_TABLES) Then Exit;
+ If Not Tables[TIdx].Used Then Exit;
+ If Tables[TIdx].Cols <= 1 Then Exit;
+ If (AtCol < 1) Or (AtCol > Tables[TIdx].Cols) Then Exit;
+ For R := 1 To Tables[TIdx].Rows Do Begin
+  For C := AtCol To Tables[TIdx].Cols - 1 Do
+   Tables[TIdx].Cells[R, C] := Tables[TIdx].Cells[R, C + 1];
+  Tables[TIdx].Cells[R, Tables[TIdx].Cols] := '';
+ End;
+ Dec(Tables[TIdx].Cols);
+ TableDeleteCol := True;
+End;
+
 { ----- Layout : word-wrap + pagination ------------------------- }
 
 Procedure LayoutDocument;
@@ -4543,9 +4615,201 @@ Begin
  NeedsRelayout  := True;
 End;
 
-{ ============================================================ }
-{ =================  PHASE 7 - DEFLATE / ZIP  ================ }
-{ ============================================================ }
+{ ----- Menu contextuel tableau (clic droit) ------------------- }
+
+Procedure ShowMessage(Const S: String); Forward;
+Procedure MarkMutation(Kind: Integer); Forward;
+
+Const
+ TBL_CTX_ITEMS = 9;
+ TblCtxLabels : Array[1..TBL_CTX_ITEMS] Of String[28] = (
+  'Inserer ligne au-dessus',
+  'Inserer ligne en-dessous',
+  'Supprimer la ligne',
+  '-',
+  'Inserer colonne a gauche',
+  'Inserer colonne a droite',
+  'Supprimer la colonne',
+  '-',
+  'Proprietes du tableau...');
+
+{ Affiche le menu contextuel a (Mx,My). P = paragraphe-tableau,
+  Row,Col = cellule cliquee. Action effectuee directement. }
+Procedure ShowTableContextMenu(Mx, My, P, Row, Col: Integer);
+Var
+ X1, Y1, X2, Y2, ItemH, MenuW : Integer;
+ I, Hover, Sel                : Integer;
+ Done                         : Boolean;
+ K                            : Word;
+ LastBtn                      : Word;
+ TIdx                         : Integer;
+ Msg, SR, SC                  : String;
+
+ Function ItemAtY(Y: Integer): Integer;
+ Var II: Integer;
+ Begin
+  ItemAtY := 0;
+  If (Y < Y1+2) Or (Y > Y2-2) Then Exit;
+  II := ((Y - (Y1+2)) Div ItemH) + 1;
+  If (II >= 1) And (II <= TBL_CTX_ITEMS) Then
+   If TblCtxLabels[II] <> '-' Then ItemAtY := II;
+ End;
+
+ Procedure DrawCtx;
+ Var II, IY: Integer;
+ Begin
+  FillRectArea(X1, Y1, X2, Y2, CLR_3D_FACE);
+  DrawButton3D(X1, Y1, X2, Y2, False);
+  For II := 1 To TBL_CTX_ITEMS Do Begin
+   IY := Y1 + 2 + (II-1)*ItemH;
+   If TblCtxLabels[II] = '-' Then Begin
+    SetColor(DarkGray);
+    Line(X1+4, IY+ItemH Div 2, X2-4, IY+ItemH Div 2);
+   End Else Begin
+    If II = Hover Then Begin
+     FillRectArea(X1+2, IY, X2-2, IY+ItemH-1, Blue);
+     DrawTextAt(X1+8, IY+3, TblCtxLabels[II], White);
+    End Else
+     DrawTextAt(X1+8, IY+3, TblCtxLabels[II], Black);
+   End;
+  End;
+ End;
+
+Begin
+ If Not ParaIsTable(P) Then Exit;
+ TIdx := Doc.Paragraphs[P].TableIdx;
+ ItemH := 14;
+ MenuW := 200;
+ X1 := Mx;
+ Y1 := My;
+ X2 := X1 + MenuW;
+ Y2 := Y1 + ItemH * TBL_CTX_ITEMS + 4;
+ If X2 > SCREEN_W - 4 Then Begin X2 := SCREEN_W - 4; X1 := X2 - MenuW; End;
+ If Y2 > SCREEN_H - 4 Then Begin Y2 := SCREEN_H - 4; Y1 := Y2 - (ItemH*TBL_CTX_ITEMS + 4); End;
+ If X1 < 2 Then X1 := 2;
+ If Y1 < 2 Then Y1 := 2;
+ EraseSoftCursor;
+ Hover := 1;
+ Sel := 0;
+ Done := False;
+ DrawCtx;
+ {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
+ LastBtn := MsBtn;
+ { Attendre relachement initial du bouton droit. }
+ Repeat GetMouseStateLI(MsX, MsY, MsBtn); Until (MsBtn And MB_RIGHT) = 0;
+ LastBtn := 0;
+ Repeat
+  If KeyPressed Then Begin
+   K := ReadKeyEx;
+   Case K Of
+    KEY_ESC   : Begin Done := True; Sel := 0; End;
+    KEY_UP    : Begin
+                 Repeat Dec(Hover); If Hover < 1 Then Hover := TBL_CTX_ITEMS;
+                 Until TblCtxLabels[Hover] <> '-';
+                 EraseSoftCursor; DrawCtx;
+                 {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
+                End;
+    KEY_DOWN  : Begin
+                 Repeat Inc(Hover); If Hover > TBL_CTX_ITEMS Then Hover := 1;
+                 Until TblCtxLabels[Hover] <> '-';
+                 EraseSoftCursor; DrawCtx;
+                 {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
+                End;
+    KEY_ENTER : Begin Done := True; Sel := Hover; End;
+   End;
+  End;
+  EraseSoftCursor;
+  GetMouseStateLI(MsX, MsY, MsBtn);
+  If (MsX >= X1) And (MsX <= X2) And (MsY >= Y1) And (MsY <= Y2) Then Begin
+   I := ItemAtY(MsY);
+   If (I > 0) And (I <> Hover) Then Begin
+    Hover := I;
+    DrawCtx;
+   End;
+  End;
+  If ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT) = 0) Then Begin
+   If (MsX >= X1) And (MsX <= X2) And (MsY >= Y1) And (MsY <= Y2) Then Begin
+    I := ItemAtY(MsY);
+    If I > 0 Then Begin Sel := I; Done := True; End;
+   End Else Begin
+    Sel := 0; Done := True;
+   End;
+  End;
+  If ((MsBtn And MB_RIGHT) <> 0) And ((LastBtn And MB_RIGHT) = 0) Then Begin
+   Sel := 0; Done := True;
+  End;
+  LastBtn := MsBtn;
+  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
+ Until Done;
+ { Attendre relachement boutons. }
+ Repeat GetMouseStateLI(MsX, MsY, MsBtn);
+ Until ((MsBtn And MB_LEFT) = 0) And ((MsBtn And MB_RIGHT) = 0);
+ NeedsRedraw := True;
+
+ Case Sel Of
+  1: Begin
+      MarkMutation(2);
+      If TableInsertRow(TIdx, Row) Then Begin
+       SetCursorToCell(P, Row, Col, 0);
+       NeedsRelayout := True;
+      End Else
+       ShowMessage('Tableau plein (max 16 lignes).');
+     End;
+  2: Begin
+      MarkMutation(2);
+      If TableInsertRow(TIdx, Row + 1) Then Begin
+       SetCursorToCell(P, Row + 1, Col, 0);
+       NeedsRelayout := True;
+      End Else
+       ShowMessage('Tableau plein (max 16 lignes).');
+     End;
+  3: Begin
+      If Tables[TIdx].Rows <= 1 Then Begin
+       ShowMessage('Impossible : le tableau n''a qu''une ligne.');
+      End Else Begin
+       MarkMutation(2);
+       TableDeleteRow(TIdx, Row);
+       If Row > Tables[TIdx].Rows Then Row := Tables[TIdx].Rows;
+       SetCursorToCell(P, Row, Col, 0);
+       NeedsRelayout := True;
+      End;
+     End;
+  5: Begin
+      MarkMutation(2);
+      If TableInsertCol(TIdx, Col) Then Begin
+       SetCursorToCell(P, Row, Col, 0);
+       NeedsRelayout := True;
+      End Else
+       ShowMessage('Tableau plein (max 6 colonnes).');
+     End;
+  6: Begin
+      MarkMutation(2);
+      If TableInsertCol(TIdx, Col + 1) Then Begin
+       SetCursorToCell(P, Row, Col + 1, 0);
+       NeedsRelayout := True;
+      End Else
+       ShowMessage('Tableau plein (max 6 colonnes).');
+     End;
+  7: Begin
+      If Tables[TIdx].Cols <= 1 Then Begin
+       ShowMessage('Impossible : le tableau n''a qu''une colonne.');
+      End Else Begin
+       MarkMutation(2);
+       TableDeleteCol(TIdx, Col);
+       If Col > Tables[TIdx].Cols Then Col := Tables[TIdx].Cols;
+       SetCursorToCell(P, Row, Col, 0);
+       NeedsRelayout := True;
+      End;
+     End;
+  9: Begin
+      Str(Tables[TIdx].Rows, SR);
+      Str(Tables[TIdx].Cols, SC);
+      Msg := 'Tableau : ' + SR + ' lignes x ' + SC + ' colonnes';
+      ShowMessage(Msg);
+     End;
+ End;
+End;
+
 
 { ----------------------- CRC-32 (zlib) ---------------------- }
 
@@ -5310,8 +5574,6 @@ End;
 { ============================================================ }
 { =====================  GESTION ACTIONS  ==================== }
 { ============================================================ }
-
-Procedure ShowMessage(Const S: String); Forward;
 
 { ============================================================ }
 { ===================  PHASE 5 - I/O WPD  ==================== }
@@ -8029,7 +8291,8 @@ Function MouseToDocPos(Mx, My: LongInt; Var P, C: Integer): Boolean;
 Var
  I, Best, Off, BestOff, BestDist, D : Integer;
  TestX, LineY                       : Integer;
- ParaStr, Pre                       : String;
+ ParaStr, Pre, CellTxt              : String;
+ TIdx, NCols, CellW, ColC, RowR     : Integer;
 Begin
  P := 0; C := 0;
  If VLineCount = 0 Then Begin MouseToDocPos := False; Exit; End;
@@ -8045,7 +8308,39 @@ Begin
   If D < BestDist Then Begin BestDist := D; Best := I; End;
  End;
  If Best = 0 Then Begin MouseToDocPos := False; Exit; End;
- ParaStr := ParaText(VLines[Best].ParaIdx);
+ P := VLines[Best].ParaIdx;
+ { Cas tableau : positionner curseur dans la cellule cliquee. }
+ If VLines[Best].IsTable Then Begin
+  TIdx := Doc.Paragraphs[P].TableIdx;
+  If (TIdx >= 1) And (TIdx <= MAX_TABLES) And Tables[TIdx].Used Then Begin
+   NCols := Tables[TIdx].Cols;
+   CellW := VLines[Best].Width Div NCols;
+   ColC  := ((Mx - VLines[Best].X) Div CellW) + 1;
+   If ColC < 1 Then ColC := 1;
+   If ColC > NCols Then ColC := NCols;
+   RowR := VLines[Best].TblRow;
+   { Trouver l'offset texte le plus proche dans la cellule. }
+   CellTxt := Tables[TIdx].Cells[RowR, ColC];
+   BestOff := 0; BestDist := 32767;
+   For Off := 0 To Length(CellTxt) Do Begin
+    Pre := Copy(CellTxt, 1, Off);
+    TestX := VLines[Best].X + (ColC - 1) * CellW + TBL_CELL_PAD + TextWidth(Pre);
+    D := TestX - Mx;
+    If D < 0 Then D := -D;
+    If D < BestDist Then Begin BestDist := D; BestOff := Off; End;
+   End;
+   Cursor.ParaIdx := P;
+   Cursor.RunIdx  := (RowR - 1) * NCols + ColC;
+   Cursor.CharIdx := BestOff;
+   { Sortie : on a deja place le curseur ; renvoyer la position
+     "logique" pour compatibilite, mais HandleMouse va l'ecraser
+     avec son propre Set. }
+   C := BestOff;
+   MouseToDocPos := True;
+   Exit;
+  End;
+ End;
+ ParaStr := ParaText(P);
  BestOff := 0;
  BestDist := 32767;
  For Off := 0 To VLines[Best].CharLen Do Begin
@@ -8055,7 +8350,6 @@ Begin
   If D < 0 Then D := -D;
   If D < BestDist Then Begin BestDist := D; BestOff := Off; End;
  End;
- P := VLines[Best].ParaIdx;
  C := VLines[Best].CharStart - 1 + BestOff;
  MouseToDocPos := True;
 End;
@@ -8172,7 +8466,21 @@ Begin
  { ----- Click droit ----- }
  If RightDown And ((LastMsBtn And MB_RIGHT) = 0) Then Begin
   If ActiveMenu > 0 Then ActiveMenu := 0;
-  StatusMsg := 'Menu contextuel (a venir)';
+  If PointInDocArea(MsX, MsY) Then Begin
+   If MouseToDocPos(MsX, MsY, NewP, NewC) Then Begin
+    If ParaIsTable(NewP) Then Begin
+     { MouseToDocPos a positionne le curseur dans la cellule.
+       Recuperer la cellule courante et afficher le menu. }
+     Begin
+      ShowTableContextMenu(MsX, MsY, NewP,
+       ((Cursor.RunIdx - 1) Div Tables[Doc.Paragraphs[NewP].TableIdx].Cols) + 1,
+       ((Cursor.RunIdx - 1) Mod Tables[Doc.Paragraphs[NewP].TableIdx].Cols) + 1);
+     End;
+    End Else
+     StatusMsg := 'Menu contextuel : clic droit sur un tableau';
+   End;
+  End Else
+   StatusMsg := '';
  End;
 End;
 
