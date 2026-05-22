@@ -389,6 +389,27 @@ Var
  ColCount      : Integer;
  Cols          : Array[1..MAX_COLS] Of TGridCol;
 
+ { Edition inline et interactions Phase 2 }
+ EditMode      : Boolean;
+ EditBuf       : String;
+ EditCaret     : Integer;
+ EditRow       : Integer;
+ EditCol       : Integer;
+ EditTickSave  : LongInt;
+ BlinkState    : Boolean;
+
+ DraggingSplit : Boolean;
+ DragColIdx    : Integer;
+ DragColStartX : Integer;
+ DragColStartW : Integer;
+
+ ClickPrevX    : LongInt;
+ ClickPrevY    : LongInt;
+ ClickPrevTick : LongInt;
+ DoubleClicked : Boolean;
+
+ TickCount     : LongInt;
+
 { ====================================================================== }
 {                       UTILITAIRES                                      }
 { ====================================================================== }
@@ -1609,14 +1630,15 @@ End;
 { ====================================================================== }
 
 Procedure DrawGridHeader;
-Var I, X, W: Integer;
+Var I, X, W, Bg: Integer;
 Begin
  X := GridX1 - GridScrollX;
  For I := 1 To ColCount Do Begin
   W := Cols[I].Width;
   If (X + W >= GridX1) And (X <= GridX2) Then Begin
+   If I = CurColIdx Then Bg := CLR_BLUE Else Bg := CLR_GRID_HDR_BG;
    DrawRaised(MaxI(X, GridX1), GridHdrY1, MinI(X + W - 1, GridX2),
-              GridHdrY2, CLR_GRID_HDR_BG, CLR_WIN_HI, CLR_BLACK);
+              GridHdrY2, Bg, CLR_WIN_HI, CLR_BLACK);
    SetColor(CLR_GRID_HDR_FG);
    OutTextXY(MaxI(X + 3, GridX1 + 3), GridHdrY1 + 3,
              ClipStr(Cols[I].Title, W - 6));
@@ -1872,6 +1894,281 @@ Begin
 End;
 
 { ====================================================================== }
+{                       PARSING TEXTE                                    }
+{ ====================================================================== }
+
+Function ParseDateStr(Const S: String; Var D: TDate): Boolean;
+Var T: String; I, P1, P2, DD, MM, YY: Integer; OK: Boolean;
+Begin
+ ParseDateStr := False;
+ T := TrimStr(S);
+ If T = '' Then Exit;
+ P1 := 0; P2 := 0;
+ For I := 1 To Length(T) Do
+  If (T[I] = '/') Or (T[I] = '-') Or (T[I] = '.') Then Begin
+   If P1 = 0 Then P1 := I Else If P2 = 0 Then P2 := I;
+  End;
+ If (P1 = 0) Or (P2 = 0) Then Exit;
+ DD := StrToIntDef(Copy(T, 1, P1 - 1), 0);
+ MM := StrToIntDef(Copy(T, P1 + 1, P2 - P1 - 1), 0);
+ YY := StrToIntDef(Copy(T, P2 + 1, Length(T) - P2), 0);
+ If YY < 100 Then Begin
+  If YY < 50 Then YY := YY + 2000 Else YY := YY + 1900;
+ End;
+ OK := (DD >= 1) And (DD <= 31) And (MM >= 1) And (MM <= 12)
+       And (YY >= 1900) And (YY <= 2200);
+ If Not OK Then Exit;
+ D := DateToJDN(YY, MM, DD);
+ ParseDateStr := True;
+End;
+
+Function ParseDurStr(Const S: String; Var Dur: LongInt): Boolean;
+Var T: String; I: Integer; HasDot: Boolean; Whole, Frac: LongInt;
+Begin
+ ParseDurStr := False;
+ T := TrimStr(S);
+ If T = '' Then Exit;
+ I := 1;
+ Whole := 0; Frac := 0; HasDot := False;
+ While (I <= Length(T)) And ((T[I] In ['0'..'9']) Or (T[I] = ',') Or (T[I] = '.')) Do Begin
+  If (T[I] = ',') Or (T[I] = '.') Then Begin HasDot := True; Inc(I); Continue; End;
+  If Not HasDot Then Whole := Whole * 10 + LongInt(Ord(T[I]) - Ord('0'))
+  Else If Frac = 0 Then Frac := LongInt(Ord(T[I]) - Ord('0'));
+  Inc(I);
+ End;
+ Dur := Whole * 10 + Frac;
+ If Dur < 0 Then Dur := 0;
+ ParseDurStr := True;
+End;
+
+{ ====================================================================== }
+{                       EDITION INLINE                                   }
+{ ====================================================================== }
+
+Procedure EnsureCurVisible; Forward;
+
+Function ColAbsLeft(I: Integer): Integer;
+Var J, X: Integer;
+Begin
+ X := 0;
+ For J := 1 To I - 1 Do X := X + Cols[J].Width;
+ ColAbsLeft := X;
+End;
+
+Function ColScreenX(I: Integer): Integer;
+Begin
+ ColScreenX := GridX1 + ColAbsLeft(I) - GridScrollX;
+End;
+
+Function ColHit(X: Integer): Integer;
+Var I, Xx: Integer;
+Begin
+ ColHit := 0;
+ If (X < GridX1) Or (X > GridX2) Then Exit;
+ Xx := GridX1 - GridScrollX;
+ For I := 1 To ColCount Do Begin
+  If (X >= Xx) And (X < Xx + Cols[I].Width) Then Begin
+   ColHit := I; Exit;
+  End;
+  Xx := Xx + Cols[I].Width;
+ End;
+End;
+
+Function ColResizeHit(X, Y: Integer): Integer;
+Var I, Xx: Integer;
+Begin
+ ColResizeHit := 0;
+ If (Y < GridHdrY1) Or (Y > GridHdrY2) Then Exit;
+ Xx := GridX1 - GridScrollX;
+ For I := 1 To ColCount Do Begin
+  Xx := Xx + Cols[I].Width;
+  If (X >= Xx - 2) And (X <= Xx + 2) Then Begin
+   ColResizeHit := I; Exit;
+  End;
+ End;
+End;
+
+Function FieldIsEditable(F: Byte): Boolean;
+Begin
+ FieldIsEditable := (F = FLD_NAME) Or (F = FLD_DUR) Or (F = FLD_START)
+                  Or (F = FLD_FINISH) Or (F = FLD_RES) Or (F = FLD_PERCENT)
+                  Or (F = FLD_NOTES) Or (F = FLD_WBS);
+End;
+
+Procedure CancelEdit;
+Begin
+ If Not EditMode Then Exit;
+ EditMode := False;
+ EditBuf := '';
+ NeedGridRedraw := True;
+End;
+
+Procedure BeginEdit(Row, Col: Integer);
+Var T: PTask; F: Byte;
+Begin
+ If EditMode Then CancelEdit;
+ If (Col < 1) Or (Col > ColCount) Then Exit;
+ If (Row < 1) Or (Row > Project.TaskCount) Then Exit;
+ F := Cols[Col].Field;
+ If Not FieldIsEditable(F) Then Exit;
+ T := Project.Tasks[Row];
+ If T = Nil Then Exit;
+ EditMode := True;
+ EditRow := Row;
+ EditCol := Col;
+ Case F Of
+  FLD_NAME:    EditBuf := T^.Name;
+  FLD_DUR:     EditBuf := IntToStr(T^.Duration Div 10);
+  FLD_START:   EditBuf := ShortDateStr(T^.Start);
+  FLD_FINISH:  EditBuf := ShortDateStr(T^.Finish);
+  FLD_RES:     EditBuf := T^.Resources;
+  FLD_PERCENT: EditBuf := IntToStr(T^.PercentDone);
+  FLD_NOTES:   EditBuf := T^.Notes;
+  FLD_WBS:     EditBuf := T^.WBS;
+ Else EditBuf := '';
+ End;
+ EditCaret := Length(EditBuf);
+ BlinkState := True;
+ NeedGridRedraw := True;
+End;
+
+Procedure CommitEdit;
+Var T: PTask; F: Byte; D: TDate; L: LongInt; P: Integer;
+Begin
+ If Not EditMode Then Exit;
+ If (EditRow < 1) Or (EditRow > Project.TaskCount) Then Begin
+  CancelEdit; Exit;
+ End;
+ T := Project.Tasks[EditRow];
+ If T = Nil Then Begin CancelEdit; Exit; End;
+ F := Cols[EditCol].Field;
+ Case F Of
+  FLD_NAME:    T^.Name := Copy(EditBuf, 1, 60);
+  FLD_DUR:     If ParseDurStr(EditBuf, L) Then Begin
+                T^.Duration := L;
+                If L = 0 Then Begin
+                 T^.IsMilestone := True;
+                 T^.Finish := T^.Start;
+                End
+                Else Begin
+                 T^.IsMilestone := False;
+                 T^.Finish := T^.Start + (L Div 10) - 1;
+                 If T^.Finish < T^.Start Then T^.Finish := T^.Start;
+                End;
+               End;
+  FLD_START:   If ParseDateStr(EditBuf, D) Then Begin
+                L := T^.Finish - T^.Start;
+                T^.Start := D;
+                T^.Finish := D + L;
+                If T^.IsMilestone Then T^.Finish := D;
+               End;
+  FLD_FINISH:  If ParseDateStr(EditBuf, D) Then Begin
+                If D < T^.Start Then D := T^.Start;
+                T^.Finish := D;
+                T^.Duration := (D - T^.Start + 1) * 10;
+                If T^.Duration = 0 Then T^.IsMilestone := True
+                Else T^.IsMilestone := False;
+               End;
+  FLD_RES:     T^.Resources := Copy(EditBuf, 1, 60);
+  FLD_PERCENT: Begin
+                P := Integer(StrToIntDef(EditBuf, T^.PercentDone));
+                If P < 0 Then P := 0;
+                If P > 100 Then P := 100;
+                T^.PercentDone := Byte(P);
+               End;
+  FLD_NOTES:   T^.Notes := Copy(EditBuf, 1, 120);
+  FLD_WBS:     T^.WBS := Copy(EditBuf, 1, 20);
+ End;
+ EditMode := False;
+ Project.Dirty := True;
+ ComputeSummaries;
+ NeedGridRedraw := True;
+ NeedGanttRedraw := True;
+End;
+
+Procedure DrawEditBox;
+Var X1, X2, Y1, Y2, Cx, W: Integer; S: String;
+Begin
+ If Not EditMode Then Exit;
+ If (EditRow - 1 < GridScrollY) Or
+    (EditRow - 1 >= GridScrollY + VisibleRowCount) Then Exit;
+ X1 := ColScreenX(EditCol);
+ W := Cols[EditCol].Width;
+ X2 := X1 + W - 1;
+ If X1 < GridX1 Then X1 := GridX1;
+ If X2 > GridX2 Then X2 := GridX2;
+ Y1 := GridBodyY1 + (EditRow - 1 - GridScrollY) * ROW_H;
+ Y2 := Y1 + ROW_H - 1;
+ HideMouse;
+ FillBox(X1, Y1, X2, Y2, CLR_WHITE);
+ FrameBox(X1, Y1, X2, Y2, CLR_BLACK);
+ S := EditBuf;
+ While (Length(S) > 0) And (TextWidth(S) > X2 - X1 - 8) Do S := Copy(S, 2, Length(S) - 1);
+ SetColor(CLR_BLACK);
+ OutTextXY(X1 + 3, Y1 + 2, S);
+ If BlinkState Then Begin
+  Cx := X1 + 3 + TextWidth(Copy(EditBuf, 1, EditCaret));
+  If Cx > X2 - 2 Then Cx := X2 - 2;
+  VLine(Cx, Y1 + 2, Y2 - 2, CLR_BLACK);
+ End;
+ ShowMouse;
+End;
+
+Procedure HandleEditKey(K: Char);
+Var K2: Char;
+Begin
+ If K = #0 Then Begin
+  K2 := ReadKey;
+  Case K2 Of
+   #75: If EditCaret > 0 Then Dec(EditCaret);
+   #77: If EditCaret < Length(EditBuf) Then Inc(EditCaret);
+   #71: EditCaret := 0;
+   #79: EditCaret := Length(EditBuf);
+   #83: Begin
+         If EditCaret < Length(EditBuf) Then
+          Delete(EditBuf, EditCaret + 1, 1);
+        End;
+   #72,#80: Begin
+             CommitEdit;
+             If (K2 = #72) And (EditRow > 1) Then Dec(CurTaskIdx)
+             Else If (K2 = #80) And (EditRow < Project.TaskCount) Then Inc(CurTaskIdx);
+             EnsureCurVisible;
+            End;
+  End;
+  BlinkState := True;
+  NeedGridRedraw := True;
+  Exit;
+ End;
+ Case K Of
+  #13: Begin CommitEdit; NeedGridRedraw := True; End;
+  #27: CancelEdit;
+  #9:  Begin
+        CommitEdit;
+        Repeat
+         If EditCol < ColCount Then Inc(EditCol) Else EditCol := 1;
+        Until FieldIsEditable(Cols[EditCol].Field) Or (EditCol = CurColIdx);
+        CurColIdx := EditCol;
+        BeginEdit(CurTaskIdx, CurColIdx);
+       End;
+  #8:  Begin
+        If EditCaret > 0 Then Begin
+         Delete(EditBuf, EditCaret, 1);
+         Dec(EditCaret);
+        End;
+        BlinkState := True;
+        NeedGridRedraw := True;
+       End;
+ Else
+  If (K >= ' ') And (Length(EditBuf) < 120) Then Begin
+   Insert(K, EditBuf, EditCaret + 1);
+   Inc(EditCaret);
+   BlinkState := True;
+   NeedGridRedraw := True;
+  End;
+ End;
+End;
+
+{ ====================================================================== }
 {                       ACTIONS                                          }
 { ====================================================================== }
 
@@ -2088,6 +2385,7 @@ End;
 Procedure HandleKey(K: Char);
 Var K2: Char;
 Begin
+ If EditMode Then Begin HandleEditKey(K); Exit; End;
  If K = #0 Then Begin
   K2 := ReadKey;
   Case K2 Of
@@ -2095,8 +2393,12 @@ Begin
               NeedGridRedraw := True; NeedGanttRedraw := True; End;
    #80: Begin If CurTaskIdx < Project.TaskCount Then Inc(CurTaskIdx);
               EnsureCurVisible; NeedGridRedraw := True; NeedGanttRedraw := True; End;
-   #75: Begin If GanttOriginDt > 0 Then Begin Dec(GanttOriginDt); NeedGanttRedraw := True; End; End;
-   #77: Begin Inc(GanttOriginDt); NeedGanttRedraw := True; End;
+   #75: Begin If CurColIdx > 1 Then Begin Dec(CurColIdx);
+              NeedGridRedraw := True; End; End;
+   #77: Begin If CurColIdx < ColCount Then Begin Inc(CurColIdx);
+              NeedGridRedraw := True; End; End;
+   #115: Begin If GanttOriginDt > 0 Then Begin Dec(GanttOriginDt); NeedGanttRedraw := True; End; End;
+   #116: Begin Inc(GanttOriginDt); NeedGanttRedraw := True; End;
    #71: Begin CurTaskIdx := 1; GridScrollY := 0;
               NeedGridRedraw := True; NeedGanttRedraw := True; End;
    #79: Begin CurTaskIdx := Project.TaskCount; EnsureCurVisible;
@@ -2109,19 +2411,35 @@ Begin
               EnsureCurVisible; NeedGridRedraw := True; NeedGanttRedraw := True; End;
    #82: ActionInsTask;
    #83: ActionDeleteTask;
-   #59: MessageBox('Aide', 'Fleches, Ins/Del, +/-, F2=info, Esc=quitter');
-   #60: ActionTaskInfo;
+   #59: MessageBox('Aide', 'F2=editer, Tab=colonne, Inser/Del, +/-, Esc=quitter');
+   #60: BeginEdit(CurTaskIdx, CurColIdx);
    #63: ActionZoomFit;
    #107: ActionQuit;
+   #30: ActionNew;
+   #31: DoAction(ACT_SAVE);
+   #24: DoAction(ACT_OPEN);
+   #25: DoAction(ACT_PRINT);
   End;
  End
  Else
   Case K Of
+   #13: BeginEdit(CurTaskIdx, CurColIdx);
    #27: ActionQuit;
+   #9:  Begin
+         If CurColIdx < ColCount Then Inc(CurColIdx) Else CurColIdx := 1;
+         NeedGridRedraw := True;
+        End;
    '+': ActionZoomIn;
    '-': ActionZoomOut;
    '*': ActionZoomFit;
-   #14: ActionNew;
+  Else
+   If (K >= ' ') And (CurTaskIdx >= 1) And (CurTaskIdx <= Project.TaskCount)
+      And FieldIsEditable(Cols[CurColIdx].Field) Then Begin
+    BeginEdit(CurTaskIdx, CurColIdx);
+    EditBuf := K;
+    EditCaret := 1;
+    NeedGridRedraw := True;
+   End;
   End;
 End;
 
@@ -2130,8 +2448,14 @@ End;
 { ====================================================================== }
 
 Procedure HandleMouseClick;
-Var M, I, Idx: Integer; Y, A: Integer;
+Var M, I, Idx, Col, RC: Integer; Y, A: Integer;
 Begin
+ If EditMode Then Begin
+  If InRect(Mouse.X, Mouse.Y, GridBodyY1 - 1, 0, SCREEN_W, SCREEN_H) Then Begin
+   { laissez le clic passer pour resituer; toute interaction ailleurs commit }
+  End;
+  CommitEdit;
+ End;
  If (Mouse.Y >= MenuY1) And (Mouse.Y <= MenuY2) Then Begin
   M := MenuAtX(Mouse.X);
   If M > 0 Then Begin
@@ -2161,13 +2485,36 @@ Begin
   If I > 0 Then DoAction(Tools[I].Action);
   Exit;
  End;
+ If InRect(Mouse.X, Mouse.Y, SplitX, WorkY1, SplitX + SPLIT_W - 1, WorkY2) Then Begin
+  DraggingSplit := True;
+  Exit;
+ End;
+ RC := ColResizeHit(Mouse.X, Mouse.Y);
+ If RC > 0 Then Begin
+  DragColIdx := RC;
+  DragColStartX := Mouse.X;
+  DragColStartW := Cols[RC].Width;
+  Exit;
+ End;
+ If (Mouse.Y >= GridHdrY1) And (Mouse.Y <= GridHdrY2) Then Begin
+  Col := ColHit(Mouse.X);
+  If Col > 0 Then Begin
+   CurColIdx := Col;
+   NeedGridRedraw := True;
+  End;
+  Exit;
+ End;
  If InRect(Mouse.X, Mouse.Y, GridX1, GridBodyY1, GridX2, GridBodyY2) Then Begin
   Y := Mouse.Y - GridBodyY1;
   Idx := GridScrollY + (Y Div ROW_H) + 1;
+  Col := ColHit(Mouse.X);
   If (Idx >= 1) And (Idx <= Project.TaskCount) Then Begin
    CurTaskIdx := Idx;
+   If Col > 0 Then CurColIdx := Col;
    NeedGridRedraw := True;
    NeedGanttRedraw := True;
+   If DoubleClicked And (Col > 0) Then
+    BeginEdit(Idx, Col);
   End;
   Exit;
  End;
@@ -2178,6 +2525,7 @@ Begin
    CurTaskIdx := Idx;
    NeedGridRedraw := True;
    NeedGanttRedraw := True;
+   If DoubleClicked Then ActionTaskInfo;
   End;
   Exit;
  End;
@@ -2250,6 +2598,7 @@ Begin
  If NeedGanttRedraw Then Begin DrawGantt; NeedGanttRedraw := False; End;
  If NeedStatRedraw Then Begin DrawStatusBar; NeedStatRedraw := False; End;
  If MenuOpen > 0 Then DrawDropDown;
+ If EditMode Then DrawEditBox;
 End;
 
 { ====================================================================== }
@@ -2257,17 +2606,57 @@ End;
 { ====================================================================== }
 
 Procedure MainLoop;
-Var K: Char;
+Var K: Char; NewSplit, NewW: Integer; Dx: Integer;
 Begin
  NeedFullRedraw := True;
  Redraw;
  Repeat
+  Inc(TickCount);
   UpdateMouse;
   UpdateHovers;
-  If LeftPressed Then HandleMouseClick;
+  If DraggingSplit Then Begin
+   If LeftDown Then Begin
+    NewSplit := Mouse.X;
+    If NewSplit < 80 Then NewSplit := 80;
+    If NewSplit > SCREEN_W - 100 Then NewSplit := SCREEN_W - 100;
+    If NewSplit <> SplitX Then Begin
+     SplitX := NewSplit;
+     NeedFullRedraw := True;
+    End;
+   End
+   Else DraggingSplit := False;
+  End
+  Else If DragColIdx > 0 Then Begin
+   If LeftDown Then Begin
+    Dx := Mouse.X - DragColStartX;
+    NewW := DragColStartW + Dx;
+    If NewW < 16 Then NewW := 16;
+    If NewW > 400 Then NewW := 400;
+    If NewW <> Cols[DragColIdx].Width Then Begin
+     Cols[DragColIdx].Width := NewW;
+     NeedGridRedraw := True;
+    End;
+   End
+   Else DragColIdx := 0;
+  End
+  Else If LeftPressed Then Begin
+   DoubleClicked := (AbsI(Mouse.X - ClickPrevX) <= 4)
+                And (AbsI(Mouse.Y - ClickPrevY) <= 4)
+                And ((TickCount - ClickPrevTick) < 30);
+   HandleMouseClick;
+   ClickPrevX := Mouse.X;
+   ClickPrevY := Mouse.Y;
+   ClickPrevTick := TickCount;
+   DoubleClicked := False;
+  End;
   If KeyPressed Then Begin
    K := ReadKey;
    HandleKey(K);
+  End;
+  If EditMode And ((TickCount - EditTickSave) >= 8) Then Begin
+   BlinkState := Not BlinkState;
+   EditTickSave := TickCount;
+   NeedGridRedraw := True;
   End;
   Redraw;
  Until Quitting;
@@ -2293,6 +2682,21 @@ Begin
  NeedStatRedraw := False;
  Quitting := False;
  StatusMsg := '';
+ EditMode := False;
+ EditBuf := '';
+ EditCaret := 0;
+ EditRow := 0;
+ EditCol := 0;
+ EditTickSave := 0;
+ BlinkState := False;
+ DraggingSplit := False;
+ DragColIdx := 0;
+ DragColStartX := 0;
+ DragColStartW := 0;
+ ClickPrevX := -100; ClickPrevY := -100;
+ ClickPrevTick := -10000;
+ DoubleClicked := False;
+ TickCount := 0;
 End;
 
 BEGIN
