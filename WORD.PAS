@@ -200,6 +200,9 @@ Type
   TableIdx        : Integer;     { 0 = pas table; sinon index dans Tables }
   LeftIndent      : Integer;     { hang indent en pixels (lignes 2+ d'une liste) }
   FirstLineHang   : Boolean;     { True => 1re ligne aussi indentee (continuation) }
+  BorderBottom    : Boolean;     { trait horizontal sous le paragraphe }
+  ContinuesPrev   : Boolean;     { sous-paragraphe artificiel (split ShortString) }
+  ContinuesNext   : Boolean;     { ce paragraphe est suivi d'un sous-para artificiel }
  End;
 
  { --- Cellule de tableau : texte simple (Phase 11) --- }
@@ -1214,6 +1217,57 @@ Begin
  ParaText := S;
 End;
 
+{ Largeur reelle (en pixels) d'une plage de caracteres du paragraphe P,
+  en tenant compte du gras (qui ajoute +1 px par caractere car dessine
+  deux fois avec un decalage de 1 px). StartIdx 1-based dans ParaText. }
+Function StyledRangeWidth(P, StartIdx, Len: Integer): Integer;
+Var
+ I, EndIdx, W, RunPos, RunLen           : Integer;
+ OvStart, OvEnd, OvLen, LocalStart      : Integer;
+ Sub                                    : String;
+Begin
+ W := 0;
+ If Len <= 0 Then Begin StyledRangeWidth := 0; Exit; End;
+ EndIdx := StartIdx + Len - 1;
+ RunPos := 1;
+ For I := 1 To Doc.Paragraphs[P].RunCount Do Begin
+  RunLen := Length(Doc.Paragraphs[P].Runs[I].Text);
+  If RunLen > 0 Then Begin
+   OvStart := StartIdx;
+   If RunPos > OvStart Then OvStart := RunPos;
+   OvEnd := EndIdx;
+   If RunPos + RunLen - 1 < OvEnd Then OvEnd := RunPos + RunLen - 1;
+   If OvStart <= OvEnd Then Begin
+    OvLen := OvEnd - OvStart + 1;
+    LocalStart := OvStart - RunPos + 1;
+    Sub := Copy(Doc.Paragraphs[P].Runs[I].Text, LocalStart, OvLen);
+    Inc(W, TextWidth(Sub));
+    If (Doc.Paragraphs[P].Runs[I].Style.Style And STY_BOLD) <> 0 Then
+     Inc(W, OvLen);
+   End;
+  End;
+  Inc(RunPos, RunLen);
+ End;
+ StyledRangeWidth := W;
+End;
+
+{ Style.Style byte du run contenant la position 1-based AbsPos dans
+  ParaText(P). Retourne 0 si hors limites. }
+Function CharStyleAt(P, AbsPos: Integer): Byte;
+Var I, RunPos, RunLen: Integer;
+Begin
+ CharStyleAt := 0;
+ RunPos := 1;
+ For I := 1 To Doc.Paragraphs[P].RunCount Do Begin
+  RunLen := Length(Doc.Paragraphs[P].Runs[I].Text);
+  If (AbsPos >= RunPos) And (AbsPos < RunPos + RunLen) Then Begin
+   CharStyleAt := Doc.Paragraphs[P].Runs[I].Style.Style;
+   Exit;
+  End;
+  Inc(RunPos, RunLen);
+ End;
+End;
+
 Procedure ParaSetText(P: Integer; Const S: String);
 Begin
  If Doc.Paragraphs[P].RunCount < 1 Then Begin
@@ -1831,6 +1885,7 @@ Begin
    While Pos <= Length(ParaStr) Do Begin
     Ch := ParaStr[Pos];
     CharW := TextWidth(Ch);
+    If (CharStyleAt(P, Pos) And STY_BOLD) <> 0 Then Inc(CharW);
     If W + CharW > AvailW Then Begin
      If LastSpace >= LineStart Then
       SettledLineEnd := LastSpace
@@ -1849,7 +1904,7 @@ Begin
    Else
     LineEnd := SettledLineEnd;
 
-   LineW := TextWidth(Copy(ParaStr, LineStart, LineEnd - LineStart + 1));
+   LineW := StyledRangeWidth(P, LineStart, LineEnd - LineStart + 1);
    { Alignement : Center/Right utilisent ComputeLineX dans la fenetre
      restante (X..PageContentR), pas la pleine largeur de page.        }
    Case PAlign Of
@@ -1901,6 +1956,8 @@ Begin
  FindCursorVLine := R;
 End;
 
+Function VLineIsLastInPara(L: Integer): Boolean; Forward;
+
 Function CursorScreenX(L: Integer): Integer;
 Var
  Off, AvailW, SpaceCnt, Slack             : Integer;
@@ -1929,8 +1986,7 @@ Begin
 
  Extra := 0;
  If VLines[L].Alignment = ALIGN_JUSTIFY Then Begin
-  If L >= VLineCount Then IsLastInPara := True
-  Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
+  IsLastInPara := VLineIsLastInPara(L);
   If Not IsLastInPara Then Begin
    AvailW := (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - VLines[L].X;
    { Determine la position 1-based dans le para du dernier non-espace. }
@@ -1946,8 +2002,8 @@ Begin
      If (I >= 1) And (I <= Length(ParaStr)) Then
       If ParaStr[I] = ' ' Then Inc(SpaceCnt);
    If LastNonSpaceAbs > 0 Then
-    EffW := TextWidth(Copy(ParaStr, VLines[L].CharStart,
-                            LastNonSpaceAbs - VLines[L].CharStart + 1))
+    EffW := StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart,
+                              LastNonSpaceAbs - VLines[L].CharStart + 1)
    Else
     EffW := 0;
    Slack := AvailW - EffW;
@@ -1966,7 +2022,7 @@ Begin
    End;
   End;
  End;
- CursorScreenX := VLines[L].X + TextWidth(Sub) + Extra;
+ CursorScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, Off) + Extra;
 End;
 
 { Position ecran X de la limite gauche du caractere a l'offset
@@ -1988,8 +2044,7 @@ Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
  Extra := 0;
  If VLines[L].Alignment = ALIGN_JUSTIFY Then Begin
-  If L >= VLineCount Then IsLastInPara := True
-  Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
+  IsLastInPara := VLineIsLastInPara(L);
   If Not IsLastInPara Then Begin
    AvailW := (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - VLines[L].X;
    LastNonSpaceAbs := 0;
@@ -2004,8 +2059,8 @@ Begin
      If (I >= 1) And (I <= Length(ParaStr)) Then
       If ParaStr[I] = ' ' Then Inc(SpaceCnt);
    If LastNonSpaceAbs > 0 Then
-    EffW := TextWidth(Copy(ParaStr, VLines[L].CharStart,
-                            LastNonSpaceAbs - VLines[L].CharStart + 1))
+    EffW := StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart,
+                              LastNonSpaceAbs - VLines[L].CharStart + 1)
    Else
     EffW := 0;
    Slack := AvailW - EffW;
@@ -2024,7 +2079,7 @@ Begin
    End;
   End;
  End;
- LineCharScreenX := VLines[L].X + TextWidth(Sub) + Extra;
+ LineCharScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, Off) + Extra;
 End;
 
 { ----- Helpers selection -------------------------------------- }
@@ -2065,9 +2120,30 @@ End;
 { ----- Helpers justification (Phase 4) ------------------------- }
 
 Function VLineIsLastInPara(L: Integer): Boolean;
+Var PI: Integer;
 Begin
- If L >= VLineCount Then VLineIsLastInPara := True
- Else VLineIsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
+ If L >= VLineCount Then Begin
+  { Derniere vline globale : on regarde le paragraphe courant. Si elle a
+    une continuation artificielle (rare car la suivante aurait des vlines
+    aussi), on laisse True. }
+  VLineIsLastInPara := True; Exit;
+ End;
+ If VLines[L+1].ParaIdx = VLines[L].ParaIdx Then Begin
+  VLineIsLastInPara := False; Exit;
+ End;
+ { Sous-paragraphes issus du split ShortString : on traite la frontiere
+   comme INTERNE pour conserver la justification jusqu'au bout. }
+ PI := VLines[L].ParaIdx;
+ If (PI >= 1) And (PI <= Doc.ParaCount) And
+    Doc.Paragraphs[PI].ContinuesNext Then Begin
+  VLineIsLastInPara := False; Exit;
+ End;
+ If (VLines[L+1].ParaIdx >= 1) And
+    (VLines[L+1].ParaIdx <= Doc.ParaCount) And
+    Doc.Paragraphs[VLines[L+1].ParaIdx].ContinuesPrev Then Begin
+  VLineIsLastInPara := False; Exit;
+ End;
+ VLineIsLastInPara := True;
 End;
 
 Function VLineSpaceCount(L: Integer): Integer;
@@ -2113,7 +2189,7 @@ Begin
   End;
  InterSpaceCnt := Cnt;
  If LastNonSpace > 0 Then
-  EffWidth := TextWidth(Copy(ParaStr, VLines[L].CharStart, LastNonSpace))
+  EffWidth := StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, LastNonSpace)
  Else
   EffWidth := 0;
 End;
@@ -2253,7 +2329,21 @@ Begin
    Continue;
   End;
 
-  If VLines[I].CharLen = 0 Then Continue;
+  If VLines[I].CharLen = 0 Then Begin
+   { Paragraphe vide : dessiner quand meme la bordure inferieure si demandee. }
+   If VLineIsLastInPara(I) Then
+    If (VLines[I].ParaIdx >= 1) And
+       (VLines[I].ParaIdx <= Doc.ParaCount) Then
+     If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
+      SetColor(DarkGray);
+      Line((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
+           ScreenY + LINE_HEIGHT - 1,
+           (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
+           ScreenY + LINE_HEIGHT - 1);
+      SetColor(Black);
+     End;
+   Continue;
+  End;
   If (ScreenY < DOCAREA_TOP) Or
      (ScreenY + LINE_HEIGHT - 1 > DOCAREA_BOTTOM) Then Continue;
 
@@ -2333,6 +2423,20 @@ Begin
     If J <> 0 Then ;
    End;
   End;
+  { Bordure inferieure de paragraphe : trait horizontal sous la
+    derniere ligne visuelle du paragraphe. }
+  If (Not VLines[I].IsImage) And (Not VLines[I].IsTable) Then
+   If VLineIsLastInPara(I) Then
+    If (VLines[I].ParaIdx >= 1) And
+       (VLines[I].ParaIdx <= Doc.ParaCount) Then
+     If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
+      SetColor(DarkGray);
+      Line((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
+           ScreenY + LINE_HEIGHT - 1,
+           (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
+           ScreenY + LINE_HEIGHT - 1);
+      SetColor(Black);
+     End;
  End;
  SetColor(Black);
 End;
@@ -6315,6 +6419,7 @@ Type
   Size     : Byte;
   HasAlign : Boolean;
   Align    : Byte;
+  HasBorderBottom : Boolean;
  End;
  TDocxAbsNum = Record
   AbsId : Integer;
@@ -6461,17 +6566,19 @@ End;
 Procedure DocxParseStyles;
 Var
  InStyle, InRPr, InPPr  : Boolean;
+ InPBdr                 : Boolean;
  CurId                  : String[40];
  CurSty                 : Byte;
  CurSize                : Byte;
  CurAlign               : Byte;
  CurHasAlign            : Boolean;
+ CurHasBdr              : Boolean;
  Tn, AttrVal            : String;
  SzHP, Code             : Integer;
 Begin
- InStyle := False; InRPr := False; InPPr := False;
+ InStyle := False; InRPr := False; InPPr := False; InPBdr := False;
  CurId := ''; CurSty := 0; CurSize := 0; CurAlign := ALIGN_LEFT;
- CurHasAlign := False;
+ CurHasAlign := False; CurHasBdr := False;
  Repeat
   DocxNextToken;
   Case TokKind Of
@@ -6482,10 +6589,12 @@ Begin
      CurId := Copy(AttrVal, 1, 40);
      CurSty := 0; CurSize := 0; CurAlign := ALIGN_LEFT;
      CurHasAlign := False;
+     CurHasBdr := False;
      InStyle := True;
     End
     Else If Tn = 'w:rPr' Then InRPr := True
-    Else If Tn = 'w:pPr' Then InPPr := True;
+    Else If Tn = 'w:pPr' Then InPPr := True
+    Else If (Tn = 'w:pBdr') And InPPr Then InPBdr := True;
    End;
    DTK_EMPTY : Begin
     Tn := TokName;
@@ -6522,13 +6631,15 @@ Begin
       Else If AttrVal = 'justify' Then CurAlign := ALIGN_JUSTIFY
       Else                             CurAlign := ALIGN_LEFT;
       CurHasAlign := True;
-     End;
+     End
+     Else If (Tn = 'w:bottom') And InPBdr Then CurHasBdr := True;
     End;
    End;
    DTK_END : Begin
     Tn := TokName;
     If Tn = 'w:rPr' Then InRPr := False
     Else If Tn = 'w:pPr' Then InPPr := False
+    Else If Tn = 'w:pBdr' Then InPBdr := False
     Else If Tn = 'w:style' Then Begin
      If InStyle And (Length(CurId) > 0) And
         (DocxStyleCount < MAX_DOCX_STYLES) Then Begin
@@ -6538,6 +6649,7 @@ Begin
       DocxStyles[DocxStyleCount].Size     := CurSize;
       DocxStyles[DocxStyleCount].HasAlign := CurHasAlign;
       DocxStyles[DocxStyleCount].Align    := CurAlign;
+      DocxStyles[DocxStyleCount].HasBorderBottom := CurHasBdr;
      End;
      InStyle := False;
     End;
@@ -6759,6 +6871,7 @@ Var
  InRPr, InPPr, InT : Boolean;
  InNumPr    : Boolean;
  InSectPr   : Boolean;
+ InPBdr     : Boolean;
  PendingPB  : Boolean;
  CurAlign   : Byte;
  RunSty     : Byte;
@@ -6781,6 +6894,9 @@ Var
  SzHP       : Integer;
  OK         : Boolean;
  TLen, AvailLen : Integer;
+ TotLen, K  : Integer;
+ M          : Integer;
+ PendingTail, LastRunText : String;
  TxtPiece   : String;
 Begin
  LoadDocxFromFile := False;
@@ -6806,6 +6922,7 @@ Begin
  ParaIdx := 0; RunIdx := 0;
  InP := False; InR := False; InRPr := False; InPPr := False; InT := False;
  InNumPr := False; InSectPr := False;
+ InPBdr := False;
  PendingPB := False;
  CurAlign := ALIGN_LEFT;
  RunSty := 0; RunSize := 12; RunStyleSet := False;
@@ -6838,6 +6955,7 @@ Begin
     End
     Else If Tn = 'w:pPr' Then InPPr := True
     Else If Tn = 'w:sectPr' Then InSectPr := True
+    Else If (Tn = 'w:pBdr') And InPPr Then InPBdr := True
     Else If (Tn = 'w:numPr') And InPPr Then Begin
      InNumPr := True; ParaHasNum := True;
     End
@@ -6860,7 +6978,12 @@ Begin
 
    DTK_EMPTY : Begin
     Tn := TokName;
-    If InPPr Then Begin
+    { Word legacy HR : <w:pict><v:rect o:hr="t" .../></w:pict> }
+    If (Tn = 'v:rect') And InP Then Begin
+     AttrVal := DocxGetAttr(TokAttrs, 'o:hr');
+     If AttrVal = 't' Then Doc.Paragraphs[ParaIdx].BorderBottom := True;
+    End
+    Else If InPPr Then Begin
      If Tn = 'w:jc' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
       If      AttrVal = 'center'  Then CurAlign := ALIGN_CENTER
@@ -6871,6 +6994,9 @@ Begin
      End
      Else If Tn = 'w:pageBreakBefore' Then Begin
       If InP Then Doc.Paragraphs[ParaIdx].PageBreakBefore := True;
+     End
+     Else If (Tn = 'w:bottom') And InPBdr Then Begin
+      If InP Then Doc.Paragraphs[ParaIdx].BorderBottom := True;
      End
      Else If Tn = 'w:pStyle' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
@@ -6904,6 +7030,12 @@ Begin
         If DocxStyles[StyIdx].HasAlign Then CurAlign := DocxStyles[StyIdx].Align;
        End;
       End;
+      { Bordure inferieure : toujours interroger styles.xml meme pour les }
+      { styles de titre reconnus en fast-path (Heading1..6, Title...).    }
+      StyIdx := FindDocxStyle(AttrVal);
+      If StyIdx > 0 Then
+       If DocxStyles[StyIdx].HasBorderBottom And InP Then
+        Doc.Paragraphs[ParaIdx].BorderBottom := True;
      End
      Else If InNumPr Then Begin
       If Tn = 'w:ilvl' Then Begin
@@ -7024,6 +7156,7 @@ Begin
     If Tn = 'w:t' Then InT := False
     Else If Tn = 'w:numPr' Then InNumPr := False
     Else If Tn = 'w:sectPr' Then InSectPr := False
+    Else If Tn = 'w:pBdr' Then InPBdr := False
     Else If Tn = 'w:rPr' Then Begin
      InRPr := False;
      { Le commit definitif des styles est fait a </w:r> pour pouvoir }
@@ -7072,13 +7205,71 @@ Begin
 
    DTK_TEXT : Begin
     If InT And InR And (ParaIdx > 0) And (RunIdx > 0) Then Begin
-     TLen := Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text);
-     AvailLen := MAX_TEXT_LEN - TLen;
-     If AvailLen > 0 Then Begin
-      TxtPiece := Utf8ToCp437(TokText);
-      If Length(TxtPiece) > AvailLen Then TxtPiece := Copy(TxtPiece, 1, AvailLen);
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
-       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + TxtPiece;
+     TxtPiece := Utf8ToCp437(TokText);
+     { Longueur totale courante du paragraphe (somme des runs). }
+     TotLen := 0;
+     For K := 1 To Doc.Paragraphs[ParaIdx].RunCount Do
+      Inc(TotLen, Length(Doc.Paragraphs[ParaIdx].Runs[K].Text));
+     { Boucle de placement : la limite reelle est ShortString (ParaText        }
+     { concatene tous les runs en un String de 255 max). Quand le total du     }
+     { paragraphe approche 240, on cree un sous-paragraphe de continuation    }
+     { heritant alignement+indent. On preserve la frontiere mot et FirstLine- }
+     { Hang := True pour que la continuation reste indentee a la 1re ligne.   }
+     While Length(TxtPiece) > 0 Do Begin
+      AvailLen := MAX_TEXT_LEN - TotLen;
+      TLen := Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text);
+      If MAX_TEXT_LEN - TLen < AvailLen Then AvailLen := MAX_TEXT_LEN - TLen;
+      If AvailLen <= 0 Then Begin
+       If ParaIdx >= MAX_PARAS_PER_DOC Then Break;
+       PendingTail := '';
+       LastRunText := Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text;
+       K := Length(LastRunText);
+       If (K > 0) And (LastRunText[K] <> ' ') Then Begin
+        M := K;
+        While (M > 0) And (LastRunText[M] <> ' ') Do Dec(M);
+        If (M > 0) And (M < K) And ((K - M) <= (K Div 2)) Then Begin
+         PendingTail := Copy(LastRunText, M + 1, K - M);
+         Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text := Copy(LastRunText, 1, M);
+        End;
+       End;
+       K := ParaIdx;
+       Doc.Paragraphs[K].ContinuesNext := True;
+       Inc(ParaIdx);
+       Doc.Paragraphs[ParaIdx].Alignment       := Doc.Paragraphs[K].Alignment;
+       Doc.Paragraphs[ParaIdx].LeftIndent      := Doc.Paragraphs[K].LeftIndent;
+       { FirstLineHang := True => la 1re ligne du sous-paragraphe est aussi     }
+       { indentee au LeftIndent (pas de bullet en tete), preservant l'aspect    }
+       { d'une liste continuee.                                                 }
+       Doc.Paragraphs[ParaIdx].FirstLineHang   := Doc.Paragraphs[K].LeftIndent > 0;
+       Doc.Paragraphs[ParaIdx].PageBreakBefore := False;
+       Doc.Paragraphs[ParaIdx].ContinuesPrev   := True;
+       Doc.Paragraphs[ParaIdx].RunCount        := 1;
+       RunIdx := 1;
+       Doc.Paragraphs[ParaIdx].Runs[1].Text    := PendingTail;
+       Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := RunSty Or ParaForceSty;
+       If ParaForceSize > 0 Then
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := ParaForceSize
+       Else
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := RunSize;
+       Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := RunColor;
+       TotLen   := Length(PendingTail);
+       AvailLen := MAX_TEXT_LEN - TotLen;
+      End;
+      If Length(TxtPiece) <= AvailLen Then Begin
+       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
+        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + TxtPiece;
+       Inc(TotLen, Length(TxtPiece));
+       TxtPiece := '';
+      End Else Begin
+       { Reculer jusqu'au dernier espace pour ne pas couper un mot. }
+       K := AvailLen;
+       While (K > 1) And (TxtPiece[K] <> ' ') Do Dec(K);
+       If K <= 1 Then K := AvailLen;  { aucun espace trouve : on coupe quand meme }
+       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
+        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + Copy(TxtPiece, 1, K);
+       Inc(TotLen, K);
+       TxtPiece := Copy(TxtPiece, K + 1, Length(TxtPiece));
+      End;
      End;
     End;
    End;
@@ -8713,7 +8904,12 @@ Begin
   ACT_INS_IMAGE   : Begin
                      FNameTmp := '';
                      If ShowFileDialog('Insert Picture', False,
-                      'Images (*.BMP;*.PCX;*.GIF;*.JPG)|*.BMP;*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;*.TIFF|Tous (*.*)|*.*', FNameTmp) Then Begin
+                      'Images (*.BMP;*.PCX;*.GIF;*.JPG)|*.BMP;'+
+                      '*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;'+
+                      '*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|'+
+                      'GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|'+
+                      '*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;'+
+                      '*.TIFF|Tous (*.*)|*.*', FNameTmp) Then Begin
                       LoadOK := False; ImgBuf := Nil; IW := 0; IH := 0;
                       LoadOK := LoadAnyImage(FNameTmp, ImgBuf, IW, IH);
                       If LoadOK Then Begin
