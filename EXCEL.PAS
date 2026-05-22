@@ -176,6 +176,7 @@ Var
  CmdOK       : Boolean;
  CmdShort    : String;
  CmdF        : File;
+ XlsxErr     : Integer;       { code de diagnostic XLSX }
 
  { Etat de menu deroulant }
  MenuOpen    : Integer;       { 0 = aucun, sinon 1..N }
@@ -4752,13 +4753,14 @@ Function FindTag(Const X: TXBuf; Const Tag: String;
 Var I, J: LongInt; OK: Boolean;
 Begin
  FindTag := False;
+ If Length(Tag) = 0 Then Exit;
  I := Start;
  While I < X.Size Do Begin
-  If XBReadByte(X, I) = Byte('<') Then Begin
+  If XBReadByte(X, I) = Byte(Tag[1]) Then Begin
    OK := True;
-   For J := 1 To Length(Tag) Do
-    If (I + J >= X.Size) Or
-       (XBReadByte(X, I + J) <> Byte(Tag[J])) Then
+   For J := 2 To Length(Tag) Do
+    If (I + J - 1 >= X.Size) Or
+       (XBReadByte(X, I + J - 1) <> Byte(Tag[J])) Then
      Begin OK := False; Break; End;
    If OK Then Begin P := I; FindTag := True; Exit; End;
   End;
@@ -4928,6 +4930,7 @@ Var F: File; Z, Part: TXBuf; NR: LongInt; FS: LongInt;
     Sh: PSheet;
 Begin
  LoadWorkbookXLSX := False;
+ XlsxErr := 1;     { open }
  InitCRC32;
  {$I-} Assign(F, FN); Reset(F, 1); {$I+}
  If IOResult <> 0 Then Exit;
@@ -4935,9 +4938,12 @@ Begin
  XBNew(Z, FS + 16);
  {$I-} BlockRead(F, Z.Data^, FS, NR); Close(F); {$I+}
  Z.Size := NR;
+ XlsxErr := 2;     { read }
  If NR <> FS Then Begin XBFree(Z); Exit; End;
+ XlsxErr := 3;     { ParseZipCD }
  If Not ParseZipCD(Z) Then Begin XBFree(Z); Exit; End;
 
+ XlsxErr := 4;     { extract workbook.xml }
  { parse workbook.xml -> sheet names }
  If Not ZipExtract(Z, 'xl/workbook.xml', Part) Then Begin
   XBFree(Z); Exit;
@@ -4957,7 +4963,9 @@ Begin
   P := EndTag + 1;
  End;
  XBFree(Part);
+ XlsxErr := 5;     { no sheets found in workbook.xml }
  If SheetCount = 0 Then Begin XBFree(Z); Exit; End;
+ XlsxErr := 6;     { OK }
 
  { parse sharedStrings if present }
  XSST_Count := 0;
@@ -7291,7 +7299,8 @@ BEGIN
     Else If IsXLSExt(CmdFN) Then CmdOK := LoadWorkbookXLS(CmdFN)
                             Else CmdOK := LoadWorkbookXLC(CmdFN);
     If Not CmdOK Then
-     MessageBox('Erreur', 'Format invalide : ' + CmdShort);
+     MessageBox('Erreur', 'Format invalide (code ' +
+                IntToStr(XlsxErr) + ') : ' + CmdShort);
    End;
   End;
  End;
