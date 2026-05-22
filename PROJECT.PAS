@@ -169,6 +169,8 @@ Const
  FLD_START = 5; FLD_FINISH = 6; FLD_PRED = 7; FLD_RES = 8;
  FLD_PERCENT = 9; FLD_WBS = 10; FLD_COST = 11; FLD_WORK = 12;
  FLD_PRIO = 13; FLD_NOTES = 14;
+ FLD_TSLACK = 15; FLD_FSLACK = 16; FLD_ES = 17; FLD_EF = 18;
+ FLD_LS = 19; FLD_LF = 20; FLD_CRIT = 21;
 
  ACT_NONE = 0;
  ACT_NEW = 1;     ACT_OPEN = 2;    ACT_SAVE = 3;    ACT_SAVEAS = 4;
@@ -245,6 +247,12 @@ Type
   BaselineDur  : LongInt;
   WBS          : String[20];
   Resources    : String[60];
+  EarlyStart   : TDate;
+  EarlyFinish  : TDate;
+  LateStart    : TDate;
+  LateFinish   : TDate;
+  TotalSlack   : LongInt;
+  FreeSlack    : LongInt;
  End;
 
  PResource = ^TResource;
@@ -1033,6 +1041,166 @@ Begin
 End;
 
 { ====================================================================== }
+{                       MOTEUR CPM / CHEMIN CRITIQUE                     }
+{ ====================================================================== }
+
+Function TaskDurDays(T: PTask): LongInt;
+Begin
+ If T = Nil Then Begin TaskDurDays := 0; Exit; End;
+ If T^.IsMilestone Or (T^.Duration <= 0) Then TaskDurDays := 0
+ Else TaskDurDays := (T^.Duration + 9) Div 10;
+End;
+
+Function FindTaskByIdField(Id: Word): Integer;
+Var I: Integer;
+Begin
+ FindTaskByIdField := 0;
+ For I := 1 To Project.TaskCount Do
+  If (Project.Tasks[I] <> Nil) And (Project.Tasks[I]^.Id = Id) Then Begin
+   FindTaskByIdField := I; Exit;
+  End;
+End;
+
+Procedure CPMForwardPass;
+Var I, J, PIdx: Integer; T, U: PTask; ES, Cand: TDate; Dd, Du: LongInt;
+Begin
+ For I := 1 To Project.TaskCount Do Begin
+  T := Project.Tasks[I];
+  If T = Nil Then Continue;
+  If T^.IsSummary Then Continue;
+  ES := Project.StartDate;
+  Dd := TaskDurDays(T);
+  For J := 1 To T^.PredCount Do Begin
+   PIdx := FindTaskByIdField(T^.Pred[J].TaskId);
+   If PIdx = 0 Then Continue;
+   U := Project.Tasks[PIdx];
+   If U = Nil Then Continue;
+   Du := TaskDurDays(U);
+   Case T^.Pred[J].LinkType Of
+    LT_FS: Cand := U^.EarlyFinish + 1 + T^.Pred[J].Lag;
+    LT_SS: Cand := U^.EarlyStart + T^.Pred[J].Lag;
+    LT_FF: Begin
+            If Dd > 0 Then Cand := U^.EarlyFinish + T^.Pred[J].Lag - Dd + 1
+            Else Cand := U^.EarlyFinish + T^.Pred[J].Lag;
+           End;
+    LT_SF: Begin
+            If Dd > 0 Then Cand := U^.EarlyStart + T^.Pred[J].Lag - Dd + 1
+            Else Cand := U^.EarlyStart + T^.Pred[J].Lag;
+           End;
+   Else Cand := U^.EarlyFinish + 1;
+   End;
+   If Cand > ES Then ES := Cand;
+  End;
+  Case T^.ConstraintTyp Of
+   CT_MSO, CT_SNET: If T^.ConstraintDt > ES Then ES := T^.ConstraintDt;
+   CT_MFO:          If T^.ConstraintDt - Dd + 1 > ES Then ES := T^.ConstraintDt - Dd + 1;
+  End;
+  T^.EarlyStart := ES;
+  If Dd > 0 Then T^.EarlyFinish := ES + Dd - 1 Else T^.EarlyFinish := ES;
+  T^.Start := T^.EarlyStart;
+  T^.Finish := T^.EarlyFinish;
+  If T^.IsMilestone Then T^.Finish := T^.Start;
+ End;
+End;
+
+Procedure CPMBackwardPass;
+Var I, J, SIdx: Integer; T, S: PTask;
+    ProjFinish, LF, Cand: TDate; Dd, Ds: LongInt;
+Begin
+ ProjFinish := Project.StartDate;
+ For I := 1 To Project.TaskCount Do
+  If (Project.Tasks[I] <> Nil) And (Not Project.Tasks[I]^.IsSummary) Then
+   If Project.Tasks[I]^.EarlyFinish > ProjFinish Then
+    ProjFinish := Project.Tasks[I]^.EarlyFinish;
+ Project.FinishDate := ProjFinish;
+ For I := 1 To Project.TaskCount Do Begin
+  T := Project.Tasks[I];
+  If T = Nil Then Continue;
+  T^.LateFinish := ProjFinish;
+  T^.LateStart  := ProjFinish;
+ End;
+ For I := Project.TaskCount DownTo 1 Do Begin
+  T := Project.Tasks[I];
+  If T = Nil Then Continue;
+  If T^.IsSummary Then Continue;
+  Dd := TaskDurDays(T);
+  LF := ProjFinish;
+  For J := 1 To Project.TaskCount Do Begin
+   S := Project.Tasks[J];
+   If (S = Nil) Or (S = T) Or S^.IsSummary Then Continue;
+   For SIdx := 1 To S^.PredCount Do
+    If S^.Pred[SIdx].TaskId = T^.Id Then Begin
+     Ds := TaskDurDays(S);
+     Case S^.Pred[SIdx].LinkType Of
+      LT_FS: Cand := S^.LateStart - 1 - S^.Pred[SIdx].Lag;
+      LT_SS: Begin
+              If Dd > 0 Then Cand := S^.LateStart - S^.Pred[SIdx].Lag + Dd - 1
+              Else Cand := S^.LateStart - S^.Pred[SIdx].Lag;
+             End;
+      LT_FF: Cand := S^.LateFinish - S^.Pred[SIdx].Lag;
+      LT_SF: Begin
+              If Ds > 0 Then Cand := S^.LateFinish - S^.Pred[SIdx].Lag - Ds + 1
+              Else Cand := S^.LateFinish - S^.Pred[SIdx].Lag;
+              If Dd > 0 Then Cand := Cand + Dd - 1;
+             End;
+     Else Cand := S^.LateStart - 1;
+     End;
+     If Cand < LF Then LF := Cand;
+    End;
+  End;
+  Case T^.ConstraintTyp Of
+   CT_MFO, CT_FNLT: If T^.ConstraintDt < LF Then LF := T^.ConstraintDt;
+   CT_MSO:          If T^.ConstraintDt + Dd - 1 < LF Then LF := T^.ConstraintDt + Dd - 1;
+  End;
+  T^.LateFinish := LF;
+  If Dd > 0 Then T^.LateStart := LF - Dd + 1 Else T^.LateStart := LF;
+  T^.TotalSlack := T^.LateStart - T^.EarlyStart;
+  T^.Critical   := T^.TotalSlack <= 0;
+ End;
+End;
+
+Procedure CPMComputeFreeSlack;
+Var I, J, SIdx: Integer; T, S: PTask;
+    MinSuccES, Cand, Slack: TDate;
+Begin
+ For I := 1 To Project.TaskCount Do Begin
+  T := Project.Tasks[I];
+  If T = Nil Then Continue;
+  If T^.IsSummary Then Begin T^.FreeSlack := 0; Continue; End;
+  MinSuccES := -1;
+  For J := 1 To Project.TaskCount Do Begin
+   S := Project.Tasks[J];
+   If (S = Nil) Or (S = T) Or S^.IsSummary Then Continue;
+   For SIdx := 1 To S^.PredCount Do
+    If S^.Pred[SIdx].TaskId = T^.Id Then Begin
+     Case S^.Pred[SIdx].LinkType Of
+      LT_FS: Cand := S^.EarlyStart - 1 - S^.Pred[SIdx].Lag;
+      LT_SS: Cand := S^.EarlyStart - S^.Pred[SIdx].Lag - 1;
+      LT_FF: Cand := S^.EarlyFinish - S^.Pred[SIdx].Lag;
+      LT_SF: Cand := S^.EarlyStart - S^.Pred[SIdx].Lag;
+     Else Cand := S^.EarlyStart - 1;
+     End;
+     If (MinSuccES < 0) Or (Cand < MinSuccES) Then MinSuccES := Cand;
+    End;
+  End;
+  If MinSuccES < 0 Then Slack := T^.TotalSlack
+  Else Slack := MinSuccES - T^.EarlyFinish;
+  If Slack < 0 Then Slack := 0;
+  T^.FreeSlack := Slack;
+ End;
+End;
+
+Procedure CPMRecompute;
+Begin
+ If Project.TaskCount = 0 Then Exit;
+ CPMForwardPass;
+ ComputeSummaries;
+ CPMBackwardPass;
+ CPMComputeFreeSlack;
+ ComputeSummaries;
+End;
+
+{ ====================================================================== }
 {                       PROJET D'EXEMPLE                                 }
 { ====================================================================== }
 
@@ -1127,7 +1295,7 @@ Begin
  Project.Tasks[28]^.Resources:= 'Contremaitre';
  Project.Tasks[29]^.Resources:= 'Contremaitre';
 
- ComputeSummaries;
+ CPMRecompute;
  Project.FinishDate := Project.Tasks[1]^.Finish;
  Project.Dirty := False;
 End;
@@ -1186,6 +1354,13 @@ Begin
   FLD_WORK:    S := IntToStr(T^.Work Div 10) + ' h';
   FLD_PRIO:    S := IntToStr(T^.Priority);
   FLD_NOTES:   S := T^.Notes;
+  FLD_TSLACK:  S := IntToStr(T^.TotalSlack) + ' j';
+  FLD_FSLACK:  S := IntToStr(T^.FreeSlack) + ' j';
+  FLD_ES:      S := ShortDateStr(T^.EarlyStart);
+  FLD_EF:      S := ShortDateStr(T^.EarlyFinish);
+  FLD_LS:      S := ShortDateStr(T^.LateStart);
+  FLD_LF:      S := ShortDateStr(T^.LateFinish);
+  FLD_CRIT:    If T^.Critical Then S := 'Oui' Else S := 'Non';
  End;
  FieldStr := S;
 End;
@@ -1660,6 +1835,7 @@ Begin
  If T = Nil Then Exit;
  If TaskIdx = CurTaskIdx Then Begin Bg := CLR_GRID_SEL_BG; Fg := CLR_GRID_SEL_FG; End
  Else Begin Bg := CLR_GRID_BG; Fg := CLR_GRID_TEXT; End;
+ If (T^.Critical) And (Not T^.IsSummary) And (TaskIdx <> CurTaskIdx) Then Fg := CLR_RED;
  FillBox(GridX1, Y, GridX2, Y + ROW_H - 1, Bg);
  X := GridX1 - GridScrollX;
  For I := 1 To ColCount Do Begin
@@ -2081,7 +2257,7 @@ Begin
  End;
  EditMode := False;
  Project.Dirty := True;
- ComputeSummaries;
+ CPMRecompute;
  NeedGridRedraw := True;
  NeedGanttRedraw := True;
 End;
@@ -2177,7 +2353,7 @@ Procedure DoAction(A: Integer); Forward;
 Procedure ActionNew;
 Begin
  InitProject;
- ComputeSummaries;
+ CPMRecompute;
  CurTaskIdx := 1;
  GridScrollY := 0;
  GanttOriginDt := Project.StartDate - 3;
@@ -2208,7 +2384,7 @@ Begin
  Project.Tasks[CurTaskIdx + 1] := T;
  Inc(CurTaskIdx);
  Project.Dirty := True;
- ComputeSummaries;
+ CPMRecompute;
  NeedGridRedraw := True;
  NeedGanttRedraw := True;
 End;
@@ -2227,7 +2403,7 @@ Begin
  Dec(Project.TaskCount);
  If CurTaskIdx > Project.TaskCount Then CurTaskIdx := Project.TaskCount;
  Project.Dirty := True;
- ComputeSummaries;
+ CPMRecompute;
  NeedGridRedraw := True;
  NeedGanttRedraw := True;
 End;
@@ -2239,7 +2415,7 @@ Begin
  T := Project.Tasks[CurTaskIdx];
  If T = Nil Then Exit;
  If T^.OutlineLv < 9 Then Inc(T^.OutlineLv);
- ComputeSummaries;
+ CPMRecompute;
  NeedGridRedraw := True;
  NeedGanttRedraw := True;
  Project.Dirty := True;
@@ -2252,7 +2428,7 @@ Begin
  T := Project.Tasks[CurTaskIdx];
  If T = Nil Then Exit;
  If T^.OutlineLv > 1 Then Dec(T^.OutlineLv);
- ComputeSummaries;
+ CPMRecompute;
  NeedGridRedraw := True;
  NeedGanttRedraw := True;
  Project.Dirty := True;
