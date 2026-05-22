@@ -7166,24 +7166,84 @@ Function ShowFileDialog(Const Title: String; SaveMode: Boolean;
                         Const Filter: String;
                         Var FName: String): Boolean;
 Const
- MAX_LIST = 64;
- LIST_ROWS = 10;
- ROW_H = 16;
+ MAX_LIST   = 256;
+ LIST_ROWS  = 12;
+ ROW_H      = 14;
+ MAX_FLTS   = 8;
 Var
  X1, Y1, X2, Y2  : Integer;
  LX1, LY1, LX2, LY2 : Integer;
  IX1, IY1, IX2, IY2 : Integer;
+ FX1, FY1, FX2, FY2 : Integer;
  OkX1, CnX1, BY1, BY2 : Integer;
  K               : Word;
  OK, Done        : Boolean;
- Files           : Array[1..MAX_LIST] Of String[16];
+ Files           : Array[1..MAX_LIST] Of String[64];
+ FileIsDir       : Array[1..MAX_LIST] Of Boolean;
  FileCount       : Integer;
  Sel, Top        : Integer;
  SR              : SearchRec;
  Inp             : String;
+ CurDir          : String;
+ DirDisp         : String;
  I, Idx          : Integer;
- FStart, FEnd, FLen : Integer;
- Mask            : String;
+ FltLabels       : Array[1..MAX_FLTS] Of String[40];
+ FltMasks        : Array[1..MAX_FLTS] Of String[80];
+ FltCount        : Integer;
+ FltCur          : Integer;
+ FltDisp         : String;
+ LastBtn         : Word;
+ NeedRescan      : Boolean;
+
+ Procedure ParseFilter;
+ Var P, L, J: Integer; Seg: String;
+ Begin
+  FltCount := 0;
+  P := 1; L := Length(Filter);
+  { Format: Label1|masks1|Label2|masks2|...   ou simple "*.X;*.Y" }
+  If Pos('|', Filter) = 0 Then Begin
+   FltCount := 1;
+   FltLabels[1] := Filter;
+   FltMasks[1]  := Filter;
+   Exit;
+  End;
+  While (P <= L) And (FltCount < MAX_FLTS) Do Begin
+   J := P;
+   While (J <= L) And (Filter[J] <> '|') Do Inc(J);
+   Seg := Copy(Filter, P, J - P);
+   P := J + 1;
+   Inc(FltCount);
+   FltLabels[FltCount] := Seg;
+   J := P;
+   While (J <= L) And (Filter[J] <> '|') Do Inc(J);
+   Seg := Copy(Filter, P, J - P);
+   P := J + 1;
+   FltMasks[FltCount] := Seg;
+  End;
+ End;
+
+ Procedure NavigateUp;
+ Var J, SlashPos: Integer;
+ Begin
+  { CurDir se termine par '\'. Trouver l'avant-dernier separateur. }
+  If Length(CurDir) <= 3 Then Exit;  { 'X:\' = racine }
+  SlashPos := 0;
+  For J := Length(CurDir) - 1 Downto 1 Do
+   If (CurDir[J] = '\') Or (CurDir[J] = '/') Then Begin
+    SlashPos := J; Break;
+   End;
+  If SlashPos > 0 Then
+   CurDir := Copy(CurDir, 1, SlashPos);
+ End;
+
+ Procedure NavigateInto(Const SubDir: String);
+ Begin
+  If SubDir = '..' Then Begin NavigateUp; Exit; End;
+  If SubDir = '.'  Then Exit;
+  CurDir := CurDir + SubDir;
+  If (Length(CurDir) > 0) And (CurDir[Length(CurDir)] <> '\') Then
+   CurDir := CurDir + '\';
+ End;
 
  Procedure RedrawList;
  Var L, Y : Integer;
@@ -7195,9 +7255,12 @@ Var
    Y := LY1 + 1 + L*ROW_H;
    If Top + L = Sel Then Begin
     FillRectArea(LX1+1, Y, LX2-1, Y+ROW_H-1, Blue);
-    DrawTextAt(LX1+6, Y+4, Files[Top+L], White);
+    DrawTextAt(LX1+6, Y+3, Files[Top+L], White);
    End Else
-    DrawTextAt(LX1+6, Y+4, Files[Top+L], Black);
+    If FileIsDir[Top+L] Then
+     DrawTextAt(LX1+6, Y+3, Files[Top+L], DarkGray)
+    Else
+     DrawTextAt(LX1+6, Y+3, Files[Top+L], Black);
   End;
  End;
 
@@ -7206,45 +7269,122 @@ Var
  Begin
   FillRectArea(IX1+1, IY1+1, IX2-1, IY2-1, White);
   DrawFrameRect(IX1, IY1, IX2, IY2, Black);
-  DrawTextAt(IX1+4, IY1+4, Inp, Black);
+  DrawTextAt(IX1+4, IY1+3, Inp, Black);
   TW := TextWidth(Inp);
   FillRectArea(IX1+4+TW, IY1+3, IX1+4+TW+1, IY2-3, Black);
  End;
 
-Begin
- OK := False;
- X1 := 140; X2 := 500; Y1 := 100; Y2 := 380;
- LX1 := X1+15;  LY1 := Y1+90;
- LX2 := X2-15;  LY2 := LY1 + LIST_ROWS*ROW_H + 1;
- IX1 := X1+60;  IY1 := Y1+58;
- IX2 := X2-15;  IY2 := Y1+74;
- BY1 := Y2-30;  BY2 := Y2-10;
- OkX1 := X2-180;
- CnX1 := X2-90;
- Inp := FName;
- { Strip leading dir part from default if present }
- For I := Length(Inp) Downto 1 Do
-  If (Inp[I]='\') Or (Inp[I]='/') Or (Inp[I]=':') Then Begin
-   Inp := Copy(Inp, I+1, Length(Inp)-I); Break;
-  End;
- Sel := 0; Top := 1;
- FileCount := 0;
- FStart := 1; FLen := Length(Filter);
- While FStart <= FLen Do Begin
-  FEnd := FStart;
-  While (FEnd <= FLen) And (Filter[FEnd] <> ';') Do Inc(FEnd);
-  Mask := Copy(Filter, FStart, FEnd - FStart);
-  If Length(Mask) > 0 Then Begin
-   FindFirst(Mask, AnyFile, SR);
+ Procedure RedrawFilter;
+ Begin
+  FillRectArea(FX1, FY1, FX2, FY2, CLR_3D_FACE);
+  DrawButton3D(FX1, FY1, FX2, FY2, False);
+  FltDisp := FltLabels[FltCur];
+  If Length(FltDisp) > 38 Then FltDisp := Copy(FltDisp, 1, 38);
+  DrawTextAt(FX1+5, FY1+3, FltDisp, Black);
+  { fleche vers le bas a droite }
+  DrawTextAt(FX2-12, FY1+3, #25, Black);
+ End;
+
+ Procedure RedrawDir;
+ Begin
+  FillRectArea(X1+15, Y1+38, X2-15, Y1+52, CLR_3D_FACE);
+  DirDisp := CurDir;
+  If Length(DirDisp) > 56 Then
+   DirDisp := '...' + Copy(DirDisp, Length(DirDisp)-52, 53);
+  DrawTextAt(X1+15, Y1+40, DirDisp, Black);
+ End;
+
+ Procedure ScanDir;
+ Var FS, FE, FL: Integer; M, FullMask: String;
+ Begin
+  FileCount := 0;
+  { 1) Sous-repertoires }
+  If Length(CurDir) > 0 Then Begin
+   FindFirst(CurDir + '*.*', Directory, SR);
    While (DosError = 0) And (FileCount < MAX_LIST) Do Begin
-    Inc(FileCount);
-    Files[FileCount] := SR.Name;
+    If ((SR.Attr And Directory) <> 0) And
+       (SR.Name <> '.') And (SR.Name <> '..') Then Begin
+     Inc(FileCount);
+     Files[FileCount] := '[' + SR.Name + ']';
+     FileIsDir[FileCount] := True;
+    End;
     FindNext(SR);
    End;
    {$IFDEF FPC} FindClose(SR); {$ENDIF}
   End;
-  FStart := FEnd + 1;
+  { 2) Entree parent }
+  If (Length(CurDir) > 3) And (FileCount < MAX_LIST) Then Begin
+   { Decaler tous les sous-dirs d'un cran pour mettre [..] en premier. }
+   For FS := FileCount Downto 1 Do Begin
+    Files[FS+1]     := Files[FS];
+    FileIsDir[FS+1] := FileIsDir[FS];
+   End;
+   Files[1]     := '[..]';
+   FileIsDir[1] := True;
+   Inc(FileCount);
+  End;
+  { 3) Fichiers selon masques du filtre courant }
+  M := FltMasks[FltCur];
+  FS := 1; FL := Length(M);
+  While FS <= FL Do Begin
+   FE := FS;
+   While (FE <= FL) And (M[FE] <> ';') Do Inc(FE);
+   FullMask := Copy(M, FS, FE - FS);
+   If Length(FullMask) > 0 Then Begin
+    If Length(CurDir) > 0 Then FullMask := CurDir + FullMask;
+    FindFirst(FullMask, AnyFile, SR);
+    While (DosError = 0) And (FileCount < MAX_LIST) Do Begin
+     If (SR.Attr And Directory) = 0 Then Begin
+      Inc(FileCount);
+      Files[FileCount] := SR.Name;
+      FileIsDir[FileCount] := False;
+     End;
+     FindNext(SR);
+    End;
+    {$IFDEF FPC} FindClose(SR); {$ENDIF}
+   End;
+   FS := FE + 1;
+  End;
+  Sel := 0; Top := 1;
  End;
+
+ Function DirExistsHere(Const D: String): Boolean;
+ Var S: SearchRec;
+ Begin
+  FindFirst(D, Directory, S);
+  DirExistsHere := (DosError = 0) And ((S.Attr And Directory) <> 0);
+  {$IFDEF FPC} FindClose(S); {$ENDIF}
+ End;
+
+Begin
+ OK := False;
+ X1 := 80; X2 := 560; Y1 := 60; Y2 := 420;
+ LX1 := X1+15;  LY1 := Y1+110;
+ LX2 := X2-15;  LY2 := LY1 + LIST_ROWS*ROW_H + 1;
+ IX1 := X1+60;  IY1 := Y1+82;
+ IX2 := X2-15;  IY2 := Y1+98;
+ FX1 := X1+15;  FY1 := LY2 + 8;
+ FX2 := X2-15;  FY2 := FY1 + 18;
+ BY1 := Y2-30;  BY2 := Y2-10;
+ OkX1 := X2-180;
+ CnX1 := X2-90;
+ ParseFilter;
+ FltCur := 1;
+ { Separer le repertoire et le nom dans FName. }
+ CurDir := '';
+ Inp    := FName;
+ For I := Length(Inp) Downto 1 Do
+  If (Inp[I]='\') Or (Inp[I]='/') Or (Inp[I]=':') Then Begin
+   CurDir := Copy(Inp, 1, I);
+   Inp    := Copy(Inp, I+1, Length(Inp)-I);
+   Break;
+  End;
+ If Length(CurDir) = 0 Then Begin
+  GetDir(0, CurDir);
+  If (Length(CurDir) > 0) And (CurDir[Length(CurDir)] <> '\') Then
+   CurDir := CurDir + '\';
+ End;
+ ScanDir;
 
  EraseSoftCursor;
  FillRectArea(X1+5, Y2+1, X2+5, Y2+5, Black);
@@ -7253,10 +7393,13 @@ Begin
  DrawButton3D(X1, Y1, X2, Y2, False);
  FillRectArea(X1+3, Y1+3, X2-3, Y1+18, Blue);
  DrawTextAt(X1+8, Y1+6, Title, White);
- DrawTextAt(X1+15, Y1+30, 'Files (' + Filter + '):', Black);
- DrawTextAt(X1+15, Y1+62, 'Name:', Black);
+ DrawTextAt(X1+15, Y1+26, 'Repertoire :', Black);
+ RedrawDir;
+ DrawTextAt(X1+15, Y1+62, 'Fichiers :', Black);
+ DrawTextAt(X1+15, Y1+86, 'Nom :', Black);
  RedrawInput;
  RedrawList;
+ RedrawFilter;
  DrawButton3D(OkX1, BY1, OkX1+80, BY2, False);
  If SaveMode Then DrawTextAt(OkX1+25, BY1+4, 'Save', Black)
              Else DrawTextAt(OkX1+30, BY1+4, 'Open', Black);
@@ -7264,50 +7407,84 @@ Begin
  DrawTextAt(CnX1+22, BY1+4, 'Cancel', Black);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 
+ LastBtn := MsBtn;
  Done := False;
  Repeat
+  NeedRescan := False;
   If KeyPressed Then Begin
    K := ReadKeyEx;
    Case K Of
     KEY_ESC   : Begin OK:=False; Done:=True; End;
-    KEY_ENTER : If Length(Inp) > 0 Then Begin OK:=True; Done:=True; End;
+    KEY_ENTER : If (Sel >= 1) And (Sel <= FileCount) And FileIsDir[Sel] Then Begin
+                 If Files[Sel] = '[..]' Then NavigateUp
+                 Else NavigateInto(Copy(Files[Sel], 2, Length(Files[Sel])-2));
+                 NeedRescan := True;
+                End Else If Length(Inp) > 0 Then Begin OK:=True; Done:=True; End;
     KEY_UP    : If FileCount > 0 Then Begin
                  If Sel <= 1 Then Sel := 1 Else Dec(Sel);
                  If Sel < Top Then Top := Sel;
-                 Inp := Files[Sel]; RedrawInput; RedrawList;
+                 If Not FileIsDir[Sel] Then Inp := Files[Sel];
+                 RedrawInput; RedrawList;
                 End;
     KEY_DOWN  : If Sel < FileCount Then Begin
                  If Sel = 0 Then Sel := 1 Else Inc(Sel);
                  If Sel > Top + LIST_ROWS - 1 Then Top := Sel - LIST_ROWS + 1;
-                 Inp := Files[Sel]; RedrawInput; RedrawList;
+                 If Not FileIsDir[Sel] Then Inp := Files[Sel];
+                 RedrawInput; RedrawList;
                 End;
     KEY_BACKSPACE : If Length(Inp) > 0 Then Begin
                      Inp[0] := Char(Length(Inp)-1);
                      RedrawInput;
                     End;
    Else
-    If (K >= 32) And (K <= 126) And (Length(Inp) < 50) Then Begin
+    If (K >= 32) And (K <= 126) And (Length(Inp) < 80) Then Begin
      Inp := Inp + Char(K);
      RedrawInput;
     End;
    End;
   End;
   GetMouseStateLI(MsX, MsY, MsBtn);
-  If (MsBtn And MB_LEFT) <> 0 Then Begin
+  If ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT) = 0) Then Begin
    If (MsX>=OkX1) And (MsX<=OkX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     If Length(Inp)>0 Then Begin OK:=True; Done:=True; End;
    End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     OK:=False; Done:=True;
+   End Else If (MsX>=FX1) And (MsX<=FX2) And (MsY>=FY1) And (MsY<=FY2) Then Begin
+    Inc(FltCur); If FltCur > FltCount Then FltCur := 1;
+    NeedRescan := True;
+    RedrawFilter;
    End Else If (MsX>=LX1) And (MsX<=LX2) And (MsY>=LY1) And (MsY<=LY2) Then Begin
     Idx := Top + (MsY - LY1 - 1) Div ROW_H;
     If (Idx >= 1) And (Idx <= FileCount) Then Begin
-     Sel := Idx; Inp := Files[Sel]; RedrawInput; RedrawList;
+     If FileIsDir[Idx] Then Begin
+      If Files[Idx] = '[..]' Then NavigateUp
+      Else NavigateInto(Copy(Files[Idx], 2, Length(Files[Idx])-2));
+      NeedRescan := True;
+     End Else Begin
+      Sel := Idx; Inp := Files[Sel]; RedrawInput; RedrawList;
+     End;
     End;
    End;
-   Repeat GetMouseStateLI(MsX, MsY, MsBtn); Until (MsBtn And MB_LEFT) = 0;
+  End;
+  LastBtn := MsBtn;
+  If NeedRescan Then Begin
+   ScanDir;
+   RedrawDir;
+   RedrawList;
+   RedrawInput;
   End;
  Until Done;
- If OK Then FName := Inp;
+ If OK Then Begin
+  { Si l'utilisateur a tape un chemin complet, le garder tel quel. }
+  For I := 1 To Length(Inp) Do
+   If (Inp[I]='\') Or (Inp[I]='/') Or (Inp[I]=':') Then Begin
+    FName := Inp;
+    NeedsRedraw := True;
+    ShowFileDialog := OK;
+    Exit;
+   End;
+  FName := CurDir + Inp;
+ End;
  NeedsRedraw := True;
  ShowFileDialog := OK;
 End;
@@ -7802,7 +7979,7 @@ Begin
                      If Doc.Modified Then
                       If Not ShowConfirmYN('Discard unsaved changes?') Then Exit;
                      FNameTmp := '';
-                     If ShowFileDialog('Open Document', False, '*.WPD;*.DOCX;*.DOC', FNameTmp) Then Begin
+                     If ShowFileDialog('Open Document', False, 'Documents Word (*.WPD;*.DOCX;*.DOC)|*.WPD;*.DOCX;*.DOC|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If LoadAnyDocument(FNameTmp) Then Begin
                        LayoutDocument;
@@ -7816,7 +7993,7 @@ Begin
   ACT_FILE_SAVE   : Begin
                      FNameTmp := Doc.FileName;
                      If (FNameTmp = '') Or (FNameTmp = 'Document1') Then Begin
-                      If Not ShowFileDialog('Save Document', True, '*.WPD;*.DOCX', FNameTmp) Then Begin
+                      If Not ShowFileDialog('Save Document', True, 'Documents Word (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
                       { .DOC en sortie n'est pas supporte (Phase 9 lecture seule) }
                        NeedsRedraw := True; Exit;
                       End;
@@ -7833,7 +8010,7 @@ Begin
   ACT_FILE_SAVEAS : Begin
                      FNameTmp := Doc.FileName;
                      If FNameTmp = 'Document1' Then FNameTmp := '';
-                     If ShowFileDialog('Save As', True, '*.WPD;*.DOCX', FNameTmp) Then Begin
+                     If ShowFileDialog('Save As', True, 'Documents Word (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If ExtIsDoc(FNameTmp) And (Not ExtIsDocx(FNameTmp)) Then Begin
                        ShowMessage('Cannot save as .DOC (read-only format)');
@@ -7882,7 +8059,7 @@ Begin
   ACT_INS_IMAGE   : Begin
                      FNameTmp := '';
                      If ShowFileDialog('Insert Picture', False,
-                      '*.BMP;*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG', FNameTmp) Then Begin
+                      'Images (*.BMP;*.PCX;*.GIF;*.JPG)|*.BMP;*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;*.TIFF|Tous (*.*)|*.*', FNameTmp) Then Begin
                       LoadOK := False; ImgBuf := Nil; IW := 0; IH := 0;
                       LoadOK := LoadAnyImage(FNameTmp, ImgBuf, IW, IH);
                       If LoadOK Then Begin
