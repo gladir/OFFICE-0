@@ -198,6 +198,8 @@ Type
   ImgW, ImgH      : Integer;
   ImgData         : Pointer;     { palette indices 0..15, W*H octets }
   TableIdx        : Integer;     { 0 = pas table; sinon index dans Tables }
+  LeftIndent      : Integer;     { hang indent en pixels (lignes 2+ d'une liste) }
+  FirstLineHang   : Boolean;     { True => 1re ligne aussi indentee (continuation) }
  End;
 
  { --- Cellule de tableau : texte simple (Phase 11) --- }
@@ -1809,6 +1811,18 @@ Begin
 
   LineStart := 1;
   While LineStart <= Length(ParaStr) Do Begin
+   { Hang indent : largeur disponible reduite pour lignes 2+, ou des la 1re
+     ligne si le paragraphe est marque comme continuation (apres <w:br/>).  }
+   If (LineStart > 1) Or Doc.Paragraphs[P].FirstLineHang Then
+    Begin
+     LineX := PageContentL + Doc.Paragraphs[P].LeftIndent;
+     AvailW := PageContentR - LineX;
+    End
+   Else
+    Begin
+     LineX := PageContentL;
+     AvailW := PageContentR - PageContentL;
+    End;
    { Greedy fit jusqu'au prochain wrap }
    Pos := LineStart;
    W := 0;
@@ -1836,7 +1850,12 @@ Begin
     LineEnd := SettledLineEnd;
 
    LineW := TextWidth(Copy(ParaStr, LineStart, LineEnd - LineStart + 1));
-   LineX := ComputeLineX(LineW, PAlign);
+   { Alignement : Center/Right utilisent ComputeLineX dans la fenetre
+     restante (X..PageContentR), pas la pleine largeur de page.        }
+   Case PAlign Of
+    ALIGN_CENTER : LineX := LineX + (AvailW - LineW) Div 2;
+    ALIGN_RIGHT  : LineX := PageContentR - LineW;
+   End;
 
    If CurY + LINE_HEIGHT > PageContentBottom Then Begin
     Inc(PageIdx);
@@ -1913,7 +1932,7 @@ Begin
   If L >= VLineCount Then IsLastInPara := True
   Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
   If Not IsLastInPara Then Begin
-   AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+   AvailW := (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - VLines[L].X;
    { Determine la position 1-based dans le para du dernier non-espace. }
    LastNonSpaceAbs := 0;
    For J := 1 To VLines[L].CharLen Do Begin
@@ -1972,7 +1991,7 @@ Begin
   If L >= VLineCount Then IsLastInPara := True
   Else IsLastInPara := VLines[L+1].ParaIdx <> VLines[L].ParaIdx;
   If Not IsLastInPara Then Begin
-   AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+   AvailW := (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - VLines[L].X;
    LastNonSpaceAbs := 0;
    For J := 1 To VLines[L].CharLen Do Begin
     Idx := VLines[L].CharStart + J - 1;
@@ -2109,7 +2128,7 @@ Begin
  Slack := 0; SpaceCnt := 0;
  If VLines[L].Alignment <> ALIGN_JUSTIFY Then Exit;
  If VLineIsLastInPara(L) Then Exit;
- AvailW := PAGE_W - PAGE_MARGIN_L - PAGE_MARGIN_R;
+ AvailW := (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - VLines[L].X;
  VLineJustifyStats(L, SpaceCnt, EffW, LastVis);
  If SpaceCnt = 0 Then Exit;
  Slack := AvailW - EffW;
@@ -6691,6 +6710,43 @@ Begin
  DocxBuf := SavedBuf; DocxPos := SavedPos; DocxSize := SavedSize;
 End;
 
+{ Convertir une couleur RVB hex DOCX (ex "FF0000") vers la couleur VGA 16 la }
+{ plus proche.  Renvoie Black si chaine invalide ou "auto".                  }
+Function HexRgbToVga(Const HexS: String): Byte;
+Const
+ PalR : Array[0..15] Of Byte =
+  (  0,  0,  0,  0,170,170,170,170, 85, 85, 85, 85,255,255,255,255);
+ PalG : Array[0..15] Of Byte =
+  (  0,  0,170,170,  0,  0, 85,170, 85, 85,255,255, 85, 85,255,255);
+ PalB : Array[0..15] Of Byte =
+  (  0,170,  0,170,  0,170,  0,170, 85,255, 85,255, 85,255, 85,255);
+Var
+ R, G, B, Code : Integer;
+ H             : String[6];
+ I, Best       : Integer;
+ D, BestD, DR, DG, DB : LongInt;
+Begin
+ HexRgbToVga := Black;
+ If Length(HexS) < 6 Then Exit;
+ If (HexS = 'auto') Or (HexS = 'AUTO') Then Exit;
+ H := Copy(HexS, 1, 6);
+ Val('$' + Copy(H, 1, 2), R, Code); If Code <> 0 Then Exit;
+ Val('$' + Copy(H, 3, 2), G, Code); If Code <> 0 Then Exit;
+ Val('$' + Copy(H, 5, 2), B, Code); If Code <> 0 Then Exit;
+ Best := 0; BestD := MaxLongInt;
+ For I := 0 To 15 Do Begin
+  DR := LongInt(R) - PalR[I];
+  DG := LongInt(G) - PalG[I];
+  DB := LongInt(B) - PalB[I];
+  D := DR*DR + DG*DG + DB*DB;
+  If D < BestD Then Begin BestD := D; Best := I; End;
+ End;
+ { Eviter d'utiliser blanc (15) ou gris tres clair (7) qui sont invisibles }
+ { sur la page blanche : rabattre sur DarkGray.                            }
+ If (Best = 15) Or (Best = 7) Then Best := DarkGray;
+ HexRgbToVga := Byte(Best);
+End;
+
 Function LoadDocxFromFile(Const FName: String): Boolean;
 Var
  Z          : TZipReader;
@@ -6707,6 +6763,7 @@ Var
  CurAlign   : Byte;
  RunSty     : Byte;
  RunSize    : Byte;
+ RunColor   : Byte;
  RunStyleSet: Boolean;
  ParaForceSty  : Byte;
  ParaForceSize : Byte;
@@ -6752,6 +6809,7 @@ Begin
  PendingPB := False;
  CurAlign := ALIGN_LEFT;
  RunSty := 0; RunSize := 12; RunStyleSet := False;
+ RunColor := Black;
  ParaForceSty := 0; ParaForceSize := 0;
  ParaHasNum := False; ParaIlvl := 0; ParaNumId := -1;
  OK := True;
@@ -6788,6 +6846,7 @@ Begin
       Inc(Doc.Paragraphs[ParaIdx].RunCount);
       RunIdx := Doc.Paragraphs[ParaIdx].RunCount;
       RunSty := 0; RunSize := 12; RunStyleSet := False;
+      RunColor := Black;
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text := '';
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Style    := 0;
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.FontSize := 12;
@@ -6911,6 +6970,10 @@ Begin
        If SzHP > 72 Then SzHP := 72;
        RunSize := SzHP;
       End;
+     End
+     Else If Tn = 'w:color' Then Begin
+      AttrVal := DocxGetAttr(TokAttrs, 'w:val');
+      RunColor := HexRgbToVga(AttrVal);
      End;
      RunStyleSet := True;
     End
@@ -6922,11 +6985,17 @@ Begin
        { Saut de ligne souple : creer un nouveau paragraphe heritant }
        { du style et de l'alignement courants, et continuer dedans.   }
        If ParaIdx < MAX_PARAS_PER_DOC Then Begin
+        { Sauver l'indentation pour propagation (paragraphe en cours). }
+        NIv := Doc.Paragraphs[ParaIdx].LeftIndent;
         Inc(ParaIdx);
         Doc.Paragraphs[ParaIdx].Alignment := CurAlign;
         Doc.Paragraphs[ParaIdx].PageBreakBefore := False;
         Doc.Paragraphs[ParaIdx].RunCount := 1;
         Doc.Paragraphs[ParaIdx].IsImage := False;
+        { Heriter de l'indentation de liste : pas de marqueur, mais texte
+          aligne sous le contenu de la ligne precedente.                  }
+        Doc.Paragraphs[ParaIdx].LeftIndent := NIv;
+        Doc.Paragraphs[ParaIdx].FirstLineHang := NIv > 0;
         RunIdx := 1;
         EffSty := RunSty; If ParaForceSty <> 0 Then EffSty := EffSty Or ParaForceSty;
         EffSize := RunSize;
@@ -6934,7 +7003,7 @@ Begin
         Doc.Paragraphs[ParaIdx].Runs[1].Text := '';
         Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := EffSty;
         Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := EffSize;
-        Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
+        Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := RunColor;
        End;
       End;
      End
@@ -6968,7 +7037,7 @@ Begin
       If (ParaForceSize > 0) And (RunSize = 12) Then EffSize := ParaForceSize;
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Style    := EffSty;
       Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.FontSize := EffSize;
-      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Color    := Black;
+      Doc.Paragraphs[ParaIdx].Runs[RunIdx].Style.Color    := RunColor;
      End;
      InR := False;
     End
@@ -6984,6 +7053,9 @@ Begin
       Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := 0;
       Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := 12;
       Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
+      { Largeur visuelle approximative du prefixe (8 px / char en DefaultFont). }
+      Doc.Paragraphs[ParaIdx].LeftIndent := Length(BulletS) * 8;
+      Doc.Paragraphs[ParaIdx].FirstLineHang := False;
      End;
     End
     Else If Tn = 'w:p' Then Begin
