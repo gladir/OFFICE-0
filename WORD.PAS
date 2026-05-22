@@ -7119,11 +7119,16 @@ Begin
        If ParaIdx < MAX_PARAS_PER_DOC Then Begin
         { Sauver l'indentation pour propagation (paragraphe en cours). }
         NIv := Doc.Paragraphs[ParaIdx].LeftIndent;
+        { Marquer la continuation des deux cotes pour preserver justify }
+        { sur la derniere vline du paragraphe parent (le break est      }
+        { interne au paragraphe Word logique).                          }
+        Doc.Paragraphs[ParaIdx].ContinuesNext := True;
         Inc(ParaIdx);
         Doc.Paragraphs[ParaIdx].Alignment := CurAlign;
         Doc.Paragraphs[ParaIdx].PageBreakBefore := False;
         Doc.Paragraphs[ParaIdx].RunCount := 1;
         Doc.Paragraphs[ParaIdx].IsImage := False;
+        Doc.Paragraphs[ParaIdx].ContinuesPrev := True;
         { Heriter de l'indentation de liste : pas de marqueur, mais texte
           aligne sous le contenu de la ligne precedente.                  }
         Doc.Paragraphs[ParaIdx].LeftIndent := NIv;
