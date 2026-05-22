@@ -171,6 +171,11 @@ Var
  Mouse       : TMouseState;
  LastClickB  : LongInt;       { etat precedent du bouton (edge detection) }
  NeedFullRedraw : Boolean;
+ CmdFN       : String;        { fichier passe en ligne de commande }
+ CmdI        : Integer;
+ CmdOK       : Boolean;
+ CmdShort    : String;
+ CmdF        : File;
 
  { Etat de menu deroulant }
  MenuOpen    : Integer;       { 0 = aucun, sinon 1..N }
@@ -4373,6 +4378,284 @@ Var
  ZipMems   : Array[1..XLSX_MAX_MEMBERS] Of TZipMember;
  ZipMCount : Integer;
 
+{ ====================================================================== }
+{                  INFLATE (RFC 1951)  -  DEFLATE decoder                }
+{ ====================================================================== }
+
+Type
+ TInfHuff = Record
+  Count : Array[0..15] Of Integer;     { nb codes par longueur }
+  Sym   : Array[0..287] Of Integer;    { symboles ordonnes par (long, val) }
+ End;
+
+Const
+ INF_LBASE : Array[0..28] Of Integer = (
+   3, 4, 5, 6, 7, 8, 9, 10,
+   11, 13, 15, 17, 19, 23, 27, 31,
+   35, 43, 51, 59, 67, 83, 99, 115,
+   131, 163, 195, 227, 258);
+ INF_LEXTRA: Array[0..28] Of Integer = (
+   0, 0, 0, 0, 0, 0, 0, 0,
+   1, 1, 1, 1, 2, 2, 2, 2,
+   3, 3, 3, 3, 4, 4, 4, 4,
+   5, 5, 5, 5, 0);
+ INF_DBASE : Array[0..29] Of Integer = (
+   1, 2, 3, 4, 5, 7, 9, 13, 17, 25,
+   33, 49, 65, 97, 129, 193, 257, 385, 513, 769,
+   1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577);
+ INF_DEXTRA: Array[0..29] Of Integer = (
+   0, 0, 0, 0, 1, 1, 2, 2, 3, 3,
+   4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+   9, 9, 10, 10, 11, 11, 12, 12, 13, 13);
+ INF_CLORD : Array[0..18] Of Integer = (
+   16, 17, 18, 0, 8, 7, 9, 6, 10, 5,
+   11, 4, 12, 3, 13, 2, 14, 1, 15);
+
+Var
+ InfSrc      : TXBuf;            { copie du record source }
+ InfPos      : LongInt;
+ InfSrcEnd   : LongInt;
+ InfBitBuf   : LongInt;
+ InfBitCnt   : Integer;
+ InfDst      : TXBuf;
+ InfErr      : Boolean;
+
+Procedure InfBits(N: Integer; Var V: LongInt);
+Var B: Byte; Mask: LongInt;
+Begin
+ V := 0;
+ While (InfBitCnt < N) And (InfPos < InfSrcEnd) Do Begin
+  B := XBReadByte(InfSrc, InfPos);
+  Inc(InfPos);
+  InfBitBuf := InfBitBuf Or (LongInt(B) Shl InfBitCnt);
+  Inc(InfBitCnt, 8);
+ End;
+ If InfBitCnt < N Then Begin InfErr := True; Exit; End;
+ Mask := (LongInt(1) Shl N) - 1;
+ V := InfBitBuf And Mask;
+ InfBitBuf := InfBitBuf Shr N;
+ Dec(InfBitCnt, N);
+End;
+
+Procedure InfAlign;
+Begin
+ InfBitBuf := 0;
+ InfBitCnt := 0;
+End;
+
+Function InfDecode(Var H: TInfHuff): Integer;
+Var Code, First, Cnt, Idx, Lvl: Integer; Bit: LongInt;
+Begin
+ InfDecode := -1;
+ Code := 0; First := 0; Idx := 0;
+ For Lvl := 1 To 15 Do Begin
+  InfBits(1, Bit);
+  If InfErr Then Exit;
+  Code := (Code Shl 1) Or Integer(Bit);
+  Cnt := H.Count[Lvl];
+  If Code - First < Cnt Then Begin
+   InfDecode := H.Sym[Idx + (Code - First)];
+   Exit;
+  End;
+  Inc(Idx, Cnt);
+  First := (First + Cnt) Shl 1;
+ End;
+ InfErr := True;
+End;
+
+Procedure InfBuildHuff(Var Lens: Array Of Integer; N: Integer;
+                       Var H: TInfHuff);
+Var I, L: Integer; Offs: Array[0..15] Of Integer;
+Begin
+ For I := 0 To 15 Do H.Count[I] := 0;
+ For I := 0 To N - 1 Do
+  If (Lens[I] >= 0) And (Lens[I] <= 15) Then Inc(H.Count[Lens[I]]);
+ H.Count[0] := 0;
+ Offs[0] := 0; Offs[1] := 0;
+ For L := 1 To 14 Do Offs[L + 1] := Offs[L] + H.Count[L];
+ For I := 0 To N - 1 Do
+  If (Lens[I] > 0) And (Lens[I] <= 15) Then Begin
+   H.Sym[Offs[Lens[I]]] := I;
+   Inc(Offs[Lens[I]]);
+  End;
+End;
+
+Procedure InfFixedTables(Var LH, DH: TInfHuff);
+Var Lens: Array[0..287] Of Integer;
+    DLens: Array[0..29] Of Integer;
+    I: Integer;
+Begin
+ For I := 0 To 143 Do Lens[I] := 8;
+ For I := 144 To 255 Do Lens[I] := 9;
+ For I := 256 To 279 Do Lens[I] := 7;
+ For I := 280 To 287 Do Lens[I] := 8;
+ InfBuildHuff(Lens, 288, LH);
+ For I := 0 To 29 Do DLens[I] := 5;
+ InfBuildHuff(DLens, 30, DH);
+End;
+
+Procedure InfDynamicTables(Var LH, DH: TInfHuff);
+Var HLit, HDist, HCLen, I, Sym, Last, Rep, NTot: Integer;
+    Bits: LongInt;
+    CLLens: Array[0..18] Of Integer;
+    CLH: TInfHuff;
+    Lens: Array[0..317] Of Integer;
+    DLens: Array[0..29] Of Integer;
+    LLens: Array[0..287] Of Integer;
+Begin
+ InfBits(5, Bits); HLit  := Integer(Bits) + 257;
+ InfBits(5, Bits); HDist := Integer(Bits) + 1;
+ InfBits(4, Bits); HCLen := Integer(Bits) + 4;
+ If InfErr Then Exit;
+ If (HLit > 286) Or (HDist > 30) Then Begin InfErr := True; Exit; End;
+ For I := 0 To 18 Do CLLens[I] := 0;
+ For I := 0 To HCLen - 1 Do Begin
+  InfBits(3, Bits);
+  CLLens[INF_CLORD[I]] := Integer(Bits);
+ End;
+ If InfErr Then Exit;
+ InfBuildHuff(CLLens, 19, CLH);
+
+ NTot := HLit + HDist;
+ I := 0; Last := 0;
+ While I < NTot Do Begin
+  Sym := InfDecode(CLH);
+  If InfErr Then Exit;
+  If Sym < 16 Then Begin
+   Lens[I] := Sym; Last := Sym; Inc(I);
+  End
+  Else If Sym = 16 Then Begin
+   InfBits(2, Bits);
+   If InfErr Then Exit;
+   Rep := Integer(Bits) + 3;
+   While Rep > 0 Do Begin
+    If I >= NTot Then Begin InfErr := True; Exit; End;
+    Lens[I] := Last; Inc(I); Dec(Rep);
+   End;
+  End
+  Else If Sym = 17 Then Begin
+   InfBits(3, Bits);
+   If InfErr Then Exit;
+   Rep := Integer(Bits) + 3;
+   While Rep > 0 Do Begin
+    If I >= NTot Then Begin InfErr := True; Exit; End;
+    Lens[I] := 0; Inc(I); Dec(Rep);
+   End;
+   Last := 0;
+  End
+  Else If Sym = 18 Then Begin
+   InfBits(7, Bits);
+   If InfErr Then Exit;
+   Rep := Integer(Bits) + 11;
+   While Rep > 0 Do Begin
+    If I >= NTot Then Begin InfErr := True; Exit; End;
+    Lens[I] := 0; Inc(I); Dec(Rep);
+   End;
+   Last := 0;
+  End
+  Else Begin InfErr := True; Exit; End;
+ End;
+ For I := 0 To HLit - 1 Do LLens[I] := Lens[I];
+ For I := 0 To HDist - 1 Do DLens[I] := Lens[HLit + I];
+ InfBuildHuff(LLens, HLit, LH);
+ InfBuildHuff(DLens, HDist, DH);
+End;
+
+Procedure InfDecodeBlock(Var LH, DH: TInfHuff);
+Var Sym: Integer; MLen, Dist, Extra: LongInt;
+    K, Src: LongInt; B: Byte;
+Begin
+ Repeat
+  Sym := InfDecode(LH);
+  If InfErr Then Exit;
+  If Sym < 256 Then Begin
+   XBByte(InfDst, Byte(Sym));
+  End
+  Else If Sym = 256 Then Exit
+  Else Begin
+   Sym := Sym - 257;
+   If (Sym < 0) Or (Sym > 28) Then Begin InfErr := True; Exit; End;
+   If INF_LEXTRA[Sym] > 0 Then InfBits(INF_LEXTRA[Sym], Extra)
+                          Else Extra := 0;
+   If InfErr Then Exit;
+   MLen := INF_LBASE[Sym] + Extra;
+   Sym := InfDecode(DH);
+   If InfErr Then Exit;
+   If (Sym < 0) Or (Sym > 29) Then Begin InfErr := True; Exit; End;
+   If INF_DEXTRA[Sym] > 0 Then InfBits(INF_DEXTRA[Sym], Extra)
+                          Else Extra := 0;
+   If InfErr Then Exit;
+   Dist := INF_DBASE[Sym] + Extra;
+   If Dist > InfDst.Size Then Begin InfErr := True; Exit; End;
+   Src := InfDst.Size - Dist;
+   For K := 1 To MLen Do Begin
+    B := XBReadByte(InfDst, Src);
+    XBByte(InfDst, B);
+    Inc(Src);
+   End;
+  End;
+ Until False;
+End;
+
+Function Inflate(Const Src: TXBuf; SrcStart, SrcLen: LongInt;
+                 ExpectedSize: LongInt; Var Dst: TXBuf): Boolean;
+Var BFinal, BType: LongInt;
+    LH, DH: TInfHuff;
+    LenStored, NLenStored, Mask16: LongInt;
+    K: LongInt; B: Byte;
+Begin
+ Inflate := False;
+ InfSrc := Src;
+ InfPos := SrcStart;
+ InfSrcEnd := SrcStart + SrcLen;
+ InfBitBuf := 0; InfBitCnt := 0;
+ InfErr := False;
+ If ExpectedSize > 0 Then XBNew(InfDst, ExpectedSize + 64)
+                     Else XBNew(InfDst, 4096);
+ Mask16 := 65535;
+ Repeat
+  InfBits(1, BFinal);
+  InfBits(2, BType);
+  If InfErr Then Begin XBFree(InfDst); Exit; End;
+  Case BType Of
+   0: Begin
+       InfAlign;
+       If InfPos + 4 > InfSrcEnd Then
+        Begin XBFree(InfDst); Exit; End;
+       LenStored := LongInt(XBReadByte(InfSrc, InfPos)) Or
+                    (LongInt(XBReadByte(InfSrc, InfPos + 1)) Shl 8);
+       NLenStored := LongInt(XBReadByte(InfSrc, InfPos + 2)) Or
+                     (LongInt(XBReadByte(InfSrc, InfPos + 3)) Shl 8);
+       Inc(InfPos, 4);
+       If ((LenStored Xor Mask16) And Mask16) <> NLenStored Then
+        Begin XBFree(InfDst); Exit; End;
+       If InfPos + LenStored > InfSrcEnd Then
+        Begin XBFree(InfDst); Exit; End;
+       For K := 1 To LenStored Do Begin
+        B := XBReadByte(InfSrc, InfPos);
+        XBByte(InfDst, B);
+        Inc(InfPos);
+       End;
+      End;
+   1: Begin
+       InfFixedTables(LH, DH);
+       InfDecodeBlock(LH, DH);
+       If InfErr Then Begin XBFree(InfDst); Exit; End;
+      End;
+   2: Begin
+       InfDynamicTables(LH, DH);
+       If InfErr Then Begin XBFree(InfDst); Exit; End;
+       InfDecodeBlock(LH, DH);
+       If InfErr Then Begin XBFree(InfDst); Exit; End;
+      End;
+  Else
+   XBFree(InfDst); Exit;
+  End;
+ Until BFinal = 1;
+ Dst := InfDst;
+ Inflate := True;
+End;
+
 Function FindEOCD(Const Z: TXBuf; Var Pos: LongInt): Boolean;
 Var I: LongInt; Start: LongInt;
 Begin
@@ -4435,17 +4718,31 @@ Begin
  For I := 1 To ZipMCount Do
   If ZipMems[I].Name = Name Then Begin M := @ZipMems[I]; Break; End;
  If M = Nil Then Exit;
- If M^.Method <> 0 Then Exit;          { store only }
  LFH := M^.Ofs;
  If XBReadLong(Z, LFH) <> ZIP_LFH_SIG Then Exit;
  FnLen := XBReadWord(Z, LFH + 26);
  ExLen := XBReadWord(Z, LFH + 28);
  DataOfs := LFH + 30 + FnLen + ExLen;
- XBNew(Out, M^.Size + 16);
- P := Z.Data;
- Inc(LongInt(P), DataOfs);
- XBBytesPtr(Out, P, M^.Size);
- ZipExtract := True;
+ { LFH peut contenir des tailles a zero (bit 3 du general purpose
+   flag) - les vraies tailles sont alors dans la CD, qu'on a deja. }
+ Case M^.Method Of
+  0: Begin
+      XBNew(Out, M^.Size + 16);
+      P := Z.Data;
+      Inc(LongInt(P), DataOfs);
+      XBBytesPtr(Out, P, M^.Size);
+      ZipExtract := True;
+     End;
+  8: Begin
+      { taille comprimee : si LFH la donne, l'utiliser ; sinon
+        prendre le reste jusqu'a la fin de l'archive (l'inflate
+        s'arretera sur BFINAL). }
+      ZipExtract := Inflate(Z, DataOfs, Z.Size - DataOfs,
+                            M^.Size, Out);
+     End;
+ Else
+  Exit;
+ End;
 End;
 
 { --- XML mini-scanner --- }
@@ -6965,6 +7262,39 @@ BEGIN
  DragStartR := 0; DragStartC := 0;
  SelAnchorR := 0; SelAnchorC := 0;
  CutMarchingFrame := 0;
+ { --- Chargement d'un fichier passe en ligne de commande --- }
+ If ParamCount >= 1 Then Begin
+  CmdFN := ParamStr(1);
+  { Concatener les arguments suivants si le chemin contenait des espaces
+    non quotes (au cas ou). }
+  For CmdI := 2 To ParamCount Do
+   CmdFN := CmdFN + ' ' + ParamStr(CmdI);
+  { Strip eventuelles guillemets restants. }
+  While (Length(CmdFN) > 0) And (CmdFN[1] = '"') Do Delete(CmdFN, 1, 1);
+  While (Length(CmdFN) > 0) And (CmdFN[Length(CmdFN)] = '"') Do
+   Delete(CmdFN, Length(CmdFN), 1);
+  If CmdFN <> '' Then Begin
+   { Nom court pour les messages : retire le chemin et limite la longueur. }
+   CmdShort := CmdFN;
+   While (Pos('\', CmdShort) > 0) Do
+    Delete(CmdShort, 1, Pos('\', CmdShort));
+   While (Pos('/', CmdShort) > 0) Do
+    Delete(CmdShort, 1, Pos('/', CmdShort));
+   If Length(CmdShort) > 32 Then CmdShort := Copy(CmdShort, 1, 32);
+   { Diagnostic : fichier present ? }
+   {$I-} Assign(CmdF, CmdFN); Reset(CmdF, 1); {$I+}
+   If IOResult <> 0 Then Begin
+    MessageBox('Erreur', 'Fichier introuvable : ' + CmdShort);
+   End Else Begin
+    Close(CmdF);
+    If IsXLSXExt(CmdFN) Then CmdOK := LoadWorkbookXLSX(CmdFN)
+    Else If IsXLSExt(CmdFN) Then CmdOK := LoadWorkbookXLS(CmdFN)
+                            Else CmdOK := LoadWorkbookXLC(CmdFN);
+    If Not CmdOK Then
+     MessageBox('Erreur', 'Format invalide : ' + CmdShort);
+   End;
+  End;
+ End;
  MainLoop;
  CloseGraph;
 END.
