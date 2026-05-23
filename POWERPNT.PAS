@@ -6360,8 +6360,9 @@ End;
 { depuis les fichiers ppt/slides/slide*.xml.                                }
 
 Function LoadPPTX(Const FN: String): Boolean;
-Const MAX_PPTX_SLIDES = 256;
-      EOCD_SCAN_MAX   = 65557;
+Const MAX_PPTX_SLIDES  = 256;
+      MAX_PPTX_LAYOUTS = 64;
+      EOCD_SCAN_MAX    = 65557;
 Type
  TSlideEnt = Record
   LfhOff   : LongInt;
@@ -6369,6 +6370,17 @@ Type
   USize    : LongInt;
   Mth      : Word;
   SlideNum : Integer;
+ End;
+ TLayoutEnt = Record
+  LfhOff : LongInt;
+  CSize  : LongInt;
+  USize  : LongInt;
+  Mth    : Word;
+ End;
+ TPhDefault = Record
+  HasColor : Boolean; Color    : Byte;
+  HasSize  : Boolean; Sz       : Integer;
+  Bold, Italic, Underline : Boolean;
  End;
 Var F: File;
     FSize, EocdPos, CdOff, CdSize: LongInt;
@@ -6395,6 +6407,18 @@ Var F: File;
     InTitle: Boolean;
     LineCount: Integer;
     SkippedCompressed, FoundSlide: Integer;
+    PresLfhOff, PresCs, PresUs: LongInt;
+    PresMth: Word;
+    HasPres: Boolean;
+    PresCx, PresCy: LongInt;
+    ThemeLfhOff, ThemeCs, ThemeUs: LongInt;
+    ThemeMth: Word;
+    HasTheme: Boolean;
+    ThemeRGB: Array[1..12] Of String;
+    LayoutEnts: Array[1..MAX_PPTX_LAYOUTS] Of TLayoutEnt;
+    LayoutCnt: Integer;
+    PhDefaults: Array[1..4] Of TPhDefault;
+    LI: Integer;
 
  Function PtrToByteAt(Off: LongInt): Byte;
  Var Ptr: ^Byte;
@@ -6426,6 +6450,537 @@ Var F: File;
  Var T: String;
  Begin Str(L, T); LStr := T; End;
 
+ { ---- Helpers parsing XML PPTX (etape 1-3: style, couleur, position) ---- }
+
+ Function PptxFindStr(StartPos, MaxPos: LongInt; Const S: String): LongInt;
+ Var I, J, SL: LongInt; OK: Boolean;
+ Begin
+  PptxFindStr := -1;
+  SL := Length(S);
+  If (SL <= 0) Or (MaxPos > BufSize) Then MaxPos := BufSize;
+  I := StartPos;
+  While I + SL <= MaxPos Do Begin
+   OK := True;
+   For J := 1 To SL Do
+    If Char(PtrToByteAt(I + J - 1)) <> S[J] Then Begin OK := False; Break; End;
+   If OK Then Begin PptxFindStr := I; Exit; End;
+   Inc(I);
+  End;
+ End;
+
+ Function PptxFindCharFrom(StartPos, MaxPos: LongInt; C: Char): LongInt;
+ Var I: LongInt;
+ Begin
+  PptxFindCharFrom := -1;
+  If MaxPos > BufSize Then MaxPos := BufSize;
+  I := StartPos;
+  While I < MaxPos Do Begin
+   If Char(PtrToByteAt(I)) = C Then Begin PptxFindCharFrom := I; Exit; End;
+   Inc(I);
+  End;
+ End;
+
+ Function PptxReadAttr(TagOpenPos: LongInt; Const AttrName: String): String;
+ Var EndTagPos, P, L, K: LongInt;
+     Quote: Char; R: String; AL: Integer; OK: Boolean;
+ Begin
+  PptxReadAttr := '';
+  EndTagPos := PptxFindCharFrom(TagOpenPos, BufSize, '>');
+  If EndTagPos < 0 Then Exit;
+  AL := Length(AttrName);
+  P := TagOpenPos + 1;
+  While P + AL + 2 < EndTagPos Do Begin
+   If Char(PtrToByteAt(P - 1)) <= ' ' Then Begin
+    OK := True;
+    For K := 1 To AL Do
+     If Char(PtrToByteAt(P + K - 1)) <> AttrName[K] Then Begin OK := False; Break; End;
+    If OK And (Char(PtrToByteAt(P + AL)) = '=') Then Begin
+     Quote := Char(PtrToByteAt(P + AL + 1));
+     If (Quote = '"') Or (Quote = '''') Then Begin
+      L := P + AL + 2; R := '';
+      While (L < EndTagPos) And (Char(PtrToByteAt(L)) <> Quote) Do Begin
+       If Length(R) < 64 Then R := R + Char(PtrToByteAt(L));
+       Inc(L);
+      End;
+      PptxReadAttr := R; Exit;
+     End;
+    End;
+   End;
+   Inc(P);
+  End;
+ End;
+
+ Function PptxStrToLI(Const S: String): LongInt;
+ Var Code: Integer; V: LongInt;
+ Begin
+  Val(S, V, Code);
+  If Code <> 0 Then V := 0;
+  PptxStrToLI := V;
+ End;
+
+ Function EmuX(E: LongInt): Integer;
+ Begin
+  If E <= 0 Then EmuX := 0
+  Else If E >= PresCx Then EmuX := 1000
+  Else EmuX := Round(E * 1000.0 / PresCx);
+ End;
+
+ Function EmuY(E: LongInt): Integer;
+ Begin
+  If E <= 0 Then EmuY := 0
+  Else If E >= PresCy Then EmuY := 750
+  Else EmuY := Round(E * 750.0 / PresCy);
+ End;
+
+ Function HexCharVal(C: Char): Integer;
+ Begin
+  Case C Of
+   '0'..'9': HexCharVal := Ord(C) - Ord('0');
+   'a'..'f': HexCharVal := 10 + Ord(C) - Ord('a');
+   'A'..'F': HexCharVal := 10 + Ord(C) - Ord('A');
+  Else HexCharVal := 0;
+  End;
+ End;
+
+ Function RgbToEga(Const Hex: String): Byte;
+ Const PalR: Array[0..15] Of Integer =
+        (0,  0,  0,  0,  170,170,170,170, 85, 85, 85, 85, 255,255,255,255);
+       PalG: Array[0..15] Of Integer =
+        (0,  0,  170,170,0,  0,  85, 170, 85, 85, 255,255, 85, 85, 255,255);
+       PalB: Array[0..15] Of Integer =
+        (0,  170,0,  170,0,  170,0,  170, 85, 255,85, 255, 85, 255,85, 255);
+ Var R, G, B, I, Best: Integer;
+     D, BestD: LongInt;
+     DR, DG, DB: Integer;
+ Begin
+  RgbToEga := CLR_BLACK;
+  If Length(Hex) < 6 Then Exit;
+  R := HexCharVal(Hex[1]) * 16 + HexCharVal(Hex[2]);
+  G := HexCharVal(Hex[3]) * 16 + HexCharVal(Hex[4]);
+  B := HexCharVal(Hex[5]) * 16 + HexCharVal(Hex[6]);
+  Best := 0; BestD := 1000000;
+  For I := 0 To 15 Do Begin
+   DR := R - PalR[I]; DG := G - PalG[I]; DB := B - PalB[I];
+   D := LongInt(DR)*DR + LongInt(DG)*DG + LongInt(DB)*DB;
+   If D < BestD Then Begin BestD := D; Best := I; End;
+  End;
+  RgbToEga := Byte(Best);
+ End;
+
+ Function DecodeEntities(Const S: String): String;
+ Var R: String; I: Integer;
+ Begin
+  R := ''; I := 1;
+  While I <= Length(S) Do Begin
+   If (S[I] = '&') And (I + 3 <= Length(S)) Then Begin
+    If Copy(S, I, 5) = '&amp;'  Then Begin R := R + '&';  Inc(I, 5); Continue; End;
+    If Copy(S, I, 4) = '&lt;'   Then Begin R := R + '<';  Inc(I, 4); Continue; End;
+    If Copy(S, I, 4) = '&gt;'   Then Begin R := R + '>';  Inc(I, 4); Continue; End;
+    If (I + 5 <= Length(S)) And (Copy(S, I, 6) = '&quot;') Then Begin R := R + '"';  Inc(I, 6); Continue; End;
+    If (I + 5 <= Length(S)) And (Copy(S, I, 6) = '&apos;') Then Begin R := R + ''''; Inc(I, 6); Continue; End;
+   End;
+   R := R + S[I]; Inc(I);
+  End;
+  DecodeEntities := R;
+ End;
+
+ Function ExtractTextBetween(SP, EP: LongInt): String;
+ Var P: LongInt; R: String;
+ Begin
+  R := ''; P := SP;
+  While (P < EP) And (Length(R) < 240) Do Begin
+   R := R + Char(PtrToByteAt(P)); Inc(P);
+  End;
+  ExtractTextBetween := DecodeEntities(R);
+ End;
+
+ Function SchemeIdx(Const Name: String): Integer;
+ Var N: String;
+ Begin
+  N := Name;
+  If      N = 'dk1'      Then SchemeIdx := 1
+  Else If N = 'tx1'      Then SchemeIdx := 1
+  Else If N = 'lt1'      Then SchemeIdx := 2
+  Else If N = 'bg1'      Then SchemeIdx := 2
+  Else If N = 'dk2'      Then SchemeIdx := 3
+  Else If N = 'tx2'      Then SchemeIdx := 3
+  Else If N = 'lt2'      Then SchemeIdx := 4
+  Else If N = 'bg2'      Then SchemeIdx := 4
+  Else If N = 'accent1'  Then SchemeIdx := 5
+  Else If N = 'accent2'  Then SchemeIdx := 6
+  Else If N = 'accent3'  Then SchemeIdx := 7
+  Else If N = 'accent4'  Then SchemeIdx := 8
+  Else If N = 'accent5'  Then SchemeIdx := 9
+  Else If N = 'accent6'  Then SchemeIdx := 10
+  Else If N = 'hlink'    Then SchemeIdx := 11
+  Else If N = 'folHlink' Then SchemeIdx := 12
+  Else SchemeIdx := 0;
+ End;
+
+ Function PhBucket(Const PhType: String): Integer;
+ Begin
+  If      (PhType = 'title') Or (PhType = 'ctrTitle') Then PhBucket := 1
+  Else If (PhType = 'subTitle')                       Then PhBucket := 2
+  Else If (PhType = 'body')                           Then PhBucket := 3
+  Else                                                     PhBucket := 4;
+ End;
+
+ Function SchemeRgb(Const Name: String): String;
+ Var I: Integer;
+ Begin
+  I := SchemeIdx(Name);
+  If (I >= 1) And (I <= 12) And (ThemeRGB[I] <> '') Then SchemeRgb := ThemeRGB[I]
+  Else SchemeRgb := '';
+ End;
+
+ Procedure ParseRunProps(RPrPos, RPrLimit: LongInt;
+                         Var IsBold, IsItalic, IsUnder: Boolean;
+                         Var SzPt: Integer;
+                         Var Color: Byte; Var ColorSet: Boolean);
+ Var Attr: String;
+     CloseSlash, ClosePos, FillPos, SrgbPos, SchemePos: LongInt;
+ Begin
+  Attr := PptxReadAttr(RPrPos, 'b');
+  If Attr = '1' Then IsBold := True;
+  Attr := PptxReadAttr(RPrPos, 'i');
+  If Attr = '1' Then IsItalic := True;
+  Attr := PptxReadAttr(RPrPos, 'u');
+  If (Attr <> '') And (Attr <> 'none') Then IsUnder := True;
+  Attr := PptxReadAttr(RPrPos, 'sz');
+  If Attr <> '' Then SzPt := PptxStrToLI(Attr) Div 100;
+  ClosePos := PptxFindCharFrom(RPrPos, RPrLimit, '>');
+  If ClosePos < 0 Then Exit;
+  CloseSlash := ClosePos - 1;
+  If (CloseSlash >= 0) And (Char(PtrToByteAt(CloseSlash)) = '/') Then Exit;
+  FillPos := PptxFindStr(ClosePos, RPrLimit, '<a:solidFill');
+  If FillPos < 0 Then Exit;
+  SrgbPos := PptxFindStr(FillPos, RPrLimit, '<a:srgbClr');
+  SchemePos := PptxFindStr(FillPos, RPrLimit, '<a:schemeClr');
+  If (SrgbPos >= 0) And ((SchemePos < 0) Or (SrgbPos < SchemePos)) Then Begin
+   Attr := PptxReadAttr(SrgbPos, 'val');
+   If Length(Attr) >= 6 Then Begin
+    Color := RgbToEga(Attr);
+    ColorSet := True;
+   End;
+  End Else If SchemePos >= 0 Then Begin
+   Attr := PptxReadAttr(SchemePos, 'val');
+   Attr := SchemeRgb(Attr);
+   If Length(Attr) >= 6 Then Begin
+    Color := RgbToEga(Attr);
+    ColorSet := True;
+   End;
+  End;
+ End;
+
+ Procedure ParseLayoutDefaultsFromBuffer;
+ Var SpPos, SpEnd, PhPos2, LstPos, LvlPos, LvlEnd, DefPos, DefEnd, DefClose, FillPos, SrgbPos, SchemePos: LongInt;
+     PhT, AttrV: String;
+     Bk, SzVal: Integer;
+     ChI2: Integer;
+ Begin
+  SpPos := 0;
+  Repeat
+   SpPos := PptxFindStr(SpPos, BufSize, '<p:sp');
+   If SpPos < 0 Then Break;
+   If SpPos + 5 < BufSize Then Begin
+    ChI2 := PtrToByteAt(SpPos + 5);
+    If (ChI2 <> 32) And (ChI2 <> 9) And (ChI2 <> 62) Then Begin
+     Inc(SpPos);
+     Continue;
+    End;
+   End;
+   SpEnd := PptxFindStr(SpPos, BufSize, '</p:sp>');
+   If SpEnd < 0 Then Break;
+   PhPos2 := PptxFindStr(SpPos, SpEnd, '<p:ph');
+   If PhPos2 >= 0 Then Begin
+    PhT := PptxReadAttr(PhPos2, 'type');
+    Bk  := PhBucket(PhT);
+    LstPos := PptxFindStr(SpPos, SpEnd, '<a:lstStyle');
+    If LstPos >= 0 Then Begin
+     LvlPos := PptxFindStr(LstPos, SpEnd, '<a:lvl1pPr');
+     If LvlPos < 0 Then LvlPos := LstPos;
+     LvlEnd := PptxFindStr(LvlPos, SpEnd, '</a:lvl1pPr>');
+     If LvlEnd < 0 Then LvlEnd := SpEnd;
+     DefPos := PptxFindStr(LvlPos, LvlEnd, '<a:defRPr');
+     If DefPos >= 0 Then Begin
+      DefClose := PptxFindCharFrom(DefPos, LvlEnd, '>');
+      If DefClose < 0 Then DefClose := LvlEnd;
+      AttrV := PptxReadAttr(DefPos, 'sz');
+      If AttrV <> '' Then Begin
+       SzVal := PptxStrToLI(AttrV) Div 100;
+       If SzVal >= 8 Then Begin
+        PhDefaults[Bk].HasSize := True; PhDefaults[Bk].Sz := SzVal;
+       End;
+      End;
+      AttrV := PptxReadAttr(DefPos, 'b');
+      If AttrV = '1' Then PhDefaults[Bk].Bold := True;
+      AttrV := PptxReadAttr(DefPos, 'i');
+      If AttrV = '1' Then PhDefaults[Bk].Italic := True;
+      AttrV := PptxReadAttr(DefPos, 'u');
+      If (AttrV <> '') And (AttrV <> 'none') Then PhDefaults[Bk].Underline := True;
+      If (DefClose > DefPos) And (Char(PtrToByteAt(DefClose - 1)) <> '/') Then Begin
+       DefEnd := PptxFindStr(DefClose, LvlEnd, '</a:defRPr>');
+       If DefEnd < 0 Then DefEnd := LvlEnd;
+       FillPos := PptxFindStr(DefClose, DefEnd, '<a:solidFill');
+       If FillPos >= 0 Then Begin
+        SrgbPos   := PptxFindStr(FillPos, DefEnd, '<a:srgbClr');
+        SchemePos := PptxFindStr(FillPos, DefEnd, '<a:schemeClr');
+        If (SrgbPos >= 0) And ((SchemePos < 0) Or (SrgbPos < SchemePos)) Then Begin
+         AttrV := PptxReadAttr(SrgbPos, 'val');
+         If Length(AttrV) >= 6 Then Begin
+          PhDefaults[Bk].HasColor := True;
+          PhDefaults[Bk].Color    := RgbToEga(AttrV);
+         End;
+        End Else If SchemePos >= 0 Then Begin
+         AttrV := PptxReadAttr(SchemePos, 'val');
+         AttrV := SchemeRgb(AttrV);
+         If Length(AttrV) >= 6 Then Begin
+          PhDefaults[Bk].HasColor := True;
+          PhDefaults[Bk].Color    := RgbToEga(AttrV);
+         End;
+        End;
+       End;
+      End;
+     End;
+    End;
+   End;
+   SpPos := SpEnd + 7;
+  Until False;
+ End;
+
+ Procedure ParseShape(SpOpen, SpClose: LongInt; SlPtr: PSlide);
+ Var Sh: PShape;
+     PhType, Attr, LvlStr, LineText: String;
+     XfrmPos, OffPos, ExtPos, BodyPos, EndBodyPos: LongInt;
+     ParaPos, ParaEnd, RunPos, RunEnd, RPrPos, TStart, TEnd, PhPos, RPrLimit: LongInt;
+     LineCnt, LvlInt, ShapeSz: Integer;
+     ShapeBold, ShapeItalic, ShapeUnder, ShapeColorSet, FirstRun, IsTitle: Boolean;
+     ShapeColor: Byte;
+ Begin
+  Sh := NewShape;
+  Sh^.ShType    := SHP_TEXT;
+  Sh^.Filled    := False;
+  Sh^.LineWidth := 0;
+  Sh^.FillColor := CLR_WHITE;
+  Sh^.LineColor := CLR_BLACK;
+  Sh^.TxtCount  := 0;
+  Sh^.Bold      := False;
+  Sh^.Italic    := False;
+  Sh^.Underline := False;
+  Sh^.FontSize  := 14;
+  Sh^.TextColor := CLR_BLACK;
+  Sh^.Align     := ALIGN_LEFT;
+  Sh^.X := 50; Sh^.Y := 170; Sh^.W := 900; Sh^.H := 200;
+  IsTitle := False;
+
+  PhPos := PptxFindStr(SpOpen, SpClose, '<p:ph');
+  If PhPos >= 0 Then Begin
+   PhType := PptxReadAttr(PhPos, 'type');
+   If (PhType = 'title') Or (PhType = 'ctrTitle') Then Begin
+    Sh^.ShType    := SHP_TITLE;
+    Sh^.FontSize  := 32;
+    Sh^.Bold      := True;
+    Sh^.TextColor := CLR_BLUE;
+    Sh^.X := 50; Sh^.Y := 40; Sh^.W := 900; Sh^.H := 90;
+    IsTitle := True;
+   End Else If PhType = 'subTitle' Then Begin
+    Sh^.ShType   := SHP_SUBTITLE;
+    Sh^.FontSize := 18;
+    Sh^.X := 50; Sh^.Y := 400; Sh^.W := 900; Sh^.H := 200;
+   End Else Begin
+    Sh^.ShType := SHP_CONTENT;
+    Sh^.X := 50; Sh^.Y := 170; Sh^.W := 900; Sh^.H := 500;
+   End;
+   { Applique les defauts du slideLayout pour ce type de placeholder }
+   LvlInt := PhBucket(PhType);
+   If PhDefaults[LvlInt].HasColor Then Sh^.TextColor := PhDefaults[LvlInt].Color;
+   If PhDefaults[LvlInt].HasSize  Then Sh^.FontSize  := Byte(PhDefaults[LvlInt].Sz);
+   If PhDefaults[LvlInt].Bold     Then Sh^.Bold      := True;
+   If PhDefaults[LvlInt].Italic   Then Sh^.Italic    := True;
+   If PhDefaults[LvlInt].Underline Then Sh^.Underline := True;
+  End;
+
+  XfrmPos := PptxFindStr(SpOpen, SpClose, '<a:xfrm');
+  If XfrmPos >= 0 Then Begin
+   OffPos := PptxFindStr(XfrmPos, SpClose, '<a:off');
+   If OffPos >= 0 Then Begin
+    Attr := PptxReadAttr(OffPos, 'x');
+    If Attr <> '' Then Sh^.X := EmuX(PptxStrToLI(Attr));
+    Attr := PptxReadAttr(OffPos, 'y');
+    If Attr <> '' Then Sh^.Y := EmuY(PptxStrToLI(Attr));
+   End;
+   ExtPos := PptxFindStr(XfrmPos, SpClose, '<a:ext');
+   If ExtPos >= 0 Then Begin
+    Attr := PptxReadAttr(ExtPos, 'cx');
+    If Attr <> '' Then Sh^.W := EmuX(PptxStrToLI(Attr));
+    Attr := PptxReadAttr(ExtPos, 'cy');
+    If Attr <> '' Then Sh^.H := EmuY(PptxStrToLI(Attr));
+   End;
+  End;
+
+  BodyPos := PptxFindStr(SpOpen, SpClose, '<p:txBody');
+  If BodyPos < 0 Then Begin
+   Dispose(Sh);
+   Exit;
+  End;
+  EndBodyPos := PptxFindStr(BodyPos, SpClose, '</p:txBody>');
+  If EndBodyPos < 0 Then EndBodyPos := SpClose;
+
+  LineCnt := 0;
+  FirstRun := True;
+  ShapeBold := False; ShapeItalic := False; ShapeUnder := False;
+  ShapeSz := 0;
+  ShapeColor := CLR_BLACK; ShapeColorSet := False;
+
+  ParaPos := BodyPos;
+  While LineCnt < MAX_TEXT_LINES Do Begin
+   ParaPos := PptxFindStr(ParaPos, EndBodyPos, '<a:p>');
+   If ParaPos < 0 Then Break;
+   ParaEnd := PptxFindStr(ParaPos, EndBodyPos, '</a:p>');
+   If ParaEnd < 0 Then ParaEnd := EndBodyPos;
+
+   LvlInt := 0;
+   OffPos := PptxFindStr(ParaPos, ParaEnd, '<a:pPr');
+   If OffPos >= 0 Then Begin
+    LvlStr := PptxReadAttr(OffPos, 'lvl');
+    If LvlStr <> '' Then LvlInt := PptxStrToLI(LvlStr);
+    If LvlInt < 0 Then LvlInt := 0;
+    If LvlInt > 6 Then LvlInt := 6;
+   End;
+
+   LineText := '';
+   RunPos := ParaPos;
+   While True Do Begin
+    RPrPos := -1;
+    RunPos := PptxFindStr(RunPos, ParaEnd, '<a:r>');
+    If RunPos < 0 Then Begin
+     RunPos := PptxFindStr(ParaPos, ParaEnd, '<a:r ');
+     If RunPos < 0 Then Break;
+    End;
+    RunEnd := PptxFindStr(RunPos, ParaEnd, '</a:r>');
+    If RunEnd < 0 Then RunEnd := ParaEnd;
+    RPrPos := PptxFindStr(RunPos, RunEnd, '<a:rPr');
+    TStart := PptxFindStr(RunPos, RunEnd, '<a:t>');
+    If TStart < 0 Then TStart := PptxFindStr(RunPos, RunEnd, '<a:t ');
+    If TStart >= 0 Then Begin
+     TStart := PptxFindCharFrom(TStart, RunEnd, '>');
+     If TStart >= 0 Then Begin
+      Inc(TStart);
+      TEnd := PptxFindStr(TStart, RunEnd, '</a:t>');
+      If TEnd < 0 Then TEnd := RunEnd;
+      If Length(LineText) < TXT_LINE_LEN Then
+       LineText := LineText + ExtractTextBetween(TStart, TEnd);
+      If Length(LineText) > TXT_LINE_LEN Then
+       LineText := Copy(LineText, 1, TXT_LINE_LEN);
+     End;
+    End;
+    If FirstRun And (RPrPos >= 0) Then Begin
+     RPrLimit := RunEnd;
+     If (TStart > 0) And (TStart < RPrLimit) Then RPrLimit := TStart;
+     ParseRunProps(RPrPos, RPrLimit, ShapeBold, ShapeItalic, ShapeUnder, ShapeSz, ShapeColor, ShapeColorSet);
+     FirstRun := False;
+    End;
+    RunPos := RunEnd + 6;
+   End;
+
+   If LineText <> '' Then Begin
+    Inc(LineCnt);
+    Sh^.Text[LineCnt]    := LineText;
+    Sh^.Bullets[LineCnt] := Not IsTitle;
+    Sh^.Indent[LineCnt]  := Byte(LvlInt);
+    Sh^.TxtCount         := LineCnt;
+   End;
+   ParaPos := ParaEnd + 6;
+  End;
+
+  If ShapeBold       Then Sh^.Bold      := True;
+  If ShapeItalic     Then Sh^.Italic    := True;
+  If ShapeUnder      Then Sh^.Underline := True;
+  If ShapeSz >= 8    Then Sh^.FontSize  := Byte(ShapeSz);
+  If ShapeColorSet   Then Sh^.TextColor := ShapeColor;
+
+  { Clamp dans les bornes de la slide logique (1000x750) }
+  If Sh^.X < 0 Then Begin Sh^.W := Sh^.W + Sh^.X; Sh^.X := 0; End;
+  If Sh^.Y < 0 Then Begin Sh^.H := Sh^.H + Sh^.Y; Sh^.Y := 0; End;
+  If Sh^.X > 1000 Then Sh^.X := 1000;
+  If Sh^.Y > 750  Then Sh^.Y := 750;
+  If Sh^.X + Sh^.W > 1000 Then Sh^.W := 1000 - Sh^.X;
+  If Sh^.Y + Sh^.H > 750  Then Sh^.H := 750  - Sh^.Y;
+  If Sh^.W < 4 Then Sh^.W := 4;
+  If Sh^.H < 4 Then Sh^.H := 4;
+
+  If IsTitle And (Sh^.TxtCount >= 1) Then
+   SlPtr^.Title := Copy(Sh^.Text[1], 1, 79);
+
+  If Sh^.TxtCount > 0 Then
+   AddShapeToSlide(SlPtr, Sh)
+  Else
+   Dispose(Sh);
+ End;
+
+ Procedure ParsePic(PicOpen, PicClose: LongInt; SlPtr: PSlide);
+ Var Sh: PShape;
+     XfrmPos, OffPos, ExtPos: LongInt;
+     Attr: String;
+ Begin
+  Sh := NewShape;
+  Sh^.ShType   := SHP_IMAGE;
+  Sh^.ImageIdx := 0;
+  Sh^.X := 100; Sh^.Y := 200; Sh^.W := 400; Sh^.H := 300;
+  Sh^.Filled   := False;
+  Sh^.LineWidth := 1;
+  XfrmPos := PptxFindStr(PicOpen, PicClose, '<a:xfrm');
+  If XfrmPos >= 0 Then Begin
+   OffPos := PptxFindStr(XfrmPos, PicClose, '<a:off');
+   If OffPos >= 0 Then Begin
+    Attr := PptxReadAttr(OffPos, 'x');
+    If Attr <> '' Then Sh^.X := EmuX(PptxStrToLI(Attr));
+    Attr := PptxReadAttr(OffPos, 'y');
+    If Attr <> '' Then Sh^.Y := EmuY(PptxStrToLI(Attr));
+   End;
+   ExtPos := PptxFindStr(XfrmPos, PicClose, '<a:ext');
+   If ExtPos >= 0 Then Begin
+    Attr := PptxReadAttr(ExtPos, 'cx');
+    If Attr <> '' Then Sh^.W := EmuX(PptxStrToLI(Attr));
+    Attr := PptxReadAttr(ExtPos, 'cy');
+    If Attr <> '' Then Sh^.H := EmuY(PptxStrToLI(Attr));
+   End;
+  End;
+  If Sh^.X < 0 Then Begin Sh^.W := Sh^.W + Sh^.X; Sh^.X := 0; End;
+  If Sh^.Y < 0 Then Begin Sh^.H := Sh^.H + Sh^.Y; Sh^.Y := 0; End;
+  If Sh^.X > 1000 Then Sh^.X := 1000;
+  If Sh^.Y > 750  Then Sh^.Y := 750;
+  If Sh^.X + Sh^.W > 1000 Then Sh^.W := 1000 - Sh^.X;
+  If Sh^.Y + Sh^.H > 750  Then Sh^.H := 750  - Sh^.Y;
+  If Sh^.W < 4 Then Sh^.W := 4;
+  If Sh^.H < 4 Then Sh^.H := 4;
+  AddShapeToSlide(SlPtr, Sh);
+ End;
+
+ Procedure ParseSlideShapes(SlPtr: PSlide);
+ Var Pos, NextSp, NextPic, CloseTag: LongInt;
+ Begin
+  Pos := 0;
+  While Pos < BufSize Do Begin
+   NextSp  := PptxFindStr(Pos, BufSize, '<p:sp>');
+   If NextSp < 0 Then NextSp := PptxFindStr(Pos, BufSize, '<p:sp ');
+   NextPic := PptxFindStr(Pos, BufSize, '<p:pic>');
+   If NextPic < 0 Then NextPic := PptxFindStr(Pos, BufSize, '<p:pic ');
+   If (NextSp < 0) And (NextPic < 0) Then Exit;
+   If (NextPic >= 0) And ((NextSp < 0) Or (NextPic < NextSp)) Then Begin
+    CloseTag := PptxFindStr(NextPic, BufSize, '</p:pic>');
+    If CloseTag < 0 Then Exit;
+    ParsePic(NextPic, CloseTag, SlPtr);
+    Pos := CloseTag + 8;
+   End Else Begin
+    CloseTag := PptxFindStr(NextSp, BufSize, '</p:sp>');
+    If CloseTag < 0 Then Exit;
+    ParseShape(NextSp, CloseTag, SlPtr);
+    Pos := CloseTag + 7;
+   End;
+  End;
+ End;
+
 Begin
  PptxLog('--- LoadPPTX: ' + FN + ' ---');
  LoadPPTX := False;
@@ -6435,6 +6990,20 @@ Begin
  XmlBuf := Nil; BufSize := 0;
  ScanBuf := Nil;
  DiagStr := '';
+ PresCx := 9144000; PresCy := 6858000;
+ HasPres := False;
+ PresLfhOff := 0; PresCs := 0; PresUs := 0; PresMth := 0;
+ HasTheme := False;
+ ThemeLfhOff := 0; ThemeCs := 0; ThemeUs := 0; ThemeMth := 0;
+ For II := 1 To 12 Do ThemeRGB[II] := '';
+ LayoutCnt := 0;
+ For LI := 1 To 4 Do Begin
+  PhDefaults[LI].HasColor  := False; PhDefaults[LI].Color := CLR_BLACK;
+  PhDefaults[LI].HasSize   := False; PhDefaults[LI].Sz    := 0;
+  PhDefaults[LI].Bold      := False;
+  PhDefaults[LI].Italic    := False;
+  PhDefaults[LI].Underline := False;
+ End;
  Assign(F, FN);
  {$I-} Reset(F, 1); {$I+}
  If IOResult <> 0 Then Begin
@@ -6536,6 +7105,34 @@ Begin
     SlideEnts[SlideCnt].SlideNum := SlNum;
    End;
   End;
+  If (EntName = 'ppt/presentation.xml') And (Not HasPres) Then Begin
+   PptxLog('PRESXML: mth=' + LStr(Mth) + ' cs=' + LStr(CSize) + ' us=' + LStr(USize) + ' off=' + LStr(LfhOff));
+   PresLfhOff := LfhOff;
+   PresCs := CSize;
+   PresUs := USize;
+   PresMth := Mth;
+   HasPres := True;
+  End;
+  { On veut SPECIFIQUEMENT theme1.xml (associe a slideMaster1, le master par defaut).
+    Le ZIP peut lister theme2.xml avant theme1.xml dans le CD. }
+  If (EntName = 'ppt/theme/theme1.xml') Then Begin
+   PptxLog('THEME: ' + EntName + ' mth=' + LStr(Mth) + ' cs=' + LStr(CSize) + ' us=' + LStr(USize) + ' off=' + LStr(LfhOff));
+   ThemeLfhOff := LfhOff;
+   ThemeCs := CSize;
+   ThemeUs := USize;
+   ThemeMth := Mth;
+   HasTheme := True;
+  End;
+  If (Pos('ppt/slideLayouts/slideLayout', EntName) = 1) And
+     (Pos('.xml', EntName) > 0) And
+     (Pos('.rels', EntName) = 0) And
+     (LayoutCnt < MAX_PPTX_LAYOUTS) Then Begin
+   Inc(LayoutCnt);
+   LayoutEnts[LayoutCnt].LfhOff := LfhOff;
+   LayoutEnts[LayoutCnt].CSize  := CSize;
+   LayoutEnts[LayoutCnt].USize  := USize;
+   LayoutEnts[LayoutCnt].Mth    := Mth;
+  End;
  End;
 
  { Trie par numero de slide croissant }
@@ -6549,6 +7146,157 @@ Begin
 
  FreePresentation;
  InitPresentation;
+
+ { ---- Extraction de la taille de slide depuis ppt/presentation.xml ---- }
+ If HasPres And (PresUs > 0) And (PresUs <= LongInt(1) * 1024 * 1024) And
+    ((PresMth = 0) Or (PresMth = 8)) And
+    (PresLfhOff > 0) And (PresLfhOff < FSize) Then Begin
+  Seek(F, PresLfhOff);
+  Sig := RdL(F);
+  If Sig = ZIP_LFH_SIG Then Begin
+   RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);
+   RdL(F); RdL(F); RdL(F);
+   NameLen  := RdW(F);
+   ExtraLen := RdW(F);
+   Seek(F, FilePos(F) + NameLen + ExtraLen);
+   GetMem(XmlBuf, PresUs); BufSize := PresUs;
+   If PresMth = 0 Then Begin
+    BlockRead(F, XmlBuf^, PresUs);
+   End Else Begin
+    GetMem(CompBuf, PresCs);
+    If PresCs > 0 Then BlockRead(F, CompBuf^, PresCs);
+    If Not Inflate(CompBuf, PresCs, XmlBuf, PresUs) Then Begin
+     FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+    End;
+    FreeMem(CompBuf, PresCs);
+   End;
+   If XmlBuf <> Nil Then Begin
+    II := PptxFindStr(0, BufSize, '<p:sldSz');
+    If II >= 0 Then Begin
+     NameTmp := PptxReadAttr(II, 'cx');
+     If NameTmp <> '' Then PresCx := PptxStrToLI(NameTmp);
+     NameTmp := PptxReadAttr(II, 'cy');
+     If NameTmp <> '' Then PresCy := PptxStrToLI(NameTmp);
+    End;
+    PptxLog('SldSz cx=' + LStr(PresCx) + ' cy=' + LStr(PresCy));
+    FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+   End;
+  End;
+ End;
+ If PresCx <= 0 Then PresCx := 9144000;
+ If PresCy <= 0 Then PresCy := 6858000;
+
+ { ---- Extraction du theme (clrScheme) depuis ppt/theme/theme1.xml ---- }
+ If HasTheme And (ThemeUs > 0) And (ThemeUs <= LongInt(1) * 1024 * 1024) And
+    ((ThemeMth = 0) Or (ThemeMth = 8)) And
+    (ThemeLfhOff > 0) And (ThemeLfhOff < FSize) Then Begin
+  Seek(F, ThemeLfhOff);
+  Sig := RdL(F);
+  If Sig = ZIP_LFH_SIG Then Begin
+   RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);
+   RdL(F); RdL(F); RdL(F);
+   NameLen  := RdW(F);
+   ExtraLen := RdW(F);
+   Seek(F, FilePos(F) + NameLen + ExtraLen);
+   GetMem(XmlBuf, ThemeUs); BufSize := ThemeUs;
+   If ThemeMth = 0 Then Begin
+    BlockRead(F, XmlBuf^, ThemeUs);
+   End Else Begin
+    GetMem(CompBuf, ThemeCs);
+    If ThemeCs > 0 Then BlockRead(F, CompBuf^, ThemeCs);
+    If Not Inflate(CompBuf, ThemeCs, XmlBuf, ThemeUs) Then Begin
+     FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+    End;
+    FreeMem(CompBuf, ThemeCs);
+   End;
+   If XmlBuf <> Nil Then Begin
+    P := PptxFindStr(0, BufSize, '<a:clrScheme');
+    Q := PptxFindStr(0, BufSize, '</a:clrScheme>');
+    If (P >= 0) And (Q > P) Then Begin
+     II := P;
+     While II < Q Do Begin
+      II := PptxFindStr(II, Q, '<a:');
+      If II < 0 Then Break;
+      { Lit le nom local de l'element : caracteres apres '<a:' jusqu'a ' ', '>' ou '/' }
+      JJ := II + 3;
+      NameTmp := '';
+      While (JJ < Q) And (Length(NameTmp) < 20) Do Begin
+       ChI := PtrToByteAt(JJ);
+       If (ChI = 32) Or (ChI = 9) Or (ChI = 13) Or (ChI = 10) Or
+          (ChI = 62) Or (ChI = 47) Then Break;
+       NameTmp := NameTmp + Char(ChI);
+       Inc(JJ);
+      End;
+      SlNum := SchemeIdx(NameTmp);
+      If SlNum > 0 Then Begin
+       { Cherche srgbClr ou sysClr dans cet element seulement }
+       K := PptxFindStr(II, Q, '</a:' + NameTmp + '>');
+       If K < 0 Then K := Q;
+       P := PptxFindStr(II, K, '<a:srgbClr');
+       If P >= 0 Then Begin
+        NumStr := PptxReadAttr(P, 'val');
+        If Length(NumStr) >= 6 Then ThemeRGB[SlNum] := NumStr;
+       End Else Begin
+        P := PptxFindStr(II, K, '<a:sysClr');
+        If P >= 0 Then Begin
+         NumStr := PptxReadAttr(P, 'lastClr');
+         If Length(NumStr) >= 6 Then ThemeRGB[SlNum] := NumStr;
+        End;
+       End;
+       II := K;
+      End Else Begin
+       Inc(II);
+      End;
+     End;
+    End;
+    For K := 1 To 12 Do
+     If ThemeRGB[K] <> '' Then
+      PptxLog('THEME[' + LStr(K) + ']=' + ThemeRGB[K]);
+    FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+   End;
+  End;
+ End;
+
+ { ---- Extraction des defauts de placeholders depuis slideLayouts ----
+   On parcourt EN ORDRE INVERSE pour que slideLayout1 (capture en premier
+   lors du scan CD) ecrive ses valeurs en DERNIER et "gagne" sur PhDefaults
+   (c'est le layout par defaut pour la slide titre). }
+ For LI := LayoutCnt Downto 1 Do Begin
+  USize  := LayoutEnts[LI].USize;
+  CSize  := LayoutEnts[LI].CSize;
+  Mth    := LayoutEnts[LI].Mth;
+  LfhOff := LayoutEnts[LI].LfhOff;
+  If (USize <= 0) Or (USize > LongInt(2) * 1024 * 1024) Then Continue;
+  If (Mth <> 0) And (Mth <> 8) Then Continue;
+  If (LfhOff <= 0) Or (LfhOff >= FSize) Then Continue;
+  Seek(F, LfhOff);
+  Sig := RdL(F);
+  If Sig <> ZIP_LFH_SIG Then Continue;
+  RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);
+  RdL(F); RdL(F); RdL(F);
+  NameLen  := RdW(F);
+  ExtraLen := RdW(F);
+  Seek(F, FilePos(F) + NameLen + ExtraLen);
+  GetMem(XmlBuf, USize); BufSize := USize;
+  If Mth = 0 Then Begin
+   BlockRead(F, XmlBuf^, USize);
+  End Else Begin
+   GetMem(CompBuf, CSize);
+   If CSize > 0 Then BlockRead(F, CompBuf^, CSize);
+   If Not Inflate(CompBuf, CSize, XmlBuf, USize) Then Begin
+    FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+   End;
+   FreeMem(CompBuf, CSize);
+  End;
+  If XmlBuf <> Nil Then Begin
+   ParseLayoutDefaultsFromBuffer;
+   FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+  End;
+ End;
+ For LI := 1 To 4 Do
+  If PhDefaults[LI].HasColor Then
+   PptxLog('PhDef[' + LStr(LI) + '] color=' + LStr(PhDefaults[LI].Color)
+           + ' sz=' + LStr(PhDefaults[LI].Sz));
 
  { ---- Extraction effective ---- }
  For SlideIdx := 1 To SlideCnt Do Begin
@@ -6595,49 +7343,10 @@ Begin
   Str(FoundSlide, NumStr);
   NewSl^.Name := 'Diapo ' + NumStr;
   NewSl^.Title := '';
-  NewSh := NewShape;
-  NewSh^.ShType := SHP_TEXT;
-  NewSh^.X := 50; NewSh^.Y := 150;
-  NewSh^.W := 900; NewSh^.H := 500;
-  NewSh^.FillColor := 15;
-  NewSh^.LineColor := 0;
-  NewSh^.Filled := False;
-  NewSh^.TxtCount := 0;
-  BodyShape := NewSh;
-  LineCount := 0;
-  InTitle := True;
+  NewSl^.Background := Pres.MasterBg;
 
-  StartTag := '<a:t>'; EndTag := '</a:t>';
-  ChI := 0;
-  While ChI < BufSize Do Begin
-   If MatchAt(ChI, StartTag) Then Begin
-    ChI := ChI + Length(StartTag);
-    P := ChI; Q := P;
-    While (Q < BufSize) And (Not MatchAt(Q, EndTag)) Do Inc(Q);
-    Line := '';
-    While P < Q Do Begin
-     If Length(Line) < TXT_LINE_LEN Then
-      Line := Line + Char(PtrToByteAt(P));
-     Inc(P);
-    End;
-    If InTitle Then Begin
-     NewSl^.Title := Copy(Line, 1, 79);
-     InTitle := False;
-    End Else If (Line <> '') And (LineCount < MAX_TEXT_LINES) Then Begin
-     Inc(LineCount);
-     BodyShape^.Text[LineCount]    := Line;
-     BodyShape^.Bullets[LineCount] := True;
-     BodyShape^.Indent[LineCount]  := 0;
-     BodyShape^.TxtCount := LineCount;
-    End;
-    ChI := Q + Length(EndTag);
-   End Else
-    Inc(ChI);
-  End;
-  If BodyShape^.TxtCount > 0 Then
-   AddShapeToSlide(NewSl, BodyShape)
-  Else
-   Dispose(BodyShape);
+  ParseSlideShapes(NewSl);
+
   SlNum := Pres.SldCount + 1;
   If SlNum <= MAX_SLIDES Then Begin
    Pres.Slides[SlNum] := NewSl;
