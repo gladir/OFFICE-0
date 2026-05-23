@@ -4755,47 +4755,719 @@ Begin
  LoadPresentationFile := True;
 End;
 
-{ ----- Dialogue de selection de fichier .PPT -------------------------- }
+{ ====================================================================== }
+{   DIALOGUE DE SELECTION DE FICHIER (Phase 12 - style Office classique)  }
+{                                                                        }
+{   - Champ "Nom du fichier" editable (avec caret clignotant)            }
+{   - Combo "Type" cyclable : *.PPT / *.PPTX / *.PRN / *.*               }
+{   - Affichage du repertoire courant ("Chercher dans :")                }
+{   - Listbox "Fichiers" (filtree par le combo Type)                     }
+{   - Listbox "Dossiers et lecteurs" : [..], [SOUS-DOSSIER], [-A-]..[-Z-]}
+{   - Boutons "Aller dans le parent", "OK", "Annuler"                    }
+{   - Navigation clavier : Tab/Shift+Tab pour le focus, fleches dans     }
+{     les listes, Entree active, Esc annule, frappe edite le nom         }
+{   - Navigation souris : simple clic = selection, double clic = activer }
+{   - Mise a jour automatique de la liste apres chaque ChDir/changement  }
+{     de filtre                                                          }
+{ ====================================================================== }
 
 Function FileSelectDlg(Const Title: String;
                        Var FN: String; ForSave: Boolean): Boolean;
-Var SR: SearchRec;
-    Names: Array[1..40] Of String[40];
-    Cnt, Sel, K, A, B: Integer;
-    NameTmp: String[40];
-    Items: String;
+Const
+ FDM_FILES  = 256;             { capacite listbox fichiers }
+ FDM_DIRS   = 96;              { capacite listbox dossiers+lecteurs }
+ FDM_FILT   = 4;               { nombre de filtres }
+ ROW_H      = 10;              { hauteur ligne listbox }
+ DBL_TICKS  = 18;              { fenetre de double-clic (ticks ~20ms) }
+Type
+ TFileE = String[14];
+ TDirE  = String[18];
+Var
+ { ----- Geometrie du dialogue ----- }
+ X1, Y1, X2, Y2: Integer;
+ NeX1, NeY1, NeX2, NeY2: Integer;        { name edit }
+ FcX1, FcY1, FcX2, FcY2: Integer;        { filter combo }
+ FlX1, FlY1, FlX2, FlY2: Integer;        { files listbox }
+ DlX1, DlY1, DlX2, DlY2: Integer;        { dirs listbox }
+ OkX1, OkY1, OkX2, OkY2: Integer;        { OK button }
+ CnX1, CnY1, CnX2, CnY2: Integer;        { Cancel button }
+ UpX1, UpY1, UpX2, UpY2: Integer;        { "parent dir" button }
+ RefX1, RefY1, RefX2, RefY2: Integer;    { "refresh" button }
+
+ { ----- Etat ----- }
+ FiltMasks: Array[1..FDM_FILT] Of String[16];
+ FiltNames: Array[1..FDM_FILT] Of String[44];
+ FiltIdx  : Integer;
+
+ CurDir   : String;
+
+ Files    : Array[1..FDM_FILES] Of TFileE;
+ FilesCnt : Integer;
+ FilesSel : Integer;
+ FilesScr : Integer;
+
+ Dirs     : Array[1..FDM_DIRS] Of TDirE;
+ DirsCnt  : Integer;
+ DirsSel  : Integer;
+ DirsScr  : Integer;
+
+ NameBuf  : String;
+ NameCaret: Integer;
+
+ Focus    : Integer;        { 0=name 1=files 2=dirs 3=filter 4=ok 5=cancel }
+ ResultOK : Boolean;
+ Done     : Boolean;
+ VisRows  : Integer;
+
+ K, K2    : Char;
+ SR       : SearchRec;
+ I, J     : Integer;
+ D        : Byte;
+ Drv      : Char;
+ TmpF     : TFileE;
+ TmpD     : TDirE;
+ TmpS     : String;
+ ADir, AName, AExt: String;
+
+ LastClickTick  : LongInt;
+ LastClickField : Integer;
+ LastClickIdx   : Integer;
+ NowTick        : LongInt;
+ IoR            : Integer;
+ OldDir         : String;
+ NewSel         : Integer;
+
+ { -------------------------------------------------------------------- }
+ {                          Helpers de scan                              }
+ { -------------------------------------------------------------------- }
+
+ Procedure ScanFiles;
+ Var II, JJ: Integer; TF: TFileE;
+ Begin
+  FilesCnt := 0; FilesSel := 0; FilesScr := 0;
+  FindFirst(FiltMasks[FiltIdx], $20, SR);
+  While (DosError = 0) And (FilesCnt < FDM_FILES) Do Begin
+   If ((SR.Attr And $18) = 0) Then Begin    { exclure dirs/volume }
+    Inc(FilesCnt);
+    Files[FilesCnt] := Copy(SR.Name, 1, 14);
+   End;
+   FindNext(SR);
+  End;
+  FindClose(SR);
+  For II := 2 To FilesCnt Do Begin
+   TF := Files[II]; JJ := II - 1;
+   While (JJ >= 1) And (Files[JJ] > TF) Do Begin
+    Files[JJ + 1] := Files[JJ]; Dec(JJ);
+   End;
+   Files[JJ + 1] := TF;
+  End;
+  If FilesCnt > 0 Then FilesSel := 1;
+ End;
+
+ Procedure ScanDirs;
+ Var II, JJ, FirstSort: Integer; TD: TDirE;
+     HasUp: Boolean; Drv2: Char; D2: Byte;
+ Begin
+  DirsCnt := 0; DirsSel := 0; DirsScr := 0;
+  HasUp := False;
+  FindFirst('*.*', $10, SR);
+  While (DosError = 0) And (DirsCnt < FDM_DIRS - 28) Do Begin
+   If ((SR.Attr And $10) <> 0) And (SR.Name <> '') And (SR.Name <> '.') Then
+   Begin
+    If SR.Name = '..' Then Begin
+     If Not HasUp Then Begin
+      Inc(DirsCnt); Dirs[DirsCnt] := '[..]'; HasUp := True;
+     End;
+    End Else Begin
+     Inc(DirsCnt); Dirs[DirsCnt] := '[' + Copy(SR.Name, 1, 16) + ']';
+    End;
+   End;
+   FindNext(SR);
+  End;
+  FindClose(SR);
+  { Tri : on conserve [..] en tete s'il existe. }
+  FirstSort := 1;
+  If (DirsCnt > 0) And (Dirs[1] = '[..]') Then FirstSort := 2;
+  For II := FirstSort + 1 To DirsCnt Do Begin
+   TD := Dirs[II]; JJ := II - 1;
+   While (JJ >= FirstSort) And (Dirs[JJ] > TD) Do Begin
+    Dirs[JJ + 1] := Dirs[JJ]; Dec(JJ);
+   End;
+   Dirs[JJ + 1] := TD;
+  End;
+  { Lecteurs disponibles en queue de liste. }
+  For Drv2 := 'A' To 'Z' Do Begin
+   D2 := Ord(Drv2) - Ord('A') + 1;
+   {$I-} II := 0; If DiskSize(D2) > 0 Then II := 1; {$I+}
+   If IOResult <> 0 Then II := 0;
+   If (II = 1) And (DirsCnt < FDM_DIRS) Then Begin
+    Inc(DirsCnt);
+    Dirs[DirsCnt] := '[-' + Drv2 + '-]';
+   End;
+  End;
+  If DirsCnt > 0 Then DirsSel := 1;
+ End;
+
+ Procedure RefreshCurDir;
+ Begin
+  {$I-} GetDir(0, CurDir); {$I+}
+  If IOResult <> 0 Then CurDir := '?:\';
+ End;
+
+ Procedure FullRefresh;
+ Begin
+  RefreshCurDir;
+  ScanFiles;
+  ScanDirs;
+ End;
+
+ { -------------------------------------------------------------------- }
+ {                          Helpers de dessin                            }
+ { -------------------------------------------------------------------- }
+
+ Procedure DrawFocusRect(Lx1, Ly1, Lx2, Ly2: Integer);
+ Var Xi: Integer;
+ Begin
+  SetColor(CLR_BLACK);
+  Xi := Lx1;
+  While Xi <= Lx2 Do Begin PutPixel(Xi, Ly1, CLR_BLACK); Inc(Xi, 2); End;
+  Xi := Lx1;
+  While Xi <= Lx2 Do Begin PutPixel(Xi, Ly2, CLR_BLACK); Inc(Xi, 2); End;
+  Xi := Ly1;
+  While Xi <= Ly2 Do Begin PutPixel(Lx1, Xi, CLR_BLACK); Inc(Xi, 2); End;
+  Xi := Ly1;
+  While Xi <= Ly2 Do Begin PutPixel(Lx2, Xi, CLR_BLACK); Inc(Xi, 2); End;
+ End;
+
+ Procedure DrawNameEdit;
+ Begin
+  HideMouse;
+  DlgEdit(NeX1, NeY1, NeX2, NeY2, NameBuf, Focus = 0, NameCaret);
+  If Focus = 0 Then DrawFocusRect(NeX1 - 2, NeY1 - 2, NeX2 + 2, NeY2 + 2)
+  Else Begin
+   FillBox(NeX1 - 2, NeY1 - 2, NeX2 + 2, NeY1 - 1, CLR_DLG_BG);
+   FillBox(NeX1 - 2, NeY2 + 1, NeX2 + 2, NeY2 + 2, CLR_DLG_BG);
+   FillBox(NeX1 - 2, NeY1 - 1, NeX1 - 1, NeY2 + 1, CLR_DLG_BG);
+   FillBox(NeX2 + 1, NeY1 - 1, NeX2 + 2, NeY2 + 1, CLR_DLG_BG);
+  End;
+  ShowMouse;
+ End;
+
+ Procedure DrawFilterCombo;
+ Var ArX1, ArY1, ArX2, ArY2: Integer;
+ Begin
+  HideMouse;
+  FillBox(FcX1, FcY1, FcX2, FcY2, CLR_WHITE);
+  SetColor(CLR_WIN_LO); Rectangle(FcX1, FcY1, FcX2, FcY2);
+  SetColor(CLR_BLACK);
+  OutTextXY(FcX1 + 4, FcY1 + ((FcY2 - FcY1) - 8) Div 2,
+            FiltNames[FiltIdx]);
+  { fleche bas a droite }
+  ArX2 := FcX2 - 2; ArX1 := ArX2 - 14;
+  ArY1 := FcY1 + 2; ArY2 := FcY2 - 2;
+  DrawRaised(ArX1, ArY1, ArX2, ArY2, CLR_LGRAY, CLR_WIN_HI, CLR_WIN_LO);
+  SetColor(CLR_BLACK);
+  Line(ArX1 + 4, ArY1 + 5, ArX2 - 4, ArY1 + 5);
+  Line(ArX1 + 5, ArY1 + 6, ArX2 - 5, ArY1 + 6);
+  Line(ArX1 + 6, ArY1 + 7, ArX2 - 6, ArY1 + 7);
+  Line(ArX1 + 7, ArY1 + 8, ArX1 + 7, ArY1 + 8);
+  If Focus = 3 Then
+   DrawFocusRect(FcX1 - 2, FcY1 - 2, FcX2 + 2, FcY2 + 2)
+  Else Begin
+   FillBox(FcX1 - 2, FcY1 - 2, FcX2 + 2, FcY1 - 1, CLR_DLG_BG);
+   FillBox(FcX1 - 2, FcY2 + 1, FcX2 + 2, FcY2 + 2, CLR_DLG_BG);
+   FillBox(FcX1 - 2, FcY1 - 1, FcX1 - 1, FcY2 + 1, CLR_DLG_BG);
+   FillBox(FcX2 + 1, FcY1 - 1, FcX2 + 2, FcY2 + 1, CLR_DLG_BG);
+  End;
+  ShowMouse;
+ End;
+
+ Procedure DrawListBox(Lx1, Ly1, Lx2, Ly2: Integer;
+                       Count, Sel, Scroll, IsFocus: Integer;
+                       IsDirs: Boolean);
+ Var II, Y, MaxR, Vis: Integer; S: String;
+     Bg, Fg: Integer;
+ Begin
+  HideMouse;
+  DrawSunken(Lx1, Ly1, Lx2, Ly2, CLR_WHITE, CLR_WIN_HI, CLR_WIN_LO);
+  Vis := (Ly2 - Ly1 - 4) Div ROW_H;
+  If Vis < 1 Then Vis := 1;
+  MaxR := Count;
+  If MaxR > Vis Then MaxR := Vis;
+  For II := 1 To MaxR Do Begin
+   Y := Ly1 + 2 + (II - 1) * ROW_H;
+   If (II + Scroll) > Count Then Break;
+   If IsDirs Then S := Dirs[II + Scroll]
+   Else           S := Files[II + Scroll];
+   If (II + Scroll) = Sel Then Begin
+    Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG;
+    FillBox(Lx1 + 2, Y, Lx2 - 2, Y + ROW_H - 1, Bg);
+   End Else Begin
+    Bg := CLR_WHITE; Fg := CLR_BLACK;
+   End;
+   SetColor(Fg);
+   OutTextXY(Lx1 + 6, Y + 1, S);
+  End;
+  If IsFocus = 1 Then
+   DrawFocusRect(Lx1 - 2, Ly1 - 2, Lx2 + 2, Ly2 + 2)
+  Else Begin
+   FillBox(Lx1 - 2, Ly1 - 2, Lx2 + 2, Ly1 - 1, CLR_DLG_BG);
+   FillBox(Lx1 - 2, Ly2 + 1, Lx2 + 2, Ly2 + 2, CLR_DLG_BG);
+   FillBox(Lx1 - 2, Ly1 - 1, Lx1 - 1, Ly2 + 1, CLR_DLG_BG);
+   FillBox(Lx2 + 1, Ly1 - 1, Lx2 + 2, Ly2 + 1, CLR_DLG_BG);
+  End;
+  ShowMouse;
+ End;
+
+ Procedure DrawFilesBox;
+ Var F: Integer;
+ Begin
+  F := 0; If Focus = 1 Then F := 1;
+  DrawListBox(FlX1, FlY1, FlX2, FlY2, FilesCnt, FilesSel, FilesScr, F, False);
+ End;
+
+ Procedure DrawDirsBox;
+ Var F: Integer;
+ Begin
+  F := 0; If Focus = 2 Then F := 1;
+  DrawListBox(DlX1, DlY1, DlX2, DlY2, DirsCnt, DirsSel, DirsScr, F, True);
+ End;
+
+ Procedure DrawButtons;
+ Var Ts: String;
+ Begin
+  HideMouse;
+  DlgBtn(OkX1, OkY1, OkX2, OkY2, 'OK',      False, Focus = 4);
+  DlgBtn(CnX1, CnY1, CnX2, CnY2, 'Annuler', False, Focus = 5);
+  DlgBtn(UpX1, UpY1, UpX2, UpY2, 'Parent',  False, False);
+  DlgBtn(RefX1, RefY1, RefX2, RefY2, 'Actualiser', False, False);
+  { affichage du chemin courant }
+  FillBox(X1 + 110, Y1 + 64, X2 - 14, Y1 + 76, CLR_DLG_BG);
+  SetColor(CLR_BLACK);
+  Ts := CurDir;
+  While TextWidth(Ts) > (X2 - 14) - (X1 + 110) - 4 Do
+   Ts := Copy(Ts, 1, Length(Ts) - 1);
+  OutTextXY(X1 + 112, Y1 + 66, Ts);
+  ShowMouse;
+ End;
+
+ Procedure DrawAll;
+ Begin
+  DlgFrame(X1, Y1, X2, Y2, Title);
+  HideMouse;
+  SetColor(CLR_BLACK);
+  OutTextXY(X1 + 14, Y1 + 26, 'Nom du fichier :');
+  OutTextXY(X1 + 14, Y1 + 46, 'Type de fichier :');
+  OutTextXY(X1 + 14, Y1 + 66, 'Chercher dans :');
+  OutTextXY(FlX1, FlY1 - 12, 'Fichiers :');
+  OutTextXY(DlX1, DlY1 - 12, 'Dossiers et lecteurs :');
+  ShowMouse;
+  DrawNameEdit;
+  DrawFilterCombo;
+  DrawFilesBox;
+  DrawDirsBox;
+  DrawButtons;
+ End;
+
+ { -------------------------------------------------------------------- }
+ {                       Helpers d'interaction                           }
+ { -------------------------------------------------------------------- }
+
+ Procedure CycleFilter(Dir: Integer);
+ Begin
+  FiltIdx := FiltIdx + Dir;
+  If FiltIdx < 1 Then FiltIdx := FDM_FILT;
+  If FiltIdx > FDM_FILT Then FiltIdx := 1;
+  ScanFiles;
+  DrawFilterCombo;
+  DrawFilesBox;
+ End;
+
+ Procedure SetFocus(NewF: Integer);
+ Var Old: Integer;
+ Begin
+  If NewF < 0 Then NewF := 5;
+  If NewF > 5 Then NewF := 0;
+  If NewF = Focus Then Exit;
+  Old := Focus; Focus := NewF;
+  { repeint les deux widgets concernes pour effacer/poser le focus }
+  Case Old Of
+   0: DrawNameEdit;
+   1: DrawFilesBox;
+   2: DrawDirsBox;
+   3: DrawFilterCombo;
+   4, 5: DrawButtons;
+  End;
+  Case Focus Of
+   0: DrawNameEdit;
+   1: DrawFilesBox;
+   2: DrawDirsBox;
+   3: DrawFilterCombo;
+   4, 5: DrawButtons;
+  End;
+ End;
+
+ Procedure ScrollFilesTo(NewS: Integer);
+ Begin
+  If NewS < 1 Then NewS := 1;
+  If NewS > FilesCnt Then NewS := FilesCnt;
+  If FilesCnt = 0 Then Exit;
+  FilesSel := NewS;
+  If FilesSel < FilesScr + 1 Then FilesScr := FilesSel - 1;
+  If FilesSel > FilesScr + VisRows Then FilesScr := FilesSel - VisRows;
+  If FilesScr < 0 Then FilesScr := 0;
+  NameBuf := Files[FilesSel];
+  NameCaret := Length(NameBuf);
+  DrawFilesBox;
+  DrawNameEdit;
+ End;
+
+ Procedure ScrollDirsTo(NewS: Integer);
+ Begin
+  If NewS < 1 Then NewS := 1;
+  If NewS > DirsCnt Then NewS := DirsCnt;
+  If DirsCnt = 0 Then Exit;
+  DirsSel := NewS;
+  If DirsSel < DirsScr + 1 Then DirsScr := DirsSel - 1;
+  If DirsSel > DirsScr + VisRows Then DirsScr := DirsSel - VisRows;
+  If DirsScr < 0 Then DirsScr := 0;
+  DrawDirsBox;
+ End;
+
+ Procedure ActivateDir(Idx: Integer);
+ Var S, Inner: String; OkChg: Boolean;
+ Begin
+  If (Idx < 1) Or (Idx > DirsCnt) Then Exit;
+  S := Dirs[Idx];
+  OkChg := False;
+  If S = '[..]' Then Begin
+   {$I-} ChDir('..'); {$I+}
+   If IOResult = 0 Then OkChg := True;
+  End
+  Else If (Length(S) >= 5) And (S[1] = '[') And (S[2] = '-') And
+          (S[Length(S)] = ']') And (S[Length(S) - 1] = '-') Then Begin
+   { lecteur "[-X-]" }
+   Inner := S[3] + ':\';
+   {$I-} ChDir(Inner); {$I+}
+   If IOResult = 0 Then OkChg := True;
+  End
+  Else If (Length(S) >= 2) And (S[1] = '[') And
+          (S[Length(S)] = ']') Then Begin
+   Inner := Copy(S, 2, Length(S) - 2);
+   {$I-} ChDir(Inner); {$I+}
+   If IOResult = 0 Then OkChg := True;
+  End;
+  If OkChg Then FullRefresh
+  Else Begin
+   MessageBox('Ouvrir', 'Acces refuse a ' + S);
+   { la MessageBox a tout salit -> on redessine le dialogue. }
+   DrawAll;
+   Exit;
+  End;
+  DrawNameEdit; DrawFilterCombo;
+  DrawFilesBox; DrawDirsBox; DrawButtons;
+ End;
+
+ Function TryAccept: Boolean;
+ Var Eff, Dr, Nm, Ex: String;
+ Begin
+  TryAccept := False;
+  Eff := NameBuf;
+  While (Length(Eff) > 0) And (Eff[1] = ' ') Do Delete(Eff, 1, 1);
+  While (Length(Eff) > 0) And (Eff[Length(Eff)] = ' ') Do
+   Delete(Eff, Length(Eff), 1);
+  If Eff = '' Then Exit;
+  { contient un wildcard => trate comme un changement de filtre custom }
+  If (Pos('*', Eff) > 0) Or (Pos('?', Eff) > 0) Then Begin
+   FiltMasks[FiltIdx] := Copy(Eff, 1, 16);
+   FiltNames[FiltIdx] := 'Personnalise (' + Eff + ')';
+   NameBuf := ''; NameCaret := 0;
+   ScanFiles;
+   DrawFilterCombo; DrawNameEdit; DrawFilesBox;
+   Exit;
+  End;
+  { chemin absolu ou relatif vers un dossier => CD }
+  FSplit(Eff, Dr, Nm, Ex);
+  If (Dr <> '') And (Nm = '') And (Ex = '') Then Begin
+   {$I-} ChDir(Dr); {$I+}
+   If IOResult = 0 Then Begin
+    FullRefresh; NameBuf := ''; NameCaret := 0;
+    DrawAll;
+   End Else MessageBox('Ouvrir', 'Dossier introuvable : ' + Eff);
+   Exit;
+  End;
+  { ajoute extension par defaut si absente }
+  If Pos('.', Nm + Ex) = 0 Then Begin
+   Case FiltIdx Of
+    1: Eff := Eff + '.PPT';
+    2: Eff := Eff + '.PPTX';
+    3: Eff := Eff + '.PRN';
+   End;
+  End;
+  FN := Eff;
+  ResultOK := True; Done := True;
+  TryAccept := True;
+ End;
+
+ Procedure ActivateFile(Idx: Integer);
+ Begin
+  If (Idx < 1) Or (Idx > FilesCnt) Then Exit;
+  NameBuf := Files[Idx];
+  NameCaret := Length(NameBuf);
+  If TryAccept Then ;
+ End;
+
+ Function FileIdxAtY(Yy: Integer): Integer;
+ Var R: Integer;
+ Begin
+  FileIdxAtY := 0;
+  If (Yy < FlY1 + 2) Or (Yy > FlY2 - 2) Then Exit;
+  R := (Yy - FlY1 - 2) Div ROW_H + 1 + FilesScr;
+  If (R >= 1) And (R <= FilesCnt) Then FileIdxAtY := R;
+ End;
+
+ Function DirIdxAtY(Yy: Integer): Integer;
+ Var R: Integer;
+ Begin
+  DirIdxAtY := 0;
+  If (Yy < DlY1 + 2) Or (Yy > DlY2 - 2) Then Exit;
+  R := (Yy - DlY1 - 2) Div ROW_H + 1 + DirsScr;
+  If (R >= 1) And (R <= DirsCnt) Then DirIdxAtY := R;
+ End;
+
+ Procedure HandleClick;
+ Var Idx, Field: Integer; IsDbl: Boolean;
+ Begin
+  Field := -1; Idx := 0;
+  If InRect(Mouse.X, Mouse.Y, NeX1, NeY1, NeX2, NeY2) Then Begin
+   SetFocus(0); Field := 0;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, FcX1, FcY1, FcX2, FcY2) Then Begin
+   SetFocus(3); CycleFilter(+1); Field := 3;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, FlX1, FlY1, FlX2, FlY2) Then Begin
+   Idx := FileIdxAtY(Mouse.Y);
+   SetFocus(1);
+   If Idx > 0 Then Begin
+    FilesSel := Idx; DirsSel := 0;
+    NameBuf := Files[Idx]; NameCaret := Length(NameBuf);
+    DrawFilesBox; DrawNameEdit;
+   End;
+   Field := 1;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, DlX1, DlY1, DlX2, DlY2) Then Begin
+   Idx := DirIdxAtY(Mouse.Y);
+   SetFocus(2);
+   If Idx > 0 Then Begin
+    DirsSel := Idx; DrawDirsBox;
+   End;
+   Field := 2;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, OkX1, OkY1, OkX2, OkY2) Then Begin
+   If TryAccept Then ;
+   Exit;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, CnX1, CnY1, CnX2, CnY2) Then Begin
+   ResultOK := False; Done := True; Exit;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, UpX1, UpY1, UpX2, UpY2) Then Begin
+   {$I-} ChDir('..'); {$I+} IoR := IOResult;
+   If IoR = 0 Then Begin FullRefresh; DrawAll; End;
+   Exit;
+  End
+  Else If InRect(Mouse.X, Mouse.Y, RefX1, RefY1, RefX2, RefY2) Then Begin
+   FullRefresh; DrawAll; Exit;
+  End;
+  { Detection double-clic sur listbox }
+  NowTick := TickCount;
+  IsDbl := (Field = LastClickField) And (Idx = LastClickIdx) And (Idx > 0) And
+          ((NowTick - LastClickTick) < DBL_TICKS);
+  LastClickField := Field; LastClickIdx := Idx; LastClickTick := NowTick;
+  If IsDbl Then Begin
+   If Field = 1 Then ActivateFile(Idx)
+   Else If Field = 2 Then ActivateDir(Idx);
+  End;
+ End;
+
+ Procedure HandleKeyChar(Kc: Char);
+ Begin
+  Case Focus Of
+   0: Begin   { name edit }
+    Case Kc Of
+     #8 : Begin
+      If (NameCaret > 0) And (Length(NameBuf) > 0) Then Begin
+       Delete(NameBuf, NameCaret, 1); Dec(NameCaret); DrawNameEdit;
+      End;
+     End;
+    Else
+     If (Kc >= ' ') And (Kc <= #126) And (Length(NameBuf) < 79) Then Begin
+      Insert(Kc, NameBuf, NameCaret + 1); Inc(NameCaret); DrawNameEdit;
+     End;
+    End;
+   End;
+   3: Begin   { filter : Space cycle }
+    If Kc = ' ' Then CycleFilter(+1);
+   End;
+   1, 2, 4, 5: Begin
+    { espace = clic sur bouton focuse / lance activation }
+    If Kc = ' ' Then Begin
+     If Focus = 4 Then Begin If TryAccept Then ; End
+     Else If Focus = 5 Then Begin
+      ResultOK := False; Done := True;
+     End;
+    End;
+   End;
+  End;
+ End;
+
+ Procedure HandleKeyExt(Kc: Char);
+ Begin
+  Case Kc Of
+   #15: SetFocus(Focus - 1);              { Shift+Tab }
+   #75: Begin                             { Left }
+    If Focus = 0 Then Begin
+     If NameCaret > 0 Then Begin Dec(NameCaret); DrawNameEdit; End;
+    End
+    Else If Focus = 3 Then CycleFilter(-1);
+   End;
+   #77: Begin                             { Right }
+    If Focus = 0 Then Begin
+     If NameCaret < Length(NameBuf) Then Begin Inc(NameCaret); DrawNameEdit; End;
+    End
+    Else If Focus = 3 Then CycleFilter(+1);
+   End;
+   #72: Begin                             { Up }
+    If Focus = 1 Then ScrollFilesTo(FilesSel - 1)
+    Else If Focus = 2 Then ScrollDirsTo(DirsSel - 1);
+   End;
+   #80: Begin                             { Down }
+    If Focus = 1 Then ScrollFilesTo(FilesSel + 1)
+    Else If Focus = 2 Then ScrollDirsTo(DirsSel + 1);
+   End;
+   #73: Begin                             { PgUp }
+    If Focus = 1 Then ScrollFilesTo(FilesSel - VisRows)
+    Else If Focus = 2 Then ScrollDirsTo(DirsSel - VisRows);
+   End;
+   #81: Begin                             { PgDn }
+    If Focus = 1 Then ScrollFilesTo(FilesSel + VisRows)
+    Else If Focus = 2 Then ScrollDirsTo(DirsSel + VisRows);
+   End;
+   #71: Begin                             { Home }
+    If Focus = 0 Then Begin NameCaret := 0; DrawNameEdit; End
+    Else If Focus = 1 Then ScrollFilesTo(1)
+    Else If Focus = 2 Then ScrollDirsTo(1);
+   End;
+   #79: Begin                             { End }
+    If Focus = 0 Then Begin NameCaret := Length(NameBuf); DrawNameEdit; End
+    Else If Focus = 1 Then ScrollFilesTo(FilesCnt)
+    Else If Focus = 2 Then ScrollDirsTo(DirsCnt);
+   End;
+   #83: Begin                             { Delete }
+    If Focus = 0 Then Begin
+     If (NameCaret < Length(NameBuf)) Then Begin
+      Delete(NameBuf, NameCaret + 1, 1); DrawNameEdit;
+     End;
+    End;
+   End;
+  End;
+ End;
+
 Begin
  FileSelectDlg := False;
- Cnt := 0;
- FindFirst('*.PPT', $20, SR);
- While (DosError = 0) And (Cnt < 40) Do Begin
-  Inc(Cnt);
-  Names[Cnt] := SR.Name;
-  FindNext(SR);
- End;
- FindClose(SR);
- { Tri alphabetique (insertion) }
- For A := 2 To Cnt Do Begin
-  NameTmp := Names[A]; B := A - 1;
-  While (B >= 1) And (Names[B] > NameTmp) Do Begin
-   Names[B + 1] := Names[B]; Dec(B);
+ { ----- Geometrie ----- }
+ X1 := 40;  Y1 := 50;  X2 := 600; Y2 := 440;
+ NeX1 := X1 + 130; NeY1 := Y1 + 22; NeX2 := X2 - 14; NeY2 := Y1 + 36;
+ FcX1 := X1 + 130; FcY1 := Y1 + 42; FcX2 := X2 - 14; FcY2 := Y1 + 56;
+ FlX1 := X1 + 14;  FlY1 := Y1 + 96;
+ FlX2 := X1 + 292; FlY2 := Y1 + 340;
+ DlX1 := X1 + 308; DlY1 := Y1 + 96;
+ DlX2 := X2 - 14;  DlY2 := Y1 + 340;
+ { Boutons alignes au bas du dialogue (droite) }
+ OkX1 := X2 - 14 - 368; OkY1 := Y2 - 32;
+ OkX2 := OkX1 + 86;     OkY2 := Y2 - 12;
+ CnX1 := OkX2 + 8;      CnY1 := Y2 - 32;
+ CnX2 := CnX1 + 86;     CnY2 := Y2 - 12;
+ UpX1 := CnX2 + 8;      UpY1 := Y2 - 32;
+ UpX2 := UpX1 + 86;     UpY2 := Y2 - 12;
+ RefX1 := UpX2 + 8;     RefY1 := Y2 - 32;
+ RefX2 := RefX1 + 86;   RefY2 := Y2 - 12;
+ VisRows := (FlY2 - FlY1 - 4) Div ROW_H;
+ If VisRows < 1 Then VisRows := 1;
+
+ { ----- Filtres ----- }
+ FiltMasks[1] := '*.PPT';   FiltNames[1] := 'Presentations PowerPoint (*.PPT)';
+ FiltMasks[2] := '*.PPTX';  FiltNames[2] := 'Presentations OOXML (*.PPTX)';
+ FiltMasks[3] := '*.PRN';   FiltNames[3] := 'Fichiers d''impression (*.PRN)';
+ FiltMasks[4] := '*.*';     FiltNames[4] := 'Tous les fichiers (*.*)';
+ FiltIdx := 1;
+
+ { ----- Pre-remplissage depuis FN ----- }
+ If FN <> '' Then Begin
+  FSplit(FN, ADir, AName, AExt);
+  If ADir <> '' Then Begin
+   {$I-} ChDir(ADir); {$I+} IoR := IOResult;
   End;
-  Names[B + 1] := NameTmp;
- End;
- Items := '<Saisir un nom...>';
- For K := 1 To Cnt Do Items := Items + #10 + Names[K];
- Sel := SelectListDlg(Title, Items, 1);
- If Sel = 0 Then Exit;
- If Sel = 1 Then Begin
-  If Not InputTextDlg(Title, 'Nom du fichier (.PPT) :', FN, 79) Then Exit;
-  If FN = '' Then Exit;
- End Else Begin
-  K := Sel - 1;
-  If (K < 1) Or (K > Cnt) Then Exit;
-  FN := Names[K];
- End;
- If Pos('.', FN) = 0 Then FN := FN + '.PPT';
- FileSelectDlg := True;
+  NameBuf := AName + AExt;
+  TmpS := AExt; For I := 1 To Length(TmpS) Do TmpS[I] := UpCase(TmpS[I]);
+  If TmpS = '.PPTX' Then FiltIdx := 2
+  Else If TmpS = '.PRN' Then FiltIdx := 3
+  Else If TmpS = '.PPT' Then FiltIdx := 1;
+ End Else NameBuf := '';
+ NameCaret := Length(NameBuf);
+
+ { ----- Etat initial ----- }
+ Focus := 0;
+ ResultOK := False; Done := False;
+ LastClickTick := -100; LastClickField := -1; LastClickIdx := -1;
+
+ FullRefresh;
+ DrawAll;
+ ShowMouse;
+
+ Repeat
+  UpdateMouse;
+  Inc(TickCount);
+  If (TickCount Mod 8) = 0 Then Begin
+   BlinkState := Not BlinkState;
+   If Focus = 0 Then DrawNameEdit;
+  End;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #59: ;                                { F1 : reserve aide }
+     #107, #45: Begin                       { Alt+F4 / Alt+X : annule }
+      ResultOK := False; Done := True;
+     End;
+    Else
+     HandleKeyExt(K2);
+    End;
+   End Else Begin
+    Case K Of
+     #27: Begin ResultOK := False; Done := True; End;
+     #13: Begin
+      { Enter : depend du focus }
+      Case Focus Of
+       1: If FilesSel > 0 Then ActivateFile(FilesSel);
+       2: If DirsSel > 0 Then ActivateDir(DirsSel);
+       5: Begin ResultOK := False; Done := True; End;
+      Else
+       If TryAccept Then ;
+      End;
+     End;
+     #9 : SetFocus(Focus + 1);             { Tab }
+    Else
+     HandleKeyChar(K);
+    End;
+   End;
+  End;
+  If LeftPressed Then HandleClick;
+  Delay(20);
+ Until Done;
+
+ NeedFullRedraw := True;
+ FileSelectDlg := ResultOK;
 End;
 
 { ----- Actions Fichier (Open/Save/SaveAs/Close) ----------------------- }
@@ -5388,176 +6060,622 @@ Begin
  SavePPTX := True;
 End;
 
-{ ----- Lecteur .PPTX (entrees STORED uniquement) ------------------------- }
+{ ====================================================================== }
+{   Decodeur DEFLATE (RFC 1951) - pur Pascal, suffisant pour decompresser }
+{   les entrees Method=8 d'un .PPTX produit par PowerPoint.               }
+{ ====================================================================== }
+
+Type
+ TInfLenArr  = Array[0..287] Of Integer;
+ TInfCntArr  = Array[0..15]  Of Integer;
+ TInfDLenArr = Array[0..31]  Of Integer;
+
+Const
+ INF_LEN_BASE: Array[0..28] Of Integer = (
+  3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,
+  35,43,51,59,67,83,99,115,131,163,195,227,258);
+ INF_LEN_EXTRA: Array[0..28] Of Integer = (
+  0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0);
+ INF_DIST_BASE: Array[0..29] Of LongInt = (
+  1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,
+  1025,1537,2049,3073,4097,6145,8193,12289,16385,24577);
+ INF_DIST_EXTRA: Array[0..29] Of Integer = (
+  0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13);
+ INF_CLEN_ORDER: Array[0..18] Of Integer = (
+  16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15);
+
+Var
+ InfBitBuf : LongInt;
+ InfBitCnt : Integer;
+ InfIn     : ^Byte;
+ InfInPos  : LongInt;
+ InfInLen  : LongInt;
+ InfOut    : ^Byte;
+ InfOutPos : LongInt;
+ InfOutLen : LongInt;
+ InfError  : Boolean;
+ { Tables Huffman courantes }
+ InfLL_Lens   : TInfLenArr;
+ InfLL_Counts : TInfCntArr;
+ InfLL_Sorted : TInfLenArr;
+ InfD_Lens    : TInfDLenArr;
+ InfD_Counts  : TInfCntArr;
+ InfD_Sorted  : TInfDLenArr;
+ InfCL_Lens   : Array[0..18] Of Integer;
+ InfCL_Counts : TInfCntArr;
+ InfCL_Sorted : Array[0..18] Of Integer;
+
+Function InfReadByte: Byte;
+Var P: ^Byte;
+Begin
+ If InfInPos >= InfInLen Then Begin
+  InfError := True; InfReadByte := 0; Exit;
+ End;
+ P := InfIn; Inc(P, InfInPos); InfReadByte := P^;
+ Inc(InfInPos);
+End;
+
+Function InfGetBits(N: Integer): LongInt;
+Var R, B, Mask: LongInt;
+Begin
+ While InfBitCnt < N Do Begin
+  B := InfReadByte;
+  InfBitBuf := InfBitBuf Or (LongInt(B) Shl InfBitCnt);
+  Inc(InfBitCnt, 8);
+ End;
+ If N = 0 Then Mask := 0 Else Mask := (LongInt(1) Shl N) - 1;
+ R := InfBitBuf And Mask;
+ InfBitBuf := InfBitBuf Shr N;
+ Dec(InfBitCnt, N);
+ InfGetBits := R;
+End;
+
+Procedure InfPutByte(B: Byte);
+Var P: ^Byte;
+Begin
+ If InfOutPos >= InfOutLen Then Begin
+  InfError := True; Exit;
+ End;
+ P := InfOut; Inc(P, InfOutPos); P^ := B;
+ Inc(InfOutPos);
+End;
+
+Function InfOutByteAt(Off: LongInt): Byte;
+Var P: ^Byte;
+Begin
+ P := InfOut; Inc(P, Off); InfOutByteAt := P^;
+End;
+
+{ Construit la table de decodage canonique. NumSym <= NumSymMax. }
+Procedure InfBuildHuf(Var Lens: Array Of Integer; NumSym: Integer;
+                      Var Counts: Array Of Integer;
+                      Var Sorted: Array Of Integer);
+Var I, L: Integer;
+    NextOf: Array[0..16] Of Integer;
+    Base  : Array[0..16] Of Integer;
+Begin
+ For I := 0 To 15 Do Counts[I] := 0;
+ For I := 0 To NumSym - 1 Do
+  If (Lens[I] >= 1) And (Lens[I] <= 15) Then Inc(Counts[Lens[I]]);
+ Base[0] := 0; Base[1] := 0;
+ For L := 2 To 16 Do Base[L] := Base[L - 1] + Counts[L - 1];
+ For L := 0 To 16 Do NextOf[L] := Base[L];
+ For I := 0 To NumSym - 1 Do Begin
+  L := Lens[I];
+  If (L >= 1) And (L <= 15) Then Begin
+   Sorted[NextOf[L]] := I;
+   Inc(NextOf[L]);
+  End;
+ End;
+End;
+
+Function InfDecodeSym(Var Counts: Array Of Integer;
+                      Var Sorted: Array Of Integer): Integer;
+Var Code, First, Index, Count, L: LongInt;
+Begin
+ Code := 0; First := 0; Index := 0;
+ For L := 1 To 15 Do Begin
+  Code := (Code Shl 1) Or InfGetBits(1);
+  Count := Counts[L];
+  If (Code - Count) < First Then Begin
+   InfDecodeSym := Sorted[Index + (Code - First)];
+   Exit;
+  End;
+  Index := Index + Count;
+  First := (First + Count) Shl 1;
+ End;
+ InfError := True;
+ InfDecodeSym := -1;
+End;
+
+Procedure InfDoStored;
+Var Len, NLen, I: LongInt;
+    B: Byte;
+Begin
+ { aligne sur octet }
+ InfBitBuf := 0; InfBitCnt := 0;
+ Len  := LongInt(InfReadByte);
+ Len  := Len Or (LongInt(InfReadByte) Shl 8);
+ NLen := LongInt(InfReadByte);
+ NLen := NLen Or (LongInt(InfReadByte) Shl 8);
+ If InfError Then Exit;
+ If (Len Xor NLen) <> 65535 Then Begin
+  InfError := True; Exit;
+ End;
+ For I := 1 To Len Do Begin
+  B := InfReadByte;
+  If InfError Then Exit;
+  InfPutByte(B);
+  If InfError Then Exit;
+ End;
+End;
+
+Procedure InfInitFixed;
+Var I: Integer;
+Begin
+ For I := 0 To 143 Do InfLL_Lens[I] := 8;
+ For I := 144 To 255 Do InfLL_Lens[I] := 9;
+ For I := 256 To 279 Do InfLL_Lens[I] := 7;
+ For I := 280 To 287 Do InfLL_Lens[I] := 8;
+ InfBuildHuf(InfLL_Lens, 288, InfLL_Counts, InfLL_Sorted);
+ For I := 0 To 29 Do InfD_Lens[I] := 5;
+ InfD_Lens[30] := 0; InfD_Lens[31] := 0;
+ InfBuildHuf(InfD_Lens, 32, InfD_Counts, InfD_Sorted);
+End;
+
+Procedure InfReadDynamicTables;
+Var HLit, HDist, HCLen, I, Idx, Sym, Rep: Integer;
+    PrevLen: Integer;
+    AllLens: Array[0..319] Of Integer;
+Begin
+ HLit  := InfGetBits(5) + 257;
+ HDist := InfGetBits(5) + 1;
+ HCLen := InfGetBits(4) + 4;
+ If (HLit > 286) Or (HDist > 30) Or (HCLen > 19) Then Begin
+  InfError := True; Exit;
+ End;
+ For I := 0 To 18 Do InfCL_Lens[I] := 0;
+ For I := 0 To HCLen - 1 Do
+  InfCL_Lens[INF_CLEN_ORDER[I]] := InfGetBits(3);
+ InfBuildHuf(InfCL_Lens, 19, InfCL_Counts, InfCL_Sorted);
+ If InfError Then Exit;
+ Idx := 0;
+ PrevLen := 0;
+ While Idx < HLit + HDist Do Begin
+  Sym := InfDecodeSym(InfCL_Counts, InfCL_Sorted);
+  If InfError Then Exit;
+  If Sym < 16 Then Begin
+   AllLens[Idx] := Sym;
+   PrevLen := Sym;
+   Inc(Idx);
+  End
+  Else If Sym = 16 Then Begin
+   Rep := InfGetBits(2) + 3;
+   While (Rep > 0) And (Idx < HLit + HDist) Do Begin
+    AllLens[Idx] := PrevLen; Inc(Idx); Dec(Rep);
+   End;
+  End
+  Else If Sym = 17 Then Begin
+   Rep := InfGetBits(3) + 3;
+   PrevLen := 0;
+   While (Rep > 0) And (Idx < HLit + HDist) Do Begin
+    AllLens[Idx] := 0; Inc(Idx); Dec(Rep);
+   End;
+  End
+  Else Begin   { 18 }
+   Rep := InfGetBits(7) + 11;
+   PrevLen := 0;
+   While (Rep > 0) And (Idx < HLit + HDist) Do Begin
+    AllLens[Idx] := 0; Inc(Idx); Dec(Rep);
+   End;
+  End;
+ End;
+ For I := 0 To HLit - 1 Do InfLL_Lens[I] := AllLens[I];
+ For I := HLit To 287 Do InfLL_Lens[I] := 0;
+ For I := 0 To HDist - 1 Do InfD_Lens[I] := AllLens[HLit + I];
+ For I := HDist To 31 Do InfD_Lens[I] := 0;
+ InfBuildHuf(InfLL_Lens, 288, InfLL_Counts, InfLL_Sorted);
+ InfBuildHuf(InfD_Lens, 32, InfD_Counts, InfD_Sorted);
+End;
+
+Procedure InfDecodeBlock;
+Var Sym, LenIdx, DistIdx, K: Integer;
+    Length_, Distance, Src: LongInt;
+Begin
+ Repeat
+  Sym := InfDecodeSym(InfLL_Counts, InfLL_Sorted);
+  If InfError Then Exit;
+  If Sym < 256 Then Begin
+   InfPutByte(Byte(Sym));
+   If InfError Then Exit;
+  End
+  Else If Sym = 256 Then Exit
+  Else Begin
+   LenIdx := Sym - 257;
+   If LenIdx > 28 Then Begin InfError := True; Exit; End;
+   Length_ := INF_LEN_BASE[LenIdx] + InfGetBits(INF_LEN_EXTRA[LenIdx]);
+   DistIdx := InfDecodeSym(InfD_Counts, InfD_Sorted);
+   If InfError Then Exit;
+   If DistIdx > 29 Then Begin InfError := True; Exit; End;
+   Distance := INF_DIST_BASE[DistIdx] + InfGetBits(INF_DIST_EXTRA[DistIdx]);
+   If Distance > InfOutPos Then Begin InfError := True; Exit; End;
+   Src := InfOutPos - Distance;
+   For K := 1 To Length_ Do Begin
+    InfPutByte(InfOutByteAt(Src));
+    If InfError Then Exit;
+    Inc(Src);
+   End;
+  End;
+ Until False;
+End;
+
+Function Inflate(InBuf: Pointer; InLen: LongInt;
+                 OutBuf: Pointer; OutLen: LongInt): Boolean;
+Var BFinal, BType: Integer;
+    BlockNo: Integer;
+
+ Procedure InfLog(Const S: String);
+ Var LF: Text;
+ Begin
+  Assign(LF, 'POWERPNT.LOG');
+  {$I-} Append(LF); {$I+} If IOResult <> 0 Then Begin
+   {$I-} Rewrite(LF); {$I+} If IOResult <> 0 Then Exit;
+  End;
+  WriteLn(LF, S); Close(LF);
+ End;
+
+ Function LS(L: LongInt): String;
+ Var T: String; Begin Str(L, T); LS := T; End;
+
+Begin
+ InfIn := InBuf; InfInLen := InLen; InfInPos := 0;
+ InfOut := OutBuf; InfOutLen := OutLen; InfOutPos := 0;
+ InfBitBuf := 0; InfBitCnt := 0;
+ InfError := False;
+ BlockNo := 0;
+ InfLog('  Inflate: InLen=' + LS(InLen) + ' OutLen=' + LS(OutLen));
+ Repeat
+  BFinal := InfGetBits(1);
+  BType  := InfGetBits(2);
+  Inc(BlockNo);
+  InfLog('  Block ' + LS(BlockNo) + ': BFinal=' + LS(BFinal) + ' BType=' + LS(BType) + ' InPos=' + LS(InfInPos) + ' OutPos=' + LS(InfOutPos));
+  Case BType Of
+   0: InfDoStored;
+   1: Begin InfInitFixed; InfDecodeBlock; End;
+   2: Begin InfReadDynamicTables; If Not InfError Then InfDecodeBlock; End;
+  Else
+   InfError := True;
+  End;
+  If InfError Then Begin
+   InfLog('  ERROR after block ' + LS(BlockNo) + ' InPos=' + LS(InfInPos) + ' OutPos=' + LS(InfOutPos));
+   Break;
+  End;
+ Until BFinal = 1;
+ InfLog('  Inflate done: err=' + LS(Ord(InfError)) + ' OutPos=' + LS(InfOutPos));
+ Inflate := Not InfError;
+End;
+
+{ ----- Lecteur .PPTX (STORED + DEFLATE) ---------------------------------- }
 { On scrute les Local File Headers en sequence, on extrait <a:t>...</a:t>   }
-{ depuis les fichiers ppt/slides/slide*.xml. Les entrees compressees sont   }
-{ ignorees avec un message.                                                 }
+{ depuis les fichiers ppt/slides/slide*.xml.                                }
 
 Function LoadPPTX(Const FN: String): Boolean;
+Const MAX_PPTX_SLIDES = 256;
+      EOCD_SCAN_MAX   = 65557;
+Type
+ TSlideEnt = Record
+  LfhOff   : LongInt;
+  CSize    : LongInt;
+  USize    : LongInt;
+  Mth      : Word;
+  SlideNum : Integer;
+ End;
 Var F: File;
+    FSize, EocdPos, CdOff, CdSize: LongInt;
+    TotalEnt, EI: Integer;
     Sig: LongInt;
-    Ver, Flg, Mth, Tm, Dt: Word;
-    NameLen, ExtraLen: Word;
-    CSize, USize: LongInt;
+    ScanBuf: ^Byte;
+    ScanLen: LongInt;
+    ScanByte: ^Byte;
+    DiagStr: String;
+    K, II, JJ: LongInt;
+    SlideEnts: Array[1..MAX_PPTX_SLIDES] Of TSlideEnt;
+    SlideCnt, SlideIdx: Integer;
     EntName: String;
-    XmlBuf: Pointer;
-    BufSize, ReadBytes, P, Q: LongInt;
-    SkippedCompressed, FoundSlide: Integer;
-    SlNum: Integer;
-    NewSl: PSlide; NewSh: PShape;
-    BodyShape: PShape;
-    Line: String;
+    Mth, Flg, NameLen, ExtraLen, CommentLen: Word;
+    CSize, USize: LongInt;
+    LfhOff: LongInt;
+    SlNum, ValErr: Integer;
+    NumStr, NameTmp: String;
+    XmlBuf, CompBuf: Pointer;
+    BufSize, P, Q, ChI: LongInt;
+    TmpEnt: TSlideEnt;
+    NewSl: PSlide; NewSh, BodyShape: PShape;
+    Line, StartTag, EndTag: String;
     InTitle: Boolean;
-    ChI: LongInt;
-    StartTag, EndTag: String;
     LineCount: Integer;
-    CRC, USize2: LongInt;
+    SkippedCompressed, FoundSlide: Integer;
 
  Function PtrToByteAt(Off: LongInt): Byte;
  Var Ptr: ^Byte;
  Begin
-  Ptr := XmlBuf;
-  Inc(Ptr, Off);
-  PtrToByteAt := Ptr^;
+  Ptr := XmlBuf; Inc(Ptr, Off); PtrToByteAt := Ptr^;
  End;
 
  Function MatchAt(Off: LongInt; Const Tag: String): Boolean;
- Var K: Integer;
+ Var L: Integer;
  Begin
   MatchAt := False;
   If Off + Length(Tag) > BufSize Then Exit;
-  For K := 1 To Length(Tag) Do
-   If Char(PtrToByteAt(Off + K - 1)) <> Tag[K] Then Exit;
+  For L := 1 To Length(Tag) Do
+   If Char(PtrToByteAt(Off + L - 1)) <> Tag[L] Then Exit;
   MatchAt := True;
  End;
 
+ Procedure PptxLog(Const S: String);
+ Var LF: Text;
+ Begin
+  Assign(LF, 'POWERPNT.LOG');
+  {$I-} Append(LF); {$I+}
+  If IOResult <> 0 Then Begin {$I-} Rewrite(LF); {$I+} If IOResult <> 0 Then Exit; End;
+  WriteLn(LF, S);
+  Close(LF);
+ End;
+
+ Function LStr(L: LongInt): String;
+ Var T: String;
+ Begin Str(L, T); LStr := T; End;
+
 Begin
+ PptxLog('--- LoadPPTX: ' + FN + ' ---');
  LoadPPTX := False;
  SkippedCompressed := 0;
  FoundSlide := 0;
+ SlideCnt := 0;
+ XmlBuf := Nil; BufSize := 0;
+ ScanBuf := Nil;
+ DiagStr := '';
  Assign(F, FN);
  {$I-} Reset(F, 1); {$I+}
- If IOResult <> 0 Then Exit;
+ If IOResult <> 0 Then Begin
+  PptxLog('FAIL: ouverture impossible');
+  SeedSamplePresentation;
+  StatusMsg := 'PPTX: ouverture impossible: ' + FN;
+  Exit;
+ End;
+ FSize := FileSize(F);
+ PptxLog('FSize=' + LStr(FSize));
+ If FSize < 22 Then Begin
+  Close(F); SeedSamplePresentation;
+  StatusMsg := 'PPTX: fichier trop petit';
+  Exit;
+ End;
 
- FreePresentation;
- InitPresentation;
- BufSize := 0; XmlBuf := Nil;
+ { ---- Recherche EOCD en queue de fichier ---- }
+ ScanLen := FSize;
+ If ScanLen > EOCD_SCAN_MAX Then ScanLen := EOCD_SCAN_MAX;
+ GetMem(ScanBuf, ScanLen);
+ Seek(F, FSize - ScanLen);
+ BlockRead(F, ScanBuf^, ScanLen);
+ EocdPos := -1;
+ K := ScanLen - 22;
+ While K >= 0 Do Begin
+  ScanByte := ScanBuf; Inc(ScanByte, K);
+  If ScanByte^ = 80 Then Begin
+   Inc(ScanByte); If ScanByte^ = 75 Then Begin
+    Inc(ScanByte); If ScanByte^ = 5 Then Begin
+     Inc(ScanByte); If ScanByte^ = 6 Then Begin
+      EocdPos := (FSize - ScanLen) + K; Break;
+     End; End; End; End;
+  Dec(K);
+ End;
+ FreeMem(ScanBuf, ScanLen); ScanBuf := Nil;
+ PptxLog('EocdPos=' + LStr(EocdPos));
+ If EocdPos < 0 Then Begin
+  Close(F); SeedSamplePresentation;
+  Str(FSize, DiagStr);
+  StatusMsg := 'PPTX: EOCD introuvable (taille=' + DiagStr + ')';
+  Exit;
+ End;
 
- While Not Eof(F) Do Begin
+ { Lecture EOCD : on saute jusqu'a "total entries" (offset +10). }
+ Seek(F, EocdPos + 10);
+ TotalEnt := RdW(F);
+ CdSize := RdL(F);
+ CdOff := RdL(F);
+ PptxLog('TotalEnt=' + LStr(TotalEnt) + ' CdSize=' + LStr(CdSize) + ' CdOff=' + LStr(CdOff));
+ If (TotalEnt <= 0) Or (CdOff <= 0) Or (CdOff >= FSize) Then Begin
+  Close(F); SeedSamplePresentation;
+  Str(TotalEnt, DiagStr);
+  StatusMsg := 'PPTX: CD invalide (ent=' + DiagStr + ')';
+  Exit;
+ End;
+
+ { ---- Parcourt le Central Directory ---- }
+ Seek(F, CdOff);
+ For EI := 1 To TotalEnt Do Begin
   Sig := RdL(F);
-  If Sig <> ZIP_LFH_SIG Then Break;
-  Ver  := RdW(F);
-  Flg  := RdW(F);
-  Mth  := RdW(F);
-  Tm   := RdW(F);
-  Dt   := RdW(F);
-  CRC  := RdL(F);
+  If Sig <> ZIP_CDH_SIG Then Begin
+   PptxLog('CDH sig mismatch ent=' + LStr(EI));
+   Break;
+  End;
+  RdW(F); RdW(F);                             { version made by / needed }
+  Flg := RdW(F);
+  Mth := RdW(F);
+  RdW(F); RdW(F);                             { time, date }
+  RdL(F);                                     { crc }
   CSize := RdL(F);
-  USize2 := RdL(F);
-  NameLen  := RdW(F);
-  ExtraLen := RdW(F);
-  USize := USize2;
+  USize := RdL(F);
+  NameLen    := RdW(F);
+  ExtraLen   := RdW(F);
+  CommentLen := RdW(F);
+  RdW(F); RdW(F); RdL(F);                     { disk, int, ext attrs }
+  LfhOff := RdL(F);
+  PptxLog('CDH ' + LStr(EI) + ' nameLen=' + LStr(NameLen) + ' extra=' + LStr(ExtraLen) + ' cmt=' + LStr(CommentLen) + ' off=' + LStr(LfhOff));
   If NameLen > 200 Then NameLen := 200;
   EntName[0] := Char(NameLen);
   If NameLen > 0 Then BlockRead(F, EntName[1], NameLen);
-  If ExtraLen > 0 Then Seek(F, FilePos(F) + ExtraLen);
+  If ExtraLen   > 0 Then Seek(F, FilePos(F) + ExtraLen);
+  If CommentLen > 0 Then Seek(F, FilePos(F) + CommentLen);
 
-  { Petit garde-fou : si le fichier semble etre une slide XML }
   If (Pos('ppt/slides/slide', EntName) = 1) And
      (Pos('.xml', EntName) > 0) And
      (Pos('.rels', EntName) = 0) Then Begin
-   If Mth <> 0 Then Begin
-    Inc(SkippedCompressed);
-    If CSize > 0 Then Seek(F, FilePos(F) + CSize);
-   End Else Begin
-    { Charge en memoire }
-    If XmlBuf <> Nil Then FreeMem(XmlBuf, BufSize);
-    BufSize := USize;
-    If BufSize <= 0 Then BufSize := 1;
-    GetMem(XmlBuf, BufSize);
-    If USize > 0 Then BlockRead(F, XmlBuf^, USize);
-
-    { Cree une nouvelle diapo. Index par ordre d'apparition. }
-    Inc(FoundSlide);
-    NewSl := NewSlide;
-    Str(FoundSlide, EntName);
-    NewSl^.Name := 'Diapo ' + EntName;
-    NewSl^.Title := '';
-    { Cree une shape texte pour le corps }
-    NewSh := NewShape;
-    NewSh^.ShType := SHP_TEXT;
-    NewSh^.X := 50; NewSh^.Y := 150;
-    NewSh^.W := 900; NewSh^.H := 500;
-    NewSh^.FillColor := 15;
-    NewSh^.LineColor := 0;
-    NewSh^.Filled := False;
-    NewSh^.TxtCount := 0;
-    BodyShape := NewSh;
-    LineCount := 0;
-    InTitle := True;
-
-    { Parcourt le buffer pour extraire <a:t>...</a:t> }
-    StartTag := '<a:t>';  EndTag := '</a:t>';
-    ChI := 0;
-    While ChI < BufSize Do Begin
-     If MatchAt(ChI, StartTag) Then Begin
-      ChI := ChI + Length(StartTag);
-      P := ChI;
-      Q := P;
-      While (Q < BufSize) And (Not MatchAt(Q, EndTag)) Do Inc(Q);
-      Line := '';
-      While P < Q Do Begin
-       If Length(Line) < TXT_LINE_LEN Then
-        Line := Line + Char(PtrToByteAt(P));
-       Inc(P);
-      End;
-      { Decode des entites usuelles, en place }
-      Line := Line;  { TODO entites }
-      If InTitle Then Begin
-       NewSl^.Title := Copy(Line, 1, 79);
-       InTitle := False;
-      End Else If (Line <> '') And (LineCount < MAX_TEXT_LINES) Then Begin
-       Inc(LineCount);
-       BodyShape^.Text[LineCount] := Line;
-       BodyShape^.Bullets[LineCount] := True;
-       BodyShape^.Indent[LineCount] := 0;
-       BodyShape^.TxtCount := LineCount;
-      End;
-      ChI := Q + Length(EndTag);
-     End Else
-      Inc(ChI);
-    End;
-    If BodyShape^.TxtCount > 0 Then
-     AddShapeToSlide(NewSl, BodyShape)
-    Else
-     Dispose(BodyShape);
-    SlNum := Pres.SldCount + 1;
-    If SlNum <= MAX_SLIDES Then Begin
-     Pres.Slides[SlNum] := NewSl;
-     Pres.SldCount := SlNum;
-    End Else Dispose(NewSl);
+   PptxLog('SLIDE: ' + EntName + ' mth=' + LStr(Mth) + ' cs=' + LStr(CSize) + ' us=' + LStr(USize) + ' off=' + LStr(LfhOff));
+   NameTmp := Copy(EntName, 17, Length(EntName));
+   II := Pos('.xml', NameTmp);
+   If II > 0 Then NameTmp := Copy(NameTmp, 1, II - 1);
+   Val(NameTmp, SlNum, ValErr);
+   If ValErr <> 0 Then SlNum := 9999;
+   If SlideCnt < MAX_PPTX_SLIDES Then Begin
+    Inc(SlideCnt);
+    SlideEnts[SlideCnt].LfhOff   := LfhOff;
+    SlideEnts[SlideCnt].CSize    := CSize;
+    SlideEnts[SlideCnt].USize    := USize;
+    SlideEnts[SlideCnt].Mth      := Mth;
+    SlideEnts[SlideCnt].SlideNum := SlNum;
    End;
-  End Else Begin
-   { Saute le contenu de l'entree }
-   If CSize > 0 Then Seek(F, FilePos(F) + CSize);
   End;
  End;
+
+ { Trie par numero de slide croissant }
+ For II := 2 To SlideCnt Do Begin
+  TmpEnt := SlideEnts[II]; JJ := II - 1;
+  While (JJ >= 1) And (SlideEnts[JJ].SlideNum > TmpEnt.SlideNum) Do Begin
+   SlideEnts[JJ + 1] := SlideEnts[JJ]; Dec(JJ);
+  End;
+  SlideEnts[JJ + 1] := TmpEnt;
+ End;
+
+ FreePresentation;
+ InitPresentation;
+
+ { ---- Extraction effective ---- }
+ For SlideIdx := 1 To SlideCnt Do Begin
+  CSize  := SlideEnts[SlideIdx].CSize;
+  USize  := SlideEnts[SlideIdx].USize;
+  Mth    := SlideEnts[SlideIdx].Mth;
+  LfhOff := SlideEnts[SlideIdx].LfhOff;
+
+  If (Mth <> 0) And (Mth <> 8) Then Begin
+   Inc(SkippedCompressed); Continue;
+  End;
+  If (USize <= 0) Or (USize > LongInt(4) * 1024 * 1024) Then Continue;
+  If (CSize < 0) Or (LfhOff < 0) Or (LfhOff >= FSize) Then Continue;
+
+  Seek(F, LfhOff);
+  Sig := RdL(F);
+  If Sig <> ZIP_LFH_SIG Then Begin
+   PptxLog('LFH sig mismatch idx=' + LStr(SlideIdx));
+   Continue;
+  End;
+  RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);     { ver,flg,mth,time,date }
+  RdL(F); RdL(F); RdL(F);                     { crc,csize,usize (peu fiables si bit 3) }
+  NameLen  := RdW(F);
+  ExtraLen := RdW(F);
+  Seek(F, FilePos(F) + NameLen + ExtraLen);
+
+  GetMem(XmlBuf, USize); BufSize := USize;
+  If Mth = 0 Then Begin
+   If USize > 0 Then BlockRead(F, XmlBuf^, USize);
+  End Else Begin
+   GetMem(CompBuf, CSize);
+   If CSize > 0 Then BlockRead(F, CompBuf^, CSize);
+   If Not Inflate(CompBuf, CSize, XmlBuf, USize) Then Begin
+    PptxLog('INFLATE FAIL idx=' + LStr(SlideIdx));
+    FreeMem(CompBuf, CSize);
+    FreeMem(XmlBuf, BufSize); XmlBuf := Nil;
+    Inc(SkippedCompressed); Continue;
+   End;
+   FreeMem(CompBuf, CSize);
+  End;
+
+  Inc(FoundSlide);
+  NewSl := NewSlide;
+  Str(FoundSlide, NumStr);
+  NewSl^.Name := 'Diapo ' + NumStr;
+  NewSl^.Title := '';
+  NewSh := NewShape;
+  NewSh^.ShType := SHP_TEXT;
+  NewSh^.X := 50; NewSh^.Y := 150;
+  NewSh^.W := 900; NewSh^.H := 500;
+  NewSh^.FillColor := 15;
+  NewSh^.LineColor := 0;
+  NewSh^.Filled := False;
+  NewSh^.TxtCount := 0;
+  BodyShape := NewSh;
+  LineCount := 0;
+  InTitle := True;
+
+  StartTag := '<a:t>'; EndTag := '</a:t>';
+  ChI := 0;
+  While ChI < BufSize Do Begin
+   If MatchAt(ChI, StartTag) Then Begin
+    ChI := ChI + Length(StartTag);
+    P := ChI; Q := P;
+    While (Q < BufSize) And (Not MatchAt(Q, EndTag)) Do Inc(Q);
+    Line := '';
+    While P < Q Do Begin
+     If Length(Line) < TXT_LINE_LEN Then
+      Line := Line + Char(PtrToByteAt(P));
+     Inc(P);
+    End;
+    If InTitle Then Begin
+     NewSl^.Title := Copy(Line, 1, 79);
+     InTitle := False;
+    End Else If (Line <> '') And (LineCount < MAX_TEXT_LINES) Then Begin
+     Inc(LineCount);
+     BodyShape^.Text[LineCount]    := Line;
+     BodyShape^.Bullets[LineCount] := True;
+     BodyShape^.Indent[LineCount]  := 0;
+     BodyShape^.TxtCount := LineCount;
+    End;
+    ChI := Q + Length(EndTag);
+   End Else
+    Inc(ChI);
+  End;
+  If BodyShape^.TxtCount > 0 Then
+   AddShapeToSlide(NewSl, BodyShape)
+  Else
+   Dispose(BodyShape);
+  SlNum := Pres.SldCount + 1;
+  If SlNum <= MAX_SLIDES Then Begin
+   Pres.Slides[SlNum] := NewSl;
+   Pres.SldCount := SlNum;
+  End Else Dispose(NewSl);
+
+  FreeMem(XmlBuf, BufSize); XmlBuf := Nil;
+ End;
+
  Close(F);
  If XmlBuf <> Nil Then FreeMem(XmlBuf, BufSize);
+ PptxLog('SlideCnt=' + LStr(SlideCnt) + ' FoundSlide=' + LStr(FoundSlide) + ' Skipped=' + LStr(SkippedCompressed));
 
  If FoundSlide = 0 Then Begin
-  { Echec : restaure une presentation vierge }
   SeedSamplePresentation;
+  Str(SlideCnt, DiagStr);
+  StatusMsg := 'PPTX: 0 slide extraite / ' + DiagStr + ' detectees';
   Exit;
  End;
  Pres.FileName := FN;
  Pres.Dirty := False;
  CurSlide := 1;
  CurShape := 0;
+ { Le fichier PPTX importe ne contient pas notre pied de page par defaut.
+   On le neutralise pour eviter d'afficher "gladir.com" / "2026" sur chaque
+   diapo chargee. }
+ Pres.FooterText   := '';
+ Pres.DateText     := '';
+ Pres.HeaderText   := '';
+ Pres.ShowFooter   := False;
+ Pres.ShowDate     := False;
+ Pres.ShowHeader   := False;
+ Pres.Company      := '';
  If SkippedCompressed > 0 Then
-  StatusMsg := 'PPTX importe (slides compressees ignorees)'
+  StatusMsg := 'PPTX importe (slides ignorees)'
  Else
   StatusMsg := 'PPTX importe : ' + FN;
+ PptxLog('OK: ' + LStr(FoundSlide) + ' slides chargees');
  LoadPPTX := True;
 End;
 
@@ -7142,8 +8260,13 @@ Begin
      (PptxUpStr(Copy(CmdFName, Length(CmdFName) - 4, 5)) = '.PPTX') Then
   Begin
    If LoadPPTX(CmdFName) Then StatusMsg := 'Charge : ' + CmdFName
-   Else Begin SeedSamplePresentation;
-              StatusMsg := 'Echec PPTX : ' + CmdFName; End;
+   Else Begin
+    { LoadPPTX a deja seed + StatusMsg diagnostique }
+    If Copy(StatusMsg, 1, 5) <> 'PPTX:' Then Begin
+     SeedSamplePresentation;
+     StatusMsg := 'Echec PPTX : ' + CmdFName;
+    End;
+   End;
   End
   Else If (Length(CmdFName) >= 4) And
           (PptxUpStr(Copy(CmdFName, Length(CmdFName) - 3, 4)) = '.PPT') Then
