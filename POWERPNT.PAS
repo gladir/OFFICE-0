@@ -3228,11 +3228,18 @@ Begin
 End;
 
 Procedure ActionNew;
+Var Pos: Integer;
 Begin
  If Not ConfirmDiscardChanges Then Exit;
  FreePresentation;
  InitPresentation;
- SeedSamplePresentation;
+ { Phase 12 fix : "Nouveau" doit creer une presentation VIDE (une seule
+   diapo de titre blanche), pas re-injecter l'exemple de 4 pages. }
+ Pos := AddSlideAt(1);
+ If Pos > 0 Then ApplyLayout(Pres.Slides[Pos], LAY_TITLE_ONLY);
+ CurSlide := 1;
+ CurShape := 0;
+ Pres.Dirty := False;
  StatusMsg := 'Nouvelle presentation.';
  NeedFullRedraw := True;
 End;
