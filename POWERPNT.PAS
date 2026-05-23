@@ -98,6 +98,9 @@ Const
  MAX_TEXT_LINES    = 16;     { lignes par forme texte }
  MAX_THEMES        = 8;
  MAX_IMAGES        = 16;     { images chargees globalement }
+ MAX_IMG_W         = 320;
+ MAX_IMG_H         = 240;
+ BMP_SIGNATURE     = $4D42;
 
  SHAPE_NAME_LEN    = 24;
  TXT_LINE_LEN      = 96;
@@ -411,12 +414,14 @@ Type
  End;
 
  PImage = ^TImage;
+ TImagePixels = Array[0..199999] Of Byte;
+ PImagePixels = ^TImagePixels;
  TImage = Record
   Name   : String[40];
+  FileName : String[80];
   W, H   : Integer;
   Loaded : Boolean;
-  { Donnees brutes simplifiees : palette 16 niveaux par pixel.
-    Pour Phase 1 on stocke seulement un placeholder. }
+  Pixels : PImagePixels;     { palette 0..15 indexee, W*H octets, Nil si vide }
  End;
 
  TPresentation = Record
@@ -435,6 +440,18 @@ Type
   ImgCount    : Integer;
   Images      : Array[1..MAX_IMAGES] Of PImage;
   Dirty       : Boolean;
+  { Phase 6 : masque + en-tete/pied de page }
+  HeaderText    : String[60];
+  FooterText    : String[60];
+  DateText      : String[20];
+  ShowHeader    : Boolean;
+  ShowFooter    : Boolean;
+  ShowDate      : Boolean;
+  ShowSlideNum  : Boolean;
+  MasterBg      : Byte;        { fond par defaut applique aux nouvelles slides }
+  MasterTitleC  : Byte;        { couleur titre par defaut }
+  MasterTextC   : Byte;        { couleur texte par defaut }
+  EditingMaster : Boolean;     { mode masque actif }
  End;
 
  TMouseState = Record
@@ -471,6 +488,14 @@ Type
 {                       VARIABLES GLOBALES                               }
 { ====================================================================== }
 
+Const
+ VGA_R : Array[0..15] Of Byte =
+  (  0,   0,   0,   0, 168, 168, 168, 168,  84,  84,  84,  84, 252, 252, 252, 252);
+ VGA_G : Array[0..15] Of Byte =
+  (  0,   0, 168, 168,   0,   0,  84, 168,  84,  84, 252, 252,  84,  84, 252, 252);
+ VGA_B : Array[0..15] Of Byte =
+  (  0, 168,   0, 168,   0, 168,   0, 168,  84, 252,  84, 252,  84, 252,  84, 252);
+
 Var
  Pres            : TPresentation;
  CurSlide        : Integer;          { 1..SldCount, 0 si vide }
@@ -506,6 +531,16 @@ Var
  DrawStartY     : Integer;
  DrawCurX       : Integer;
  DrawCurY       : Integer;
+ { Phase 2 - manipulation interactive }
+ DragMode       : Byte;          { 0=none 1=move 2=resize 3=newshape 4=marquee }
+ DragHandle     : Byte;          { 1..8 (NW,N,NE,E,SE,S,SW,W) }
+ DragShapeKind  : Byte;          { SHP_* a creer en mode 3 }
+ DragOrigW      : Integer;
+ DragOrigH      : Integer;
+ RubberValid    : Boolean;
+ RubberX1, RubberY1, RubberX2, RubberY2: Integer;
+ LastMouseX     : Integer;
+ LastMouseY     : Integer;
 
  { Mouse }
  Mouse          : TMouseState;
@@ -1802,6 +1837,17 @@ Begin
  Pres.ImgCount := 0;
  For I := 1 To MAX_IMAGES Do Pres.Images[I] := Nil;
  Pres.Dirty    := False;
+ Pres.HeaderText   := '';
+ Pres.FooterText   := 'gladir.com';
+ Pres.DateText     := '2026';
+ Pres.ShowHeader   := False;
+ Pres.ShowFooter   := True;
+ Pres.ShowDate     := True;
+ Pres.ShowSlideNum := True;
+ Pres.MasterBg     := CLR_WHITE;
+ Pres.MasterTitleC := CLR_BLUE;
+ Pres.MasterTextC  := CLR_BLACK;
+ Pres.EditingMaster := False;
  InitDefaultThemes;
  CurSlide := 0;
  CurShape := 0;
@@ -1814,6 +1860,11 @@ Begin
  Pres.SldCount := 0;
  For I := 1 To Pres.ImgCount Do
   If Pres.Images[I] <> Nil Then Begin
+   If Pres.Images[I]^.Pixels <> Nil Then Begin
+    FreeMem(Pres.Images[I]^.Pixels,
+            LongInt(Pres.Images[I]^.W) * Pres.Images[I]^.H);
+    Pres.Images[I]^.Pixels := Nil;
+   End;
    Dispose(Pres.Images[I]); Pres.Images[I] := Nil;
   End;
  Pres.ImgCount := 0;
@@ -2037,8 +2088,335 @@ Begin LogH := (L * (SlideY2 - SlideY1)) Div 750; End;
 {                       RENDU D'UNE FORME                                }
 { ====================================================================== }
 
+{ --- Phase 8 : images BMP/PCX --- }
+
+{ Couleur VGA 16 la plus proche d'un triplet RGB. }
+Function NearestVGA16(R, G, B: Integer): Byte;
+Var I, BestI: Integer; D, BestD, DR, DG, DB: LongInt;
+Begin
+ BestI := 0; BestD := MaxLongInt;
+ For I := 0 To 15 Do Begin
+  DR := LongInt(R) - VGA_R[I];
+  DG := LongInt(G) - VGA_G[I];
+  DB := LongInt(B) - VGA_B[I];
+  D  := DR*DR + DG*DG + DB*DB;
+  If D < BestD Then Begin BestD := D; BestI := I; End;
+ End;
+ NearestVGA16 := Byte(BestI);
+End;
+
+{ Libere la memoire pixels d'une image. }
+Procedure FreeImagePixels(Img: PImage);
+Begin
+ If Img = Nil Then Exit;
+ If Img^.Pixels <> Nil Then Begin
+  FreeMem(Img^.Pixels, LongInt(Img^.W) * Img^.H);
+  Img^.Pixels := Nil;
+ End;
+ Img^.W := 0; Img^.H := 0; Img^.Loaded := False;
+End;
+
+{ Trouve un slot d'image libre (1..MAX_IMAGES), ou 0 si plein. }
+Function FindFreeImageSlot: Integer;
+Var I: Integer;
+Begin
+ For I := 1 To MAX_IMAGES Do
+  If Pres.Images[I] = Nil Then Begin
+   FindFreeImageSlot := I; Exit;
+  End;
+ FindFreeImageSlot := 0;
+End;
+
+{ Alloue un slot image avec un buffer pixel W*H octets. }
+Function AllocImageSlot(W, H: Integer; Const Nm: String): Integer;
+Var Slot: Integer; Img: PImage; Sz: LongInt;
+Begin
+ AllocImageSlot := 0;
+ Slot := FindFreeImageSlot;
+ If Slot = 0 Then Exit;
+ New(Img);
+ If Img = Nil Then Exit;
+ Img^.Name     := Nm;
+ Img^.FileName := '';
+ Img^.W        := W;
+ Img^.H        := H;
+ Img^.Loaded   := False;
+ Img^.Pixels   := Nil;
+ Sz := LongInt(W) * H;
+ If Sz > 0 Then Begin
+  GetMem(Img^.Pixels, Sz);
+  If Img^.Pixels = Nil Then Begin Dispose(Img); Exit; End;
+  FillChar(Img^.Pixels^, Sz, 0);
+ End;
+ Pres.Images[Slot] := Img;
+ If Slot > Pres.ImgCount Then Pres.ImgCount := Slot;
+ AllocImageSlot := Slot;
+End;
+
+{ --- LoadBMP : 1/4/8/24 bpp non compresse --- }
+
+Function LoadImageBMP(Const FN: String; Var Slot: Integer): Boolean;
+Type
+ TBMPFile = Packed Record
+  bfType: Word; bfSize: LongInt;
+  bfRes1, bfRes2: Word; bfOffBits: LongInt;
+ End;
+ TBMPInfo = Packed Record
+  biSize: LongInt; biWidth, biHeight: LongInt;
+  biPlanes, biBitCount: Word;
+  biCompression, biSizeImage: LongInt;
+  biXPel, biYPel: LongInt;
+  biClrUsed, biClrImp: LongInt;
+ End;
+ TRGBQ = Packed Record B, G, R, X: Byte; End;
+Var F: File; FH: TBMPFile; IH: TBMPInfo; Got: Word;
+    RowSize: LongInt; W, H, X, Y, SrcY, I, PalN: Integer;
+    RowBuf: Array[0..4095] Of Byte;
+    Pal: Array[0..255] Of TRGBQ;
+    Remap: Array[0..255] Of Byte;
+    Img: PImage; V, BV: Byte; BP: Integer;
+    Rb, Gb, Bb: Byte;
+Begin
+ LoadImageBMP := False; Slot := 0;
+ Assign(F, FN);
+ {$I-} Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ BlockRead(F, FH, SizeOf(FH), Got);
+ If (Got <> SizeOf(FH)) Or (FH.bfType <> BMP_SIGNATURE) Then Begin Close(F); Exit; End;
+ BlockRead(F, IH, SizeOf(IH), Got);
+ If Got <> SizeOf(IH) Then Begin Close(F); Exit; End;
+ W := IH.biWidth; H := Abs(IH.biHeight);
+ If (W <= 0) Or (H <= 0) Then Begin Close(F); Exit; End;
+ If W > MAX_IMG_W Then W := MAX_IMG_W;
+ If H > MAX_IMG_H Then H := MAX_IMG_H;
+ If IH.biCompression <> 0 Then Begin Close(F); Exit; End;
+ RowSize := ((LongInt(IH.biWidth) * IH.biBitCount + 31) Div 32) * 4;
+ If RowSize > 4096 Then Begin Close(F); Exit; End;
+ If IH.biBitCount <= 8 Then Begin
+  If IH.biClrUsed > 0 Then PalN := IH.biClrUsed
+                      Else PalN := 1 Shl IH.biBitCount;
+  BlockRead(F, Pal, PalN * 4, Got);
+  For I := 0 To PalN - 1 Do
+   Remap[I] := NearestVGA16(Pal[I].R, Pal[I].G, Pal[I].B);
+  For I := PalN To 255 Do Remap[I] := 0;
+ End;
+ Slot := AllocImageSlot(W, H, FN);
+ If Slot = 0 Then Begin Close(F); Exit; End;
+ Img := Pres.Images[Slot];
+ Seek(F, FH.bfOffBits);
+ For Y := 0 To H - 1 Do Begin
+  BlockRead(F, RowBuf, RowSize, Got);
+  If IH.biHeight < 0 Then SrcY := Y Else SrcY := H - 1 - Y;
+  For X := 0 To W - 1 Do Begin
+   V := 0;
+   Case IH.biBitCount Of
+    1: Begin
+     BV := RowBuf[X Shr 3]; BP := 7 - (X And 7);
+     V := Remap[(BV Shr BP) And 1];
+    End;
+    4: Begin
+     BV := RowBuf[X Shr 1];
+     If (X And 1) = 0 Then V := Remap[(BV Shr 4) And 15]
+                      Else V := Remap[BV And 15];
+    End;
+    8: V := Remap[RowBuf[X]];
+    24: Begin
+     Bb := RowBuf[X*3]; Gb := RowBuf[X*3+1]; Rb := RowBuf[X*3+2];
+     V := NearestVGA16(Rb, Gb, Bb);
+    End;
+   End;
+   Img^.Pixels^[LongInt(SrcY) * W + X] := V;
+  End;
+ End;
+ Close(F);
+ Img^.Loaded := True;
+ LoadImageBMP := True;
+End;
+
+{ --- LoadPCX : 1/4/8 bpp, jusqu'a 4 plans --- }
+
+Function LoadImagePCX(Const FN: String; Var Slot: Integer): Boolean;
+Type
+ TPCXHdr = Packed Record
+  Manuf, Ver, Enc, BPP: Byte;
+  Xmin, Ymin, Xmax, Ymax: Word;
+  HDpi, VDpi: Word;
+  EgaPal: Array[0..47] Of Byte;
+  Reserved: Byte;
+  NPlanes: Byte;
+  BytesPerLine: Word;
+  PalInfo: Word;
+  HScr, VScr: Word;
+  Filler: Array[0..53] Of Byte;
+ End;
+Var F: File; H: TPCXHdr; Got: Word; FSz: LongInt;
+    Tail: Array[0..768] Of Byte;
+    PalR, PalG, PalB: Array[0..255] Of Byte;
+    Remap: Array[0..255] Of Byte;
+    PalCount, I: Integer;
+    HasPal8: Boolean;
+    PcxW, PcxH, ScanBytes: LongInt;
+    Scan: Array[0..16383] Of Byte;
+    W, Hh, X, Y, ByteOff, BitIdx, Plane, BitC, Idx: Integer;
+    Img: PImage;
+    FBuf: Array[0..16383] Of Byte;
+    FLen, FPos: Integer; FEof: Boolean;
+
+ Function R1: Integer;
+ Var G: Word;
+ Begin
+  If FPos >= FLen Then Begin
+   If FEof Then Begin R1 := -1; Exit; End;
+   BlockRead(F, FBuf, 16384, G); FLen := G; FPos := 0;
+   If G = 0 Then Begin FEof := True; R1 := -1; Exit; End;
+  End;
+  R1 := FBuf[FPos]; Inc(FPos);
+ End;
+
+ Function ReadScan: Boolean;
+ Var Cnt, Val, J: Integer; P: LongInt;
+ Begin
+  ReadScan := False; P := 0;
+  While P < ScanBytes Do Begin
+   Val := R1; If Val < 0 Then Exit;
+   If (Val And $C0) = $C0 Then Begin
+    Cnt := Val And $3F; Val := R1;
+    If Val < 0 Then Exit;
+    For J := 1 To Cnt Do Begin
+     If P < ScanBytes Then Scan[P] := Byte(Val);
+     Inc(P);
+    End;
+   End Else Begin
+    Scan[P] := Byte(Val); Inc(P);
+   End;
+  End;
+  ReadScan := True;
+ End;
+
+Begin
+ LoadImagePCX := False; Slot := 0;
+ FLen := 0; FPos := 0; FEof := False;
+ Assign(F, FN);
+ {$I-} Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ BlockRead(F, H, SizeOf(H), Got);
+ If Got <> SizeOf(H) Then Begin Close(F); Exit; End;
+ If (H.Manuf <> $0A) Or (H.Enc <> 1) Then Begin Close(F); Exit; End;
+ If (H.BPP <> 1) And (H.BPP <> 4) And (H.BPP <> 8) Then Begin Close(F); Exit; End;
+ If (H.NPlanes < 1) Or (H.NPlanes > 4) Then Begin Close(F); Exit; End;
+ PcxW := LongInt(H.Xmax) - H.Xmin + 1;
+ PcxH := LongInt(H.Ymax) - H.Ymin + 1;
+ If (PcxW <= 0) Or (PcxH <= 0) Then Begin Close(F); Exit; End;
+ ScanBytes := LongInt(H.BytesPerLine) * H.NPlanes;
+ If (ScanBytes <= 0) Or (ScanBytes > 16384) Then Begin Close(F); Exit; End;
+ HasPal8 := False; PalCount := 0;
+ If (H.BPP = 8) And (H.NPlanes = 1) Then Begin
+  FSz := FileSize(F);
+  If FSz >= 769 Then Begin
+   Seek(F, FSz - 769);
+   BlockRead(F, Tail, 769, Got);
+   If (Got = 769) And (Tail[0] = $0C) Then Begin
+    HasPal8 := True; PalCount := 256;
+    For I := 0 To 255 Do Begin
+     PalR[I] := Tail[1 + I*3];
+     PalG[I] := Tail[1 + I*3 + 1];
+     PalB[I] := Tail[1 + I*3 + 2];
+    End;
+   End;
+  End;
+  Seek(F, 128);
+  FLen := 0; FPos := 0; FEof := False;
+ End;
+ If Not HasPal8 Then Begin
+  PalCount := 16;
+  For I := 0 To 15 Do Begin
+   PalR[I] := H.EgaPal[I*3];
+   PalG[I] := H.EgaPal[I*3 + 1];
+   PalB[I] := H.EgaPal[I*3 + 2];
+  End;
+  If (H.NPlanes = 1) And (H.BPP = 1) Then Begin
+   PalR[0]:=0;   PalG[0]:=0;   PalB[0]:=0;
+   PalR[1]:=255; PalG[1]:=255; PalB[1]:=255;
+  End;
+ End;
+ For I := 0 To PalCount - 1 Do
+  Remap[I] := NearestVGA16(PalR[I], PalG[I], PalB[I]);
+ For I := PalCount To 255 Do Remap[I] := 0;
+ W := PcxW; Hh := PcxH;
+ If W  > MAX_IMG_W Then W  := MAX_IMG_W;
+ If Hh > MAX_IMG_H Then Hh := MAX_IMG_H;
+ Slot := AllocImageSlot(W, Hh, FN);
+ If Slot = 0 Then Begin Close(F); Exit; End;
+ Img := Pres.Images[Slot];
+ For Y := 0 To PcxH - 1 Do Begin
+  If Not ReadScan Then Begin Close(F); Exit; End;
+  If Y >= Hh Then Continue;
+  For X := 0 To W - 1 Do Begin
+   Idx := 0;
+   If (H.NPlanes = 1) And (H.BPP = 8) Then Idx := Scan[X]
+   Else If (H.NPlanes = 1) And (H.BPP = 1) Then Begin
+    ByteOff := X Shr 3; BitIdx := 7 - (X And 7);
+    Idx := (Scan[ByteOff] Shr BitIdx) And 1;
+   End
+   Else If (H.NPlanes = 1) And (H.BPP = 4) Then Begin
+    ByteOff := X Shr 1;
+    If (X And 1) = 0 Then Idx := (Scan[ByteOff] Shr 4) And 15
+                     Else Idx := Scan[ByteOff] And 15;
+   End
+   Else If (H.BPP = 1) And (H.NPlanes >= 2) Then Begin
+    ByteOff := X Shr 3; BitIdx := 7 - (X And 7);
+    Idx := 0;
+    For Plane := 0 To H.NPlanes - 1 Do
+     If ((Scan[Plane * H.BytesPerLine + ByteOff] Shr BitIdx) And 1) <> 0 Then
+      Idx := Idx Or (1 Shl Plane);
+   End;
+   Img^.Pixels^[LongInt(Y) * W + X] := Remap[Idx];
+  End;
+ End;
+ Close(F);
+ Img^.Loaded := True;
+ LoadImagePCX := True;
+End;
+
+{ Charge une image en detectant le format via l'extension. }
+Function LoadImageFile(Const FN: String; Var Slot: Integer): Boolean;
+Var I: Integer; Ext: String;
+Begin
+ Ext := '';
+ For I := Length(FN) DownTo 1 Do
+  If FN[I] = '.' Then Begin Ext := Copy(FN, I + 1, 8); Break; End;
+ For I := 1 To Length(Ext) Do
+  If (Ext[I] >= 'a') And (Ext[I] <= 'z') Then
+   Ext[I] := Chr(Ord(Ext[I]) - 32);
+ If Ext = 'BMP' Then LoadImageFile := LoadImageBMP(FN, Slot)
+ Else If Ext = 'PCX' Then LoadImageFile := LoadImagePCX(FN, Slot)
+ Else LoadImageFile := False;
+End;
+
+{ Affiche une image (palette 16) mise a l'echelle dans [X1..X2]x[Y1..Y2]. }
+Procedure DrawImageScaled(Img: PImage; X1, Y1, X2, Y2: Integer);
+Var Sx, Sy, Ix, Iy, Dw, Dh: Integer;
+Begin
+ If Img = Nil Then Exit;
+ If Not Img^.Loaded Then Exit;
+ If Img^.Pixels = Nil Then Exit;
+ Dw := X2 - X1 + 1; Dh := Y2 - Y1 + 1;
+ If (Dw <= 0) Or (Dh <= 0) Then Exit;
+ For Sy := 0 To Dh - 1 Do Begin
+  Iy := LongInt(Sy) * Img^.H Div Dh;
+  If Iy >= Img^.H Then Iy := Img^.H - 1;
+  For Sx := 0 To Dw - 1 Do Begin
+   Ix := LongInt(Sx) * Img^.W Div Dw;
+   If Ix >= Img^.W Then Ix := Img^.W - 1;
+   PutPixel(X1 + Sx, Y1 + Sy,
+            Img^.Pixels^[LongInt(Iy) * Img^.W + Ix]);
+  End;
+ End;
+End;
+
 Procedure DrawShapeTextLines(P: PShape; X1, Y1, X2, Y2: Integer);
-Var I, Ty, Tx, LineH, TitleSz, Ind: Integer; S: String;
+Var I, Ty, Tx, LineH, TitleSz, Ind, CaretX: Integer; S: String;
+    IsEditing: Boolean;
 Begin
  If P^.TxtCount <= 0 Then Exit;
  LineH := 12;
@@ -2047,8 +2425,15 @@ Begin
  Else LineH := 12;
  Ty := Y1 + 4;
  For I := 1 To P^.TxtCount Do Begin
-  S := P^.Text[I];
+  IsEditing := EditMode And (CurSlide >= 1) And
+               (Pres.Slides[CurSlide]^.Shapes[CurShape] = P) And
+               (EditLine = I);
+  If IsEditing Then S := EditBuf Else S := P^.Text[I];
   Ind := P^.Indent[I] * 12;
+  TitleSz := 1;
+  If P^.FontSize >= 24 Then TitleSz := 2;
+  If P^.FontSize >= 36 Then TitleSz := 3;
+  SetTextStyle(DefaultFont, HorizDir, TitleSz);
   Case P^.Align Of
    ALIGN_CENTER: Tx := (X1 + X2) Div 2 - TextWidth(S) Div 2;
    ALIGN_RIGHT:  Tx := X2 - TextWidth(S) - 4;
@@ -2060,15 +2445,21 @@ Begin
    Tx := Tx + 4;
   End;
   SetColor(P^.TextColor);
-  { Pour les gros titres en VGAHi on simule via SetTextStyle taille >= 2 }
-  TitleSz := 1;
-  If P^.FontSize >= 24 Then TitleSz := 2;
-  If P^.FontSize >= 36 Then TitleSz := 3;
-  SetTextStyle(DefaultFont, HorizDir, TitleSz);
   OutTextXY(Tx, Ty, S);
-  SetTextStyle(DefaultFont, HorizDir, 1);
   If P^.Underline Then
    Line(Tx, Ty + LineH - 2, Tx + TextWidth(S), Ty + LineH - 2);
+  { Texte en gras simule par re-trace decale d'un pixel }
+  If P^.Bold Then OutTextXY(Tx + 1, Ty, S);
+  { Caret clignotant en edition }
+  If IsEditing And BlinkState Then Begin
+   If (EditCaret >= 0) And (EditCaret <= Length(S)) Then
+    CaretX := Tx + TextWidth(Copy(S, 1, EditCaret))
+   Else
+    CaretX := Tx + TextWidth(S);
+   SetColor(CLR_BLACK);
+   Line(CaretX, Ty, CaretX, Ty + LineH - 2);
+  End;
+  SetTextStyle(DefaultFont, HorizDir, 1);
   Ty := Ty + LineH;
   If Ty > Y2 - LineH Then Exit;
  End;
@@ -2193,11 +2584,18 @@ Begin
    End;
   End;
   SHP_IMAGE: Begin
-   FillBox(X1, Y1, X2, Y2, CLR_LGRAY);
-   SetColor(CLR_DGRAY); Rectangle(X1, Y1, X2, Y2);
-   Line(X1, Y1, X2, Y2); Line(X1, Y2, X2, Y1);
-   SetColor(CLR_BLACK);
-   OutTextXY(X1 + 4, Y1 + 4, '[Image]');
+   If (P^.ImageIdx >= 1) And (P^.ImageIdx <= MAX_IMAGES) And
+      (Pres.Images[P^.ImageIdx] <> Nil) And
+      Pres.Images[P^.ImageIdx]^.Loaded Then Begin
+    DrawImageScaled(Pres.Images[P^.ImageIdx], X1, Y1, X2, Y2);
+    SetColor(CLR_DGRAY); Rectangle(X1, Y1, X2, Y2);
+   End Else Begin
+    FillBox(X1, Y1, X2, Y2, CLR_LGRAY);
+    SetColor(CLR_DGRAY); Rectangle(X1, Y1, X2, Y2);
+    Line(X1, Y1, X2, Y2); Line(X1, Y2, X2, Y1);
+    SetColor(CLR_BLACK);
+    OutTextXY(X1 + 4, Y1 + 4, '[Image]');
+   End;
   End;
   SHP_TABLE: Begin
    FillBox(X1, Y1, X2, Y2, CLR_WHITE);
@@ -2376,18 +2774,306 @@ End;
 {                       ZONE PRINCIPALE                                  }
 { ====================================================================== }
 
-Procedure DrawMainArea;
-Var I, Top, Bottom, Left, Right: Integer; S: PSlide;
+Procedure DrawMasterOverlay(SlideIdx: Integer; X1, Y1, X2, Y2: Integer); Forward;
+
+{ Dessine une miniature de diapositive a une position et taille arbitraires.
+  Utilise par la trieuse de diapositives (Phase 5). }
+Procedure DrawSlideThumbAt(Idx, X1, Y1, X2, Y2: Integer; Selected: Boolean);
+Var I, SX1, SY1, SX2, SY2: Integer; S: PSlide; Sh: PShape;
+    Title: String; Tw: Integer;
 Begin
- HideMouse;
+ If (Idx < 1) Or (Idx > Pres.SldCount) Then Exit;
+ S := Pres.Slides[Idx];
+ If Selected Then Begin
+  FillBox(X1 - 3, Y1 - 3, X2 + 3, Y2 + 3, CLR_PANEL_SEL);
+ End;
+ FillBox(X1, Y1, X2, Y2, S^.Background);
+ SetColor(CLR_BLACK); Rectangle(X1, Y1, X2, Y2);
+ For I := 1 To S^.ShCount Do Begin
+  Sh := S^.Shapes[I]; If Sh = Nil Then Continue;
+  SX1 := X1 + ((Sh^.X) * (X2 - X1)) Div 1000;
+  SY1 := Y1 + ((Sh^.Y) * (Y2 - Y1)) Div 750;
+  SX2 := X1 + ((Sh^.X + Sh^.W) * (X2 - X1)) Div 1000;
+  SY2 := Y1 + ((Sh^.Y + Sh^.H) * (Y2 - Y1)) Div 750;
+  If SX2 > X2 Then SX2 := X2;  If SY2 > Y2 Then SY2 := Y2;
+  If SX1 < X1 Then SX1 := X1;  If SY1 < Y1 Then SY1 := Y1;
+  Case Sh^.ShType Of
+   SHP_TITLE, SHP_SUBTITLE: Begin
+    SetColor(CLR_BLUE);
+    Line(SX1, (SY1 + SY2) Div 2, SX2, (SY1 + SY2) Div 2);
+   End;
+   SHP_CONTENT, SHP_TEXT: Begin
+    SetColor(CLR_DGRAY);
+    Line(SX1, SY1 + 3, SX2 - 4, SY1 + 3);
+    Line(SX1, SY1 + 8, SX2 - 4, SY1 + 8);
+    Line(SX1, SY1 + 13, SX2 - 8, SY1 + 13);
+   End;
+   SHP_ELLIPSE: Begin
+    SetFillStyle(1, Sh^.FillColor);
+    FillEllipse((SX1 + SX2) Div 2, (SY1 + SY2) Div 2,
+                MaxI(2, (SX2 - SX1) Div 2), MaxI(2, (SY2 - SY1) Div 2));
+   End;
+   SHP_STAR, SHP_TRIANGLE, SHP_DIAMOND: Begin
+    SetFillStyle(1, Sh^.FillColor); Bar(SX1, SY1, SX2, SY2);
+   End;
+  Else
+   If Sh^.Filled Then Begin
+    SetFillStyle(1, Sh^.FillColor); Bar(SX1, SY1, SX2, SY2);
+   End;
+  End;
+ End;
+ If S^.Hidden Then Begin
+  SetColor(CLR_LRED);
+  Line(X1, Y1, X2, Y2); Line(X1, Y2, X2, Y1);
+ End;
+ { Numero + titre au bas }
+ SetColor(CLR_BLACK);
+ OutTextXY(X1, Y2 + 2, IntToStr(Idx) + '.');
+ Title := S^.Title;
+ If Title = '' Then
+  If (S^.ShCount > 0) And (S^.Shapes[1] <> Nil) And
+     (S^.Shapes[1]^.ShType In [SHP_TITLE, SHP_SUBTITLE, SHP_TEXT]) Then
+   Title := S^.Shapes[1]^.Text[1];
+ If Length(Title) > 18 Then Title := Copy(Title, 1, 18);
+ Tw := TextWidth(Title);
+ If Tw > X2 - X1 - 20 Then Tw := X2 - X1 - 20;
+ OutTextXY(X1 + 20, Y2 + 2, Title);
+End;
+
+{ ---------- TRIEUSE DE DIAPOSITIVES (VIEW_SORTER) ---------- }
+
+Const
+ SORT_COLS    = 4;
+ SORT_THUMB_W = 130;
+ SORT_THUMB_H = 90;
+ SORT_GAP_X   = 16;
+ SORT_GAP_Y   = 28;
+ SORT_PAD_TOP = 16;
+
+Function SorterCellRect(Idx: Integer; Var X1, Y1, X2, Y2: Integer): Boolean;
+Var Col, Row, AreaTop, AreaLeft: Integer;
+Begin
+ SorterCellRect := False;
+ If (Idx < 1) Or (Idx > Pres.SldCount) Then Exit;
+ AreaTop  := MENU_H + TOOL_H + RULER_H;
+ AreaLeft := PANEL_W;
+ Col := (Idx - 1) Mod SORT_COLS;
+ Row := (Idx - 1) Div SORT_COLS;
+ X1 := AreaLeft + SORT_GAP_X + Col * (SORT_THUMB_W + SORT_GAP_X);
+ Y1 := AreaTop  + SORT_PAD_TOP - SorterScroll + Row * (SORT_THUMB_H + SORT_GAP_Y);
+ X2 := X1 + SORT_THUMB_W;
+ Y2 := Y1 + SORT_THUMB_H;
+ SorterCellRect := True;
+End;
+
+Function SorterAt(Mx, My: LongInt): Integer;
+Var I, X1, Y1, X2, Y2: Integer;
+Begin
+ SorterAt := 0;
+ For I := 1 To Pres.SldCount Do
+  If SorterCellRect(I, X1, Y1, X2, Y2) Then
+   If (Mx >= X1 - 3) And (Mx <= X2 + 3) And
+      (My >= Y1 - 3) And (My <= Y2 + 3) Then Begin
+    SorterAt := I; Exit;
+   End;
+End;
+
+Procedure DrawSorterView;
+Var I, X1, Y1, X2, Y2, Top, Bottom, Left, Right: Integer;
+Begin
  Top    := MENU_H + TOOL_H + RULER_H;
  Bottom := SCREEN_H - STATUS_H;
  Left   := PANEL_W;
  Right  := SCREEN_W - 1;
- { Fond gris }
+ FillBox(Left, Top, Right, Bottom - 1, CLR_WORK_BG);
+ If SorterSel < 1 Then SorterSel := CurSlide;
+ If SorterSel > Pres.SldCount Then SorterSel := Pres.SldCount;
+ If SorterSel < 1 Then SorterSel := 0;
+ For I := 1 To Pres.SldCount Do Begin
+  If Not SorterCellRect(I, X1, Y1, X2, Y2) Then Continue;
+  If (Y2 < Top) Or (Y1 > Bottom) Then Continue;
+  DrawSlideThumbAt(I, X1, Y1, X2, Y2, I = SorterSel);
+ End;
+ { En-tete titre }
+ SetColor(CLR_BLACK);
+ OutTextXY(Left + 8, Top + 2,
+   'Trieuse de diapositives - ' + IntToStr(Pres.SldCount) + ' diapositive(s)');
+End;
+
+{ ---------- MODE PLAN (VIEW_OUTLINE) ---------- }
+
+Const
+ OUTLINE_LINE_H = 12;
+
+Type
+ TOutlineLines = Array[0..63] Of String;
+ TOutlineLevs  = Array[0..63] Of Byte;
+   { 255 = titre, 0..7 = niveau de puce/indentation }
+
+Procedure CollectSlideOutline(S: PSlide; Var Lines: TOutlineLines;
+                              Var Levels: TOutlineLevs; Var Count: Integer);
+Var I, J: Integer; Sh: PShape;
+Begin
+ If S = Nil Then Exit;
+ For I := 1 To S^.ShCount Do Begin
+  Sh := S^.Shapes[I];
+  If (Sh <> Nil) And (Sh^.ShType = SHP_TITLE) Then Begin
+   If Count >= 64 Then Exit;
+   Lines[Count]  := Sh^.Text[1];
+   Levels[Count] := 255;
+   Inc(Count); Break;
+  End;
+ End;
+ For I := 1 To S^.ShCount Do Begin
+  Sh := S^.Shapes[I];
+  If Sh = Nil Then Continue;
+  If Sh^.ShType In [SHP_CONTENT, SHP_SUBTITLE, SHP_TEXT] Then
+   For J := 1 To Sh^.TxtCount Do Begin
+    If Count >= 64 Then Exit;
+    Lines[Count]  := Sh^.Text[J];
+    Levels[Count] := Sh^.Indent[J];
+    Inc(Count);
+   End;
+ End;
+End;
+
+Procedure DrawOutlineView;
+Var Top, Bottom, Left, Right, Y, I, J, Cnt: Integer;
+    Lines: TOutlineLines; Levels: TOutlineLevs;
+    LineY, Indent: Integer;
+Begin
+ Top    := MENU_H + TOOL_H + RULER_H;
+ Bottom := SCREEN_H - STATUS_H;
+ Left   := PANEL_W;
+ Right  := SCREEN_W - 1;
+ FillBox(Left, Top, Right, Bottom - 1, CLR_WHITE);
+ SetColor(CLR_DGRAY); Rectangle(Left + 4, Top + 4, Right - 4, Bottom - 4);
+ Y := Top + 10 - OutlineScroll;
+ For I := 1 To Pres.SldCount Do Begin
+  LineY := Y;
+  If (LineY >= Top) And (LineY < Bottom) Then Begin
+   If I = OutlineSel Then Begin
+    FillBox(Left + 6, LineY - 1, Right - 6, LineY + 12, CLR_PANEL_SEL);
+    SetColor(CLR_WHITE);
+   End Else
+    SetColor(CLR_BLUE);
+   OutTextXY(Left + 12, LineY + 1,
+     IntToStr(I) + '. ' + Pres.Slides[I]^.Name);
+  End;
+  Y := Y + OUTLINE_LINE_H + 2;
+  Cnt := 0;
+  CollectSlideOutline(Pres.Slides[I], Lines, Levels, Cnt);
+  For J := 0 To Cnt - 1 Do Begin
+   LineY := Y;
+   If (LineY + OUTLINE_LINE_H >= Top) And (LineY < Bottom) Then Begin
+    If Levels[J] = 255 Then Begin
+     SetColor(CLR_BLACK);
+     OutTextXY(Left + 24, LineY, Lines[J]);
+    End Else Begin
+     Indent := Levels[J]; If Indent > 6 Then Indent := 6;
+     SetColor(CLR_BLACK);
+     OutTextXY(Left + 24 + (Indent + 1) * 12, LineY,
+       #250 + ' ' + Lines[J]);
+    End;
+   End;
+   Y := Y + OUTLINE_LINE_H;
+   If Y > Bottom Then Break;
+  End;
+  Y := Y + 6;
+  If Y > Bottom Then Break;
+ End;
+End;
+
+Function OutlineSlideAtY(My: LongInt): Integer;
+Var Top, Y, I, Cnt, Block: Integer;
+    Lines: TOutlineLines; Levels: TOutlineLevs;
+Begin
+ OutlineSlideAtY := 0;
+ Top := MENU_H + TOOL_H + RULER_H;
+ Y := Top + 10 - OutlineScroll;
+ For I := 1 To Pres.SldCount Do Begin
+  Cnt := 0;
+  CollectSlideOutline(Pres.Slides[I], Lines, Levels, Cnt);
+  Block := OUTLINE_LINE_H + 2 + Cnt * OUTLINE_LINE_H + 6;
+  If (My >= Y) And (My < Y + Block) Then Begin
+   OutlineSlideAtY := I; Exit;
+  End;
+  Y := Y + Block;
+ End;
+End;
+
+{ ---------- PAGE DE COMMENTAIRES (VIEW_NOTES) ---------- }
+
+Procedure DrawNotesView;
+Var Top, Bottom, Left, Right, MidY, I: Integer; S: PSlide;
+    PrevX1, PrevY1, PrevX2, PrevY2: Integer;
+    Notes: String; LineW, Pos, Cur: Integer; Word, Line: String;
+Begin
+ Top    := MENU_H + TOOL_H + RULER_H;
+ Bottom := SCREEN_H - STATUS_H;
+ Left   := PANEL_W;
+ Right  := SCREEN_W - 1;
+ FillBox(Left, Top, Right, Bottom - 1, CLR_WORK_BG);
+ MidY := Top + (Bottom - Top) Div 2;
+ { Apercu de slide en haut }
+ PrevX1 := Left + 80; PrevX2 := Right - 80;
+ PrevY1 := Top + 10;  PrevY2 := MidY - 10;
+ If (CurSlide >= 1) And (CurSlide <= Pres.SldCount) Then Begin
+  S := Pres.Slides[CurSlide];
+  FillBox(PrevX1 + 3, PrevY1 + 3, PrevX2 + 3, PrevY2 + 3, CLR_BLACK);
+  FillBox(PrevX1, PrevY1, PrevX2, PrevY2, S^.Background);
+  SetColor(CLR_SLIDE_BORD); Rectangle(PrevX1, PrevY1, PrevX2, PrevY2);
+  DrawSlideThumbAt(CurSlide, PrevX1, PrevY1, PrevX2, PrevY2, False);
+ End Else Begin
+  SetColor(CLR_DGRAY);
+  OutTextXY(PrevX1 + 8, PrevY1 + 8, '(Aucune diapositive)');
+ End;
+ { Cadre notes en bas }
+ FillBox(Left + 20, MidY + 4, Right - 20, Bottom - 8, CLR_WHITE);
+ SetColor(CLR_WIN_LO); Rectangle(Left + 20, MidY + 4, Right - 20, Bottom - 8);
+ SetColor(CLR_BLACK);
+ OutTextXY(Left + 24, MidY + 8, 'Notes du presentateur :');
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ Notes := Pres.Slides[CurSlide]^.Notes;
+ If Notes = '' Then Begin
+  SetColor(CLR_DGRAY);
+  OutTextXY(Left + 28, MidY + 28,
+    '(Double-cliquez ou appuyez sur Entree pour modifier...)');
+  Exit;
+ End;
+ { Wrap simple par mot }
+ LineW := Right - 20 - (Left + 28);
+ Cur   := MidY + 28;
+ Line  := '';
+ Pos   := 1;
+ SetColor(CLR_BLACK);
+ While Pos <= Length(Notes) Do Begin
+  Word := '';
+  While (Pos <= Length(Notes)) And (Notes[Pos] <> ' ') Do Begin
+   Word := Word + Notes[Pos]; Inc(Pos);
+  End;
+  If TextWidth(Line + Word) > LineW Then Begin
+   OutTextXY(Left + 28, Cur, Line);
+   Cur := Cur + 11;
+   If Cur > Bottom - 16 Then Exit;
+   Line := Word;
+  End Else
+   If Line = '' Then Line := Word Else Line := Line + ' ' + Word;
+  If Pos <= Length(Notes) Then Inc(Pos); { saute espace }
+ End;
+ If Line <> '' Then OutTextXY(Left + 28, Cur, Line);
+ I := 0; { evite warning }
+End;
+
+Procedure DrawNormalView;
+Var I, Top, Bottom, Left, Right: Integer; S: PSlide;
+Begin
+ Top    := MENU_H + TOOL_H + RULER_H;
+ Bottom := SCREEN_H - STATUS_H;
+ Left   := PANEL_W;
+ Right  := SCREEN_W - 1;
  FillBox(Left, Top, Right, Bottom - 1, CLR_WORK_BG);
  ComputeLayout;
- { Ombre + slide }
  FillBox(SlideX1 + 4, SlideY1 + 4, SlideX2 + 4, SlideY2 + 4, CLR_BLACK);
  If (CurSlide >= 1) And (CurSlide <= Pres.SldCount) Then
   S := Pres.Slides[CurSlide]
@@ -2398,12 +3084,25 @@ Begin
   For I := 1 To S^.ShCount Do DrawShape(S^.Shapes[I]);
   If (CurShape >= 1) And (CurShape <= S^.ShCount) Then
    DrawSelectionHandles(S^.Shapes[CurShape]);
+  DrawMasterOverlay(CurSlide, SlideX1, SlideY1, SlideX2, SlideY2);
  End
  Else Begin
   FillBox(SlideX1, SlideY1, SlideX2, SlideY2, CLR_WHITE);
   SetColor(CLR_DGRAY); Rectangle(SlideX1, SlideY1, SlideX2, SlideY2);
   SetColor(CLR_DGRAY);
   OutTextXY(SlideX1 + 20, SlideY1 + 20, '(Aucune diapositive)');
+ End;
+End;
+
+Procedure DrawMainArea;
+Begin
+ HideMouse;
+ Case CurView Of
+  VIEW_OUTLINE: DrawOutlineView;
+  VIEW_SORTER:  DrawSorterView;
+  VIEW_NOTES:   DrawNotesView;
+ Else
+  DrawNormalView;
  End;
  ShowMouse;
 End;
@@ -2630,7 +3329,1103 @@ Begin
  NeedFullRedraw := True;
 End;
 
+{ ====================================================================== }
+{           PHASE 4 - DIALOGUES REUTILISABLES + GESTION SLIDES           }
+{ ====================================================================== }
+
+{ Saisie de texte modal. Retourne True si OK valide, False si Annuler. }
+Function InputTextDlg(Const Title, Prompt: String;
+                      Var Value: String; MaxLen: Integer): Boolean;
+Var X1, Y1, X2, Y2, Ex1, Ey1, Ex2, Ey2: Integer;
+    Bx1, By1, Bx2, By2, Cx1, Cy1, Cx2, Cy2: Integer;
+    K, K2: Char; Caret: Integer; S: String;
+Begin
+ InputTextDlg := False;
+ X1 := 130; Y1 := 170; X2 := 510; Y2 := 290;
+ Ex1 := X1 + 20; Ey1 := Y1 + 56; Ex2 := X2 - 20; Ey2 := Ey1 + 22;
+ Bx1 := X1 + 80;  By1 := Y2 - 32; Bx2 := Bx1 + 80; By2 := Y2 - 12;
+ Cx1 := X2 - 160; Cy1 := By1;     Cx2 := Cx1 + 80; Cy2 := By2;
+ DlgFrame(X1, Y1, X2, Y2, Title);
+ HideMouse;
+ SetColor(CLR_BLACK);
+ OutTextXY(X1 + 20, Y1 + 36, Prompt);
+ S := Value;
+ Caret := Length(S);
+ DlgEdit(Ex1, Ey1, Ex2, Ey2, S, True, Caret);
+ DlgBtn(Bx1, By1, Bx2, By2, 'OK',      False, True);
+ DlgBtn(Cx1, Cy1, Cx2, Cy2, 'Annuler', False, False);
+ ShowMouse;
+ Repeat
+  UpdateMouse;
+  HideMouse;
+  DlgEdit(Ex1, Ey1, Ex2, Ey2, S, True, Caret);
+  ShowMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #75: If Caret > 0 Then Dec(Caret);
+     #77: If Caret < Length(S) Then Inc(Caret);
+     #71: Caret := 0;
+     #79: Caret := Length(S);
+     #83: If Caret < Length(S) Then Delete(S, Caret + 1, 1);
+    End;
+    Continue;
+   End;
+   Case K Of
+    #13: Begin
+     Value := S; InputTextDlg := True;
+     NeedFullRedraw := True; Exit;
+    End;
+    #27: Begin NeedFullRedraw := True; Exit; End;
+    #8 : If Caret > 0 Then Begin Delete(S, Caret, 1); Dec(Caret); End;
+   Else
+    If (K >= ' ') And (K <= #126) And (Length(S) < MaxLen) Then Begin
+     Insert(K, S, Caret + 1); Inc(Caret);
+    End
+    Else If (K >= #128) And (Length(S) < MaxLen) Then Begin
+     Insert(K, S, Caret + 1); Inc(Caret);
+    End;
+   End;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, Bx1, By1, Bx2, By2) Then Begin
+    Value := S; InputTextDlg := True;
+    NeedFullRedraw := True; Exit;
+   End;
+   If InRect(Mouse.X, Mouse.Y, Cx1, Cy1, Cx2, Cy2) Then Begin
+    NeedFullRedraw := True; Exit;
+   End;
+  End;
+  Delay(20);
+ Until False;
+End;
+
+{ Selection dans une liste deroulante. Items separes par #10. Retourne
+  l'index 1..N choisi, ou 0 si annule. }
+Function SelectListDlg(Const Title: String; Const Items: String;
+                       InitialIdx: Integer): Integer;
+Var X1, Y1, X2, Y2, Lx1, Ly1, Lx2, Ly2: Integer;
+    Bx1, By1, Bx2, By2, Cx1, Cy1, Cx2, Cy2: Integer;
+    K, K2: Char; Sel, Count, I, Top, ItemH, MaxView: Integer;
+    Lines: Array[1..32] Of String; S: String;
+Begin
+ SelectListDlg := 0;
+ { Parse }
+ Count := 0; S := '';
+ For I := 1 To Length(Items) Do Begin
+  If Items[I] = #10 Then Begin
+   Inc(Count); If Count <= 32 Then Lines[Count] := S; S := '';
+  End Else
+   S := S + Items[I];
+ End;
+ If Length(S) > 0 Then Begin Inc(Count); If Count <= 32 Then Lines[Count] := S; End;
+ If Count = 0 Then Exit;
+ Sel := InitialIdx; If Sel < 1 Then Sel := 1; If Sel > Count Then Sel := Count;
+ X1 := 180; Y1 := 130; X2 := 460; Y2 := 360;
+ Lx1 := X1 + 12; Ly1 := Y1 + 32; Lx2 := X2 - 12; Ly2 := Y2 - 44;
+ Bx1 := X1 + 50;  By1 := Y2 - 32; Bx2 := Bx1 + 70; By2 := Y2 - 12;
+ Cx1 := X2 - 120; Cy1 := By1;     Cx2 := Cx1 + 70; Cy2 := By2;
+ ItemH := 12;
+ MaxView := (Ly2 - Ly1) Div ItemH;
+ Top := 1;
+ If Sel > Top + MaxView - 1 Then Top := Sel - MaxView + 1;
+ DlgFrame(X1, Y1, X2, Y2, Title);
+ HideMouse;
+ DlgBtn(Bx1, By1, Bx2, By2, 'OK',      False, True);
+ DlgBtn(Cx1, Cy1, Cx2, Cy2, 'Annuler', False, False);
+ ShowMouse;
+ Repeat
+  HideMouse;
+  FillBox(Lx1, Ly1, Lx2, Ly2, CLR_WHITE);
+  SetColor(CLR_WIN_LO); Rectangle(Lx1, Ly1, Lx2, Ly2);
+  For I := 0 To MaxView - 1 Do Begin
+   If Top + I > Count Then Break;
+   If Top + I = Sel Then Begin
+    FillBox(Lx1 + 1, Ly1 + 1 + I * ItemH, Lx2 - 1, Ly1 + ItemH + I * ItemH, CLR_BLUE);
+    SetColor(CLR_WHITE);
+   End Else
+    SetColor(CLR_BLACK);
+   OutTextXY(Lx1 + 4, Ly1 + 2 + I * ItemH, Lines[Top + I]);
+  End;
+  ShowMouse;
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #72: If Sel > 1 Then Dec(Sel);
+     #80: If Sel < Count Then Inc(Sel);
+     #73: Begin Dec(Sel, MaxView); If Sel < 1 Then Sel := 1; End;
+     #81: Begin Inc(Sel, MaxView); If Sel > Count Then Sel := Count; End;
+     #71: Sel := 1;
+     #79: Sel := Count;
+    End;
+    If Sel < Top Then Top := Sel;
+    If Sel > Top + MaxView - 1 Then Top := Sel - MaxView + 1;
+    Continue;
+   End;
+   If K = #13 Then Begin
+    SelectListDlg := Sel; NeedFullRedraw := True; Exit;
+   End;
+   If K = #27 Then Begin NeedFullRedraw := True; Exit; End;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, Bx1, By1, Bx2, By2) Then Begin
+    SelectListDlg := Sel; NeedFullRedraw := True; Exit;
+   End;
+   If InRect(Mouse.X, Mouse.Y, Cx1, Cy1, Cx2, Cy2) Then Begin
+    NeedFullRedraw := True; Exit;
+   End;
+   If InRect(Mouse.X, Mouse.Y, Lx1, Ly1, Lx2, Ly2) Then Begin
+    I := (Mouse.Y - Ly1) Div ItemH;
+    If (I >= 0) And (Top + I <= Count) Then Begin
+     If (Top + I = Sel) And DoubleClicked Then Begin
+      SelectListDlg := Sel; NeedFullRedraw := True; Exit;
+     End;
+     Sel := Top + I;
+    End;
+   End;
+  End;
+  Delay(15);
+ Until False;
+End;
+
+{ ====================================================================== }
+{           PHASE 4 - OPERATIONS SUR LES DIAPOSITIVES                    }
+{ ====================================================================== }
+
+Procedure ClearSlideShapes(S: PSlide);
+Var I: Integer;
+Begin
+ If S = Nil Then Exit;
+ For I := 1 To S^.ShCount Do
+  If S^.Shapes[I] <> Nil Then FreeShape(S^.Shapes[I]);
+ For I := 1 To MAX_SHAPES Do S^.Shapes[I] := Nil;
+ S^.ShCount := 0;
+End;
+
+Procedure ActionMoveSlideUp;
+Var Tmp: PSlide;
+Begin
+ If (CurSlide <= 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ Tmp := Pres.Slides[CurSlide - 1];
+ Pres.Slides[CurSlide - 1] := Pres.Slides[CurSlide];
+ Pres.Slides[CurSlide] := Tmp;
+ Dec(CurSlide);
+ Pres.Dirty := True;
+ StatusMsg := 'Diapositive remontee.';
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionMoveSlideDown;
+Var Tmp: PSlide;
+Begin
+ If (CurSlide < 1) Or (CurSlide >= Pres.SldCount) Then Exit;
+ Tmp := Pres.Slides[CurSlide + 1];
+ Pres.Slides[CurSlide + 1] := Pres.Slides[CurSlide];
+ Pres.Slides[CurSlide] := Tmp;
+ Inc(CurSlide);
+ Pres.Dirty := True;
+ StatusMsg := 'Diapositive descendue.';
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionApplyLayoutToCurrent(Lay: Byte);
+Var S: PSlide;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If Not ConfirmYesNo('Mise en page',
+   'Remplacer les elements par les placeholders de la mise en page ?')
+ Then Exit;
+ ClearSlideShapes(S);
+ ApplyLayout(S, Lay);
+ CurShape := 0;
+ S^.Dirty := True; Pres.Dirty := True;
+ StatusMsg := 'Mise en page appliquee : ' + LayoutName(Lay);
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionChangeLayoutDlg;
+Var Idx: Integer; Items: String;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ Items := 'Titre'                + #10 +
+          'Titre + contenu'      + #10 +
+          'Deux contenus'        + #10 +
+          'Comparaison'          + #10 +
+          'Titre seul'           + #10 +
+          'Vide'                 + #10 +
+          'Contenu et legende'   + #10 +
+          'En-tete de section';
+ Idx := SelectListDlg('Mise en page de la diapositive', Items,
+                      Pres.Slides[CurSlide]^.Layout + 1);
+ If Idx > 0 Then ActionApplyLayoutToCurrent(Idx - 1);
+End;
+
+Procedure ActionChangeBackgroundDlg;
+Var Idx: Integer; Items: String;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ Items := 'Noir'        + #10 + 'Bleu'        + #10 + 'Vert'      + #10 +
+          'Cyan'        + #10 + 'Rouge'       + #10 + 'Magenta'   + #10 +
+          'Marron'      + #10 + 'Gris clair'  + #10 + 'Gris fonce'+ #10 +
+          'Bleu clair'  + #10 + 'Vert clair'  + #10 + 'Cyan clair'+ #10 +
+          'Rouge clair' + #10 + 'Magenta cl.' + #10 + 'Jaune'     + #10 +
+          'Blanc';
+ Idx := SelectListDlg('Arriere-plan de diapositive', Items,
+                      Pres.Slides[CurSlide]^.Background + 1);
+ If Idx > 0 Then Begin
+  Pres.Slides[CurSlide]^.Background := Idx - 1;
+  Pres.Slides[CurSlide]^.Dirty := True;
+  Pres.Dirty := True;
+  StatusMsg := 'Arriere-plan modifie.';
+  NeedFullRedraw := True;
+ End;
+End;
+
+Procedure ApplyThemeToSlide(S: PSlide; T: Integer);
+Var I: Integer; Sh: PShape;
+Begin
+ If (S = Nil) Or (T < 1) Or (T > Pres.ThemeCount) Then Exit;
+ S^.Background := Pres.Themes[T].BgColor;
+ S^.Theme := T;
+ For I := 1 To S^.ShCount Do Begin
+  Sh := S^.Shapes[I]; If Sh = Nil Then Continue;
+  Case Sh^.ShType Of
+   SHP_TITLE:    Sh^.TextColor := Pres.Themes[T].TitleColor;
+   SHP_SUBTITLE: Sh^.TextColor := Pres.Themes[T].TitleColor;
+   SHP_CONTENT,
+   SHP_TEXT:     Sh^.TextColor := Pres.Themes[T].TextColor;
+  End;
+ End;
+ S^.Dirty := True;
+End;
+
+Procedure ApplyThemeToAll(T: Integer);
+Var I: Integer;
+Begin
+ If (T < 1) Or (T > Pres.ThemeCount) Then Exit;
+ Pres.MasterBg     := Pres.Themes[T].BgColor;
+ Pres.MasterTitleC := Pres.Themes[T].TitleColor;
+ Pres.MasterTextC  := Pres.Themes[T].TextColor;
+ For I := 1 To Pres.SldCount Do ApplyThemeToSlide(Pres.Slides[I], T);
+ Pres.Dirty := True;
+End;
+
+Procedure ActionChangeThemeDlg;
+Var Idx, I: Integer; Items: String;
+Begin
+ Items := '';
+ For I := 1 To Pres.ThemeCount Do Begin
+  If I > 1 Then Items := Items + #10;
+  Items := Items + Pres.Themes[I].Name;
+ End;
+ Idx := SelectListDlg('Theme de la presentation', Items, Pres.ThemeIdx);
+ If Idx > 0 Then Begin
+  Pres.ThemeIdx := Idx;
+  If ConfirmYesNo('Appliquer le theme',
+                  'Appliquer le theme a toutes les diapositives ?') Then
+   ApplyThemeToAll(Idx);
+  Pres.Dirty := True;
+  StatusMsg := 'Theme : ' + Pres.Themes[Idx].Name;
+  NeedFullRedraw := True;
+ End;
+End;
+
+Procedure ActionRenameSlide;
+Var S: String;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide]^.Name;
+ If InputTextDlg('Nom de la diapositive',
+                 'Nom interne de la diapositive :', S, 30) Then Begin
+  Pres.Slides[CurSlide]^.Name := S;
+  Pres.Slides[CurSlide]^.Dirty := True;
+  Pres.Dirty := True;
+  StatusMsg := 'Diapositive renommee.';
+  NeedFullRedraw := True;
+ End;
+End;
+
+Procedure ActionEditNotes;
+Var S: String;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide]^.Notes;
+ If InputTextDlg('Notes du presentateur',
+                 'Notes pour cette diapositive :', S, 200) Then Begin
+  Pres.Slides[CurSlide]^.Notes := S;
+  Pres.Slides[CurSlide]^.Dirty := True;
+  Pres.Dirty := True;
+  StatusMsg := 'Notes enregistrees.';
+  NeedFullRedraw := True;
+ End;
+End;
+
+Procedure ActionToggleHideSlide;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ Pres.Slides[CurSlide]^.Hidden := Not Pres.Slides[CurSlide]^.Hidden;
+ If Pres.Slides[CurSlide]^.Hidden Then
+  StatusMsg := 'Diapositive masquee.'
+ Else
+  StatusMsg := 'Diapositive visible.';
+ Pres.Dirty := True;
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionInsertFromLayout;
+Var Idx, Pos: Integer; Items: String;
+Begin
+ Items := 'Titre'                + #10 +
+          'Titre + contenu'      + #10 +
+          'Deux contenus'        + #10 +
+          'Comparaison'          + #10 +
+          'Titre seul'           + #10 +
+          'Vide'                 + #10 +
+          'Contenu et legende'   + #10 +
+          'En-tete de section';
+ Idx := SelectListDlg('Nouvelle diapositive : mise en page', Items, 2);
+ If Idx <= 0 Then Exit;
+ If CurSlide < 1 Then Pos := AddSlideAt(1)
+ Else Pos := AddSlideAt(CurSlide + 1);
+ If Pos > 0 Then Begin
+  ApplyLayout(Pres.Slides[Pos], Idx - 1);
+  CurSlide := Pos; CurShape := 0;
+  StatusMsg := 'Diapositive inseree.';
+  NeedFullRedraw := True;
+ End;
+End;
+
+{ ====================================================================== }
+{           PHASE 6 - EN-TETE / PIED / MASQUE / THEMES                   }
+{ ====================================================================== }
+
+Procedure ActionHeaderFooter;
+Var S: String;
+Begin
+ Pres.ShowHeader := ConfirmYesNo('En-tete et pied de page',
+                                 'Afficher un en-tete ?');
+ If Pres.ShowHeader Then Begin
+  S := Pres.HeaderText;
+  If InputTextDlg('En-tete', 'Texte de l''en-tete :', S, 60) Then
+   Pres.HeaderText := S;
+ End;
+ Pres.ShowFooter := ConfirmYesNo('En-tete et pied de page',
+                                 'Afficher un pied de page ?');
+ If Pres.ShowFooter Then Begin
+  S := Pres.FooterText;
+  If InputTextDlg('Pied de page', 'Texte du pied de page :', S, 60) Then
+   Pres.FooterText := S;
+ End;
+ Pres.ShowDate := ConfirmYesNo('En-tete et pied de page',
+                               'Afficher la date ?');
+ If Pres.ShowDate Then Begin
+  S := Pres.DateText;
+  If InputTextDlg('Date', 'Texte de la date :', S, 20) Then
+   Pres.DateText := S;
+ End;
+ Pres.ShowSlideNum := ConfirmYesNo('En-tete et pied de page',
+                                   'Afficher le numero de diapositive ?');
+ Pres.Dirty := True;
+ StatusMsg := 'En-tete / pied / date / numero : mis a jour.';
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionMasterEdit;
+Var Idx: Integer; Items: String;
+Begin
+ Items := 'Modifier la couleur de fond par defaut'    + #10 +
+          'Modifier la couleur de titre par defaut'   + #10 +
+          'Modifier la couleur de texte par defaut'   + #10 +
+          'Appliquer le masque aux nouvelles slides'  + #10 +
+          'Reappliquer le masque a toutes les slides';
+ Idx := SelectListDlg('Masque des diapositives', Items, 1);
+ If Idx <= 0 Then Exit;
+ Case Idx Of
+  1: Begin
+   Items := 'Noir'        + #10 + 'Bleu'        + #10 + 'Vert'      + #10 +
+            'Cyan'        + #10 + 'Rouge'       + #10 + 'Magenta'   + #10 +
+            'Marron'      + #10 + 'Gris clair'  + #10 + 'Gris fonce'+ #10 +
+            'Bleu clair'  + #10 + 'Vert clair'  + #10 + 'Cyan clair'+ #10 +
+            'Rouge clair' + #10 + 'Magenta cl.' + #10 + 'Jaune'     + #10 +
+            'Blanc';
+   Idx := SelectListDlg('Couleur de fond du masque', Items, Pres.MasterBg + 1);
+   If Idx > 0 Then Pres.MasterBg := Idx - 1;
+  End;
+  2: Begin
+   Items := 'Noir'        + #10 + 'Bleu'        + #10 + 'Vert'      + #10 +
+            'Cyan'        + #10 + 'Rouge'       + #10 + 'Magenta'   + #10 +
+            'Marron'      + #10 + 'Gris clair'  + #10 + 'Gris fonce'+ #10 +
+            'Bleu clair'  + #10 + 'Vert clair'  + #10 + 'Cyan clair'+ #10 +
+            'Rouge clair' + #10 + 'Magenta cl.' + #10 + 'Jaune'     + #10 +
+            'Blanc';
+   Idx := SelectListDlg('Couleur de titre du masque', Items, Pres.MasterTitleC + 1);
+   If Idx > 0 Then Pres.MasterTitleC := Idx - 1;
+  End;
+  3: Begin
+   Items := 'Noir'        + #10 + 'Bleu'        + #10 + 'Vert'      + #10 +
+            'Cyan'        + #10 + 'Rouge'       + #10 + 'Magenta'   + #10 +
+            'Marron'      + #10 + 'Gris clair'  + #10 + 'Gris fonce'+ #10 +
+            'Bleu clair'  + #10 + 'Vert clair'  + #10 + 'Cyan clair'+ #10 +
+            'Rouge clair' + #10 + 'Magenta cl.' + #10 + 'Jaune'     + #10 +
+            'Blanc';
+   Idx := SelectListDlg('Couleur de texte du masque', Items, Pres.MasterTextC + 1);
+   If Idx > 0 Then Pres.MasterTextC := Idx - 1;
+  End;
+  4: Begin
+   StatusMsg := 'Le masque sera applique aux prochaines slides creees.';
+  End;
+  5: ApplyThemeToAll(Pres.ThemeIdx);
+ End;
+ Pres.Dirty := True;
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionBackgroundAll;
+Var Idx, I: Integer; Items: String;
+Begin
+ Items := 'Noir'        + #10 + 'Bleu'        + #10 + 'Vert'      + #10 +
+          'Cyan'        + #10 + 'Rouge'       + #10 + 'Magenta'   + #10 +
+          'Marron'      + #10 + 'Gris clair'  + #10 + 'Gris fonce'+ #10 +
+          'Bleu clair'  + #10 + 'Vert clair'  + #10 + 'Cyan clair'+ #10 +
+          'Rouge clair' + #10 + 'Magenta cl.' + #10 + 'Jaune'     + #10 +
+          'Blanc';
+ Idx := SelectListDlg('Arriere-plan global', Items, Pres.MasterBg + 1);
+ If Idx <= 0 Then Exit;
+ Pres.MasterBg := Idx - 1;
+ For I := 1 To Pres.SldCount Do
+  If Pres.Slides[I] <> Nil Then Pres.Slides[I]^.Background := Idx - 1;
+ Pres.Dirty := True;
+ StatusMsg := 'Arriere-plan applique a toutes les diapositives.';
+ NeedFullRedraw := True;
+End;
+
+{ Trace l'en-tete/pied/date/numero a l'interieur d'une slide rendue. }
+Procedure DrawMasterOverlay(SlideIdx: Integer; X1, Y1, X2, Y2: Integer);
+Var FgC, BgC: Byte; W: Integer; S: String;
+Begin
+ BgC := Pres.MasterBg;
+ If (SlideIdx >= 1) And (SlideIdx <= Pres.SldCount) Then
+  BgC := Pres.Slides[SlideIdx]^.Background;
+ { Choix de la couleur du texte selon le fond }
+ If (BgC = CLR_BLACK) Or (BgC = CLR_BLUE) Or
+    (BgC = CLR_DGRAY) Or (BgC = CLR_BROWN) Then
+  FgC := CLR_WHITE
+ Else
+  FgC := CLR_BLACK;
+ SetColor(FgC);
+ If Pres.ShowHeader And (Pres.HeaderText <> '') Then Begin
+  S := Pres.HeaderText;
+  W := TextWidth(S);
+  OutTextXY(X1 + ((X2 - X1) - W) Div 2, Y1 + 4, S);
+ End;
+ If Pres.ShowDate And (Pres.DateText <> '') Then
+  OutTextXY(X1 + 8, Y2 - 12, Pres.DateText);
+ If Pres.ShowFooter And (Pres.FooterText <> '') Then Begin
+  S := Pres.FooterText;
+  W := TextWidth(S);
+  OutTextXY(X1 + ((X2 - X1) - W) Div 2, Y2 - 12, S);
+ End;
+ If Pres.ShowSlideNum And (SlideIdx > 0) Then Begin
+  S := IntToStr(SlideIdx);
+  W := TextWidth(S);
+  OutTextXY(X2 - 8 - W, Y2 - 12, S);
+ End;
+End;
+
+{ ====================================================================== }
+{                  PHASE 7 : DIAPORAMA + TRANSITIONS                     }
+{ ====================================================================== }
+
+{ ----- Phase 9 : helpers d'animations ------------------------------- }
+
+{ Plus grande valeur AnimOrder utilisee par les formes ayant une entree
+  animee. Retourne 0 si aucune animation : il y a alors une seule etape
+  (tout visible). }
+Function MaxAnimOrder(S: PSlide): Integer;
+Var I, M: Integer;
+Begin
+ M := 0;
+ If S <> Nil Then
+  For I := 1 To S^.ShCount Do
+   If (S^.Shapes[I] <> Nil) And
+      (S^.Shapes[I]^.AnimEntry <> ANIM_NONE) And
+      (S^.Shapes[I]^.AnimOrder > M) Then
+    M := S^.Shapes[I]^.AnimOrder;
+ MaxAnimOrder := M;
+End;
+
+{ Une forme est-elle visible a l'etape d'animation Step ?
+  - AnimEntry = ANIM_NONE : toujours visible (sauf Hidden).
+  - sinon : visible quand AnimOrder <= Step. }
+Function ShapeVisibleAt(P: PShape; Step: Integer): Boolean;
+Begin
+ If P = Nil Then Begin ShapeVisibleAt := False; Exit; End;
+ If P^.Hidden Then Begin ShapeVisibleAt := False; Exit; End;
+ If P^.AnimEntry = ANIM_NONE Then ShapeVisibleAt := True
+ Else ShapeVisibleAt := P^.AnimOrder <= Step;
+End;
+
+{ Rend la diapositive Idx en plein ecran en montrant les formes visibles
+  a l'etape d'animation Step (0 = etat initial). }
+Procedure RenderSlideAtStep(Idx, Step: Integer);
+Var S: PSlide; I, MaxX, MaxY: Integer;
+    SX1, SY1, SX2, SY2: Integer;
+Begin
+ If (Idx < 1) Or (Idx > Pres.SldCount) Then Exit;
+ S := Pres.Slides[Idx];
+ If S = Nil Then Exit;
+ MaxX := GetMaxX; MaxY := GetMaxY;
+ SX1 := SlideX1; SY1 := SlideY1; SX2 := SlideX2; SY2 := SlideY2;
+ SlideX1 := 0; SlideY1 := 0; SlideX2 := MaxX; SlideY2 := MaxY;
+ SetFillStyle(1, S^.Background);
+ Bar(0, 0, MaxX, MaxY);
+ For I := 1 To S^.ShCount Do
+  If ShapeVisibleAt(S^.Shapes[I], Step) Then DrawShape(S^.Shapes[I]);
+ DrawMasterOverlay(Idx, 0, 0, MaxX, MaxY);
+ SlideX1 := SX1; SlideY1 := SY1; SlideX2 := SX2; SlideY2 := SY2;
+End;
+
+{ Rendu complet (toutes animations terminees) : utilise pour transitions
+  et navigation arriere. }
+Procedure RenderSlideFullscreen(Idx: Integer);
+Begin
+ If (Idx >= 1) And (Idx <= Pres.SldCount) Then
+  RenderSlideAtStep(Idx, MaxAnimOrder(Pres.Slides[Idx]));
+End;
+
+Procedure TransDelay(Speed: Byte);
+Begin
+ Case Speed Of
+  0: Delay(70);
+  1: Delay(35);
+  2: Delay(15);
+ Else Delay(35);
+ End;
+End;
+
+{ Recouvre en CLR_BLACK la region NON ENCORE revelee a l'etape K (0..STEPS).
+  K=0 : tout est cache. K=STEPS : rien n'est cache. }
+Procedure DrawTransitionCover(Trans: Byte; K, Steps: Integer);
+Var MaxX, MaxY, Cx, Cy, Half, I, J, Bh, H, Cw, Ch, Gap: Integer;
+Begin
+ MaxX := GetMaxX; MaxY := GetMaxY;
+ Cx := MaxX Div 2; Cy := MaxY Div 2;
+ SetFillStyle(1, CLR_BLACK);
+ SetColor(CLR_BLACK);
+ Case Trans Of
+  TRANS_WIPE_R, TRANS_PUSH:
+   Bar(K * MaxX Div Steps, 0, MaxX, MaxY);
+  TRANS_WIPE_L:
+   Bar(0, 0, MaxX - K * MaxX Div Steps, MaxY);
+  TRANS_WIPE_D:
+   Bar(0, K * MaxY Div Steps, MaxX, MaxY);
+  TRANS_WIPE_U:
+   Bar(0, 0, MaxX, MaxY - K * MaxY Div Steps);
+  TRANS_SPLIT: Begin
+   Half := (Steps - K) * MaxX Div (2 * Steps);
+   If Half > 0 Then Bar(Cx - Half, 0, Cx + Half, MaxY);
+  End;
+  TRANS_BLINDS: Begin
+   Bh := MaxY Div 8;
+   H  := (Steps - K) * Bh Div Steps;
+   If H > 0 Then
+    For I := 0 To 7 Do Bar(0, I * Bh, MaxX, I * Bh + H);
+  End;
+  TRANS_CHECKER: Begin
+   Cw := 32; Ch := 24;
+   For I := 0 To (MaxX Div Cw) Do
+    For J := 0 To (MaxY Div Ch) Do
+     If ((I + J) Mod 2) = 0 Then Begin
+      If I + J + 1 > K Then
+       Bar(I * Cw, J * Ch, I * Cw + Cw - 1, J * Ch + Ch - 1);
+     End Else Begin
+      If I + J + 2 > K Then
+       Bar(I * Cw, J * Ch, I * Cw + Cw - 1, J * Ch + Ch - 1);
+     End;
+  End;
+  TRANS_DISSOLVE: Begin
+   { Pavage 16x16, ordre pseudo-aleatoire base sur Steps }
+   For I := 0 To (MaxX Div 16) Do
+    For J := 0 To (MaxY Div 16) Do
+     If (((I * 7 + J * 13 + I*J) Mod (Steps + 1)) >= K) Then
+      Bar(I * 16, J * 16, I * 16 + 15, J * 16 + 15);
+  End;
+  TRANS_FADE: Begin
+   { Pattern de pixels noirs qui se rarefie a chaque etape }
+   Gap := K + 1;
+   If Gap > 0 Then
+    For I := 0 To MaxX Div Gap Do
+     For J := 0 To MaxY Div Gap Do
+      PutPixel(I * Gap, J * Gap, CLR_BLACK);
+  End;
+ End;
+End;
+
+{ Anime la transition vers la diapositive NewIdx. Le contenu actuel de
+  l'ecran est considere comme l'ancienne diapositive. }
+Procedure RunTransition(NewIdx: Integer; Trans, Speed: Byte);
+Const STEPS = 10;
+Var K, MaxX, MaxY: Integer;
+Begin
+ MaxX := GetMaxX; MaxY := GetMaxY;
+ If Trans = TRANS_NONE Then Begin
+  RenderSlideFullscreen(NewIdx);
+  Exit;
+ End;
+ For K := 0 To STEPS Do Begin
+  RenderSlideFullscreen(NewIdx);
+  DrawTransitionCover(Trans, K, STEPS);
+  TransDelay(Speed);
+  If KeyPressed Then Exit;
+ End;
+ RenderSlideFullscreen(NewIdx);
+End;
+
+{ Couvre la forme P avec un patron de pixels noirs decroissant.
+  K = Steps : couverture maximale ; K = 0 : aucune couverture. }
+Procedure DrawShapeDitherCover(P: PShape; K, Steps: Integer);
+Var X1, Y1, X2, Y2, IX, IY, Gap: Integer;
+Begin
+ If (P = Nil) Or (K <= 0) Or (Steps <= 0) Then Exit;
+ X1 := LogX(P^.X);
+ Y1 := LogY(P^.Y);
+ X2 := LogX(P^.X + P^.W);
+ Y2 := LogY(P^.Y + P^.H);
+ Gap := Steps - K + 1;
+ If Gap < 1 Then Gap := 1;
+ IY := Y1;
+ While IY <= Y2 Do Begin
+  IX := X1;
+  While IX <= X2 Do Begin
+   PutPixel(IX, IY, CLR_BLACK);
+   Inc(IX, Gap);
+  End;
+  Inc(IY, Gap);
+ End;
+End;
+
+{ Joue l'animation d'entree d'une forme. Le rendu de la slide a l'etape
+  AtStep (forme finale visible) est utilise pour chaque image
+  intermediaire. Modifie temporairement les coordonnees de la forme. }
+Procedure PlayShapeEntry(Idx, AtStep, ShapeIdx: Integer);
+Const STEPS = 8;
+Var S: PSlide; P: PShape; K: Integer;
+    SaveX, SaveY, SaveW, SaveH: Integer;
+    Dx, Dy: Integer;
+Begin
+ If (Idx < 1) Or (Idx > Pres.SldCount) Then Exit;
+ S := Pres.Slides[Idx]; If S = Nil Then Exit;
+ If (ShapeIdx < 1) Or (ShapeIdx > S^.ShCount) Then Exit;
+ P := S^.Shapes[ShapeIdx];
+ If (P = Nil) Or (P^.AnimEntry = ANIM_NONE) Then Exit;
+ SaveX := P^.X; SaveY := P^.Y; SaveW := P^.W; SaveH := P^.H;
+ Dx := 0; Dy := 0;
+ Case P^.AnimEntry Of
+  ANIM_APPEAR:
+   RenderSlideAtStep(Idx, AtStep);
+  ANIM_FADE: Begin
+   For K := STEPS Downto 0 Do Begin
+    RenderSlideAtStep(Idx, AtStep);
+    DrawShapeDitherCover(P, K, STEPS);
+    Delay(35);
+    If KeyPressed Then Break;
+   End;
+   RenderSlideAtStep(Idx, AtStep);
+  End;
+  ANIM_SLIDE_L, ANIM_SLIDE_R, ANIM_SLIDE_U, ANIM_SLIDE_D: Begin
+   Case P^.AnimEntry Of
+    ANIM_SLIDE_L: Begin Dx := -1100; Dy := 0; End;
+    ANIM_SLIDE_R: Begin Dx :=  1100; Dy := 0; End;
+    ANIM_SLIDE_U: Begin Dx := 0; Dy := -850; End;
+    ANIM_SLIDE_D: Begin Dx := 0; Dy :=  850; End;
+   End;
+   For K := STEPS Downto 0 Do Begin
+    P^.X := SaveX + (LongInt(Dx) * K) Div STEPS;
+    P^.Y := SaveY + (LongInt(Dy) * K) Div STEPS;
+    RenderSlideAtStep(Idx, AtStep);
+    Delay(30);
+    If KeyPressed Then Break;
+   End;
+   P^.X := SaveX; P^.Y := SaveY;
+   RenderSlideAtStep(Idx, AtStep);
+  End;
+  ANIM_ZOOM: Begin
+   For K := 1 To STEPS Do Begin
+    P^.W := (LongInt(SaveW) * K) Div STEPS;
+    P^.H := (LongInt(SaveH) * K) Div STEPS;
+    If P^.W < 2 Then P^.W := 2;
+    If P^.H < 2 Then P^.H := 2;
+    P^.X := SaveX + (SaveW - P^.W) Div 2;
+    P^.Y := SaveY + (SaveH - P^.H) Div 2;
+    RenderSlideAtStep(Idx, AtStep);
+    Delay(35);
+    If KeyPressed Then Break;
+   End;
+   P^.X := SaveX; P^.Y := SaveY; P^.W := SaveW; P^.H := SaveH;
+   RenderSlideAtStep(Idx, AtStep);
+  End;
+  ANIM_SPIN: Begin
+   { Rotation non supportee : clignotement avant apparition. }
+   For K := 1 To 4 Do Begin
+    If AtStep > 0 Then RenderSlideAtStep(Idx, AtStep - 1)
+                  Else RenderSlideAtStep(Idx, 0);
+    Delay(50);
+    RenderSlideAtStep(Idx, AtStep);
+    Delay(50);
+    If KeyPressed Then Break;
+   End;
+   RenderSlideAtStep(Idx, AtStep);
+  End;
+ Else
+  RenderSlideAtStep(Idx, AtStep);
+ End;
+End;
+
+{ Revele toutes les formes ayant AnimOrder = TargetStep, l'une apres
+  l'autre dans leur ordre de declaration. Masque temporairement les
+  formes non encore animees de cette etape pour qu'elles n'apparaissent
+  pas avant leur tour. }
+Procedure RevealAnimStep(Idx, TargetStep: Integer);
+Var S: PSlide; I, J: Integer; P: PShape;
+    OrigOrder: Array[1..MAX_SHAPES] Of Byte;
+Begin
+ If (Idx < 1) Or (Idx > Pres.SldCount) Then Exit;
+ S := Pres.Slides[Idx]; If S = Nil Then Exit;
+ For J := 1 To S^.ShCount Do
+  If S^.Shapes[J] <> Nil Then OrigOrder[J] := S^.Shapes[J]^.AnimOrder
+                         Else OrigOrder[J] := 0;
+ For I := 1 To S^.ShCount Do Begin
+  P := S^.Shapes[I];
+  If (P <> Nil) And (P^.AnimEntry <> ANIM_NONE) And
+     (OrigOrder[I] = TargetStep) And (Not P^.Hidden) Then Begin
+   { Masque les formes suivantes de la meme etape non encore animees. }
+   For J := I + 1 To S^.ShCount Do
+    If (S^.Shapes[J] <> Nil) And
+       (S^.Shapes[J]^.AnimEntry <> ANIM_NONE) And
+       (OrigOrder[J] = TargetStep) Then
+     S^.Shapes[J]^.AnimOrder := TargetStep + 1;
+   PlayShapeEntry(Idx, TargetStep, I);
+   For J := I + 1 To S^.ShCount Do
+    If S^.Shapes[J] <> Nil Then
+     S^.Shapes[J]^.AnimOrder := OrigOrder[J];
+  End;
+ End;
+ RenderSlideAtStep(Idx, TargetStep);
+End;
+
+{ Boucle principale du diaporama plein ecran. }
+Procedure SlideShowLoop(StartIdx: Integer);
+Var Idx, K, ExtCode: Integer; Done, GoNext, GoPrev: Boolean; C: Char;
+    Sl: PSlide; SaveView: Byte;
+    CurStep, MaxStep: Integer;
+Begin
+ If Pres.SldCount = 0 Then Begin
+  MessageBox('Diaporama', 'Aucune diapositive a presenter.');
+  Exit;
+ End;
+ Idx := StartIdx;
+ If Idx < 1 Then Idx := 1;
+ If Idx > Pres.SldCount Then Idx := Pres.SldCount;
+ { Saute les slides masquees au debut }
+ While (Idx <= Pres.SldCount) And (Pres.Slides[Idx] <> Nil) And
+       Pres.Slides[Idx]^.Hidden Do Inc(Idx);
+ If Idx > Pres.SldCount Then Begin
+  MessageBox('Diaporama', 'Toutes les diapositives sont masquees.');
+  Exit;
+ End;
+ SaveView := CurView;
+ CurView  := VIEW_SLIDESHOW;
+ SetFillStyle(1, CLR_BLACK);
+ Bar(0, 0, GetMaxX, GetMaxY);
+ CurStep := 0;
+ MaxStep := MaxAnimOrder(Pres.Slides[Idx]);
+ RenderSlideAtStep(Idx, CurStep);
+ Done := False;
+ Repeat
+  GoNext := False; GoPrev := False;
+  GetMouseState(Mouse.X, Mouse.Y, Mouse.B);
+  If KeyPressed Then Begin
+   C := ReadKey;
+   If C = #0 Then Begin
+    ExtCode := Ord(ReadKey);
+    Case ExtCode Of
+     75, 72: GoPrev := True;             { fleche gauche / haut }
+     77, 80, 81: GoNext := True;         { fleche droite / bas / PgDn }
+     71: Begin                           { Home }
+      Idx := 1;
+      While (Idx <= Pres.SldCount) And (Pres.Slides[Idx] <> Nil) And
+            Pres.Slides[Idx]^.Hidden Do Inc(Idx);
+      If Idx <= Pres.SldCount Then Begin
+       CurStep := 0;
+       MaxStep := MaxAnimOrder(Pres.Slides[Idx]);
+       RenderSlideAtStep(Idx, CurStep);
+      End;
+     End;
+     79: Begin                           { End }
+      Idx := Pres.SldCount;
+      While (Idx >= 1) And (Pres.Slides[Idx] <> Nil) And
+            Pres.Slides[Idx]^.Hidden Do Dec(Idx);
+      If Idx >= 1 Then Begin
+       MaxStep := MaxAnimOrder(Pres.Slides[Idx]);
+       CurStep := MaxStep;
+       RenderSlideAtStep(Idx, CurStep);
+      End;
+     End;
+    End;
+   End Else Begin
+    Case C Of
+     #27: Done := True;                  { Echap }
+     #13, ' ', 'n', 'N': GoNext := True; { Entree / Espace / N }
+     'p', 'P', #8: GoPrev := True;       { P / Backspace }
+     'b', 'B': Begin
+      SetFillStyle(1, CLR_BLACK);
+      Bar(0, 0, GetMaxX, GetMaxY);
+     End;
+     'w', 'W': Begin
+      SetFillStyle(1, CLR_WHITE);
+      Bar(0, 0, GetMaxX, GetMaxY);
+     End;
+     'r', 'R': RenderSlideAtStep(Idx, CurStep);
+    End;
+   End;
+  End Else If ((Mouse.B And 1) <> 0) And ((LastClickB And 1) = 0) Then Begin
+   GoNext := True;
+   LastClickB := Mouse.B;
+  End Else If ((Mouse.B And 2) <> 0) And ((LastClickB And 2) = 0) Then Begin
+   GoPrev := True;
+   LastClickB := Mouse.B;
+  End Else
+   LastClickB := Mouse.B;
+  { Avance : etape suivante d'animation, sinon slide suivante }
+  If GoNext Then Begin
+   If CurStep < MaxStep Then Begin
+    Inc(CurStep);
+    RevealAnimStep(Idx, CurStep);
+   End Else Begin
+    K := Idx + 1;
+    While (K <= Pres.SldCount) And (Pres.Slides[K] <> Nil) And
+          Pres.Slides[K]^.Hidden Do Inc(K);
+    If K <= Pres.SldCount Then Begin
+     Sl  := Pres.Slides[Idx];
+     Idx := K;
+     CurStep := 0;
+     MaxStep := MaxAnimOrder(Pres.Slides[Idx]);
+     If Sl <> Nil Then
+      RunTransition(Idx, Sl^.Transition, Sl^.TransSpeed);
+     RenderSlideAtStep(Idx, CurStep);
+    End Else Done := True;
+   End;
+  End;
+  { Recul : etape precedente, sinon slide precedente }
+  If GoPrev Then Begin
+   If CurStep > 0 Then Begin
+    Dec(CurStep);
+    RenderSlideAtStep(Idx, CurStep);
+   End Else Begin
+    K := Idx - 1;
+    While (K >= 1) And (Pres.Slides[K] <> Nil) And
+          Pres.Slides[K]^.Hidden Do Dec(K);
+    If K >= 1 Then Begin
+     Idx := K;
+     MaxStep := MaxAnimOrder(Pres.Slides[Idx]);
+     CurStep := MaxStep;
+     RenderSlideAtStep(Idx, CurStep);
+    End;
+   End;
+  End;
+  Delay(20);
+ Until Done;
+ CurView := SaveView;
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionInsertImage;
+Var FN: String; Slot: Integer; P: PShape; S: PSlide;
+    ImW, ImH, LogIW, LogIH: Integer;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If S = Nil Then Exit;
+ If S^.ShCount >= MAX_SHAPES Then Begin
+  MessageBox('Image', 'Nombre maximum de formes atteint sur cette slide.');
+  Exit;
+ End;
+ FN := '';
+ If Not InputTextDlg('Inserer une image',
+                     'Fichier BMP ou PCX :', FN, 79) Then Exit;
+ If FN = '' Then Exit;
+ If Not LoadImageFile(FN, Slot) Then Begin
+  MessageBox('Image', 'Impossible de charger : ' + FN);
+  Exit;
+ End;
+ ImW := Pres.Images[Slot]^.W;
+ ImH := Pres.Images[Slot]^.H;
+ LogIW := 400;
+ If ImW > 0 Then LogIH := (LongInt(ImH) * LogIW) Div ImW
+            Else LogIH := 300;
+ If LogIH > 500 Then Begin
+  LogIH := 500;
+  If ImH > 0 Then LogIW := (LongInt(ImW) * LogIH) Div ImH;
+ End;
+ P := NewShape;
+ If P = Nil Then Begin
+  MessageBox('Image', 'Memoire insuffisante.'); Exit;
+ End;
+ P^.ShType    := SHP_IMAGE;
+ P^.X         := (1000 - LogIW) Div 2;
+ P^.Y         := (750  - LogIH) Div 2;
+ P^.W         := LogIW;
+ P^.H         := LogIH;
+ P^.ImageIdx  := Slot;
+ P^.Filled    := False;
+ P^.LineWidth := 0;
+ P^.TxtCount  := 0;
+ AddShapeToSlide(S, P);
+ CurShape := S^.ShCount;
+ S^.Dirty := True;
+ Pres.Dirty := True;
+ StatusMsg := 'Image chargee : ' + FN +
+              ' (' + IntToStr(ImW) + 'x' + IntToStr(ImH) + ')';
+ NeedStatRedraw := True;
+ NeedSlideRedraw := True;
+ NeedPanelRedraw := True;
+End;
+
+Procedure ActionAnimEntryDlg;
+Const ANIM_LIST = 'Aucune'#10'Apparaitre'#10'Fondu'#10 +
+                  'Glisser depuis la gauche'#10 +
+                  'Glisser depuis la droite'#10 +
+                  'Glisser depuis le haut'#10 +
+                  'Glisser depuis le bas'#10 +
+                  'Zoom'#10'Rotation';
+Var S: PSlide; P: PShape; Sel: Integer; OrdStr: String;
+    NewOrder: LongInt;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If (S = Nil) Or (CurShape < 1) Or (CurShape > S^.ShCount) Then Begin
+  MessageBox('Animation', 'Selectionnez d''abord une forme.');
+  Exit;
+ End;
+ P := S^.Shapes[CurShape]; If P = Nil Then Exit;
+ Sel := SelectListDlg('Animation d''entree', ANIM_LIST, P^.AnimEntry + 1);
+ If Sel = 0 Then Exit;
+ P^.AnimEntry := Byte(Sel - 1);
+ If P^.AnimEntry <> ANIM_NONE Then Begin
+  OrdStr := IntToStr(P^.AnimOrder);
+  If P^.AnimOrder = 0 Then OrdStr := '1';
+  If InputTextDlg('Ordre d''animation',
+                  'Ordre (1 = premier, max 250) :', OrdStr, 4) Then Begin
+   NewOrder := StrToIntDef(OrdStr, 1);
+   If NewOrder < 1 Then NewOrder := 1;
+   If NewOrder > 250 Then NewOrder := 250;
+   P^.AnimOrder := Byte(NewOrder);
+  End Else If P^.AnimOrder = 0 Then
+   P^.AnimOrder := 1;
+ End Else
+  P^.AnimOrder := 0;
+ S^.Dirty := True;
+ Pres.Dirty := True;
+ StatusMsg := 'Animation d''entree mise a jour.';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionAnimExitDlg;
+Const ANIM_LIST = 'Aucune'#10'Disparaitre'#10'Fondu'#10 +
+                  'Glisser vers la gauche'#10 +
+                  'Glisser vers la droite'#10 +
+                  'Glisser vers le haut'#10 +
+                  'Glisser vers le bas'#10 +
+                  'Zoom'#10'Rotation';
+Var S: PSlide; P: PShape; Sel: Integer;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If (S = Nil) Or (CurShape < 1) Or (CurShape > S^.ShCount) Then Begin
+  MessageBox('Animation', 'Selectionnez d''abord une forme.');
+  Exit;
+ End;
+ P := S^.Shapes[CurShape]; If P = Nil Then Exit;
+ Sel := SelectListDlg('Animation de sortie', ANIM_LIST, P^.AnimExit + 1);
+ If Sel = 0 Then Exit;
+ P^.AnimExit := Byte(Sel - 1);
+ S^.Dirty := True;
+ Pres.Dirty := True;
+ StatusMsg := 'Animation de sortie mise a jour.';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionTimingDlg;
+Const SPD_LIST = 'Lente'#10'Moyenne'#10'Rapide';
+Var S: PSlide; Sel: Integer;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If S = Nil Then Exit;
+ Sel := SelectListDlg('Vitesse des transitions/animations',
+                      SPD_LIST, S^.TransSpeed + 1);
+ If Sel = 0 Then Exit;
+ S^.TransSpeed := Byte(Sel - 1);
+ S^.Dirty := True;
+ Pres.Dirty := True;
+ StatusMsg := 'Vitesse mise a jour.';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionSlideShow;
+Begin SlideShowLoop(1); End;
+
+Procedure ActionSlideShowFrom;
+Begin SlideShowLoop(CurSlide); End;
+
+Procedure ActionChangeTransitionDlg;
+Var Idx, I: Integer; Items: String; S: PSlide;
+Begin
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If S = Nil Then Exit;
+ Items := '';
+ For I := 0 To 10 Do Begin
+  If I > 0 Then Items := Items + #10;
+  Items := Items + TransName(Byte(I));
+ End;
+ Idx := SelectListDlg('Transition de diapositive', Items, S^.Transition + 1);
+ If Idx > 0 Then Begin
+  S^.Transition := Byte(Idx - 1);
+  S^.Dirty := True;
+  If ConfirmYesNo('Transition',
+                  'Appliquer a toutes les diapositives ?') Then Begin
+   For I := 1 To Pres.SldCount Do
+    If Pres.Slides[I] <> Nil Then Begin
+     Pres.Slides[I]^.Transition := Byte(Idx - 1);
+     Pres.Slides[I]^.Dirty      := True;
+    End;
+  End;
+  StatusMsg := 'Transition : ' + TransName(Byte(Idx - 1));
+  NeedStatRedraw := True;
+ End;
+ NeedFullRedraw := True;
+End;
+
 Procedure DoAction(A: Integer); Forward;
+Procedure RemoveShapeAt(SlIdx, ShIdx: Integer); Forward;
+Procedure ShapeDuplicate; Forward;
+Procedure ShapeBringFront; Forward;
+Procedure ShapeSendBack; Forward;
+Procedure ShapeToggleBold; Forward;
+Procedure ShapeToggleItalic; Forward;
+Procedure ShapeToggleUnderline; Forward;
+Procedure ShapeSetAlign(A: Byte); Forward;
+Procedure ShapeApplyFontDelta(Delta: Integer); Forward;
+Procedure ShapeCycleColor(Which: Byte); Forward;
+Procedure EditToggleBullet; Forward;
+Procedure EditIndent(Delta: Integer); Forward;
 
 Procedure ActionViewChange(V: Integer);
 Begin
@@ -2667,6 +4462,68 @@ Begin
   ACT_TOOL_ELL:     SetTool(TOOL_ELLIPSE);
   ACT_TOOL_LINE:    SetTool(TOOL_LINE);
   ACT_TOOL_ARROW:   SetTool(TOOL_ARROW);
+  ACT_INS_RECT:     SetTool(TOOL_RECT);
+  ACT_INS_ELLIPSE:  SetTool(TOOL_ELLIPSE);
+  ACT_INS_LINE:     SetTool(TOOL_LINE);
+  ACT_INS_ARROW:    SetTool(TOOL_ARROW);
+  ACT_INS_TRIANGLE: SetTool(TOOL_TRIANGLE);
+  ACT_INS_STAR:     SetTool(TOOL_STAR);
+  ACT_INS_CALLOUT:  SetTool(TOOL_CALLOUT);
+  ACT_INS_TEXT:     SetTool(TOOL_TEXT);
+  ACT_FONT_BOLD:    ShapeToggleBold;
+  ACT_FONT_ITAL:    ShapeToggleItalic;
+  ACT_FONT_UND:     ShapeToggleUnderline;
+  ACT_ALIGN_LEFT:   ShapeSetAlign(ALIGN_LEFT);
+  ACT_ALIGN_CENTER: ShapeSetAlign(ALIGN_CENTER);
+  ACT_ALIGN_RIGHT:  ShapeSetAlign(ALIGN_RIGHT);
+  ACT_BULLET:       EditToggleBullet;
+  ACT_INDENT_INC:   EditIndent(+1);
+  ACT_INDENT_DEC:   EditIndent(-1);
+  ACT_FONT_SIZE_UP: ShapeApplyFontDelta(+2);
+  ACT_FONT_SIZE_DN: ShapeApplyFontDelta(-2);
+  ACT_COLOR_FILL:   ShapeCycleColor(0);
+  ACT_COLOR_LINE:   ShapeCycleColor(1);
+  ACT_COLOR_TEXT:   ShapeCycleColor(2);
+  ACT_MOVE_UP:      ActionMoveSlideUp;
+  ACT_MOVE_DOWN:    ActionMoveSlideDown;
+  ACT_LAYOUT:       ActionChangeLayoutDlg;
+  ACT_BACKGROUND:   ActionChangeBackgroundDlg;
+  ACT_THEME:        ActionChangeThemeDlg;
+  ACT_VIEW_MASTER:  ActionMasterEdit;
+  ACT_INS_HEADER:   ActionHeaderFooter;
+  ACT_SLIDESHOW:      ActionSlideShow;
+  ACT_SLIDESHOW_FROM: ActionSlideShowFrom;
+  ACT_RUN_FROM_BEG:   ActionSlideShow;
+  ACT_TRANS:          ActionChangeTransitionDlg;
+  ACT_INS_IMAGE:      ActionInsertImage;
+  ACT_ANIM_ENTRY:     ActionAnimEntryDlg;
+  ACT_ANIM_EXIT:      ActionAnimExitDlg;
+  ACT_TIMING:         ActionTimingDlg;
+  ACT_DELETE: Begin
+   If CurShape > 0 Then Begin
+    RemoveShapeAt(CurSlide, CurShape);
+    CurShape := 0;
+    NeedSlideRedraw := True; NeedPanelRedraw := True;
+    StatusMsg := 'Forme supprimee.'; NeedStatRedraw := True;
+   End;
+  End;
+  ACT_DUP: Begin
+   If CurShape > 0 Then Begin
+    ShapeDuplicate;
+    NeedSlideRedraw := True; NeedPanelRedraw := True;
+    StatusMsg := 'Forme dupliquee.'; NeedStatRedraw := True;
+   End Else ActionDupSlide;
+  End;
+  ACT_BRING_FRONT: Begin
+   ShapeBringFront;
+   NeedSlideRedraw := True; NeedPanelRedraw := True;
+   StatusMsg := 'Premier plan.'; NeedStatRedraw := True;
+  End;
+  ACT_SEND_BACK: Begin
+   ShapeSendBack;
+   NeedSlideRedraw := True; NeedPanelRedraw := True;
+   StatusMsg := 'Arriere-plan.'; NeedStatRedraw := True;
+  End;
  Else Begin
   StatusMsg := 'Action ' + IntToStr(A) + ' : a implementer (phase ulterieure).';
   NeedStatRedraw := True;
@@ -2731,15 +4588,811 @@ Begin
  End;
 End;
 
+{ ====================================================================== }
+{        PHASE 2 - INVERSE COORDS, POIGNEES, MANIPULATION                }
+{ ====================================================================== }
+
+Function ScreenToLogX(SX: Integer): Integer;
+Var W: LongInt;
+Begin
+ W := SlideX2 - SlideX1; If W <= 0 Then W := 1;
+ ScreenToLogX := (LongInt(SX - SlideX1) * 1000) Div W;
+End;
+
+Function ScreenToLogY(SY: Integer): Integer;
+Var H: LongInt;
+Begin
+ H := SlideY2 - SlideY1; If H <= 0 Then H := 1;
+ ScreenToLogY := (LongInt(SY - SlideY1) * 750) Div H;
+End;
+
+Function ScreenToLogW(SW: Integer): Integer;
+Var W: LongInt;
+Begin
+ W := SlideX2 - SlideX1; If W <= 0 Then W := 1;
+ ScreenToLogW := (LongInt(SW) * 1000) Div W;
+End;
+
+Function ScreenToLogH(SH: Integer): Integer;
+Var H: LongInt;
+Begin
+ H := SlideY2 - SlideY1; If H <= 0 Then H := 1;
+ ScreenToLogH := (LongInt(SH) * 750) Div H;
+End;
+
+{ Retourne 1..8 si (X,Y) est sur une poignee de la forme P, 0 sinon.
+  Ordre : 1=NO 2=N 3=NE 4=E 5=SE 6=S 7=SO 8=O }
+Function HitHandle(P: PShape; X, Y: Integer): Byte;
+Var X1, Y1, X2, Y2, Cx, Cy: Integer;
+Begin
+ HitHandle := 0;
+ If P = Nil Then Exit;
+ X1 := LogX(P^.X); Y1 := LogY(P^.Y);
+ X2 := LogX(P^.X + P^.W); Y2 := LogY(P^.Y + P^.H);
+ Cx := (X1 + X2) Div 2; Cy := (Y1 + Y2) Div 2;
+ If InRect(X, Y, X1 - 3, Y1 - 3, X1 + 1, Y1 + 1) Then Begin HitHandle := 1; Exit; End;
+ If InRect(X, Y, Cx - 2, Y1 - 3, Cx + 2, Y1 + 1) Then Begin HitHandle := 2; Exit; End;
+ If InRect(X, Y, X2 - 1, Y1 - 3, X2 + 3, Y1 + 1) Then Begin HitHandle := 3; Exit; End;
+ If InRect(X, Y, X2 - 1, Cy - 2, X2 + 3, Cy + 2) Then Begin HitHandle := 4; Exit; End;
+ If InRect(X, Y, X2 - 1, Y2 - 1, X2 + 3, Y2 + 3) Then Begin HitHandle := 5; Exit; End;
+ If InRect(X, Y, Cx - 2, Y2 - 1, Cx + 2, Y2 + 3) Then Begin HitHandle := 6; Exit; End;
+ If InRect(X, Y, X1 - 3, Y2 - 1, X1 + 1, Y2 + 3) Then Begin HitHandle := 7; Exit; End;
+ If InRect(X, Y, X1 - 3, Cy - 2, X1 + 1, Cy + 2) Then Begin HitHandle := 8; Exit; End;
+End;
+
+{ Trace rectangle XOR pour bande elastique - efface si redessine }
+Procedure XorRect(X1, Y1, X2, Y2: Integer);
+Var T: Integer;
+Begin
+ If X2 < X1 Then Begin T := X1; X1 := X2; X2 := T; End;
+ If Y2 < Y1 Then Begin T := Y1; Y1 := Y2; Y2 := T; End;
+ SetWriteMode(XORPut);
+ SetColor(CLR_WHITE);
+ Rectangle(X1, Y1, X2, Y2);
+ SetWriteMode(NormalPut);
+End;
+
+Procedure XorLine(X1, Y1, X2, Y2: Integer);
+Begin
+ SetWriteMode(XORPut);
+ SetColor(CLR_WHITE);
+ Line(X1, Y1, X2, Y2);
+ SetWriteMode(NormalPut);
+End;
+
+Procedure EraseRubberBand;
+Begin
+ If Not RubberValid Then Exit;
+ If DragMode = 3 Then Begin
+  Case DragShapeKind Of
+   SHP_LINE, SHP_ARROW: XorLine(RubberX1, RubberY1, RubberX2, RubberY2);
+  Else XorRect(RubberX1, RubberY1, RubberX2, RubberY2);
+  End;
+ End Else
+  XorRect(RubberX1, RubberY1, RubberX2, RubberY2);
+ RubberValid := False;
+End;
+
+Procedure DrawRubberBand(X1, Y1, X2, Y2: Integer);
+Begin
+ EraseRubberBand;
+ If DragMode = 3 Then Begin
+  Case DragShapeKind Of
+   SHP_LINE, SHP_ARROW: XorLine(X1, Y1, X2, Y2);
+  Else XorRect(X1, Y1, X2, Y2);
+  End;
+ End Else
+  XorRect(X1, Y1, X2, Y2);
+ RubberX1 := X1; RubberY1 := Y1;
+ RubberX2 := X2; RubberY2 := Y2;
+ RubberValid := True;
+End;
+
+Function ToolToShapeKind(T: Integer): Byte;
+Begin
+ ToolToShapeKind := 0;
+ Case T Of
+  TOOL_TEXT:     ToolToShapeKind := SHP_TEXT;
+  TOOL_RECT:     ToolToShapeKind := SHP_RECT;
+  TOOL_ELLIPSE:  ToolToShapeKind := SHP_ELLIPSE;
+  TOOL_LINE:     ToolToShapeKind := SHP_LINE;
+  TOOL_ARROW:    ToolToShapeKind := SHP_ARROW;
+  TOOL_TRIANGLE: ToolToShapeKind := SHP_TRIANGLE;
+  TOOL_STAR:     ToolToShapeKind := SHP_STAR;
+  TOOL_CALLOUT:  ToolToShapeKind := SHP_CALLOUT;
+ End;
+End;
+
+{ Insere une forme dans la slide courante a partir d'un rect logique }
+Function CreateShapeRect(Kind: Byte; LX1, LY1, LX2, LY2: Integer): Integer;
+Var Sh: PShape; T: Integer;
+Begin
+ CreateShapeRect := 0;
+ If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
+ If LX2 < LX1 Then Begin T := LX1; LX1 := LX2; LX2 := T; End;
+ If LY2 < LY1 Then Begin T := LY1; LY1 := LY2; LY2 := T; End;
+ { Taille minimum sauf pour lignes }
+ If (Kind <> SHP_LINE) And (Kind <> SHP_ARROW) Then Begin
+  If LX2 - LX1 < 20 Then LX2 := LX1 + 20;
+  If LY2 - LY1 < 20 Then LY2 := LY1 + 20;
+ End Else Begin
+  If LX2 - LX1 < 4 Then LX2 := LX1 + 4;
+  If LY2 - LY1 < 4 Then LY2 := LY1 + 4;
+ End;
+ If LX1 < 0 Then LX1 := 0; If LY1 < 0 Then LY1 := 0;
+ If LX2 > 1000 Then LX2 := 1000; If LY2 > 750 Then LY2 := 750;
+ Sh := NewShape;
+ If Sh = Nil Then Exit;
+ Sh^.ShType := Kind;
+ Sh^.X := LX1; Sh^.Y := LY1;
+ Sh^.W := LX2 - LX1; Sh^.H := LY2 - LY1;
+ Case Kind Of
+  SHP_LINE, SHP_ARROW: Begin
+   Sh^.FillColor := 0; Sh^.LineColor := CLR_BLACK;
+   Sh^.Filled := False; Sh^.LineWidth := 2;
+  End;
+  SHP_TEXT: Begin
+   Sh^.FillColor := CLR_WHITE; Sh^.LineColor := CLR_LGRAY;
+   Sh^.Filled := False; Sh^.LineWidth := 1;
+   Sh^.TxtCount := 1; Sh^.Text[1] := 'Zone de texte';
+   Sh^.FontSize := 14;
+  End;
+  SHP_STAR: Begin
+   Sh^.FillColor := CLR_YELLOW; Sh^.LineColor := CLR_BROWN;
+   Sh^.Filled := True; Sh^.LineWidth := 1;
+  End;
+  SHP_TRIANGLE, SHP_DIAMOND: Begin
+   Sh^.FillColor := CLR_LCYAN; Sh^.LineColor := CLR_BLUE;
+   Sh^.Filled := True; Sh^.LineWidth := 1;
+  End;
+  SHP_CALLOUT: Begin
+   Sh^.FillColor := CLR_YELLOW; Sh^.LineColor := CLR_BLACK;
+   Sh^.Filled := True; Sh^.LineWidth := 1;
+   Sh^.TxtCount := 1; Sh^.Text[1] := 'Bulle';
+  End;
+ Else Begin
+  Sh^.FillColor := CLR_LBLUE; Sh^.LineColor := CLR_BLUE;
+  Sh^.Filled := True; Sh^.LineWidth := 1;
+ End;
+ End;
+ AddShapeToSlide(Pres.Slides[CurSlide], Sh);
+ CreateShapeRect := Pres.Slides[CurSlide]^.ShCount;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ Pres.Dirty := True;
+End;
+
+Procedure RemoveShapeAt(SlIdx, ShIdx: Integer);
+Var I: Integer; S: PSlide;
+Begin
+ If (SlIdx < 1) Or (SlIdx > Pres.SldCount) Then Exit;
+ S := Pres.Slides[SlIdx];
+ If (ShIdx < 1) Or (ShIdx > S^.ShCount) Then Exit;
+ FreeShape(S^.Shapes[ShIdx]);
+ For I := ShIdx To S^.ShCount - 1 Do
+  S^.Shapes[I] := S^.Shapes[I + 1];
+ S^.Shapes[S^.ShCount] := Nil;
+ Dec(S^.ShCount);
+ S^.Dirty := True;
+ Pres.Dirty := True;
+End;
+
+Procedure ShapeBringFront;
+Var S: PSlide; P: PShape; I: Integer;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If CurShape >= S^.ShCount Then Exit;
+ P := S^.Shapes[CurShape];
+ For I := CurShape To S^.ShCount - 1 Do
+  S^.Shapes[I] := S^.Shapes[I + 1];
+ S^.Shapes[S^.ShCount] := P;
+ CurShape := S^.ShCount;
+ S^.Dirty := True; Pres.Dirty := True;
+End;
+
+Procedure ShapeSendBack;
+Var S: PSlide; P: PShape; I: Integer;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If CurShape <= 1 Then Exit;
+ P := S^.Shapes[CurShape];
+ For I := CurShape Downto 2 Do
+  S^.Shapes[I] := S^.Shapes[I - 1];
+ S^.Shapes[1] := P;
+ CurShape := 1;
+ S^.Dirty := True; Pres.Dirty := True;
+End;
+
+Procedure ShapeDuplicate;
+Var S: PSlide; Src, Dst: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ S := Pres.Slides[CurSlide];
+ If S^.ShCount >= MAX_SHAPES Then Exit;
+ Src := S^.Shapes[CurShape];
+ Dst := NewShape; If Dst = Nil Then Exit;
+ Dst^ := Src^;
+ Dst^.X := Src^.X + 20; Dst^.Y := Src^.Y + 20;
+ If Dst^.X + Dst^.W > 1000 Then Dst^.X := 1000 - Dst^.W;
+ If Dst^.Y + Dst^.H > 750  Then Dst^.Y := 750  - Dst^.H;
+ AddShapeToSlide(S, Dst);
+ CurShape := S^.ShCount;
+ S^.Dirty := True; Pres.Dirty := True;
+End;
+
+Procedure NudgeShape(Dx, Dy: Integer);
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.X := P^.X + Dx; P^.Y := P^.Y + Dy;
+ If P^.X < 0 Then P^.X := 0;
+ If P^.Y < 0 Then P^.Y := 0;
+ If P^.X + P^.W > 1000 Then P^.X := 1000 - P^.W;
+ If P^.Y + P^.H > 750  Then P^.Y := 750  - P^.H;
+ Pres.Slides[CurSlide]^.Dirty := True; Pres.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure ResizeShapeKey(Dw, Dh: Integer);
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.W := P^.W + Dw; P^.H := P^.H + Dh;
+ If P^.W < 20 Then P^.W := 20;
+ If P^.H < 20 Then P^.H := 20;
+ If P^.X + P^.W > 1000 Then P^.W := 1000 - P^.X;
+ If P^.Y + P^.H > 750  Then P^.H := 750  - P^.Y;
+ Pres.Slides[CurSlide]^.Dirty := True; Pres.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure CycleShapeSelection(Reverse: Boolean);
+Var N: Integer;
+Begin
+ If CurSlide < 1 Then Exit;
+ N := Pres.Slides[CurSlide]^.ShCount;
+ If N = 0 Then Begin CurShape := 0; Exit; End;
+ If Reverse Then Begin
+  Dec(CurShape);
+  If CurShape < 1 Then CurShape := N;
+ End Else Begin
+  Inc(CurShape);
+  If CurShape > N Then CurShape := 1;
+ End;
+ NeedSlideRedraw := True;
+End;
+
+Procedure UpdateDrag;
+Var P: PShape; Lx, Ly, Ldx, Ldy: Integer;
+    NX, NY, NW, NH: Integer;
+    SX1, SY1, SX2, SY2: Integer;
+Begin
+ If DragMode = 0 Then Exit;
+ If (Mouse.X = LastMouseX) And (Mouse.Y = LastMouseY) Then Exit;
+ LastMouseX := Mouse.X; LastMouseY := Mouse.Y;
+ Case DragMode Of
+  1: Begin   { deplacement }
+   P := Pres.Slides[CurSlide]^.Shapes[DragShapeIdx];
+   If P = Nil Then Exit;
+   Ldx := ScreenToLogW(Mouse.X - DragStartX);
+   Ldy := ScreenToLogH(Mouse.Y - DragStartY);
+   NX := DragOrigX + Ldx; NY := DragOrigY + Ldy;
+   If NX < 0 Then NX := 0; If NY < 0 Then NY := 0;
+   If NX + P^.W > 1000 Then NX := 1000 - P^.W;
+   If NY + P^.H > 750  Then NY := 750  - P^.H;
+   P^.X := NX; P^.Y := NY;
+   NeedSlideRedraw := True;
+  End;
+  2: Begin   { resize par poignee }
+   P := Pres.Slides[CurSlide]^.Shapes[DragShapeIdx];
+   If P = Nil Then Exit;
+   Ldx := ScreenToLogW(Mouse.X - DragStartX);
+   Ldy := ScreenToLogH(Mouse.Y - DragStartY);
+   NX := DragOrigX; NY := DragOrigY;
+   NW := DragOrigW; NH := DragOrigH;
+   Case DragHandle Of
+    1: Begin NX := DragOrigX + Ldx; NY := DragOrigY + Ldy;
+             NW := DragOrigW - Ldx; NH := DragOrigH - Ldy; End;
+    2: Begin NY := DragOrigY + Ldy; NH := DragOrigH - Ldy; End;
+    3: Begin NY := DragOrigY + Ldy;
+             NW := DragOrigW + Ldx; NH := DragOrigH - Ldy; End;
+    4: Begin NW := DragOrigW + Ldx; End;
+    5: Begin NW := DragOrigW + Ldx; NH := DragOrigH + Ldy; End;
+    6: Begin NH := DragOrigH + Ldy; End;
+    7: Begin NX := DragOrigX + Ldx;
+             NW := DragOrigW - Ldx; NH := DragOrigH + Ldy; End;
+    8: Begin NX := DragOrigX + Ldx; NW := DragOrigW - Ldx; End;
+   End;
+   If NW < 20 Then Begin NW := 20; If DragHandle In [1,7,8] Then NX := DragOrigX + DragOrigW - 20; End;
+   If NH < 20 Then Begin NH := 20; If DragHandle In [1,2,3] Then NY := DragOrigY + DragOrigH - 20; End;
+   If NX < 0 Then Begin NW := NW + NX; NX := 0; End;
+   If NY < 0 Then Begin NH := NH + NY; NY := 0; End;
+   If NX + NW > 1000 Then NW := 1000 - NX;
+   If NY + NH > 750  Then NH := 750  - NY;
+   P^.X := NX; P^.Y := NY; P^.W := NW; P^.H := NH;
+   NeedSlideRedraw := True;
+  End;
+  3, 4: Begin   { rubber-band : nouvelle forme ou marquee }
+   SX1 := DragStartX; SY1 := DragStartY;
+   SX2 := Mouse.X;    SY2 := Mouse.Y;
+   If SX2 < SlideX1 Then SX2 := SlideX1;
+   If SY2 < SlideY1 Then SY2 := SlideY1;
+   If SX2 > SlideX2 Then SX2 := SlideX2;
+   If SY2 > SlideY2 Then SY2 := SlideY2;
+   HideMouse;
+   DrawRubberBand(SX1, SY1, SX2, SY2);
+   ShowMouse;
+  End;
+ End;
+End;
+
+Procedure EndDrag;
+Var Lx1, Ly1, Lx2, Ly2, Idx, T: Integer;
+    S: PSlide; Sh: PShape; X1, Y1, X2, Y2: Integer;
+Begin
+ If DragMode = 0 Then Exit;
+ Case DragMode Of
+  1, 2: Begin
+   Pres.Slides[CurSlide]^.Dirty := True;
+   Pres.Dirty := True;
+   NeedSlideRedraw := True;
+   NeedPanelRedraw := True;
+  End;
+  3: Begin   { creation d'une forme par drag }
+   HideMouse;
+   EraseRubberBand;
+   ShowMouse;
+   Lx1 := ScreenToLogX(DragStartX);
+   Ly1 := ScreenToLogY(DragStartY);
+   Lx2 := ScreenToLogX(Mouse.X);
+   Ly2 := ScreenToLogY(Mouse.Y);
+   Idx := CreateShapeRect(DragShapeKind, Lx1, Ly1, Lx2, Ly2);
+   If Idx > 0 Then Begin
+    CurShape := Idx;
+    StatusMsg := 'Forme ajoutee.';
+   End;
+   { Retour outil selection apres dessin (comportement Visio/PowerPoint) }
+   CurTool := TOOL_SELECT;
+   NeedFullRedraw := True;
+  End;
+  4: Begin   { marquee selection - selectionne premiere forme dans le cadre }
+   HideMouse;
+   EraseRubberBand;
+   ShowMouse;
+   If CurSlide >= 1 Then Begin
+    S := Pres.Slides[CurSlide];
+    X1 := DragStartX; Y1 := DragStartY;
+    X2 := Mouse.X;    Y2 := Mouse.Y;
+    If X2 < X1 Then Begin T := X1; X1 := X2; X2 := T; End;
+    If Y2 < Y1 Then Begin T := Y1; Y1 := Y2; Y2 := T; End;
+    For T := S^.ShCount Downto 1 Do Begin
+     Sh := S^.Shapes[T];
+     If Sh = Nil Then Continue;
+     If (LogX(Sh^.X) >= X1) And (LogY(Sh^.Y) >= Y1) And
+        (LogX(Sh^.X + Sh^.W) <= X2) And (LogY(Sh^.Y + Sh^.H) <= Y2) Then Begin
+      CurShape := T; Break;
+     End;
+    End;
+   End;
+   NeedSlideRedraw := True;
+  End;
+ End;
+ DragMode := 0;
+ DragHandle := 0;
+ RubberValid := False;
+End;
+
+{ ====================================================================== }
+{          PHASE 3 - EDITION DE TEXTE RICHE DANS LES FORMES              }
+{ ====================================================================== }
+
+Function ShapeAcceptsText(P: PShape): Boolean;
+Begin
+ ShapeAcceptsText := False;
+ If P = Nil Then Exit;
+ Case P^.ShType Of
+  SHP_TITLE, SHP_SUBTITLE, SHP_CONTENT, SHP_TEXT,
+  SHP_CALLOUT, SHP_RECT, SHP_ROUNDRECT, SHP_ELLIPSE,
+  SHP_TRIANGLE, SHP_DIAMOND, SHP_STAR:
+   ShapeAcceptsText := True;
+ End;
+End;
+
+Function IsPlaceholderText(Const S: String): Boolean;
+Begin
+ IsPlaceholderText := (Pos('Cliquez pour ajouter', S) = 1);
+End;
+
+Procedure CommitEditBuf;
+Var P: PShape;
+Begin
+ If Not EditMode Then Exit;
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ If (EditLine < 1) Or (EditLine > MAX_TEXT_LINES) Then Exit;
+ If Length(EditBuf) > TXT_LINE_LEN Then EditBuf[0] := Chr(TXT_LINE_LEN);
+ P^.Text[EditLine] := EditBuf;
+ If EditLine > P^.TxtCount Then P^.TxtCount := EditLine;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ Pres.Dirty := True;
+End;
+
+Procedure ExitEditMode;
+Begin
+ If Not EditMode Then Exit;
+ CommitEditBuf;
+ EditMode := False;
+ EditBuf := '';
+ EditCaret := 0;
+ EditLine := 0;
+ StatusMsg := 'Edition terminee.';
+ NeedSlideRedraw := True;
+ NeedStatRedraw := True;
+End;
+
+Procedure LoadEditLine(P: PShape; LineIdx: Integer);
+Begin
+ EditLine := LineIdx;
+ If (LineIdx >= 1) And (LineIdx <= P^.TxtCount) Then Begin
+  EditBuf := P^.Text[LineIdx];
+  If IsPlaceholderText(EditBuf) Then EditBuf := '';
+ End Else Begin
+  EditBuf := '';
+ End;
+ EditCaret := Length(EditBuf);
+End;
+
+Procedure EnterEditMode(ShIdx, LineIdx: Integer);
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (ShIdx < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[ShIdx];
+ If Not ShapeAcceptsText(P) Then Exit;
+ If P^.TxtCount = 0 Then Begin
+  P^.TxtCount := 1; P^.Text[1] := ''; P^.Bullets[1] := False; P^.Indent[1] := 0;
+ End;
+ If LineIdx < 1 Then LineIdx := 1;
+ If LineIdx > P^.TxtCount Then LineIdx := P^.TxtCount;
+ CurShape := ShIdx;
+ EditMode := True;
+ LoadEditLine(P, LineIdx);
+ StatusMsg := 'Edition de texte (Esc pour terminer).';
+ NeedSlideRedraw := True;
+ NeedStatRedraw := True;
+End;
+
+Procedure EditInsertChar(C: Char);
+Begin
+ If Not EditMode Then Exit;
+ If Length(EditBuf) >= TXT_LINE_LEN Then Exit;
+ If (EditCaret < 0) Then EditCaret := 0;
+ If (EditCaret > Length(EditBuf)) Then EditCaret := Length(EditBuf);
+ Insert(C, EditBuf, EditCaret + 1);
+ Inc(EditCaret);
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditBackspace;
+Begin
+ If Not EditMode Then Exit;
+ If EditCaret <= 0 Then Exit;
+ Delete(EditBuf, EditCaret, 1);
+ Dec(EditCaret);
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditDeleteChar;
+Begin
+ If Not EditMode Then Exit;
+ If EditCaret >= Length(EditBuf) Then Exit;
+ Delete(EditBuf, EditCaret + 1, 1);
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditMoveCaret(Dx: Integer);
+Begin
+ If Not EditMode Then Exit;
+ Inc(EditCaret, Dx);
+ If EditCaret < 0 Then EditCaret := 0;
+ If EditCaret > Length(EditBuf) Then EditCaret := Length(EditBuf);
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditMoveLine(Dy: Integer);
+Var P: PShape; N, NewLine: Integer;
+Begin
+ If Not EditMode Then Exit;
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ CommitEditBuf;
+ N := P^.TxtCount;
+ NewLine := EditLine + Dy;
+ If NewLine < 1 Then NewLine := 1;
+ If NewLine > N Then NewLine := N;
+ LoadEditLine(P, NewLine);
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditHomeEnd(ToEnd: Boolean);
+Begin
+ If Not EditMode Then Exit;
+ If ToEnd Then EditCaret := Length(EditBuf) Else EditCaret := 0;
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditNewLine;
+Var P: PShape; I: Integer;
+Begin
+ If Not EditMode Then Exit;
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ If P^.TxtCount >= MAX_TEXT_LINES Then Exit;
+ CommitEditBuf;
+ { Decale les lignes apres EditLine vers le bas }
+ For I := P^.TxtCount Downto EditLine + 1 Do Begin
+  P^.Text[I + 1]    := P^.Text[I];
+  P^.Bullets[I + 1] := P^.Bullets[I];
+  P^.Indent[I + 1]  := P^.Indent[I];
+ End;
+ Inc(P^.TxtCount);
+ P^.Text[EditLine + 1]    := '';
+ P^.Bullets[EditLine + 1] := P^.Bullets[EditLine];
+ P^.Indent[EditLine + 1]  := P^.Indent[EditLine];
+ Inc(EditLine);
+ EditBuf := '';
+ EditCaret := 0;
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditBackLine;
+Var P: PShape; I, PrevLen: Integer;
+Begin
+ { Backspace en debut de ligne : fusionne avec la precedente }
+ If Not EditMode Then Exit;
+ If EditLine <= 1 Then Exit;
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ CommitEditBuf;
+ PrevLen := Length(P^.Text[EditLine - 1]);
+ If PrevLen + Length(P^.Text[EditLine]) <= TXT_LINE_LEN Then
+  P^.Text[EditLine - 1] := P^.Text[EditLine - 1] + P^.Text[EditLine];
+ For I := EditLine To P^.TxtCount - 1 Do Begin
+  P^.Text[I]    := P^.Text[I + 1];
+  P^.Bullets[I] := P^.Bullets[I + 1];
+  P^.Indent[I]  := P^.Indent[I + 1];
+ End;
+ P^.Text[P^.TxtCount] := '';
+ P^.Bullets[P^.TxtCount] := False;
+ P^.Indent[P^.TxtCount] := 0;
+ Dec(P^.TxtCount);
+ Dec(EditLine);
+ LoadEditLine(P, EditLine);
+ EditCaret := PrevLen;
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditIndent(Delta: Integer);
+Var P: PShape;
+Begin
+ If Not EditMode Then Exit;
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ If (EditLine < 1) Or (EditLine > MAX_TEXT_LINES) Then Exit;
+ If Delta > 0 Then Begin
+  If P^.Indent[EditLine] < 5 Then Inc(P^.Indent[EditLine]);
+ End Else Begin
+  If P^.Indent[EditLine] > 0 Then Dec(P^.Indent[EditLine]);
+ End;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure EditToggleBullet;
+Var P: PShape; I: Integer; NewVal: Boolean;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ If EditMode Then Begin
+  P^.Bullets[EditLine] := Not P^.Bullets[EditLine];
+ End Else Begin
+  If P^.TxtCount > 0 Then NewVal := Not P^.Bullets[1] Else NewVal := True;
+  For I := 1 To P^.TxtCount Do P^.Bullets[I] := NewVal;
+ End;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+{ Detection ligne ciblee par un clic dans la forme }
+Function LineAtY(P: PShape; SY: Integer): Integer;
+Var Ty, LineH, I, Y1: Integer;
+Begin
+ LineAtY := 1;
+ If P^.TxtCount <= 0 Then Exit;
+ LineH := 12;
+ If P^.FontSize >= 24 Then LineH := 22
+ Else If P^.FontSize >= 18 Then LineH := 16;
+ Y1 := LogY(P^.Y);
+ Ty := Y1 + 4;
+ For I := 1 To P^.TxtCount Do Begin
+  If (SY >= Ty) And (SY < Ty + LineH) Then Begin LineAtY := I; Exit; End;
+  Ty := Ty + LineH;
+ End;
+ LineAtY := P^.TxtCount;
+End;
+
+Procedure ShapeApplyFontDelta(Delta: Integer);
+Var P: PShape; F: Integer;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ F := P^.FontSize + Delta;
+ If F < 8 Then F := 8;
+ If F > 72 Then F := 72;
+ P^.FontSize := F;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+ StatusMsg := 'Taille de police: ' + IntToStr(F);
+ NeedStatRedraw := True;
+End;
+
+Procedure ShapeToggleBold;
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.Bold := Not P^.Bold;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure ShapeToggleItalic;
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.Italic := Not P^.Italic;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure ShapeToggleUnderline;
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.Underline := Not P^.Underline;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure ShapeSetAlign(A: Byte);
+Var P: PShape;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ P^.Align := A;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+End;
+
+Procedure ShapeCycleColor(Which: Byte);
+{ Which : 0=fill 1=line 2=text. Cycle parmi 16 couleurs VGA }
+Var P: PShape; C: Byte;
+Begin
+ If (CurSlide < 1) Or (CurShape < 1) Then Exit;
+ P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+ If P = Nil Then Exit;
+ Case Which Of
+  0: Begin C := (P^.FillColor + 1) And 15; P^.FillColor := C;
+           StatusMsg := 'Remplissage : couleur ' + IntToStr(C); End;
+  1: Begin C := (P^.LineColor + 1) And 15; P^.LineColor := C;
+           StatusMsg := 'Contour : couleur ' + IntToStr(C); End;
+  2: Begin C := (P^.TextColor + 1) And 15; P^.TextColor := C;
+           StatusMsg := 'Texte : couleur ' + IntToStr(C); End;
+ End;
+ Pres.Slides[CurSlide]^.Dirty := True;
+ NeedSlideRedraw := True;
+ NeedStatRedraw := True;
+End;
+
 Procedure HandleSlideAreaClick;
-Var Idx: Integer;
+Var Idx: Integer; H: Byte; P: PShape; Kind: Byte;
 Begin
  If Not InRect(Mouse.X, Mouse.Y, SlideX1, SlideY1, SlideX2, SlideY2) Then Begin
+  If EditMode Then ExitEditMode;
   CurShape := 0; NeedSlideRedraw := True; Exit;
+  End;
+ { Si on est en edition, clic dans la meme forme = repositionne ligne, ailleurs = sort }
+ If EditMode And (CurShape > 0) Then Begin
+  Idx := ShapeAt(Mouse.X, Mouse.Y);
+  P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+  If Idx = CurShape Then Begin
+   CommitEditBuf;
+   LoadEditLine(P, LineAtY(P, Mouse.Y));
+   NeedSlideRedraw := True;
+   Exit;
+  End Else Begin
+   ExitEditMode;
+   { ne pas exit - continuer pour traiter le clic comme normal }
+  End;
+ End;
+ { Double-clic sur une forme texte : entre en edition }
+ If DoubleClicked Then Begin
+  Idx := ShapeAt(Mouse.X, Mouse.Y);
+  If Idx > 0 Then Begin
+   P := Pres.Slides[CurSlide]^.Shapes[Idx];
+   If ShapeAcceptsText(P) Then Begin
+    EnterEditMode(Idx, LineAtY(P, Mouse.Y));
+    Exit;
+   End;
+  End;
+ End;
+ { Outil de dessin actif : on amorce un drag rubber-band pour creer une forme }
+ Kind := ToolToShapeKind(CurTool);
+ If Kind <> 0 Then Begin
+  DragMode      := 3;
+  DragShapeKind := Kind;
+  DragStartX    := Mouse.X; DragStartY := Mouse.Y;
+  LastMouseX    := Mouse.X; LastMouseY := Mouse.Y;
+  RubberValid   := False;
+  CurShape      := 0;
+  StatusMsg     := 'Glissez pour dimensionner la forme...';
+  NeedStatRedraw := True;
+  Exit;
+ End;
+ { Outil selection : tester poignee si forme deja selectionnee }
+ If CurShape > 0 Then Begin
+  P := Pres.Slides[CurSlide]^.Shapes[CurShape];
+  H := HitHandle(P, Mouse.X, Mouse.Y);
+  If H <> 0 Then Begin
+   DragMode    := 2;
+   DragHandle  := H;
+   DragShapeIdx := CurShape;
+   DragStartX  := Mouse.X; DragStartY := Mouse.Y;
+   DragOrigX   := P^.X; DragOrigY := P^.Y;
+   DragOrigW   := P^.W; DragOrigH := P^.H;
+   LastMouseX  := Mouse.X; LastMouseY := Mouse.Y;
+   StatusMsg   := 'Redimensionnement...';
+   NeedStatRedraw := True;
+   Exit;
+  End;
  End;
  Idx := ShapeAt(Mouse.X, Mouse.Y);
- If Idx <> CurShape Then Begin
-  CurShape := Idx; NeedSlideRedraw := True;
+ If Idx > 0 Then Begin
+  CurShape := Idx;
+  P := Pres.Slides[CurSlide]^.Shapes[Idx];
+  DragMode     := 1;
+  DragShapeIdx := Idx;
+  DragStartX   := Mouse.X; DragStartY := Mouse.Y;
+  DragOrigX    := P^.X; DragOrigY := P^.Y;
+  LastMouseX   := Mouse.X; LastMouseY := Mouse.Y;
+  StatusMsg    := 'Deplacement...';
+  NeedSlideRedraw := True;
+  NeedStatRedraw  := True;
+ End Else Begin
+  { Aucune forme : marquee }
+  CurShape := 0;
+  DragMode    := 4;
+  DragStartX  := Mouse.X; DragStartY := Mouse.Y;
+  LastMouseX  := Mouse.X; LastMouseY := Mouse.Y;
+  RubberValid := False;
+  NeedSlideRedraw := True;
  End;
 End;
 
@@ -2774,6 +5427,30 @@ Begin
  { Zone de slide }
  If InRect(Mouse.X, Mouse.Y, PANEL_W, MENU_H + TOOL_H + RULER_H,
            SCREEN_W - 1, SCREEN_H - STATUS_H - 1) Then Begin
+  Case CurView Of
+   VIEW_SORTER: Begin
+    Idx := SorterAt(Mouse.X, Mouse.Y);
+    If Idx > 0 Then Begin
+     SorterSel := Idx; CurSlide := Idx; CurShape := 0;
+     If DoubleClicked Then ActionViewChange(VIEW_NORMAL)
+     Else NeedFullRedraw := True;
+    End;
+    Exit;
+   End;
+   VIEW_OUTLINE: Begin
+    Idx := OutlineSlideAtY(Mouse.Y);
+    If Idx > 0 Then Begin
+     OutlineSel := Idx; CurSlide := Idx; CurShape := 0;
+     If DoubleClicked Then ActionViewChange(VIEW_NORMAL)
+     Else NeedFullRedraw := True;
+    End;
+    Exit;
+   End;
+   VIEW_NOTES: Begin
+    If DoubleClicked Then ActionEditNotes;
+    Exit;
+   End;
+  End;
   HandleSlideAreaClick; Exit;
  End;
  { Clic ailleurs : referme menu si actif }
@@ -2815,6 +5492,92 @@ End;
 
 Procedure HandleKey(K, K2: Char);
 Begin
+ { ----- MODE EDITION TEXTE : priorite absolue ----- }
+ If EditMode Then Begin
+  If K = #0 Then Begin
+   Case K2 Of
+    #75: EditMoveCaret(-1);            { Left }
+    #77: EditMoveCaret(+1);            { Right }
+    #72: EditMoveLine(-1);             { Up }
+    #80: EditMoveLine(+1);             { Down }
+    #71: EditHomeEnd(False);           { Home }
+    #79: EditHomeEnd(True);            { End }
+    #83: EditDeleteChar;               { Delete }
+    #15: EditIndent(+1);               { Shift+Tab in some maps - here Tab key }
+    #59: DoAction(ACT_HELP_TOPIC);     { F1 }
+    #107,#45: Begin ExitEditMode; DoAction(ACT_QUIT); End;
+   End;
+   Exit;
+  End;
+  Case K Of
+   #27: ExitEditMode;
+   #13: EditNewLine;
+   #8 : Begin
+    If EditCaret > 0 Then EditBackspace Else EditBackLine;
+   End;
+   #9 : EditIndent(+1);
+  Else Begin
+   If (K >= ' ') And (K <= #126) Then EditInsertChar(K)
+   Else If K >= #128 Then EditInsertChar(K);  { caracteres etendus 8 bits }
+  End;
+  End;
+  Exit;
+ End;
+ { ----- MODES TRIEUSE / PLAN / NOTES ----- }
+ If CurView = VIEW_SORTER Then Begin
+  If K = #0 Then Begin
+   Case K2 Of
+    #75: If SorterSel > 1 Then Begin Dec(SorterSel); CurSlide := SorterSel; NeedFullRedraw := True; End;
+    #77: If SorterSel < Pres.SldCount Then Begin Inc(SorterSel); CurSlide := SorterSel; NeedFullRedraw := True; End;
+    #72: If SorterSel > SORT_COLS Then Begin Dec(SorterSel, SORT_COLS); CurSlide := SorterSel; NeedFullRedraw := True; End;
+    #80: If SorterSel + SORT_COLS <= Pres.SldCount Then Begin Inc(SorterSel, SORT_COLS); CurSlide := SorterSel; NeedFullRedraw := True; End;
+    #71: Begin SorterSel := 1; CurSlide := 1; NeedFullRedraw := True; End;
+    #79: Begin SorterSel := Pres.SldCount; CurSlide := SorterSel; NeedFullRedraw := True; End;
+    #83: Begin DoAction(ACT_DEL_SLIDE); Exit; End;
+    #107,#45: Begin DoAction(ACT_QUIT); Exit; End;
+   End;
+   Exit;
+  End;
+  Case K Of
+   #13: Begin ActionViewChange(VIEW_NORMAL); Exit; End;
+   #27: Begin ActionViewChange(VIEW_NORMAL); Exit; End;
+  End;
+  { Tombe en raccourcis globaux pour Ctrl+* }
+ End;
+ If CurView = VIEW_OUTLINE Then Begin
+  If K = #0 Then Begin
+   Case K2 Of
+    #72: If OutlineSel > 1 Then Begin Dec(OutlineSel); CurSlide := OutlineSel; NeedFullRedraw := True; End;
+    #80: If OutlineSel < Pres.SldCount Then Begin Inc(OutlineSel); CurSlide := OutlineSel; NeedFullRedraw := True; End;
+    #71: Begin OutlineSel := 1; CurSlide := 1; NeedFullRedraw := True; End;
+    #79: Begin OutlineSel := Pres.SldCount; CurSlide := OutlineSel; NeedFullRedraw := True; End;
+    #73: Begin Dec(OutlineScroll, 80); If OutlineScroll < 0 Then OutlineScroll := 0; NeedFullRedraw := True; End;
+    #81: Begin Inc(OutlineScroll, 80); NeedFullRedraw := True; End;
+    #107,#45: Begin DoAction(ACT_QUIT); Exit; End;
+   End;
+   Exit;
+  End;
+  Case K Of
+   #13: Begin ActionViewChange(VIEW_NORMAL); Exit; End;
+   #27: Begin ActionViewChange(VIEW_NORMAL); Exit; End;
+  End;
+ End;
+ If CurView = VIEW_NOTES Then Begin
+  If K = #0 Then Begin
+   Case K2 Of
+    #73,#75: ActionPrevSlide;
+    #81,#77: ActionNextSlide;
+    #71: ActionFirstSlide;
+    #79: ActionLastSlide;
+    #107,#45: DoAction(ACT_QUIT);
+   End;
+   Exit;
+  End;
+  Case K Of
+   #13: Begin ActionEditNotes; Exit; End;
+   #27: Begin ActionViewChange(VIEW_NORMAL); Exit; End;
+  End;
+ End;
  { Raccourcis globaux }
  If K = #0 Then Begin
   Case K2 Of
@@ -2823,20 +5586,43 @@ Begin
    #59 : Begin DoAction(ACT_HELP_TOPIC);  Exit; End;   { F1 }
    #63 : Begin DoAction(ACT_SLIDESHOW);   Exit; End;   { F5 }
    #50 : Begin DoAction(ACT_NEW_SLIDE);   Exit; End;   { Ctrl+M : scan 50 = M }
-   #80 : Begin ActionNextSlide;           Exit; End;   { Down }
-   #72 : Begin ActionPrevSlide;           Exit; End;   { Up }
+   #15 : Begin                                          { Tab : cycle forme }
+    CycleShapeSelection(False); Exit;
+   End;
+   #83 : Begin                                          { Delete }
+    If CurShape > 0 Then DoAction(ACT_DELETE);
+    Exit;
+   End;
+   #80 : Begin
+    If CurShape > 0 Then NudgeShape(0,  10) Else ActionNextSlide; Exit;
+   End;
+   #72 : Begin
+    If CurShape > 0 Then NudgeShape(0, -10) Else ActionPrevSlide; Exit;
+   End;
+   #77 : Begin
+    If CurShape > 0 Then NudgeShape( 10, 0) Else ActionNextSlide; Exit;
+   End;
+   #75 : Begin
+    If CurShape > 0 Then NudgeShape(-10, 0) Else ActionPrevSlide; Exit;
+   End;
    #81 : Begin ActionNextSlide;           Exit; End;   { PgDn }
    #73 : Begin ActionPrevSlide;           Exit; End;   { PgUp }
    #71 : Begin ActionFirstSlide;          Exit; End;   { Home }
    #79 : Begin ActionLastSlide;           Exit; End;   { End }
-   #77 : Begin ActionNextSlide;           Exit; End;   { Right }
-   #75 : Begin ActionPrevSlide;           Exit; End;   { Left }
   End;
   Exit;
  End;
  Case K Of
   #27: Begin
    If MenuOpen <> 0 Then Begin MenuOpen := 0; NeedFullRedraw := True; End
+   Else If DragMode <> 0 Then Begin
+    HideMouse; EraseRubberBand; ShowMouse;
+    DragMode := 0; DragHandle := 0; NeedSlideRedraw := True;
+    StatusMsg := 'Annule.'; NeedStatRedraw := True;
+   End
+   Else If CurTool <> TOOL_SELECT Then Begin
+    SetTool(TOOL_SELECT);
+   End
    Else If CurShape > 0 Then Begin CurShape := 0; NeedSlideRedraw := True; End;
   End;
   #14:  DoAction(ACT_NEW);                          { Ctrl+N }
@@ -2873,6 +5659,8 @@ Begin
   UpdateMouse;
   UpdateHovers;
   If LeftPressed Then HandleMouseClick;
+  If LeftDown And (DragMode <> 0) Then UpdateDrag;
+  If LeftReleased And (DragMode <> 0) Then EndDrag;
   K := #0; K2 := #0;
   If KeyPressed Then Begin
    K := ReadKey;
