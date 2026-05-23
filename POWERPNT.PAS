@@ -2636,7 +2636,10 @@ Begin
     SetColor(CLR_DGRAY); Rectangle(X1, Y1, X2, Y2);
     Line(X1, Y1, X2, Y2); Line(X1, Y2, X2, Y1);
     SetColor(CLR_BLACK);
-    OutTextXY(X1 + 4, Y1 + 4, '[Image]');
+    If (P^.TxtCount >= 1) And (P^.Text[1] <> '') Then
+     OutTextXY(X1 + 4, Y1 + 4, '[' + P^.Text[1] + ']')
+    Else
+     OutTextXY(X1 + 4, Y1 + 4, '[Image]');
    End;
   End;
   SHP_TABLE: Begin
@@ -6355,6 +6358,751 @@ Begin
  Inflate := Not InfError;
 End;
 
+{ ====================================================================== }
+{                       DECODEUR PNG (Etape 5B)                          }
+{ ----------------------------------------------------------------------
+   Supporte :
+   - Signature 89 50 4E 47 0D 0A 1A 0A
+   - Chunks IHDR / PLTE / IDAT (concatenes) / IEND
+   - BitDepth = 8 pour ColorType 0,2,4,6
+   - BitDepth 1/2/4/8 pour ColorType 3 (paletted)
+   - Filtres scanline : None/Sub/Up/Average/Paeth
+   - Pas d'interlace (Adam7 refuse)
+   Resultat : pixels EGA 16 (nearest match via NearestVGA16). Le dithering
+   Floyd-Steinberg sera ajoute en Etape 5D.
+}
+
+Function LoadImagePngMem(InBuf: Pointer; InSize: LongInt;
+                         Const Nm: String; Var Slot: Integer): Boolean;
+Type
+ TByteArr = Array[0..1024*1024*16 - 1] Of Byte;
+ PByteArr = ^TByteArr;
+ TPltEnt  = Record R, G, B: Byte; End;
+Label LDone;
+Var Src: PByteArr;
+    Pos: LongInt;
+    PngW, PngH: LongInt;
+    BitDepth, ColorType, Interlace: Integer;
+    Channels, BytesPerPixel: Integer;
+    RowBytes: LongInt;
+    IDatBuf: PByteArr;
+    IDatLen, IDatCap, OldCap: LongInt;
+    NewBuf: PByteArr;
+    Plt: Array[0..255] Of TPltEnt;
+    PltCount: Integer;
+    RawBuf: PByteArr;
+    RawSize: LongInt;
+    ChunkLen: LongInt;
+    ChunkType: String[4];
+    I: LongInt;
+    X, Y: Integer;
+    Filter: Byte;
+    LineOff, PrevLineOff: LongInt;
+    A, BB, CC, Paeth, Pa, Pb, Pc: LongInt;
+    R, G, B: Integer;
+    PalI: Integer;
+    OutSlot: Integer;
+    Img: PImage;
+    PxIdx: LongInt;
+    OK: Boolean;
+    DeflPtr: Pointer;
+
+ Function ReadBE32At(Off: LongInt): LongInt;
+ Begin
+  ReadBE32At := LongInt(Src^[Off])    * 16777216 +
+                LongInt(Src^[Off + 1]) * 65536 +
+                LongInt(Src^[Off + 2]) * 256 +
+                LongInt(Src^[Off + 3]);
+ End;
+
+Begin
+ LoadImagePngMem := False;
+ Slot     := 0;
+ OK       := False;
+ IDatBuf  := Nil; IDatCap := 0; IDatLen := 0;
+ RawBuf   := Nil; RawSize := 0;
+ PltCount := 0;
+ If InSize < 16 Then Exit;
+ Src := PByteArr(InBuf);
+ { Signature 137,80,78,71,13,10,26,10 }
+ If (Src^[0] <> 137) Or (Src^[1] <> 80) Or (Src^[2] <> 78) Or
+    (Src^[3] <> 71)  Or (Src^[4] <> 13) Or (Src^[5] <> 10) Or
+    (Src^[6] <> 26)  Or (Src^[7] <> 10) Then Exit;
+ Pos := 8;
+ PngW := 0; PngH := 0; BitDepth := 0; ColorType := 0; Interlace := 0;
+
+ { ---- Parcours des chunks ---- }
+ While Pos + 8 <= InSize Do Begin
+  ChunkLen := ReadBE32At(Pos); Inc(Pos, 4);
+  If (ChunkLen < 0) Or (ChunkLen > InSize) Then Goto LDone;
+  If Pos + 4 + ChunkLen + 4 > InSize Then Goto LDone;
+  ChunkType := Char(Src^[Pos]) + Char(Src^[Pos + 1]) +
+               Char(Src^[Pos + 2]) + Char(Src^[Pos + 3]);
+  Inc(Pos, 4);
+  If ChunkType = 'IHDR' Then Begin
+   If ChunkLen < 13 Then Goto LDone;
+   PngW      := ReadBE32At(Pos);
+   PngH      := ReadBE32At(Pos + 4);
+   BitDepth  := Src^[Pos + 8];
+   ColorType := Src^[Pos + 9];
+   Interlace := Src^[Pos + 12];
+  End Else If ChunkType = 'PLTE' Then Begin
+   PltCount := ChunkLen Div 3;
+   If PltCount > 256 Then PltCount := 256;
+   For I := 0 To PltCount - 1 Do Begin
+    Plt[I].R := Src^[Pos + I * 3];
+    Plt[I].G := Src^[Pos + I * 3 + 1];
+    Plt[I].B := Src^[Pos + I * 3 + 2];
+   End;
+  End Else If ChunkType = 'IDAT' Then Begin
+   { Re-grow buffer si necessaire }
+   If IDatLen + ChunkLen > IDatCap Then Begin
+    OldCap := IDatCap;
+    If IDatCap = 0 Then IDatCap := 16384;
+    While IDatCap < IDatLen + ChunkLen Do IDatCap := IDatCap * 2;
+    If IDatCap > LongInt(4) * 1024 * 1024 Then Goto LDone;
+    GetMem(NewBuf, IDatCap);
+    If NewBuf = Nil Then Goto LDone;
+    If (IDatBuf <> Nil) And (IDatLen > 0) Then
+     Move(IDatBuf^[0], NewBuf^[0], IDatLen);
+    If IDatBuf <> Nil Then FreeMem(IDatBuf, OldCap);
+    IDatBuf := NewBuf;
+   End;
+   If ChunkLen > 0 Then
+    Move(Src^[Pos], IDatBuf^[IDatLen], ChunkLen);
+   Inc(IDatLen, ChunkLen);
+  End Else If ChunkType = 'IEND' Then Begin
+   Inc(Pos, ChunkLen + 4);
+   Break;
+  End;
+  Inc(Pos, ChunkLen + 4);   { saute donnees + CRC }
+ End;
+
+ If (PngW <= 0) Or (PngH <= 0) Then Goto LDone;
+ If Interlace <> 0 Then Goto LDone;
+ If IDatLen < 6 Then Goto LDone;
+ { Limites raisonnables pour eviter d'epuiser la heap }
+ If (PngW > 2048) Or (PngH > 2048) Then Goto LDone;
+ If LongInt(PngW) * PngH > 200000 Then Goto LDone;   { borne TImagePixels }
+
+ { Channels selon ColorType }
+ Case ColorType Of
+  0: Channels := 1;
+  2: Channels := 3;
+  3: Channels := 1;
+  4: Channels := 2;
+  6: Channels := 4;
+ Else Goto LDone;
+ End;
+ { Restriction BitDepth }
+ If (ColorType = 2) Or (ColorType = 4) Or (ColorType = 6) Then
+  If BitDepth <> 8 Then Goto LDone;
+ If (ColorType = 0) Then
+  If (BitDepth <> 1) And (BitDepth <> 2) And (BitDepth <> 4) And (BitDepth <> 8) Then Goto LDone;
+ If (ColorType = 3) Then Begin
+  If (BitDepth <> 1) And (BitDepth <> 2) And (BitDepth <> 4) And (BitDepth <> 8) Then Goto LDone;
+  If PltCount = 0 Then Goto LDone;
+ End;
+
+ BytesPerPixel := (Channels * BitDepth + 7) Div 8;
+ If BytesPerPixel < 1 Then BytesPerPixel := 1;
+ RowBytes := (LongInt(PngW) * Channels * BitDepth + 7) Div 8;
+ RawSize  := (RowBytes + 1) * PngH;
+ If RawSize > LongInt(4) * 1024 * 1024 Then Goto LDone;
+
+ { ---- Decompression zlib : sauter 2 octets d'en-tete ---- }
+ GetMem(RawBuf, RawSize);
+ If RawBuf = Nil Then Goto LDone;
+ DeflPtr := @IDatBuf^[2];
+ If Not Inflate(DeflPtr, IDatLen - 2, RawBuf, RawSize) Then Goto LDone;
+
+ { ---- Defiltrage ligne par ligne ---- }
+ For Y := 0 To PngH - 1 Do Begin
+  LineOff     := LongInt(Y) * (RowBytes + 1);
+  PrevLineOff := LineOff - (RowBytes + 1);
+  Filter      := RawBuf^[LineOff];
+  Case Filter Of
+   0: ;
+   1: Begin { Sub }
+    For I := BytesPerPixel To RowBytes - 1 Do
+     RawBuf^[LineOff + 1 + I] :=
+      Byte((LongInt(RawBuf^[LineOff + 1 + I]) +
+            LongInt(RawBuf^[LineOff + 1 + I - BytesPerPixel])) And 255);
+   End;
+   2: Begin { Up }
+    If Y > 0 Then
+     For I := 0 To RowBytes - 1 Do
+      RawBuf^[LineOff + 1 + I] :=
+       Byte((LongInt(RawBuf^[LineOff + 1 + I]) +
+             LongInt(RawBuf^[PrevLineOff + 1 + I])) And 255);
+   End;
+   3: Begin { Average }
+    For I := 0 To RowBytes - 1 Do Begin
+     If I >= BytesPerPixel Then A := RawBuf^[LineOff + 1 + I - BytesPerPixel] Else A := 0;
+     If Y > 0 Then BB := RawBuf^[PrevLineOff + 1 + I] Else BB := 0;
+     RawBuf^[LineOff + 1 + I] :=
+      Byte((LongInt(RawBuf^[LineOff + 1 + I]) + (A + BB) Div 2) And 255);
+    End;
+   End;
+   4: Begin { Paeth }
+    For I := 0 To RowBytes - 1 Do Begin
+     If I >= BytesPerPixel Then A := RawBuf^[LineOff + 1 + I - BytesPerPixel] Else A := 0;
+     If Y > 0 Then BB := RawBuf^[PrevLineOff + 1 + I] Else BB := 0;
+     If (Y > 0) And (I >= BytesPerPixel) Then
+      CC := RawBuf^[PrevLineOff + 1 + I - BytesPerPixel]
+     Else CC := 0;
+     Paeth := A + BB - CC;
+     Pa := Paeth - A;  If Pa < 0 Then Pa := -Pa;
+     Pb := Paeth - BB; If Pb < 0 Then Pb := -Pb;
+     Pc := Paeth - CC; If Pc < 0 Then Pc := -Pc;
+     If (Pa <= Pb) And (Pa <= Pc) Then Paeth := A
+     Else If Pb <= Pc                Then Paeth := BB
+     Else                                  Paeth := CC;
+     RawBuf^[LineOff + 1 + I] :=
+      Byte((LongInt(RawBuf^[LineOff + 1 + I]) + Paeth) And 255);
+    End;
+   End;
+  Else Goto LDone;
+  End;
+ End;
+
+ { ---- Allocation du slot image + conversion EGA ---- }
+ OutSlot := AllocImageSlot(Integer(PngW), Integer(PngH), Nm);
+ If OutSlot = 0 Then Goto LDone;
+ Img := Pres.Images[OutSlot];
+
+ PxIdx := 0;
+ For Y := 0 To PngH - 1 Do Begin
+  LineOff := LongInt(Y) * (RowBytes + 1) + 1;
+  For X := 0 To PngW - 1 Do Begin
+   Case ColorType Of
+    0: Begin { Gris }
+     If BitDepth = 8 Then BB := RawBuf^[LineOff + X]
+     Else If BitDepth = 4 Then
+      BB := (RawBuf^[LineOff + X Div 2] Shr ((1 - (X And 1)) * 4)) And $F
+     Else If BitDepth = 2 Then
+      BB := (RawBuf^[LineOff + X Div 4] Shr ((3 - (X And 3)) * 2)) And $3
+     Else { 1 }
+      BB := (RawBuf^[LineOff + X Div 8] Shr (7 - (X And 7))) And $1;
+     Case BitDepth Of
+      1: BB := BB * 255;
+      2: BB := BB * 85;
+      4: BB := BB * 17;
+     End;
+     R := BB; G := BB; B := BB;
+    End;
+    2: Begin { RGB 8 }
+     R := RawBuf^[LineOff + X * 3];
+     G := RawBuf^[LineOff + X * 3 + 1];
+     B := RawBuf^[LineOff + X * 3 + 2];
+    End;
+    3: Begin { Paletted }
+     If BitDepth = 8 Then PalI := RawBuf^[LineOff + X]
+     Else If BitDepth = 4 Then
+      PalI := (RawBuf^[LineOff + X Div 2] Shr ((1 - (X And 1)) * 4)) And $F
+     Else If BitDepth = 2 Then
+      PalI := (RawBuf^[LineOff + X Div 4] Shr ((3 - (X And 3)) * 2)) And $3
+     Else
+      PalI := (RawBuf^[LineOff + X Div 8] Shr (7 - (X And 7))) And $1;
+     If (PalI < 0) Or (PalI >= PltCount) Then PalI := 0;
+     R := Plt[PalI].R; G := Plt[PalI].G; B := Plt[PalI].B;
+    End;
+    4: Begin { Gris + alpha }
+     BB := RawBuf^[LineOff + X * 2];
+     R := BB; G := BB; B := BB;
+    End;
+    6: Begin { RGBA }
+     R := RawBuf^[LineOff + X * 4];
+     G := RawBuf^[LineOff + X * 4 + 1];
+     B := RawBuf^[LineOff + X * 4 + 2];
+    End;
+   Else
+    R := 0; G := 0; B := 0;
+   End;
+   Img^.Pixels^[PxIdx] := NearestVGA16(R, G, B);
+   Inc(PxIdx);
+  End;
+ End;
+ Img^.Loaded := True;
+ Slot := OutSlot;
+ OK := True;
+
+LDone:
+ If IDatBuf <> Nil Then FreeMem(IDatBuf, IDatCap);
+ If RawBuf  <> Nil Then FreeMem(RawBuf,  RawSize);
+ LoadImagePngMem := OK;
+End;
+
+{ ====================================================================== }
+{                       DECODEUR JPEG BASELINE (Etape 5C)                }
+{ ----------------------------------------------------------------------
+   Supporte :
+   - SOI/EOI, APPn/COM (sautes), DQT (8-bit/16-bit), DHT, SOF0, SOS, DRI
+   - Composantes 1 (gris) ou 3 (YCbCr), subsampling arbitraire (Hi,Vi)
+   - Restart markers RST0..RST7 (reset DC + bit buffer)
+   - IDCT 2-passes flottant (Single)
+   - Byte stuffing FF 00 dans le bitstream
+   Pas supporte :
+   - Progressive (SOF2), arithmetique, 12-bit, hierarchique
+   - Color profiles, EXIF (ignores)
+}
+
+Function LoadImageJpegMem(InBuf: Pointer; InSize: LongInt;
+                          Const Nm: String; Var Slot: Integer): Boolean;
+Type
+ TJByteArr = Array[0..1024*1024*16 - 1] Of Byte;
+ PJByteArr = ^TJByteArr;
+ TBitsCnt  = Array[0..15] Of Byte;
+ THuff = Record
+  MinCode : Array[1..17] Of LongInt;
+  MaxCode : Array[1..17] Of LongInt;
+  ValOff  : Array[1..17] Of Integer;
+  Vals    : Array[0..255] Of Byte;
+  Valid   : Boolean;
+ End;
+ TJComp = Record
+  Id, H, V, Tq, Td, Ta : Integer;
+  PlaneW, PlaneH       : LongInt;
+  Plane                : PJByteArr;
+  PrevDc               : LongInt;
+ End;
+Const
+ JZigzag : Array[0..63] Of Byte =
+ ( 0, 1, 8,16, 9, 2, 3,10,
+  17,24,32,25,18,11, 4, 5,
+  12,19,26,33,40,48,41,34,
+  27,20,13, 6, 7,14,21,28,
+  35,42,49,56,57,50,43,36,
+  29,22,15,23,30,37,44,51,
+  58,59,52,45,38,31,39,46,
+  53,60,61,54,47,55,62,63);
+Label LDoneJ;
+Var Src: PJByteArr;
+    JPos: LongInt;
+    PicW, PicH: Integer;
+    NumComp: Integer;
+    QTbl: Array[0..3] Of Record
+     Have: Boolean; Q: Array[0..63] Of Integer;
+    End;
+    HT   : Array[0..1, 0..3] Of THuff;
+    Comp : Array[0..3] Of TJComp;
+    Hmax, Vmax: Integer;
+    NumMcuX, NumMcuY: Integer;
+    BitBuf: LongInt; BitCnt: Integer;
+    EntPos, EntEnd: LongInt;
+    Marker: Integer;
+    Block: Array[0..63] Of LongInt;
+    Tmp64: Array[0..63] Of Single;
+    Pixels: Array[0..63] Of LongInt;
+    IdctCos: Array[0..7, 0..7] Of Single;
+    DecodeOK: Boolean;
+    RestartInterval: Integer;
+    McuCount: LongInt;
+    OK: Boolean;
+    i, j, x, y, mx, my, bx, by: Integer;
+    SegLen: Integer;
+    OutSlot: Integer;
+    Img: PImage;
+    RR, GG, BB: Integer;
+    YV, Cb, Cr: Integer;
+    cxc, cyc: Integer;
+    PxIdx: LongInt;
+    L, K, Total: Integer;
+    HCnt: TBitsCnt;
+
+ Function GetByte: Integer;
+ Begin
+  If JPos >= InSize Then Begin GetByte := -1; Exit; End;
+  GetByte := Src^[JPos]; Inc(JPos);
+ End;
+
+ Function GetWord: Integer;
+ Var Hi, Lo: Integer;
+ Begin
+  Hi := GetByte; Lo := GetByte;
+  If (Hi < 0) Or (Lo < 0) Then GetWord := -1
+  Else GetWord := Hi * 256 + Lo;
+ End;
+
+ Procedure InitIdct;
+ Var iu, ix: Integer;
+ Begin
+  For iu := 0 To 7 Do
+   For ix := 0 To 7 Do
+    If iu = 0 Then
+     IdctCos[iu, ix] := 0.70710678 * Cos(((2*ix + 1) * iu * Pi) / 16.0)
+    Else
+     IdctCos[iu, ix] := Cos(((2*ix + 1) * iu * Pi) / 16.0);
+ End;
+
+ Procedure BuildHuff(Var H: THuff; Const Cnt: TBitsCnt);
+ Var Code: LongInt; Si, K2, P, LL: Integer;
+     HuffSize: Array[0..256] Of Integer;
+ Begin
+  P := 0;
+  For Si := 1 To 16 Do
+   For K2 := 1 To Cnt[Si - 1] Do Begin
+    HuffSize[P] := Si; Inc(P);
+   End;
+  HuffSize[P] := 0;
+  For LL := 1 To 17 Do Begin
+   H.MinCode[LL] := -1; H.MaxCode[LL] := -1; H.ValOff[LL] := 0;
+  End;
+  Code := 0;
+  If P = 0 Then Begin H.Valid := True; Exit; End;
+  Si := HuffSize[0];
+  K2 := 0;
+  While HuffSize[K2] <> 0 Do Begin
+   While HuffSize[K2] = Si Do Begin
+    If H.MinCode[Si] = -1 Then Begin
+     H.MinCode[Si] := Code;
+     H.ValOff[Si]  := K2;
+    End;
+    H.MaxCode[Si] := Code;
+    Inc(Code); Inc(K2);
+   End;
+   If HuffSize[K2] = 0 Then Break;
+   Code := Code Shl (HuffSize[K2] - Si);
+   Si   := HuffSize[K2];
+  End;
+  H.Valid := True;
+ End;
+
+ Function GetBit: Integer;
+ Var b, b2: Integer;
+ Begin
+  If BitCnt = 0 Then Begin
+   If EntPos >= EntEnd Then Begin GetBit := -1; Exit; End;
+   b := Src^[EntPos]; Inc(EntPos);
+   If b = $FF Then Begin
+    If EntPos >= EntEnd Then Begin GetBit := -1; Exit; End;
+    b2 := Src^[EntPos]; Inc(EntPos);
+    If b2 <> $00 Then Begin
+     Dec(EntPos, 2);
+     Marker := b2;
+     GetBit := -1; Exit;
+    End;
+   End;
+   BitBuf := b; BitCnt := 8;
+  End;
+  GetBit := (BitBuf Shr 7) And 1;
+  BitBuf := (BitBuf Shl 1) And $FF;
+  Dec(BitCnt);
+ End;
+
+ Function GetBitsN(N: Integer): LongInt;
+ Var R: LongInt; ii: Integer; b1: Integer;
+ Begin
+  R := 0;
+  For ii := 1 To N Do Begin
+   b1 := GetBit;
+   If b1 < 0 Then Begin DecodeOK := False; GetBitsN := 0; Exit; End;
+   R := (R Shl 1) Or b1;
+  End;
+  GetBitsN := R;
+ End;
+
+ Function HuffDecode(Var H: THuff): Integer;
+ Var Code: LongInt; LL: Integer; b1: Integer;
+ Begin
+  HuffDecode := -1;
+  b1 := GetBit; If b1 < 0 Then Begin DecodeOK := False; Exit; End;
+  Code := b1;
+  For LL := 1 To 16 Do Begin
+   If (H.MaxCode[LL] >= 0) And (Code <= H.MaxCode[LL]) Then Begin
+    HuffDecode := H.Vals[H.ValOff[LL] + (Code - H.MinCode[LL])];
+    Exit;
+   End;
+   b1 := GetBit; If b1 < 0 Then Begin DecodeOK := False; Exit; End;
+   Code := (Code Shl 1) Or b1;
+  End;
+  DecodeOK := False;
+ End;
+
+ Function Extend(V: LongInt; T: Integer): LongInt;
+ Var Vt: LongInt;
+ Begin
+  If T = 0 Then Begin Extend := 0; Exit; End;
+  Vt := LongInt(1) Shl (T - 1);
+  If V < Vt Then Extend := V + (LongInt(-1) Shl T) + 1
+  Else            Extend := V;
+ End;
+
+ Procedure Idct8x8;
+ Var iu, iv, ix, iy: Integer; ss: Single;
+ Begin
+  For iv := 0 To 7 Do
+   For ix := 0 To 7 Do Begin
+    ss := 0.0;
+    For iu := 0 To 7 Do ss := ss + IdctCos[iu, ix] * Block[iv*8 + iu];
+    Tmp64[iv*8 + ix] := ss;
+   End;
+  For ix := 0 To 7 Do
+   For iy := 0 To 7 Do Begin
+    ss := 0.0;
+    For iv := 0 To 7 Do ss := ss + IdctCos[iv, iy] * Tmp64[iv*8 + ix];
+    Pixels[iy*8 + ix] := Round(ss / 4.0);
+   End;
+ End;
+
+ Function DecodeBlock(CompIdx: Integer): Boolean;
+ Var T, RS, Ss4, Rr4, KK: Integer; Diff, V2: LongInt; ii: Integer;
+ Begin
+  DecodeBlock := False;
+  For ii := 0 To 63 Do Block[ii] := 0;
+  T := HuffDecode(HT[0, Comp[CompIdx].Td]);
+  If T < 0 Then Exit;
+  Diff := Extend(GetBitsN(T), T);
+  If Not DecodeOK Then Exit;
+  Block[0] := Comp[CompIdx].PrevDc + Diff;
+  Comp[CompIdx].PrevDc := Block[0];
+  KK := 1;
+  While KK <= 63 Do Begin
+   RS := HuffDecode(HT[1, Comp[CompIdx].Ta]);
+   If RS < 0 Then Exit;
+   Ss4 := RS And $F;
+   Rr4 := RS Shr 4;
+   If Ss4 = 0 Then Begin
+    If Rr4 = 15 Then Begin Inc(KK, 16); Continue; End
+    Else Break;
+   End;
+   Inc(KK, Rr4);
+   If KK > 63 Then Exit;
+   V2 := Extend(GetBitsN(Ss4), Ss4);
+   If Not DecodeOK Then Exit;
+   Block[JZigzag[KK]] := V2;
+   Inc(KK);
+  End;
+  For ii := 0 To 63 Do Block[ii] := Block[ii] * QTbl[Comp[CompIdx].Tq].Q[ii];
+  Idct8x8;
+  For ii := 0 To 63 Do Begin
+   V2 := Pixels[ii] + 128;
+   If V2 < 0 Then V2 := 0 Else If V2 > 255 Then V2 := 255;
+   Pixels[ii] := V2;
+  End;
+  DecodeBlock := True;
+ End;
+
+ Procedure WriteBlockToPlane(CompIdx, BlockX, BlockY: Integer);
+ Var iy, ix: Integer; Off: LongInt;
+ Begin
+  For iy := 0 To 7 Do Begin
+   Off := LongInt(BlockY * 8 + iy) * Comp[CompIdx].PlaneW + BlockX * 8;
+   If Off + 8 > Comp[CompIdx].PlaneW * Comp[CompIdx].PlaneH Then Exit;
+   For ix := 0 To 7 Do
+    Comp[CompIdx].Plane^[Off + ix] := Byte(Pixels[iy*8 + ix]);
+  End;
+ End;
+
+Begin
+ LoadImageJpegMem := False;
+ Slot := 0;
+ OK := False;
+ DecodeOK := True;
+ RestartInterval := 0;
+ McuCount := 0;
+ BitBuf := 0; BitCnt := 0;
+ For i := 0 To 3 Do Begin
+  QTbl[i].Have := False;
+  Comp[i].Plane := Nil;
+  Comp[i].PlaneW := 0; Comp[i].PlaneH := 0;
+  Comp[i].PrevDc := 0;
+  HT[0, i].Valid := False;
+  HT[1, i].Valid := False;
+ End;
+ If InSize < 4 Then Exit;
+ Src := PJByteArr(InBuf);
+ If (Src^[0] <> $FF) Or (Src^[1] <> $D8) Then Exit;
+ JPos := 2; PicW := 0; PicH := 0; NumComp := 0; Marker := 0;
+
+ InitIdct;
+
+ { ---- Parcours des markers jusqu'a SOS ---- }
+ While JPos + 1 < InSize Do Begin
+  If Src^[JPos] <> $FF Then Begin Inc(JPos); Continue; End;
+  While (JPos < InSize) And (Src^[JPos] = $FF) Do Inc(JPos);
+  If JPos >= InSize Then Goto LDoneJ;
+  Marker := Src^[JPos]; Inc(JPos);
+  If Marker = $D9 Then Goto LDoneJ;
+  If Marker = $00 Then Continue;
+  If Marker = $DB Then Begin                           { DQT }
+   SegLen := GetWord; If SegLen < 2 Then Goto LDoneJ;
+   SegLen := SegLen - 2;
+   While SegLen > 0 Do Begin
+    i := GetByte; If i < 0 Then Goto LDoneJ;
+    Dec(SegLen);
+    L := i And $F;
+    j := i Shr 4;
+    If (L > 3) Or (j > 1) Then Goto LDoneJ;
+    If j = 0 Then Begin
+     If SegLen < 64 Then Goto LDoneJ;
+     For i := 0 To 63 Do
+      QTbl[L].Q[JZigzag[i]] := Src^[JPos + i];
+     Inc(JPos, 64); Dec(SegLen, 64);
+    End Else Begin
+     If SegLen < 128 Then Goto LDoneJ;
+     For i := 0 To 63 Do
+      QTbl[L].Q[JZigzag[i]] := Src^[JPos + i*2] * 256 + Src^[JPos + i*2 + 1];
+     Inc(JPos, 128); Dec(SegLen, 128);
+    End;
+    QTbl[L].Have := True;
+   End;
+   Continue;
+  End;
+  If Marker = $C4 Then Begin                           { DHT }
+   SegLen := GetWord; If SegLen < 2 Then Goto LDoneJ;
+   SegLen := SegLen - 2;
+   While SegLen > 17 Do Begin
+    i := GetByte; If i < 0 Then Goto LDoneJ;
+    Dec(SegLen);
+    L := i And $F;
+    j := i Shr 4;
+    If (L > 3) Or (j > 1) Then Goto LDoneJ;
+    Total := 0;
+    For K := 0 To 15 Do Begin
+     HCnt[K] := Src^[JPos + K]; Inc(Total, HCnt[K]);
+    End;
+    Inc(JPos, 16); Dec(SegLen, 16);
+    If (Total > 256) Or (SegLen < Total) Then Goto LDoneJ;
+    For K := 0 To Total - 1 Do HT[j, L].Vals[K] := Src^[JPos + K];
+    Inc(JPos, Total); Dec(SegLen, Total);
+    BuildHuff(HT[j, L], HCnt);
+   End;
+   Continue;
+  End;
+  If Marker = $C0 Then Begin                           { SOF0 baseline }
+   SegLen := GetWord; If SegLen < 8 Then Goto LDoneJ;
+   i := GetByte;
+   If i <> 8 Then Goto LDoneJ;
+   PicH := GetWord;
+   PicW := GetWord;
+   NumComp := GetByte;
+   If (NumComp <> 1) And (NumComp <> 3) Then Goto LDoneJ;
+   For i := 1 To NumComp Do Begin
+    Comp[i].Id := GetByte;
+    j := GetByte;
+    Comp[i].H  := j Shr 4;
+    Comp[i].V  := j And $F;
+    Comp[i].Tq := GetByte;
+    If (Comp[i].H < 1) Or (Comp[i].H > 4) Or
+       (Comp[i].V < 1) Or (Comp[i].V > 4) Then Goto LDoneJ;
+   End;
+   Continue;
+  End;
+  If (Marker = $C1) Or (Marker = $C2) Or (Marker = $C3) Or
+     ((Marker >= $C5) And (Marker <= $CF) And (Marker <> $C8)) Then Begin
+   { Autres modes DCT (extended, progressive, lossless, hierarchique) -> non supporte }
+   Goto LDoneJ;
+  End;
+  If Marker = $DD Then Begin                           { DRI }
+   SegLen := GetWord; If SegLen <> 4 Then Goto LDoneJ;
+   RestartInterval := GetWord;
+   Continue;
+  End;
+  If Marker = $DA Then Begin                           { SOS }
+   SegLen := GetWord; If SegLen < 6 Then Goto LDoneJ;
+   i := GetByte;
+   If i <> NumComp Then Goto LDoneJ;
+   For i := 1 To NumComp Do Begin
+    j := GetByte;
+    If j <> Comp[i].Id Then Goto LDoneJ;
+    L := GetByte;
+    Comp[i].Td := L Shr 4;
+    Comp[i].Ta := L And $F;
+   End;
+   GetByte; GetByte; GetByte;
+   Break;
+  End;
+  If (Marker >= $D0) And (Marker <= $D7) Then Continue;
+  If Marker = $01 Then Continue;
+  { Autres markers (APPn, COM, ...) : segment avec longueur }
+  SegLen := GetWord;
+  If SegLen < 2 Then Goto LDoneJ;
+  Inc(JPos, SegLen - 2);
+ End;
+
+ { ---- Validations ---- }
+ If (PicW <= 0) Or (PicH <= 0) Then Goto LDoneJ;
+ If (PicW > 1600) Or (PicH > 1200) Then Goto LDoneJ;
+ If LongInt(PicW) * PicH > 200000 Then Goto LDoneJ;
+ Hmax := 0; Vmax := 0;
+ For i := 1 To NumComp Do Begin
+  If Comp[i].H > Hmax Then Hmax := Comp[i].H;
+  If Comp[i].V > Vmax Then Vmax := Comp[i].V;
+ End;
+ If (Hmax = 0) Or (Vmax = 0) Then Goto LDoneJ;
+ NumMcuX := (PicW + Hmax * 8 - 1) Div (Hmax * 8);
+ NumMcuY := (PicH + Vmax * 8 - 1) Div (Vmax * 8);
+ For i := 1 To NumComp Do Begin
+  Comp[i].PlaneW := LongInt(NumMcuX) * Comp[i].H * 8;
+  Comp[i].PlaneH := LongInt(NumMcuY) * Comp[i].V * 8;
+  If Comp[i].PlaneW * Comp[i].PlaneH > LongInt(2) * 1024 * 1024 Then Goto LDoneJ;
+  GetMem(Comp[i].Plane, Comp[i].PlaneW * Comp[i].PlaneH);
+  If Comp[i].Plane = Nil Then Goto LDoneJ;
+  Comp[i].PrevDc := 0;
+ End;
+
+ { ---- Decode du scan ---- }
+ BitBuf := 0; BitCnt := 0;
+ EntPos := JPos; EntEnd := InSize;
+ McuCount := 0;
+ For my := 0 To NumMcuY - 1 Do
+  For mx := 0 To NumMcuX - 1 Do Begin
+   For i := 1 To NumComp Do
+    For by := 0 To Comp[i].V - 1 Do
+     For bx := 0 To Comp[i].H - 1 Do Begin
+      If Not DecodeBlock(i) Then Goto LDoneJ;
+      WriteBlockToPlane(i, mx * Comp[i].H + bx, my * Comp[i].V + by);
+     End;
+   Inc(McuCount);
+   If (RestartInterval > 0) And ((McuCount Mod RestartInterval) = 0) And
+      Not ((mx = NumMcuX - 1) And (my = NumMcuY - 1)) Then Begin
+    BitCnt := 0; BitBuf := 0;
+    If (EntPos + 1 < EntEnd) And (Src^[EntPos] = $FF) And
+       (Src^[EntPos + 1] >= $D0) And (Src^[EntPos + 1] <= $D7) Then
+     Inc(EntPos, 2);
+    For i := 1 To NumComp Do Comp[i].PrevDc := 0;
+   End;
+  End;
+
+ { ---- YCbCr -> RGB -> EGA ---- }
+ OutSlot := AllocImageSlot(PicW, PicH, Nm);
+ If OutSlot = 0 Then Goto LDoneJ;
+ Img := Pres.Images[OutSlot];
+ PxIdx := 0;
+ For y := 0 To PicH - 1 Do
+  For x := 0 To PicW - 1 Do Begin
+   YV := Comp[1].Plane^[LongInt(y) * Comp[1].PlaneW + x];
+   If NumComp = 3 Then Begin
+    cxc := (x * Comp[2].H) Div Hmax;
+    cyc := (y * Comp[2].V) Div Vmax;
+    Cb  := Comp[2].Plane^[LongInt(cyc) * Comp[2].PlaneW + cxc];
+    cxc := (x * Comp[3].H) Div Hmax;
+    cyc := (y * Comp[3].V) Div Vmax;
+    Cr  := Comp[3].Plane^[LongInt(cyc) * Comp[3].PlaneW + cxc];
+    RR := YV + ((1402 * (Cr - 128)) Div 1000);
+    GG := YV - ((344 * (Cb - 128) + 714 * (Cr - 128)) Div 1000);
+    BB := YV + ((1772 * (Cb - 128)) Div 1000);
+    If RR < 0 Then RR := 0 Else If RR > 255 Then RR := 255;
+    If GG < 0 Then GG := 0 Else If GG > 255 Then GG := 255;
+    If BB < 0 Then BB := 0 Else If BB > 255 Then BB := 255;
+   End Else Begin
+    RR := YV; GG := YV; BB := YV;
+   End;
+   Img^.Pixels^[PxIdx] := NearestVGA16(RR, GG, BB);
+   Inc(PxIdx);
+  End;
+ Img^.Loaded := True;
+ Slot := OutSlot;
+ OK := True;
+
+LDoneJ:
+ For i := 1 To 3 Do
+  If Comp[i].Plane <> Nil Then
+   FreeMem(Comp[i].Plane, Comp[i].PlaneW * Comp[i].PlaneH);
+ LoadImageJpegMem := OK;
+End;
+
 { ----- Lecteur .PPTX (STORED + DEFLATE) ---------------------------------- }
 { On scrute les Local File Headers en sequence, on extrait <a:t>...</a:t>   }
 { depuis les fichiers ppt/slides/slide*.xml.                                }
@@ -6362,7 +7110,12 @@ End;
 Function LoadPPTX(Const FN: String): Boolean;
 Const MAX_PPTX_SLIDES  = 256;
       MAX_PPTX_LAYOUTS = 64;
+      MAX_PPTX_MEDIA   = 80;
+      MAX_PPTX_RELS    = 32;
       EOCD_SCAN_MAX    = 65557;
+      IMG_FMT_OTHER    = 0;
+      IMG_FMT_PNG      = 1;
+      IMG_FMT_JPEG     = 2;
 Type
  TSlideEnt = Record
   LfhOff   : LongInt;
@@ -6376,6 +7129,24 @@ Type
   CSize  : LongInt;
   USize  : LongInt;
   Mth    : Word;
+ End;
+ TMediaEnt = Record
+  LfhOff : LongInt;
+  CSize  : LongInt;
+  USize  : LongInt;
+  Mth    : Word;
+  FName  : String[24];     { p.ex. "image50.jpeg" }
+  Format : Byte;           { IMG_FMT_PNG/JPEG/OTHER }
+ End;
+ TSlideRelEnt = Record
+  LfhOff : LongInt;
+  CSize  : LongInt;
+  USize  : LongInt;
+  Mth    : Word;
+ End;
+ TSlideRelMap = Record
+  RId      : String[8];     { p.ex. "rId5" }
+  MediaIdx : Integer;       { index dans MediaEnts ou 0 }
  End;
  TPhDefault = Record
   HasColor : Boolean; Color    : Byte;
@@ -6419,6 +7190,13 @@ Var F: File;
     LayoutCnt: Integer;
     PhDefaults: Array[1..4] Of TPhDefault;
     LI: Integer;
+    MediaEnts: Array[1..MAX_PPTX_MEDIA] Of TMediaEnt;
+    MediaCnt: Integer;
+    SlideRelsEnts: Array[1..MAX_PPTX_SLIDES] Of TSlideRelEnt;
+    HasSlideRels : Array[1..MAX_PPTX_SLIDES] Of Boolean;
+    CurSlideRels: Array[1..MAX_PPTX_RELS] Of TSlideRelMap;
+    CurSlideRelsCnt: Integer;
+    MediaSlots: Array[1..MAX_PPTX_MEDIA] Of Integer; { 0=non charge, -1=echec, >0=slot }
 
  Function PtrToByteAt(Off: LongInt): Byte;
  Var Ptr: ^Byte;
@@ -6918,10 +7696,141 @@ Var F: File;
    Dispose(Sh);
  End;
 
+ { Cherche l'index media dans MediaEnts par nom de fichier (apres Target=\"../media/X\"). }
+ Function MediaIdxByName(Const Nm: String): Integer;
+ Var K: Integer;
+ Begin
+  MediaIdxByName := 0;
+  For K := 1 To MediaCnt Do
+   If MediaEnts[K].FName = Nm Then Begin MediaIdxByName := K; Exit; End;
+ End;
+
+ { Parse <Relationship Id=\"...\" Target=\"...\"/> dans XmlBuf (rels d'une slide). }
+ Procedure ParseCurSlideRels;
+ Var RPos, REnd, TgtSlash: LongInt;
+     IdAttr, TgtAttr, MediaName: String;
+     K: Integer;
+ Begin
+  CurSlideRelsCnt := 0;
+  RPos := 0;
+  While CurSlideRelsCnt < MAX_PPTX_RELS Do Begin
+   RPos := PptxFindStr(RPos, BufSize, '<Relationship ');
+   If RPos < 0 Then Exit;
+   REnd := PptxFindCharFrom(RPos, BufSize, '>');
+   If REnd < 0 Then Exit;
+   IdAttr  := PptxReadAttr(RPos, 'Id');
+   TgtAttr := PptxReadAttr(RPos, 'Target');
+   { Ne retient que les relations qui pointent vers ../media/ }
+   If (Pos('media/', TgtAttr) > 0) Then Begin
+    TgtSlash := Length(TgtAttr);
+    While (TgtSlash > 0) And (TgtAttr[TgtSlash] <> '/') Do Dec(TgtSlash);
+    MediaName := Copy(TgtAttr, TgtSlash + 1, Length(TgtAttr) - TgtSlash);
+    K := MediaIdxByName(MediaName);
+    If K > 0 Then Begin
+     Inc(CurSlideRelsCnt);
+     CurSlideRels[CurSlideRelsCnt].RId      := Copy(IdAttr, 1, 8);
+     CurSlideRels[CurSlideRelsCnt].MediaIdx := K;
+    End;
+   End;
+   RPos := REnd + 1;
+  End;
+ End;
+
+ { Trouve un MediaIdx pour un rId donne (CurSlideRels). }
+ Function LookupRId(Const RId: String): Integer;
+ Var K: Integer;
+ Begin
+  LookupRId := 0;
+  For K := 1 To CurSlideRelsCnt Do
+   If CurSlideRels[K].RId = RId Then Begin LookupRId := CurSlideRels[K].MediaIdx; Exit; End;
+ End;
+
+ { Charge le fichier media MIdx depuis le ZIP, le decode (PNG pour 5B) et
+   retourne l'index d'image (slot dans Pres.Images) ou 0 si echec. Cache
+   le resultat dans MediaSlots pour eviter de re-decoder. }
+ Function LoadMediaToImage(MIdx: Integer): Integer;
+ Var MBuf, MComp: Pointer;
+     MSig: LongInt;
+     MNL, MEL: Word;
+     MSlot: Integer;
+     MOK:   Boolean;
+ Begin
+  LoadMediaToImage := 0;
+  If (MIdx < 1) Or (MIdx > MediaCnt) Then Exit;
+  If MediaSlots[MIdx] > 0 Then Begin
+   LoadMediaToImage := MediaSlots[MIdx]; Exit;
+  End;
+  If MediaSlots[MIdx] = -1 Then Exit;   { precedemment echoue }
+  If MediaEnts[MIdx].Format = IMG_FMT_OTHER Then Begin
+   MediaSlots[MIdx] := -1; Exit;
+  End;
+  If (MediaEnts[MIdx].Mth <> 0) And (MediaEnts[MIdx].Mth <> 8) Then Begin
+   MediaSlots[MIdx] := -1; Exit;
+  End;
+  If (MediaEnts[MIdx].USize <= 0) Or
+     (MediaEnts[MIdx].USize > LongInt(4) * 1024 * 1024) Then Begin
+   MediaSlots[MIdx] := -1; Exit;
+  End;
+  If (MediaEnts[MIdx].LfhOff <= 0) Or
+     (MediaEnts[MIdx].LfhOff >= FSize) Then Begin
+   MediaSlots[MIdx] := -1; Exit;
+  End;
+
+  Seek(F, MediaEnts[MIdx].LfhOff);
+  MSig := RdL(F);
+  If MSig <> ZIP_LFH_SIG Then Begin MediaSlots[MIdx] := -1; Exit; End;
+  RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);
+  RdL(F); RdL(F); RdL(F);
+  MNL := RdW(F); MEL := RdW(F);
+  Seek(F, FilePos(F) + MNL + MEL);
+
+  GetMem(MBuf, MediaEnts[MIdx].USize);
+  If MBuf = Nil Then Begin MediaSlots[MIdx] := -1; Exit; End;
+
+  If MediaEnts[MIdx].Mth = 0 Then Begin
+   BlockRead(F, MBuf^, MediaEnts[MIdx].USize);
+  End Else Begin
+   GetMem(MComp, MediaEnts[MIdx].CSize);
+   If MComp = Nil Then Begin
+    FreeMem(MBuf, MediaEnts[MIdx].USize);
+    MediaSlots[MIdx] := -1; Exit;
+   End;
+   If MediaEnts[MIdx].CSize > 0 Then
+    BlockRead(F, MComp^, MediaEnts[MIdx].CSize);
+   If Not Inflate(MComp, MediaEnts[MIdx].CSize, MBuf, MediaEnts[MIdx].USize) Then Begin
+    FreeMem(MComp, MediaEnts[MIdx].CSize);
+    FreeMem(MBuf,  MediaEnts[MIdx].USize);
+    MediaSlots[MIdx] := -1; Exit;
+   End;
+   FreeMem(MComp, MediaEnts[MIdx].CSize);
+  End;
+
+  MSlot := 0;
+  MOK   := False;
+  If MediaEnts[MIdx].Format = IMG_FMT_PNG Then
+   MOK := LoadImagePngMem(MBuf, MediaEnts[MIdx].USize, MediaEnts[MIdx].FName, MSlot)
+  Else If MediaEnts[MIdx].Format = IMG_FMT_JPEG Then
+   MOK := LoadImageJpegMem(MBuf, MediaEnts[MIdx].USize, MediaEnts[MIdx].FName, MSlot);
+
+  FreeMem(MBuf, MediaEnts[MIdx].USize);
+
+  If MOK And (MSlot > 0) Then Begin
+   MediaSlots[MIdx]  := MSlot;
+   LoadMediaToImage  := MSlot;
+   PptxLog('IMG ok ' + MediaEnts[MIdx].FName + ' -> slot ' + LStr(MSlot)
+           + ' (' + LStr(Pres.Images[MSlot]^.W) + 'x'
+           + LStr(Pres.Images[MSlot]^.H) + ')');
+  End Else Begin
+   MediaSlots[MIdx] := -1;
+   PptxLog('IMG echec ' + MediaEnts[MIdx].FName);
+  End;
+ End;
+
  Procedure ParsePic(PicOpen, PicClose: LongInt; SlPtr: PSlide);
  Var Sh: PShape;
-     XfrmPos, OffPos, ExtPos: LongInt;
-     Attr: String;
+     XfrmPos, OffPos, ExtPos, BlipPos: LongInt;
+     Attr, RIdStr, MediaNm: String;
+     MIdx: Integer;
  Begin
   Sh := NewShape;
   Sh^.ShType   := SHP_IMAGE;
@@ -6954,6 +7863,25 @@ Var F: File;
   If Sh^.Y + Sh^.H > 750  Then Sh^.H := 750  - Sh^.Y;
   If Sh^.W < 4 Then Sh^.W := 4;
   If Sh^.H < 4 Then Sh^.H := 4;
+  { Resolution du r:embed -> MediaEnts (nom de fichier). On stocke le nom
+    dans Sh^.Text[1] pour l'afficher dans le placeholder (Etape 5A). }
+  BlipPos := PptxFindStr(PicOpen, PicClose, '<a:blip');
+  If BlipPos >= 0 Then Begin
+   RIdStr := PptxReadAttr(BlipPos, 'r:embed');
+   If RIdStr = '' Then RIdStr := PptxReadAttr(BlipPos, 'embed');
+   If RIdStr <> '' Then Begin
+    MIdx := LookupRId(RIdStr);
+    If MIdx > 0 Then Begin
+     MediaNm := MediaEnts[MIdx].FName;
+     Sh^.Text[1]    := MediaNm;
+     Sh^.Bullets[1] := False;
+     Sh^.Indent[1]  := 0;
+     Sh^.TxtCount   := 1;
+     { Tente de decoder l'image (cache via MediaSlots) }
+     Sh^.ImageIdx := LoadMediaToImage(MIdx);
+    End;
+   End;
+  End;
   AddShapeToSlide(SlPtr, Sh);
  End;
 
@@ -6997,6 +7925,10 @@ Begin
  ThemeLfhOff := 0; ThemeCs := 0; ThemeUs := 0; ThemeMth := 0;
  For II := 1 To 12 Do ThemeRGB[II] := '';
  LayoutCnt := 0;
+ MediaCnt := 0;
+ For II := 1 To MAX_PPTX_SLIDES Do HasSlideRels[II] := False;
+ CurSlideRelsCnt := 0;
+ For II := 1 To MAX_PPTX_MEDIA Do MediaSlots[II] := 0;
  For LI := 1 To 4 Do Begin
   PhDefaults[LI].HasColor  := False; PhDefaults[LI].Color := CLR_BLACK;
   PhDefaults[LI].HasSize   := False; PhDefaults[LI].Sz    := 0;
@@ -7132,6 +8064,44 @@ Begin
    LayoutEnts[LayoutCnt].CSize  := CSize;
    LayoutEnts[LayoutCnt].USize  := USize;
    LayoutEnts[LayoutCnt].Mth    := Mth;
+  End;
+  { Medias (images embarquees) }
+  If (Pos('ppt/media/', EntName) = 1) And (MediaCnt < MAX_PPTX_MEDIA) Then Begin
+   NameTmp := Copy(EntName, 11, Length(EntName));   { strip "ppt/media/" }
+   Inc(MediaCnt);
+   MediaEnts[MediaCnt].LfhOff := LfhOff;
+   MediaEnts[MediaCnt].CSize  := CSize;
+   MediaEnts[MediaCnt].USize  := USize;
+   MediaEnts[MediaCnt].Mth    := Mth;
+   If Length(NameTmp) > 24 Then NameTmp := Copy(NameTmp, 1, 24);
+   MediaEnts[MediaCnt].FName  := NameTmp;
+   { Detection format par extension }
+   II := Length(NameTmp); While (II > 0) And (NameTmp[II] <> '.') Do Dec(II);
+   If II > 0 Then Begin
+    NumStr := Copy(NameTmp, II + 1, Length(NameTmp) - II);
+    { lower-case }
+    For JJ := 1 To Length(NumStr) Do
+     If (NumStr[JJ] >= 'A') And (NumStr[JJ] <= 'Z') Then
+      NumStr[JJ] := Char(Ord(NumStr[JJ]) + 32);
+    If (NumStr = 'png') Then MediaEnts[MediaCnt].Format := IMG_FMT_PNG
+    Else If (NumStr = 'jpg') Or (NumStr = 'jpeg') Then MediaEnts[MediaCnt].Format := IMG_FMT_JPEG
+    Else MediaEnts[MediaCnt].Format := IMG_FMT_OTHER;
+   End Else MediaEnts[MediaCnt].Format := IMG_FMT_OTHER;
+  End;
+  { Slide rels (ppt/slides/_rels/slideN.xml.rels) }
+  If (Pos('ppt/slides/_rels/slide', EntName) = 1) And
+     (Pos('.xml.rels', EntName) > 0) Then Begin
+   NameTmp := Copy(EntName, 23, Length(EntName));   { strip "ppt/slides/_rels/slide" }
+   II := Pos('.xml.rels', NameTmp);
+   If II > 0 Then NameTmp := Copy(NameTmp, 1, II - 1);
+   Val(NameTmp, SlNum, ValErr);
+   If (ValErr = 0) And (SlNum >= 1) And (SlNum <= MAX_PPTX_SLIDES) Then Begin
+    SlideRelsEnts[SlNum].LfhOff := LfhOff;
+    SlideRelsEnts[SlNum].CSize  := CSize;
+    SlideRelsEnts[SlNum].USize  := USize;
+    SlideRelsEnts[SlNum].Mth    := Mth;
+    HasSlideRels[SlNum] := True;
+   End;
   End;
  End;
 
@@ -7310,6 +8280,44 @@ Begin
   End;
   If (USize <= 0) Or (USize > LongInt(4) * 1024 * 1024) Then Continue;
   If (CSize < 0) Or (LfhOff < 0) Or (LfhOff >= FSize) Then Continue;
+
+  { ---- Lecture des relations de cette slide (rId -> media) ---- }
+  CurSlideRelsCnt := 0;
+  SlNum := SlideEnts[SlideIdx].SlideNum;
+  If (SlNum >= 1) And (SlNum <= MAX_PPTX_SLIDES) And HasSlideRels[SlNum] Then Begin
+   If ((SlideRelsEnts[SlNum].Mth = 0) Or (SlideRelsEnts[SlNum].Mth = 8)) And
+      (SlideRelsEnts[SlNum].USize > 0) And
+      (SlideRelsEnts[SlNum].USize <= LongInt(256) * 1024) And
+      (SlideRelsEnts[SlNum].LfhOff > 0) And
+      (SlideRelsEnts[SlNum].LfhOff < FSize) Then Begin
+    Seek(F, SlideRelsEnts[SlNum].LfhOff);
+    Sig := RdL(F);
+    If Sig = ZIP_LFH_SIG Then Begin
+     RdW(F); RdW(F); RdW(F); RdW(F); RdW(F);
+     RdL(F); RdL(F); RdL(F);
+     NameLen  := RdW(F);
+     ExtraLen := RdW(F);
+     Seek(F, FilePos(F) + NameLen + ExtraLen);
+     GetMem(XmlBuf, SlideRelsEnts[SlNum].USize);
+     BufSize := SlideRelsEnts[SlNum].USize;
+     If SlideRelsEnts[SlNum].Mth = 0 Then Begin
+      BlockRead(F, XmlBuf^, BufSize);
+     End Else Begin
+      GetMem(CompBuf, SlideRelsEnts[SlNum].CSize);
+      If SlideRelsEnts[SlNum].CSize > 0 Then
+       BlockRead(F, CompBuf^, SlideRelsEnts[SlNum].CSize);
+      If Not Inflate(CompBuf, SlideRelsEnts[SlNum].CSize, XmlBuf, BufSize) Then Begin
+       FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+      End;
+      FreeMem(CompBuf, SlideRelsEnts[SlNum].CSize);
+     End;
+     If XmlBuf <> Nil Then Begin
+      ParseCurSlideRels;
+      FreeMem(XmlBuf, BufSize); XmlBuf := Nil; BufSize := 0;
+     End;
+    End;
+   End;
+  End;
 
   Seek(F, LfhOff);
   Sig := RdL(F);
