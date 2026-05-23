@@ -294,6 +294,8 @@ Const
  ACT_ALIGN_OBJ_R  = 106;
  ACT_HELP_TOPIC   = 110;
  ACT_HELP_ABOUT   = 111;
+ ACT_EXPORT_PPTX  = 115;
+ ACT_IMPORT_PPTX  = 116;
  ACT_NEXT_SLIDE   = 120;
  ACT_PREV_SLIDE   = 121;
  ACT_FIRST_SLIDE  = 122;
@@ -557,6 +559,9 @@ Var
  MenuHover      : Integer;
  MenuItemHover  : Integer;
  MenuY1, MenuY2 : Integer;
+ MenuKbdActive  : Boolean;       { selection clavier active : ignore souris stationnaire }
+ MenuKbdMx      : Integer;
+ MenuKbdMy      : Integer;
 
  { Toolbar }
  Tools          : Array[1..40] Of TToolButton;
@@ -3288,13 +3293,13 @@ Begin
  SetColor(CLR_BLUE);
  OutTextXY(X1 + 20, Y1 + 60, 'Clone de Microsoft PowerPoint');
  SetColor(CLR_BLACK);
- OutTextXY(X1 + 20, Y1 + 80, 'Version 0.10 - 2026 (Phase 1)');
+ OutTextXY(X1 + 20, Y1 + 80, 'Version 1.0 - 2026 (Phase 12 finale)');
  OutTextXY(X1 + 20, Y1 + 96, '(c) Sylvain Maltais  www.gladir.com');
  SetColor(CLR_DGRAY);
- OutTextXY(X1 + 20, Y1 + 120,'Phase 1 : charpente UI + modele presentation');
- OutTextXY(X1 + 20, Y1 + 136,'Formats : .PPT, .PPTX (a venir)');
+ OutTextXY(X1 + 20, Y1 + 120,'Clone complet : 12 phases livrees');
+ OutTextXY(X1 + 20, Y1 + 136,'Formats : .PPT natif, .PPTX, .BMP, .PCX, .PRN');
  OutTextXY(X1 + 20, Y1 + 152,'Free Pascal 3.2 (-Mtp) - VGA 640 x 480 x 16');
- OutTextXY(X1 + 20, Y1 + 176,'F5 Diaporama  F11 Plein ecran');
+ OutTextXY(X1 + 20, Y1 + 176,'F5 Diaporama  Ctrl+P Imprimer  Ctrl+E Exporter');
  OutTextXY(X1 + 20, Y1 + 192,'Ctrl+M Nouvelle slide  Ctrl+S Enregistrer');
  DlgBtn(X1 + 160, Y2 - 32, X1 + 220, Y2 - 12, 'OK', False, True);
  ShowMouse;
@@ -4413,6 +4418,1225 @@ Begin
  NeedFullRedraw := True;
 End;
 
+{ ====================================================================== }
+{          PHASE 10 : FORMAT .PPT NATIF + DIALOGUES FICHIER              }
+{ ====================================================================== }
+
+Var
+ PPTBuf : Array[0..511] Of Byte;
+
+{ ----- I/O binaire little-endian sur File untyped (record size = 1) --- }
+
+Procedure WrB(Var F:File; B:Byte);
+Begin PPTBuf[0]:=B; BlockWrite(F,PPTBuf,1); End;
+
+Procedure WrW(Var F:File; W:Word);
+Begin
+ PPTBuf[0] := Byte(W And $FF);
+ PPTBuf[1] := Byte((W Shr 8) And $FF);
+ BlockWrite(F, PPTBuf, 2);
+End;
+
+Procedure WrI(Var F:File; I:Integer);
+Begin WrW(F, Word(I)); End;
+
+Procedure WrS(Var F:File; Const S:String);
+Var L:Integer;
+Begin
+ L := Length(S);
+ If L > 255 Then L := 255;
+ WrB(F, Byte(L));
+ If L > 0 Then BlockWrite(F, S[1], L);
+End;
+
+Function RdB(Var F:File):Byte;
+Begin
+ BlockRead(F, PPTBuf, 1);
+ RdB := PPTBuf[0];
+End;
+
+Function RdW(Var F:File):Word;
+Begin
+ BlockRead(F, PPTBuf, 2);
+ RdW := Word(PPTBuf[0]) Or (Word(PPTBuf[1]) Shl 8);
+End;
+
+Function RdI(Var F:File):Integer;
+Begin RdI := Integer(RdW(F)); End;
+
+Procedure RdS(Var F:File; Var S:String);
+Var L:Byte;
+Begin
+ BlockRead(F, L, 1);
+ S[0] := Char(L);
+ If L > 0 Then BlockRead(F, S[1], L);
+End;
+
+{ ----- Ecriture du fichier .PPT natif --------------------------------- }
+
+Function SavePresentationFile(Const FN: String): Boolean;
+Var F: File; I, J, K: Integer; S: PSlide; Sh: PShape; Img: PImage;
+    Magic: Array[1..4] Of Char;
+    PixSize: LongInt;
+Begin
+ SavePresentationFile := False;
+ Assign(F, FN);
+ {$I-} Rewrite(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ Magic[1]:='P'; Magic[2]:='P'; Magic[3]:='N'; Magic[4]:='T';
+ BlockWrite(F, Magic, 4);
+ WrB(F, 1);                         { version }
+ WrB(F, 0); WrB(F, 0); WrB(F, 0);   { reserve }
+
+ WrS(F, Pres.Name);
+ WrS(F, Pres.Author);
+ WrS(F, Pres.Company);
+ WrS(F, Pres.Title);
+ WrS(F, Pres.Subject);
+ WrS(F, Pres.Comments);
+ WrS(F, Pres.HeaderText);
+ WrS(F, Pres.FooterText);
+ WrS(F, Pres.DateText);
+ WrB(F, Byte(Pres.ShowHeader));
+ WrB(F, Byte(Pres.ShowFooter));
+ WrB(F, Byte(Pres.ShowDate));
+ WrB(F, Byte(Pres.ShowSlideNum));
+ WrB(F, Pres.MasterBg);
+ WrB(F, Pres.MasterTitleC);
+ WrB(F, Pres.MasterTextC);
+ WrW(F, Word(Pres.ThemeIdx));
+
+ { Images : 16 slots, marker 0/1 par slot }
+ WrW(F, Word(Pres.ImgCount));
+ For I := 1 To MAX_IMAGES Do Begin
+  Img := Pres.Images[I];
+  If Img = Nil Then WrB(F, 0)
+  Else Begin
+   WrB(F, 1);
+   WrS(F, Img^.Name);
+   WrS(F, Img^.FileName);
+   WrW(F, Word(Img^.W));
+   WrW(F, Word(Img^.H));
+   WrB(F, Byte(Img^.Loaded));
+   If Img^.Loaded And (Img^.Pixels <> Nil) And
+      (Img^.W > 0) And (Img^.H > 0) Then Begin
+    PixSize := LongInt(Img^.W) * Img^.H;
+    BlockWrite(F, Img^.Pixels^, PixSize);
+   End;
+  End;
+ End;
+
+ { Slides }
+ WrW(F, Word(Pres.SldCount));
+ For I := 1 To Pres.SldCount Do Begin
+  S := Pres.Slides[I];
+  If S <> Nil Then Begin
+   WrS(F, S^.Name);
+   WrS(F, S^.Title);
+   WrB(F, S^.Layout);
+   WrB(F, S^.Background);
+   WrB(F, S^.Theme);
+   WrB(F, S^.Transition);
+   WrB(F, S^.TransSpeed);
+   WrS(F, S^.Notes);
+   WrB(F, Byte(S^.Hidden));
+   WrW(F, Word(S^.ShCount));
+   For J := 1 To S^.ShCount Do Begin
+    Sh := S^.Shapes[J];
+    If Sh <> Nil Then Begin
+     WrS(F, Sh^.Name);
+     WrB(F, Sh^.ShType);
+     WrI(F, Sh^.X);  WrI(F, Sh^.Y);
+     WrI(F, Sh^.W);  WrI(F, Sh^.H);
+     WrB(F, Sh^.FillColor);
+     WrB(F, Sh^.LineColor);
+     WrB(F, Sh^.LineWidth);
+     WrB(F, Byte(Sh^.Filled));
+     WrI(F, Sh^.Rotation);
+     WrI(F, Sh^.ZOrder);
+     WrB(F, Byte(Sh^.Locked));
+     WrB(F, Byte(Sh^.Hidden));
+     WrB(F, Byte(Sh^.TxtCount));
+     For K := 1 To Sh^.TxtCount Do Begin
+      WrS(F, Sh^.Text[K]);
+      WrB(F, Byte(Sh^.Bullets[K]));
+      WrB(F, Sh^.Indent[K]);
+     End;
+     WrB(F, Byte(Sh^.Bold));
+     WrB(F, Byte(Sh^.Italic));
+     WrB(F, Byte(Sh^.Underline));
+     WrB(F, Sh^.FontSize);
+     WrB(F, Sh^.TextColor);
+     WrB(F, Sh^.Align);
+     WrW(F, Word(Sh^.ImageIdx));
+     WrB(F, Sh^.AnimEntry);
+     WrB(F, Sh^.AnimExit);
+     WrB(F, Sh^.AnimOrder);
+    End;
+   End;
+  End;
+ End;
+ Close(F);
+ SavePresentationFile := True;
+End;
+
+{ ----- Lecture du fichier .PPT natif ---------------------------------- }
+
+Function LoadPresentationFile(Const FN: String): Boolean;
+Var F: File;
+    I, J, K: Integer;
+    NImg, NSld, NSh, NTxt: Integer;
+    S: PSlide; Sh: PShape; Img: PImage;
+    Magic: Array[1..4] Of Char;
+    Version, Marker: Byte;
+    PixSize: LongInt;
+    StrBuf: String;
+Begin
+ LoadPresentationFile := False;
+ Assign(F, FN);
+ {$I-} Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ {$I-} BlockRead(F, Magic, 4); {$I+}
+ If (IOResult <> 0) Or
+    (Magic[1] <> 'P') Or (Magic[2] <> 'P') Or
+    (Magic[3] <> 'N') Or (Magic[4] <> 'T') Then Begin
+  Close(F); Exit;
+ End;
+ Version := RdB(F);
+ If Version <> 1 Then Begin Close(F); Exit; End;
+ RdB(F); RdB(F); RdB(F);
+
+ FreePresentation;
+ InitPresentation;
+
+ RdS(F, StrBuf); Pres.Name        := StrBuf;
+ RdS(F, StrBuf); Pres.Author      := StrBuf;
+ RdS(F, StrBuf); Pres.Company     := StrBuf;
+ RdS(F, StrBuf); Pres.Title       := StrBuf;
+ RdS(F, StrBuf); Pres.Subject     := StrBuf;
+ RdS(F, StrBuf); Pres.Comments    := StrBuf;
+ RdS(F, StrBuf); Pres.HeaderText  := StrBuf;
+ RdS(F, StrBuf); Pres.FooterText  := StrBuf;
+ RdS(F, StrBuf); Pres.DateText    := StrBuf;
+ Pres.ShowHeader   := RdB(F) <> 0;
+ Pres.ShowFooter   := RdB(F) <> 0;
+ Pres.ShowDate     := RdB(F) <> 0;
+ Pres.ShowSlideNum := RdB(F) <> 0;
+ Pres.MasterBg     := RdB(F);
+ Pres.MasterTitleC := RdB(F);
+ Pres.MasterTextC  := RdB(F);
+ Pres.ThemeIdx     := Integer(RdW(F));
+
+ { Images }
+ NImg := Integer(RdW(F));
+ Pres.ImgCount := NImg;
+ For I := 1 To MAX_IMAGES Do Begin
+  Marker := RdB(F);
+  If Marker = 0 Then Pres.Images[I] := Nil
+  Else Begin
+   New(Img);
+   RdS(F, StrBuf); Img^.Name     := StrBuf;
+   RdS(F, StrBuf); Img^.FileName := StrBuf;
+   Img^.W := Integer(RdW(F));
+   Img^.H := Integer(RdW(F));
+   Img^.Loaded := RdB(F) <> 0;
+   Img^.Pixels := Nil;
+   If Img^.Loaded And (Img^.W > 0) And (Img^.H > 0) Then Begin
+    PixSize := LongInt(Img^.W) * Img^.H;
+    GetMem(Img^.Pixels, PixSize);
+    BlockRead(F, Img^.Pixels^, PixSize);
+   End;
+   Pres.Images[I] := Img;
+  End;
+ End;
+
+ { Slides }
+ NSld := Integer(RdW(F));
+ If NSld > MAX_SLIDES Then NSld := MAX_SLIDES;
+ For I := 1 To NSld Do Begin
+  S := NewSlide;
+  RdS(F, StrBuf); S^.Name  := StrBuf;
+  RdS(F, StrBuf); S^.Title := StrBuf;
+  S^.Layout     := RdB(F);
+  S^.Background := RdB(F);
+  S^.Theme      := RdB(F);
+  S^.Transition := RdB(F);
+  S^.TransSpeed := RdB(F);
+  RdS(F, StrBuf); S^.Notes := StrBuf;
+  S^.Hidden := RdB(F) <> 0;
+  NSh := Integer(RdW(F));
+  If NSh > MAX_SHAPES Then NSh := MAX_SHAPES;
+  For J := 1 To NSh Do Begin
+   Sh := NewShape;
+   RdS(F, StrBuf); Sh^.Name := StrBuf;
+   Sh^.ShType    := RdB(F);
+   Sh^.X := Integer(RdW(F));  Sh^.Y := Integer(RdW(F));
+   Sh^.W := Integer(RdW(F));  Sh^.H := Integer(RdW(F));
+   Sh^.FillColor := RdB(F);
+   Sh^.LineColor := RdB(F);
+   Sh^.LineWidth := RdB(F);
+   Sh^.Filled    := RdB(F) <> 0;
+   Sh^.Rotation  := Integer(RdW(F));
+   Sh^.ZOrder    := Integer(RdW(F));
+   Sh^.Locked    := RdB(F) <> 0;
+   Sh^.Hidden    := RdB(F) <> 0;
+   NTxt := RdB(F);
+   Sh^.TxtCount := NTxt;
+   If NTxt > MAX_TEXT_LINES Then NTxt := MAX_TEXT_LINES;
+   For K := 1 To NTxt Do Begin
+    RdS(F, StrBuf); Sh^.Text[K] := StrBuf;
+    Sh^.Bullets[K] := RdB(F) <> 0;
+    Sh^.Indent[K]  := RdB(F);
+   End;
+   Sh^.Bold      := RdB(F) <> 0;
+   Sh^.Italic    := RdB(F) <> 0;
+   Sh^.Underline := RdB(F) <> 0;
+   Sh^.FontSize  := RdB(F);
+   Sh^.TextColor := RdB(F);
+   Sh^.Align     := RdB(F);
+   Sh^.ImageIdx  := Integer(RdW(F));
+   Sh^.AnimEntry := RdB(F);
+   Sh^.AnimExit  := RdB(F);
+   Sh^.AnimOrder := RdB(F);
+   AddShapeToSlide(S, Sh);
+  End;
+  Pres.Slides[I] := S;
+ End;
+ Pres.SldCount := NSld;
+ Close(F);
+ Pres.FileName := FN;
+ Pres.Dirty    := False;
+ If Pres.SldCount > 0 Then CurSlide := 1 Else CurSlide := 0;
+ CurShape := 0;
+ LoadPresentationFile := True;
+End;
+
+{ ----- Dialogue de selection de fichier .PPT -------------------------- }
+
+Function FileSelectDlg(Const Title: String;
+                       Var FN: String; ForSave: Boolean): Boolean;
+Var SR: SearchRec;
+    Names: Array[1..40] Of String[40];
+    Cnt, Sel, K, A, B: Integer;
+    NameTmp: String[40];
+    Items: String;
+Begin
+ FileSelectDlg := False;
+ Cnt := 0;
+ FindFirst('*.PPT', $20, SR);
+ While (DosError = 0) And (Cnt < 40) Do Begin
+  Inc(Cnt);
+  Names[Cnt] := SR.Name;
+  FindNext(SR);
+ End;
+ FindClose(SR);
+ { Tri alphabetique (insertion) }
+ For A := 2 To Cnt Do Begin
+  NameTmp := Names[A]; B := A - 1;
+  While (B >= 1) And (Names[B] > NameTmp) Do Begin
+   Names[B + 1] := Names[B]; Dec(B);
+  End;
+  Names[B + 1] := NameTmp;
+ End;
+ Items := '<Saisir un nom...>';
+ For K := 1 To Cnt Do Items := Items + #10 + Names[K];
+ Sel := SelectListDlg(Title, Items, 1);
+ If Sel = 0 Then Exit;
+ If Sel = 1 Then Begin
+  If Not InputTextDlg(Title, 'Nom du fichier (.PPT) :', FN, 79) Then Exit;
+  If FN = '' Then Exit;
+ End Else Begin
+  K := Sel - 1;
+  If (K < 1) Or (K > Cnt) Then Exit;
+  FN := Names[K];
+ End;
+ If Pos('.', FN) = 0 Then FN := FN + '.PPT';
+ FileSelectDlg := True;
+End;
+
+{ ----- Actions Fichier (Open/Save/SaveAs/Close) ----------------------- }
+
+Procedure ActionSaveAs;
+Var FN: String;
+Begin
+ FN := Pres.FileName;
+ If FN = '' Then FN := 'PRESENT.PPT';
+ If Not InputTextDlg('Enregistrer sous',
+                     'Nom du fichier (.PPT) :', FN, 79) Then Begin
+  NeedFullRedraw := True; Exit;
+ End;
+ If FN = '' Then Begin NeedFullRedraw := True; Exit; End;
+ If Pos('.', FN) = 0 Then FN := FN + '.PPT';
+ If SavePresentationFile(FN) Then Begin
+  Pres.FileName := FN;
+  Pres.Dirty    := False;
+  StatusMsg     := 'Enregistre : ' + FN;
+ End Else
+  MessageBox('Enregistrer', 'Impossible d''ecrire : ' + FN);
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionSave;
+Begin
+ If Pres.FileName = '' Then Begin ActionSaveAs; Exit; End;
+ If SavePresentationFile(Pres.FileName) Then Begin
+  Pres.Dirty := False;
+  StatusMsg  := 'Enregistre : ' + Pres.FileName;
+ End Else
+  MessageBox('Enregistrer',
+             'Impossible d''ecrire : ' + Pres.FileName);
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionOpen;
+Var FN: String;
+Begin
+ If Not ConfirmDiscardChanges Then Exit;
+ FN := '';
+ If Not FileSelectDlg('Ouvrir une presentation .PPT', FN, False) Then Begin
+  NeedFullRedraw := True; Exit;
+ End;
+ If LoadPresentationFile(FN) Then
+  StatusMsg := 'Charge : ' + FN
+ Else
+  MessageBox('Ouvrir', 'Impossible de lire : ' + FN);
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionClose;
+Begin
+ If Not ConfirmDiscardChanges Then Exit;
+ FreePresentation;
+ InitPresentation;
+ SeedSamplePresentation;
+ StatusMsg := 'Presentation fermee.';
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{          PHASE 11 : .PPTX (OOXML) -- ECRITURE ET LECTURE                }
+{ ====================================================================== }
+{ Format ZIP : entrees STORED (methode 0) uniquement. Le fichier produit  }
+{ s'ouvre dans PowerPoint, Impress, et nous-memes. La lecture est limitee }
+{ aux entrees STORED ; pour les .pptx natifs PowerPoint (DEFLATE), il    }
+{ faudrait integrer un decodeur deflate (UNZIP.PAS). On extrait les       }
+{ chaines <a:t>...</a:t> des fichiers ppt/slides/slide*.xml.              }
+{ ----------------------------------------------------------------------- }
+
+Const
+ MAX_ZIP_ENT       = 320;
+ ZIP_LFH_SIG       : LongInt = $04034B50;
+ ZIP_CDH_SIG       : LongInt = $02014B50;
+ ZIP_EOCD_SIG      : LongInt = $06054B50;
+ CRC32_POLY        : LongInt = -306674912; { = $EDB88320 en non-signe }
+
+Var
+ CRC32Tab     : Array[0..255] Of LongInt;
+ CRC32Inited  : Boolean;
+ ZOutF        : File;
+ ZOutOk       : Boolean;
+ ZCurStart    : LongInt;
+ ZCurDataOff  : LongInt;
+ ZCurName     : String[80];
+ ZCurCRC      : LongInt;
+ ZCurSize     : LongInt;
+ ZCdNames     : Array[1..MAX_ZIP_ENT] Of String[80];
+ ZCdOffsets   : Array[1..MAX_ZIP_ENT] Of LongInt;
+ ZCdSizes     : Array[1..MAX_ZIP_ENT] Of LongInt;
+ ZCdCRCs      : Array[1..MAX_ZIP_ENT] Of LongInt;
+ ZCdCount     : Integer;
+
+{ ----- 4 octets little-endian -------------------------------------------- }
+
+Procedure WrL(Var F: File; L: LongInt);
+Begin
+ PPTBuf[0] := Byte(L And $FF);
+ PPTBuf[1] := Byte((L Shr 8) And $FF);
+ PPTBuf[2] := Byte((L Shr 16) And $FF);
+ PPTBuf[3] := Byte((L Shr 24) And $FF);
+ BlockWrite(F, PPTBuf, 4);
+End;
+
+Function RdL(Var F: File): LongInt;
+Begin
+ BlockRead(F, PPTBuf, 4);
+ RdL := LongInt(PPTBuf[0]) Or (LongInt(PPTBuf[1]) Shl 8) Or
+        (LongInt(PPTBuf[2]) Shl 16) Or (LongInt(PPTBuf[3]) Shl 24);
+End;
+
+{ ----- CRC32 ------------------------------------------------------------- }
+
+Procedure InitCRC32;
+Var I, J: Integer; C: LongInt;
+Begin
+ For I := 0 To 255 Do Begin
+  C := I;
+  For J := 0 To 7 Do
+   If (C And 1) <> 0 Then C := LongInt(C Shr 1) Xor CRC32_POLY
+   Else C := C Shr 1;
+  CRC32Tab[I] := C;
+ End;
+ CRC32Inited := True;
+End;
+
+Procedure CRC32Update(Var CRC: LongInt; B: Byte);
+Begin
+ CRC := CRC32Tab[Byte((CRC Xor LongInt(B)) And $FF)] Xor LongInt(CRC Shr 8);
+End;
+
+{ ----- ZIP Writer (stored only) ------------------------------------------ }
+
+Procedure ZipOpen(Const FN: String);
+Begin
+ ZOutOk := False;
+ ZCdCount := 0;
+ If Not CRC32Inited Then InitCRC32;
+ Assign(ZOutF, FN);
+ {$I-} Rewrite(ZOutF, 1); {$I+}
+ If IOResult = 0 Then ZOutOk := True;
+End;
+
+Procedure ZipBeginEntry(Const Name: String);
+Var L: Integer;
+Begin
+ If Not ZOutOk Then Exit;
+ ZCurStart := FilePos(ZOutF);
+ ZCurName  := Name;
+ ZCurCRC   := LongInt($FFFFFFFF);
+ ZCurSize  := 0;
+ L := Length(Name);
+ { Local file header : sig 4, ver 2, flags 2, method 2, time 2, date 2,
+   crc 4, csize 4, usize 4, namelen 2, extralen 2, name }
+ WrL(ZOutF, ZIP_LFH_SIG);
+ WrW(ZOutF, 20);          { version }
+ WrW(ZOutF, 0);           { flags }
+ WrW(ZOutF, 0);           { method 0 = stored }
+ WrW(ZOutF, 0);           { mod time }
+ WrW(ZOutF, $4321);       { mod date (2013-01-01 environ) }
+ WrL(ZOutF, 0);           { CRC placeholder }
+ WrL(ZOutF, 0);           { csize placeholder }
+ WrL(ZOutF, 0);           { usize placeholder }
+ WrW(ZOutF, Word(L));     { name length }
+ WrW(ZOutF, 0);           { extra length }
+ If L > 0 Then BlockWrite(ZOutF, Name[1], L);
+ ZCurDataOff := FilePos(ZOutF);
+End;
+
+Procedure ZipWriteByte(B: Byte);
+Begin
+ If Not ZOutOk Then Exit;
+ PPTBuf[0] := B;
+ BlockWrite(ZOutF, PPTBuf, 1);
+ CRC32Update(ZCurCRC, B);
+ Inc(ZCurSize);
+End;
+
+Procedure ZipWriteStr(Const S: String);
+Var I, L: Integer;
+Begin
+ If Not ZOutOk Then Exit;
+ L := Length(S);
+ For I := 1 To L Do CRC32Update(ZCurCRC, Byte(S[I]));
+ If L > 0 Then BlockWrite(ZOutF, S[1], L);
+ ZCurSize := ZCurSize + L;
+End;
+
+Procedure ZipWriteLn(Const S: String);
+Begin
+ ZipWriteStr(S);
+ ZipWriteByte(10);
+End;
+
+Procedure ZipWriteXml(Const S: String);
+Var I: Integer; C: Char;
+Begin
+ For I := 1 To Length(S) Do Begin
+  C := S[I];
+  Case C Of
+   '&': ZipWriteStr('&amp;');
+   '<': ZipWriteStr('&lt;');
+   '>': ZipWriteStr('&gt;');
+   '"': ZipWriteStr('&quot;');
+   '''': ZipWriteStr('&apos;');
+  Else
+   If (Byte(C) >= 32) And (Byte(C) < 127) Then ZipWriteByte(Byte(C))
+   Else ZipWriteByte(63);
+  End;
+ End;
+End;
+
+Procedure ZipEndEntry;
+Var CRC: LongInt; EndPos: LongInt;
+Begin
+ If Not ZOutOk Then Exit;
+ CRC := ZCurCRC Xor LongInt($FFFFFFFF);
+ EndPos := FilePos(ZOutF);
+ { Repositionne dans le local header pour patcher CRC + sizes }
+ Seek(ZOutF, ZCurStart + 14);
+ WrL(ZOutF, CRC);
+ WrL(ZOutF, ZCurSize);
+ WrL(ZOutF, ZCurSize);
+ Seek(ZOutF, EndPos);
+ { Enregistre pour le central directory }
+ If ZCdCount < MAX_ZIP_ENT Then Begin
+  Inc(ZCdCount);
+  ZCdNames[ZCdCount]   := ZCurName;
+  ZCdOffsets[ZCdCount] := ZCurStart;
+  ZCdSizes[ZCdCount]   := ZCurSize;
+  ZCdCRCs[ZCdCount]    := CRC;
+ End;
+End;
+
+Procedure ZipClose;
+Var I, L: Integer;
+    CdStart, CdSize: LongInt;
+Begin
+ If Not ZOutOk Then Exit;
+ CdStart := FilePos(ZOutF);
+ For I := 1 To ZCdCount Do Begin
+  L := Length(ZCdNames[I]);
+  WrL(ZOutF, ZIP_CDH_SIG);
+  WrW(ZOutF, 20);                  { ver made by }
+  WrW(ZOutF, 20);                  { ver needed }
+  WrW(ZOutF, 0);                   { flags }
+  WrW(ZOutF, 0);                   { method }
+  WrW(ZOutF, 0);                   { time }
+  WrW(ZOutF, $4321);               { date }
+  WrL(ZOutF, ZCdCRCs[I]);
+  WrL(ZOutF, ZCdSizes[I]);
+  WrL(ZOutF, ZCdSizes[I]);
+  WrW(ZOutF, Word(L));             { name len }
+  WrW(ZOutF, 0);                   { extra len }
+  WrW(ZOutF, 0);                   { comment len }
+  WrW(ZOutF, 0);                   { disk number }
+  WrW(ZOutF, 0);                   { internal attr }
+  WrL(ZOutF, 0);                   { external attr }
+  WrL(ZOutF, ZCdOffsets[I]);
+  If L > 0 Then BlockWrite(ZOutF, ZCdNames[I][1], L);
+ End;
+ CdSize := FilePos(ZOutF) - CdStart;
+ { End of central directory }
+ WrL(ZOutF, ZIP_EOCD_SIG);
+ WrW(ZOutF, 0);                    { disk }
+ WrW(ZOutF, 0);                    { cd disk }
+ WrW(ZOutF, Word(ZCdCount));
+ WrW(ZOutF, Word(ZCdCount));
+ WrL(ZOutF, CdSize);
+ WrL(ZOutF, CdStart);
+ WrW(ZOutF, 0);                    { comment len }
+ Close(ZOutF);
+ ZOutOk := False;
+End;
+
+{ ----- Emetteurs XML PPTX ------------------------------------------------ }
+
+Procedure EmitContentTypes;
+Var I: Integer; S: String;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteStr('<Types xmlns="http://schemas.openxmlformats.org/package/');
+ ZipWriteLn('2006/content-types">');
+ ZipWriteLn('<Default Extension="rels" ContentType="application/' +
+            'vnd.openxmlformats-package.relationships+xml"/>');
+ ZipWriteLn('<Default Extension="xml" ContentType="application/xml"/>');
+ ZipWriteLn('<Override PartName="/ppt/presentation.xml" ContentType=' +
+   '"application/vnd.openxmlformats-officedocument.' +
+   'presentationml.presentation.main+xml"/>');
+ ZipWriteLn('<Override PartName="/ppt/slideMasters/slideMaster1.xml" ' +
+   'ContentType="application/vnd.openxmlformats-officedocument.' +
+   'presentationml.slideMaster+xml"/>');
+ ZipWriteLn('<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ' +
+   'ContentType="application/vnd.openxmlformats-officedocument.' +
+   'presentationml.slideLayout+xml"/>');
+ ZipWriteLn('<Override PartName="/ppt/theme/theme1.xml" ContentType=' +
+   '"application/vnd.openxmlformats-officedocument.theme+xml"/>');
+ For I := 1 To Pres.SldCount Do Begin
+  Str(I, S);
+  ZipWriteLn('<Override PartName="/ppt/slides/slide' + S +
+             '.xml" ContentType="application/vnd.openxmlformats-' +
+             'officedocument.presentationml.slide+xml"/>');
+ End;
+ ZipWriteLn('</Types>');
+End;
+
+Procedure EmitRootRels;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<Relationships xmlns="http://schemas.openxmlformats.org/' +
+            'package/2006/relationships">');
+ ZipWriteLn('<Relationship Id="rId1" Type="http://schemas.openxmlformats' +
+   '.org/officeDocument/2006/relationships/officeDocument" ' +
+   'Target="ppt/presentation.xml"/>');
+ ZipWriteLn('</Relationships>');
+End;
+
+Procedure EmitPresentation;
+Var I: Integer; S: String;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteStr('<p:presentation xmlns:a="http://schemas.openxmlformats.');
+ ZipWriteStr('org/drawingml/2006/main" xmlns:r="http://schemas.');
+ ZipWriteStr('openxmlformats.org/officeDocument/2006/relationships" ');
+ ZipWriteLn('xmlns:p="http://schemas.openxmlformats.org/' +
+            'presentationml/2006/main">');
+ ZipWriteLn('<p:sldMasterIdLst><p:sldMasterId id="2147483648" ' +
+            'r:id="rId1"/></p:sldMasterIdLst>');
+ ZipWriteStr('<p:sldIdLst>');
+ For I := 1 To Pres.SldCount Do Begin
+  Str(255 + I, S);
+  ZipWriteStr('<p:sldId id="' + S + '" r:id="rId' );
+  Str(I + 1, S);
+  ZipWriteStr(S + '"/>');
+ End;
+ ZipWriteLn('</p:sldIdLst>');
+ ZipWriteLn('<p:sldSz cx="9144000" cy="6858000" type="screen4x3"/>');
+ ZipWriteLn('<p:notesSz cx="6858000" cy="9144000"/>');
+ ZipWriteLn('</p:presentation>');
+End;
+
+Procedure EmitPresentationRels;
+Var I: Integer; S: String;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<Relationships xmlns="http://schemas.openxmlformats.org/' +
+            'package/2006/relationships">');
+ ZipWriteLn('<Relationship Id="rId1" Type="http://schemas.openxmlformats' +
+            '.org/officeDocument/2006/relationships/slideMaster" ' +
+            'Target="slideMasters/slideMaster1.xml"/>');
+ For I := 1 To Pres.SldCount Do Begin
+  Str(I + 1, S);
+  ZipWriteStr('<Relationship Id="rId' + S + '" Type=');
+  ZipWriteStr('"http://schemas.openxmlformats.org/officeDocument/');
+  ZipWriteStr('2006/relationships/slide" Target="slides/slide');
+  Str(I, S);
+  ZipWriteLn(S + '.xml"/>');
+ End;
+ ZipWriteLn('</Relationships>');
+End;
+
+Procedure EmitTheme;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<a:theme xmlns:a="http://schemas.openxmlformats.org/' +
+            'drawingml/2006/main" name="Office">');
+ ZipWriteLn('<a:themeElements>');
+ ZipWriteLn('<a:clrScheme name="Office">');
+ ZipWriteLn('<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>');
+ ZipWriteLn('<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>');
+ ZipWriteLn('<a:dk2><a:srgbClr val="1F497D"/></a:dk2>');
+ ZipWriteLn('<a:lt2><a:srgbClr val="EEECE1"/></a:lt2>');
+ ZipWriteLn('<a:accent1><a:srgbClr val="4F81BD"/></a:accent1>');
+ ZipWriteLn('<a:accent2><a:srgbClr val="C0504D"/></a:accent2>');
+ ZipWriteLn('<a:accent3><a:srgbClr val="9BBB59"/></a:accent3>');
+ ZipWriteLn('<a:accent4><a:srgbClr val="8064A2"/></a:accent4>');
+ ZipWriteLn('<a:accent5><a:srgbClr val="4BACC6"/></a:accent5>');
+ ZipWriteLn('<a:accent6><a:srgbClr val="F79646"/></a:accent6>');
+ ZipWriteLn('<a:hlink><a:srgbClr val="0000FF"/></a:hlink>');
+ ZipWriteLn('<a:folHlink><a:srgbClr val="800080"/></a:folHlink>');
+ ZipWriteLn('</a:clrScheme>');
+ ZipWriteLn('<a:fontScheme name="Office">');
+ ZipWriteLn('<a:majorFont><a:latin typeface="Calibri"/>' +
+            '<a:ea typeface=""/><a:cs typeface=""/></a:majorFont>');
+ ZipWriteLn('<a:minorFont><a:latin typeface="Calibri"/>' +
+            '<a:ea typeface=""/><a:cs typeface=""/></a:minorFont>');
+ ZipWriteLn('</a:fontScheme>');
+ ZipWriteLn('<a:fmtScheme name="Office">');
+ ZipWriteLn('<a:fillStyleLst>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '</a:fillStyleLst>');
+ ZipWriteLn('<a:lnStyleLst>' +
+   '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/>' +
+   '</a:solidFill></a:ln>' +
+   '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/>' +
+   '</a:solidFill></a:ln>' +
+   '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/>' +
+   '</a:solidFill></a:ln></a:lnStyleLst>');
+ ZipWriteLn('<a:effectStyleLst>' +
+   '<a:effectStyle><a:effectLst/></a:effectStyle>' +
+   '<a:effectStyle><a:effectLst/></a:effectStyle>' +
+   '<a:effectStyle><a:effectLst/></a:effectStyle>' +
+   '</a:effectStyleLst>');
+ ZipWriteLn('<a:bgFillStyleLst>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>' +
+   '</a:bgFillStyleLst>');
+ ZipWriteLn('</a:fmtScheme>');
+ ZipWriteLn('</a:themeElements>');
+ ZipWriteLn('</a:theme>');
+End;
+
+Procedure EmitSlideMaster;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteStr('<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/');
+ ZipWriteStr('drawingml/2006/main" xmlns:r="http://schemas.openxml');
+ ZipWriteStr('formats.org/officeDocument/2006/relationships" xmlns:p=');
+ ZipWriteLn('"http://schemas.openxmlformats.org/presentationml/2006/' +
+            'main">');
+ ZipWriteLn('<p:cSld><p:bg><p:bgRef idx="1001">' +
+            '<a:schemeClr val="bg1"/></p:bgRef></p:bg>');
+ ZipWriteLn('<p:spTree>');
+ ZipWriteLn('<p:nvGrpSpPr><p:cNvPr id="1" name=""/>' +
+            '<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>');
+ ZipWriteLn('<p:grpSpPr><a:xfrm><a:off x="0" y="0"/>' +
+   '<a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/>' +
+   '<a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>');
+ ZipWriteLn('</p:spTree></p:cSld>');
+ ZipWriteLn('<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" ' +
+   'accent1="accent1" accent2="accent2" accent3="accent3" ' +
+   'accent4="accent4" accent5="accent5" accent6="accent6" ' +
+   'hlink="hlink" folHlink="folHlink"/>');
+ ZipWriteLn('<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" ' +
+            'r:id="rId1"/></p:sldLayoutIdLst>');
+ ZipWriteLn('<p:txStyles>');
+ ZipWriteLn('<p:titleStyle><a:lvl1pPr algn="ctr">' +
+            '<a:defRPr sz="4400"/></a:lvl1pPr></p:titleStyle>');
+ ZipWriteLn('<p:bodyStyle><a:lvl1pPr><a:defRPr sz="2400"/>' +
+            '</a:lvl1pPr></p:bodyStyle>');
+ ZipWriteLn('<p:otherStyle/>');
+ ZipWriteLn('</p:txStyles>');
+ ZipWriteLn('</p:sldMaster>');
+End;
+
+Procedure EmitSlideMasterRels;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<Relationships xmlns="http://schemas.openxmlformats.org/' +
+            'package/2006/relationships">');
+ ZipWriteLn('<Relationship Id="rId1" Type="http://schemas.openxml' +
+            'formats.org/officeDocument/2006/relationships/' +
+            'slideLayout" Target="../slideLayouts/slideLayout1.xml"/>');
+ ZipWriteLn('<Relationship Id="rId2" Type="http://schemas.openxml' +
+            'formats.org/officeDocument/2006/relationships/theme" ' +
+            'Target="../theme/theme1.xml"/>');
+ ZipWriteLn('</Relationships>');
+End;
+
+Procedure EmitSlideLayout;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteStr('<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/');
+ ZipWriteStr('drawingml/2006/main" xmlns:r="http://schemas.openxml');
+ ZipWriteStr('formats.org/officeDocument/2006/relationships" xmlns:p=');
+ ZipWriteStr('"http://schemas.openxmlformats.org/presentationml/2006/');
+ ZipWriteLn('main" type="blank" preserve="1">');
+ ZipWriteLn('<p:cSld name="Blank">');
+ ZipWriteLn('<p:spTree>');
+ ZipWriteLn('<p:nvGrpSpPr><p:cNvPr id="1" name=""/>' +
+            '<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>');
+ ZipWriteLn('<p:grpSpPr><a:xfrm><a:off x="0" y="0"/>' +
+   '<a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/>' +
+   '<a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>');
+ ZipWriteLn('</p:spTree></p:cSld>');
+ ZipWriteLn('</p:sldLayout>');
+End;
+
+Procedure EmitSlideLayoutRels;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<Relationships xmlns="http://schemas.openxmlformats.org/' +
+            'package/2006/relationships">');
+ ZipWriteLn('<Relationship Id="rId1" Type="http://schemas.openxml' +
+            'formats.org/officeDocument/2006/relationships/' +
+            'slideMaster" Target="../slideMasters/slideMaster1.xml"/>');
+ ZipWriteLn('</Relationships>');
+End;
+
+Procedure EmitSlide(SlIdx: Integer);
+Var S: PSlide; Sh: PShape; I, J: Integer;
+    Tmp: String;
+Begin
+ S := Pres.Slides[SlIdx];
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteStr('<p:sld xmlns:a="http://schemas.openxmlformats.org/');
+ ZipWriteStr('drawingml/2006/main" xmlns:r="http://schemas.openxml');
+ ZipWriteStr('formats.org/officeDocument/2006/relationships" xmlns:p=');
+ ZipWriteLn('"http://schemas.openxmlformats.org/presentationml/2006/' +
+            'main">');
+ ZipWriteLn('<p:cSld><p:spTree>');
+ ZipWriteLn('<p:nvGrpSpPr><p:cNvPr id="1" name=""/>' +
+            '<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>');
+ ZipWriteLn('<p:grpSpPr/>');
+ { Bloc titre }
+ ZipWriteLn('<p:sp>');
+ ZipWriteLn('<p:nvSpPr><p:cNvPr id="2" name="Title"/>' +
+   '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>' +
+   '<p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr>');
+ ZipWriteLn('<p:spPr><a:xfrm><a:off x="838200" y="365125"/>' +
+   '<a:ext cx="7467600" cy="1325563"/></a:xfrm></p:spPr>');
+ ZipWriteLn('<p:txBody><a:bodyPr/><a:lstStyle/>');
+ ZipWriteStr('<a:p><a:r><a:rPr lang="fr-FR"/><a:t>');
+ If S <> Nil Then Tmp := S^.Title Else Tmp := '';
+ If Tmp = '' Then Tmp := 'Diapositive';
+ ZipWriteXml(Tmp);
+ ZipWriteLn('</a:t></a:r></a:p></p:txBody></p:sp>');
+ { Bloc contenu : concatene toutes les lignes de texte de toutes les formes }
+ ZipWriteLn('<p:sp>');
+ ZipWriteLn('<p:nvSpPr><p:cNvPr id="3" name="Content"/>' +
+   '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>' +
+   '<p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr>');
+ ZipWriteLn('<p:spPr><a:xfrm><a:off x="838200" y="1825625"/>' +
+   '<a:ext cx="7467600" cy="4351338"/></a:xfrm></p:spPr>');
+ ZipWriteLn('<p:txBody><a:bodyPr/><a:lstStyle/>');
+ If S <> Nil Then
+  For I := 1 To S^.ShCount Do Begin
+   Sh := S^.Shapes[I];
+   If Sh <> Nil Then
+    For J := 1 To Sh^.TxtCount Do Begin
+     ZipWriteStr('<a:p><a:r><a:rPr lang="fr-FR"/><a:t>');
+     ZipWriteXml(Sh^.Text[J]);
+     ZipWriteLn('</a:t></a:r></a:p>');
+    End;
+  End;
+ ZipWriteLn('</p:txBody></p:sp>');
+ ZipWriteLn('</p:spTree></p:cSld>');
+ ZipWriteLn('</p:sld>');
+End;
+
+Procedure EmitSlideRels;
+Begin
+ ZipWriteLn('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ ZipWriteLn('<Relationships xmlns="http://schemas.openxmlformats.org/' +
+            'package/2006/relationships">');
+ ZipWriteLn('<Relationship Id="rId1" Type="http://schemas.openxml' +
+            'formats.org/officeDocument/2006/relationships/' +
+            'slideLayout" Target="../slideLayouts/slideLayout1.xml"/>');
+ ZipWriteLn('</Relationships>');
+End;
+
+{ ----- Sauvegarde .PPTX complete ----------------------------------------- }
+
+Function SavePPTX(Const FN: String): Boolean;
+Var I: Integer; S: String;
+Begin
+ SavePPTX := False;
+ ZipOpen(FN);
+ If Not ZOutOk Then Exit;
+
+ ZipBeginEntry('[Content_Types].xml');  EmitContentTypes;       ZipEndEntry;
+ ZipBeginEntry('_rels/.rels');          EmitRootRels;           ZipEndEntry;
+ ZipBeginEntry('ppt/presentation.xml'); EmitPresentation;       ZipEndEntry;
+ ZipBeginEntry('ppt/_rels/presentation.xml.rels');
+ EmitPresentationRels; ZipEndEntry;
+ ZipBeginEntry('ppt/theme/theme1.xml'); EmitTheme;              ZipEndEntry;
+ ZipBeginEntry('ppt/slideMasters/slideMaster1.xml');
+ EmitSlideMaster;      ZipEndEntry;
+ ZipBeginEntry('ppt/slideMasters/_rels/slideMaster1.xml.rels');
+ EmitSlideMasterRels;  ZipEndEntry;
+ ZipBeginEntry('ppt/slideLayouts/slideLayout1.xml');
+ EmitSlideLayout;      ZipEndEntry;
+ ZipBeginEntry('ppt/slideLayouts/_rels/slideLayout1.xml.rels');
+ EmitSlideLayoutRels;  ZipEndEntry;
+
+ For I := 1 To Pres.SldCount Do Begin
+  Str(I, S);
+  ZipBeginEntry('ppt/slides/slide' + S + '.xml');
+  EmitSlide(I);
+  ZipEndEntry;
+  ZipBeginEntry('ppt/slides/_rels/slide' + S + '.xml.rels');
+  EmitSlideRels;
+  ZipEndEntry;
+ End;
+ ZipClose;
+ SavePPTX := True;
+End;
+
+{ ----- Lecteur .PPTX (entrees STORED uniquement) ------------------------- }
+{ On scrute les Local File Headers en sequence, on extrait <a:t>...</a:t>   }
+{ depuis les fichiers ppt/slides/slide*.xml. Les entrees compressees sont   }
+{ ignorees avec un message.                                                 }
+
+Function LoadPPTX(Const FN: String): Boolean;
+Var F: File;
+    Sig: LongInt;
+    Ver, Flg, Mth, Tm, Dt: Word;
+    NameLen, ExtraLen: Word;
+    CSize, USize: LongInt;
+    EntName: String;
+    XmlBuf: Pointer;
+    BufSize, ReadBytes, P, Q: LongInt;
+    SkippedCompressed, FoundSlide: Integer;
+    SlNum: Integer;
+    NewSl: PSlide; NewSh: PShape;
+    BodyShape: PShape;
+    Line: String;
+    InTitle: Boolean;
+    ChI: LongInt;
+    StartTag, EndTag: String;
+    LineCount: Integer;
+    CRC, USize2: LongInt;
+
+ Function PtrToByteAt(Off: LongInt): Byte;
+ Var Ptr: ^Byte;
+ Begin
+  Ptr := XmlBuf;
+  Inc(Ptr, Off);
+  PtrToByteAt := Ptr^;
+ End;
+
+ Function MatchAt(Off: LongInt; Const Tag: String): Boolean;
+ Var K: Integer;
+ Begin
+  MatchAt := False;
+  If Off + Length(Tag) > BufSize Then Exit;
+  For K := 1 To Length(Tag) Do
+   If Char(PtrToByteAt(Off + K - 1)) <> Tag[K] Then Exit;
+  MatchAt := True;
+ End;
+
+Begin
+ LoadPPTX := False;
+ SkippedCompressed := 0;
+ FoundSlide := 0;
+ Assign(F, FN);
+ {$I-} Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+
+ FreePresentation;
+ InitPresentation;
+ BufSize := 0; XmlBuf := Nil;
+
+ While Not Eof(F) Do Begin
+  Sig := RdL(F);
+  If Sig <> ZIP_LFH_SIG Then Break;
+  Ver  := RdW(F);
+  Flg  := RdW(F);
+  Mth  := RdW(F);
+  Tm   := RdW(F);
+  Dt   := RdW(F);
+  CRC  := RdL(F);
+  CSize := RdL(F);
+  USize2 := RdL(F);
+  NameLen  := RdW(F);
+  ExtraLen := RdW(F);
+  USize := USize2;
+  If NameLen > 200 Then NameLen := 200;
+  EntName[0] := Char(NameLen);
+  If NameLen > 0 Then BlockRead(F, EntName[1], NameLen);
+  If ExtraLen > 0 Then Seek(F, FilePos(F) + ExtraLen);
+
+  { Petit garde-fou : si le fichier semble etre une slide XML }
+  If (Pos('ppt/slides/slide', EntName) = 1) And
+     (Pos('.xml', EntName) > 0) And
+     (Pos('.rels', EntName) = 0) Then Begin
+   If Mth <> 0 Then Begin
+    Inc(SkippedCompressed);
+    If CSize > 0 Then Seek(F, FilePos(F) + CSize);
+   End Else Begin
+    { Charge en memoire }
+    If XmlBuf <> Nil Then FreeMem(XmlBuf, BufSize);
+    BufSize := USize;
+    If BufSize <= 0 Then BufSize := 1;
+    GetMem(XmlBuf, BufSize);
+    If USize > 0 Then BlockRead(F, XmlBuf^, USize);
+
+    { Cree une nouvelle diapo. Index par ordre d'apparition. }
+    Inc(FoundSlide);
+    NewSl := NewSlide;
+    Str(FoundSlide, EntName);
+    NewSl^.Name := 'Diapo ' + EntName;
+    NewSl^.Title := '';
+    { Cree une shape texte pour le corps }
+    NewSh := NewShape;
+    NewSh^.ShType := SHP_TEXT;
+    NewSh^.X := 50; NewSh^.Y := 150;
+    NewSh^.W := 900; NewSh^.H := 500;
+    NewSh^.FillColor := 15;
+    NewSh^.LineColor := 0;
+    NewSh^.Filled := False;
+    NewSh^.TxtCount := 0;
+    BodyShape := NewSh;
+    LineCount := 0;
+    InTitle := True;
+
+    { Parcourt le buffer pour extraire <a:t>...</a:t> }
+    StartTag := '<a:t>';  EndTag := '</a:t>';
+    ChI := 0;
+    While ChI < BufSize Do Begin
+     If MatchAt(ChI, StartTag) Then Begin
+      ChI := ChI + Length(StartTag);
+      P := ChI;
+      Q := P;
+      While (Q < BufSize) And (Not MatchAt(Q, EndTag)) Do Inc(Q);
+      Line := '';
+      While P < Q Do Begin
+       If Length(Line) < TXT_LINE_LEN Then
+        Line := Line + Char(PtrToByteAt(P));
+       Inc(P);
+      End;
+      { Decode des entites usuelles, en place }
+      Line := Line;  { TODO entites }
+      If InTitle Then Begin
+       NewSl^.Title := Copy(Line, 1, 79);
+       InTitle := False;
+      End Else If (Line <> '') And (LineCount < MAX_TEXT_LINES) Then Begin
+       Inc(LineCount);
+       BodyShape^.Text[LineCount] := Line;
+       BodyShape^.Bullets[LineCount] := True;
+       BodyShape^.Indent[LineCount] := 0;
+       BodyShape^.TxtCount := LineCount;
+      End;
+      ChI := Q + Length(EndTag);
+     End Else
+      Inc(ChI);
+    End;
+    If BodyShape^.TxtCount > 0 Then
+     AddShapeToSlide(NewSl, BodyShape)
+    Else
+     Dispose(BodyShape);
+    SlNum := Pres.SldCount + 1;
+    If SlNum <= MAX_SLIDES Then Begin
+     Pres.Slides[SlNum] := NewSl;
+     Pres.SldCount := SlNum;
+    End Else Dispose(NewSl);
+   End;
+  End Else Begin
+   { Saute le contenu de l'entree }
+   If CSize > 0 Then Seek(F, FilePos(F) + CSize);
+  End;
+ End;
+ Close(F);
+ If XmlBuf <> Nil Then FreeMem(XmlBuf, BufSize);
+
+ If FoundSlide = 0 Then Begin
+  { Echec : restaure une presentation vierge }
+  SeedSamplePresentation;
+  Exit;
+ End;
+ Pres.FileName := FN;
+ Pres.Dirty := False;
+ CurSlide := 1;
+ CurShape := 0;
+ If SkippedCompressed > 0 Then
+  StatusMsg := 'PPTX importe (slides compressees ignorees)'
+ Else
+  StatusMsg := 'PPTX importe : ' + FN;
+ LoadPPTX := True;
+End;
+
+{ ----- Actions Export/Import .PPTX -------------------------------------- }
+
+Function PptxUpStr(Const S: String): String;
+Var K: Integer; R: String;
+Begin
+ R := S;
+ For K := 1 To Length(R) Do R[K] := UpCase(R[K]);
+ PptxUpStr := R;
+End;
+
+Procedure ActionExportPPTX;
+Var FN: String;
+Begin
+ FN := Pres.FileName;
+ If FN = '' Then FN := 'EXPORT.PPTX'
+ Else Begin
+  { Remplace .PPT par .PPTX }
+  If (Length(FN) >= 4) And
+     (PptxUpStr(Copy(FN, Length(FN) - 3, 4)) = '.PPT') Then
+   FN := Copy(FN, 1, Length(FN) - 4) + '.PPTX';
+ End;
+ If Not InputTextDlg('Exporter .PPTX',
+                     'Nom du fichier (.PPTX) :', FN, 79) Then Begin
+  NeedFullRedraw := True; Exit;
+ End;
+ If FN = '' Then Begin NeedFullRedraw := True; Exit; End;
+ If Pos('.', FN) = 0 Then FN := FN + '.PPTX';
+ If SavePPTX(FN) Then
+  StatusMsg := 'Exporte : ' + FN
+ Else
+  MessageBox('Exporter .PPTX', 'Impossible d''ecrire : ' + FN);
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionImportPPTX;
+Var FN: String;
+Begin
+ If Not ConfirmDiscardChanges Then Exit;
+ FN := '';
+ If Not InputTextDlg('Importer .PPTX',
+                     'Nom du fichier (.PPTX) :', FN, 79) Then Begin
+  NeedFullRedraw := True; Exit;
+ End;
+ If FN = '' Then Begin NeedFullRedraw := True; Exit; End;
+ If Not LoadPPTX(FN) Then
+  MessageBox('Importer .PPTX',
+             'Impossible de lire ou aucune diapositive trouvee : ' + FN);
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{               PHASE 12 : IMPRESSION (vers fichier .PRN)                }
+{ ====================================================================== }
+
+Procedure ActionPrint;
+Var F: Text; FN, Default: String;
+    I, J, K: Integer; S: PSlide; Sh: PShape;
+Begin
+ Default := Pres.FileName;
+ If Default = '' Then Default := 'PRINT.PRN'
+ Else Begin
+  If (Length(Default) >= 5) And
+     (PptxUpStr(Copy(Default, Length(Default) - 4, 5)) = '.PPTX') Then
+   Default := Copy(Default, 1, Length(Default) - 5) + '.PRN'
+  Else If (Length(Default) >= 4) And
+     (PptxUpStr(Copy(Default, Length(Default) - 3, 4)) = '.PPT') Then
+   Default := Copy(Default, 1, Length(Default) - 4) + '.PRN'
+  Else
+   Default := Default + '.PRN';
+ End;
+ FN := Default;
+ If Not InputTextDlg('Imprimer',
+                     'Fichier d''impression (.PRN, texte) :', FN, 79) Then
+ Begin
+  NeedFullRedraw := True; Exit;
+ End;
+ If FN = '' Then Begin NeedFullRedraw := True; Exit; End;
+ Assign(F, FN);
+ {$I-} Rewrite(F); {$I+}
+ If IOResult <> 0 Then Begin
+  MessageBox('Imprimer', 'Impossible d''ecrire : ' + FN);
+  NeedFullRedraw := True; Exit;
+ End;
+ WriteLn(F, '=================================================');
+ WriteLn(F, '  ', Pres.Title);
+ If Pres.Author  <> '' Then WriteLn(F, '  Auteur  : ', Pres.Author);
+ If Pres.Company <> '' Then WriteLn(F, '  Societe : ', Pres.Company);
+ WriteLn(F, '  Diapositives : ', Pres.SldCount);
+ WriteLn(F, '=================================================');
+ WriteLn(F);
+ For I := 1 To Pres.SldCount Do Begin
+  S := Pres.Slides[I];
+  If S <> Nil Then Begin
+   WriteLn(F, '--- Diapositive ', I, ' / ', Pres.SldCount,
+              ' : ', S^.Title, ' ---');
+   WriteLn(F);
+   For J := 1 To S^.ShCount Do Begin
+    Sh := S^.Shapes[J];
+    If Sh <> Nil Then
+     For K := 1 To Sh^.TxtCount Do Begin
+      If Sh^.Bullets[K] Then Write(F, ' * ')
+      Else Write(F, '   ');
+      WriteLn(F, Sh^.Text[K]);
+     End;
+   End;
+   If S^.Notes <> '' Then Begin
+    WriteLn(F);
+    WriteLn(F, 'Notes :');
+    WriteLn(F, S^.Notes);
+   End;
+   WriteLn(F);
+   { Saut de page ASCII (FF) entre diapos sauf la derniere }
+   If I < Pres.SldCount Then Begin Write(F, #12); WriteLn(F); End;
+  End;
+ End;
+ Close(F);
+ StatusMsg := 'Imprime (texte) : ' + FN;
+ NeedStatRedraw := True;
+End;
+
 Procedure DoAction(A: Integer); Forward;
 Procedure RemoveShapeAt(SlIdx, ShIdx: Integer); Forward;
 Procedure ShapeDuplicate; Forward;
@@ -4444,6 +5668,13 @@ Begin
  Case A Of
   ACT_QUIT:         ActionQuit;
   ACT_NEW:          ActionNew;
+  ACT_OPEN:         ActionOpen;
+  ACT_SAVE:         ActionSave;
+  ACT_SAVEAS:       ActionSaveAs;
+  ACT_CLOSE:        ActionClose;
+  ACT_PRINT:        ActionPrint;
+  ACT_EXPORT_PPTX:  ActionExportPPTX;
+  ACT_IMPORT_PPTX:  ActionImportPPTX;
   ACT_HELP_ABOUT:   ActionAbout;
   ACT_NEW_SLIDE:    ActionNewSlide;
   ACT_DUP_SLIDE:    ActionDupSlide;
@@ -4546,7 +5777,9 @@ Begin
  Else Begin
   MenuOpen := M;
   MenuItemHover := 0;
- End;
+  MenuKbdActive := False;
+  MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+ end;
  NeedFullRedraw := True;
 End;
 
@@ -5461,7 +6694,7 @@ Begin
 End;
 
 Procedure UpdateHovers;
-Var T, M: Integer;
+Var T, M, NewItem: Integer;
 Begin
  T := 0; M := 0;
  If InRect(Mouse.X, Mouse.Y, 0, MenuY1, SCREEN_W - 1, MenuY2) Then
@@ -5470,11 +6703,55 @@ Begin
   MenuHover := M;
   If MenuOpen = 0 Then DrawMenuBar;
  End;
+ { Phase 12 fix : un menu deroulant est ouvert -- bascule automatique
+   vers un autre menu si la souris survole un autre titre de la barre.
+   MAIS si la selection clavier est active et que la souris n'a pas bouge,
+   on ignore le survol-souris (sinon Gauche/Droite clavier est annule par
+   la souris stationnaire sur l'ancien titre de menu). }
+ If (MenuOpen <> 0) And (M <> 0) And (M <> MenuOpen) Then Begin
+  If MenuKbdActive And
+     (Mouse.X = MenuKbdMx) And (Mouse.Y = MenuKbdMy) Then Begin
+   { ignorer : laisse le clavier piloter MenuOpen }
+  End
+  Else Begin
+   MenuOpen := M;
+   MenuItemHover := 0;
+   MenuKbdActive := False;
+   NeedFullRedraw := True;
+   Exit;
+  End;
+ End;
+ { Phase 12 fix : survol des items du menu deroulant ouvert.
+   Si la selection a ete posee au clavier et que la souris n'a pas bouge,
+   on ne touche PAS a MenuItemHover -- sinon la souris stationnaire ecrase
+   la selection clavier a chaque tick. }
+ If MenuOpen <> 0 Then Begin
+  If MenuKbdActive And
+     (Mouse.X = MenuKbdMx) And (Mouse.Y = MenuKbdMy) Then Begin
+   { ne rien faire : laisse le clavier piloter MenuItemHover }
+  End
+  Else Begin
+   MenuKbdActive := False;
+   ComputeDropLayout(MenuOpen);
+   If InRect(Mouse.X, Mouse.Y, DropX, DropY,
+             DropX + DropW, DropY + DropH) Then
+    NewItem := DropItemAtY(MenuOpen, Mouse.Y)
+   Else
+    NewItem := 0;
+   If NewItem <> MenuItemHover Then Begin
+    MenuItemHover := NewItem;
+    DrawDropDown;
+   End;
+  End;
+ End;
  If InRect(Mouse.X, Mouse.Y, 0, ToolY1, SCREEN_W - 1, ToolY2) Then
   T := ToolAt(Mouse.X, Mouse.Y);
  If ToolHover <> T Then Begin
   ToolHover := T;
   DrawToolBar;
+  { Phase 12 fix : conserver le menu deroulant au-dessus de la barre
+    d'outils apres un repaint partiel de celle-ci. }
+  If MenuOpen <> 0 Then DrawDropDown;
   If T > 0 Then Begin
    StatusMsg := Tools[T].Hint;
    NeedStatRedraw := True;
@@ -5491,7 +6768,87 @@ End;
 { ====================================================================== }
 
 Procedure HandleKey(K, K2: Char);
+Var NewSel, Tries, Act: Integer;
 Begin
+ { ----- MENU DEROULANT OUVERT : priorite absolue clavier ----- }
+ If MenuOpen <> 0 Then Begin
+  If K = #0 Then Begin
+   Case K2 Of
+    #80: Begin   { Down : item selectable suivant }
+     If Menus[MenuOpen].Count = 0 Then Exit;
+     NewSel := MenuItemHover; Tries := 0;
+     Repeat
+      Inc(NewSel);
+      If NewSel > Menus[MenuOpen].Count Then NewSel := 1;
+      Inc(Tries);
+     Until (Not Menus[MenuOpen].Items[NewSel].IsSep) Or
+           (Tries > Menus[MenuOpen].Count);
+     MenuItemHover := NewSel;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     DrawDropDown; Exit;
+    End;
+    #72: Begin   { Up : item selectable precedent }
+     If Menus[MenuOpen].Count = 0 Then Exit;
+     If MenuItemHover = 0 Then NewSel := 1 Else NewSel := MenuItemHover;
+     Tries := 0;
+     Repeat
+      Dec(NewSel);
+      If NewSel < 1 Then NewSel := Menus[MenuOpen].Count;
+      Inc(Tries);
+     Until (Not Menus[MenuOpen].Items[NewSel].IsSep) Or
+           (Tries > Menus[MenuOpen].Count);
+     MenuItemHover := NewSel;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     DrawDropDown; Exit;
+    End;
+    #75: Begin   { Left : menu precedent }
+     Dec(MenuOpen); If MenuOpen < 1 Then MenuOpen := MenuCount;
+     MenuItemHover := 0;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     NeedFullRedraw := True; Exit;
+    End;
+    #77: Begin   { Right : menu suivant }
+     Inc(MenuOpen); If MenuOpen > MenuCount Then MenuOpen := 1;
+     MenuItemHover := 0;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     NeedFullRedraw := True; Exit;
+    End;
+    #71: Begin   { Home : premier selectable }
+     NewSel := 1;
+     While (NewSel <= Menus[MenuOpen].Count) And
+           Menus[MenuOpen].Items[NewSel].IsSep Do Inc(NewSel);
+     If NewSel <= Menus[MenuOpen].Count Then MenuItemHover := NewSel;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     DrawDropDown; Exit;
+    End;
+    #79: Begin   { End : dernier selectable }
+     NewSel := Menus[MenuOpen].Count;
+     While (NewSel >= 1) And Menus[MenuOpen].Items[NewSel].IsSep Do Dec(NewSel);
+     If NewSel >= 1 Then MenuItemHover := NewSel;
+     MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
+     DrawDropDown; Exit;
+    End;
+   End;
+   Exit;
+  End;
+  Case K Of
+   #27: Begin   { Esc : ferme }
+    MenuOpen := 0; MenuItemHover := 0; MenuKbdActive := False;
+    NeedFullRedraw := True; Exit;
+   End;
+   #13: Begin   { Enter : active }
+    If (MenuItemHover >= 1) And (MenuItemHover <= Menus[MenuOpen].Count) And
+       (Not Menus[MenuOpen].Items[MenuItemHover].IsSep) Then Begin
+     Act := Menus[MenuOpen].Items[MenuItemHover].Action;
+     MenuOpen := 0; MenuItemHover := 0; MenuKbdActive := False;
+     NeedFullRedraw := True;
+     If Act <> 0 Then DoAction(Act);
+    End;
+    Exit;
+   End;
+  End;
+  Exit;
+ End;
  { ----- MODE EDITION TEXTE : priorite absolue ----- }
  If EditMode Then Begin
   If K = #0 Then Begin
@@ -5629,6 +6986,9 @@ Begin
   #15:  DoAction(ACT_OPEN);                         { Ctrl+O }
   #19:  DoAction(ACT_SAVE);                         { Ctrl+S }
   #16:  DoAction(ACT_PRINT);                        { Ctrl+P }
+  #5:   DoAction(ACT_EXPORT_PPTX);                  { Ctrl+E }
+  #2:   If CurShape > 0 Then ShapeToggleBold;       { Ctrl+B }
+  #21:  If CurShape > 0 Then ShapeToggleUnderline;  { Ctrl+U }
   #26:  DoAction(ACT_UNDO);                         { Ctrl+Z }
   #25:  DoAction(ACT_REDO);                         { Ctrl+Y }
   #24:  DoAction(ACT_CUT);                          { Ctrl+X }
@@ -5690,10 +7050,10 @@ Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
  SetColor(CLR_BLACK);
  OutTextXY(120, 160, 'Clone Pascal de Microsoft PowerPoint');
- OutTextXY(120, 180, 'Version 0.10 - Phase 1 (2026)');
+ OutTextXY(120, 180, 'Version 1.0 - Phase 12 (2026) - finale');
  OutTextXY(120, 200, '(c) Sylvain Maltais  -  www.gladir.com');
  SetColor(CLR_DGRAY);
- OutTextXY(120, 240, 'Formats supportes : .PPT, .PPTX (a venir)');
+ OutTextXY(120, 240, 'Formats : .PPT natif, .PPTX (import/export), .PRN');
  OutTextXY(120, 256, 'Compilateur : Free Pascal 3.2 (-Mtp)');
  OutTextXY(120, 272, 'Affichage : VGA 640 x 480 x 16');
  SetColor(CLR_BLACK);
@@ -5733,11 +7093,27 @@ Begin
  InitPresentation;
  If ParamCount >= 1 Then Begin
   CmdFName := ParamStr(1);
-  { Phase 1 : on charge juste le nom dans la presentation, vrai loader en
-    phases 10/11 (.PPT / .PPTX). }
-  Pres.FileName := CmdFName;
-  SeedSamplePresentation;
-  StatusMsg := 'Charge (factice) : ' + CmdFName;
+  { Phase 12 : vraie dispatche selon extension }
+  If (Length(CmdFName) >= 5) And
+     (PptxUpStr(Copy(CmdFName, Length(CmdFName) - 4, 5)) = '.PPTX') Then
+  Begin
+   If LoadPPTX(CmdFName) Then StatusMsg := 'Charge : ' + CmdFName
+   Else Begin SeedSamplePresentation;
+              StatusMsg := 'Echec PPTX : ' + CmdFName; End;
+  End
+  Else If (Length(CmdFName) >= 4) And
+          (PptxUpStr(Copy(CmdFName, Length(CmdFName) - 3, 4)) = '.PPT') Then
+  Begin
+   If LoadPresentationFile(CmdFName) Then
+    StatusMsg := 'Charge : ' + CmdFName
+   Else Begin SeedSamplePresentation;
+              StatusMsg := 'Echec : ' + CmdFName; End;
+  End
+  Else Begin
+   Pres.FileName := CmdFName;
+   SeedSamplePresentation;
+   StatusMsg := 'Charge (factice) : ' + CmdFName;
+  End;
  End
  Else Begin
   SeedSamplePresentation;
