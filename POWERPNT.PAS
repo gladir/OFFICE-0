@@ -6778,17 +6778,20 @@ Begin
    SetMenuItemHover(NewItem);
   End;
  End;
- If InRect(Mouse.X, Mouse.Y, 0, ToolY1, SCREEN_W - 1, ToolY2) Then
-  T := ToolAt(Mouse.X, Mouse.Y);
- If ToolHover <> T Then Begin
-  ToolHover := T;
-  DrawToolBar;
-  { Phase 12 fix : conserver le menu deroulant au-dessus de la barre
-    d'outils apres un repaint partiel de celle-ci. }
-  If MenuOpen <> 0 Then DrawDropDown;
-  If T > 0 Then Begin
-   StatusMsg := Tools[T].Hint;
-   NeedStatRedraw := True;
+ { Phase 12 fix : quand un menu deroulant est ouvert, on n'evalue PAS le
+   survol des outils -- la souris sur le dropdown chevauche visuellement la
+   barre d'outils en Y, ce qui declenche un repaint/flash de la toolbar a
+   chaque pixel deplace. }
+ If MenuOpen = 0 Then Begin
+  If InRect(Mouse.X, Mouse.Y, 0, ToolY1, SCREEN_W - 1, ToolY2) Then
+   T := ToolAt(Mouse.X, Mouse.Y);
+  If ToolHover <> T Then Begin
+   ToolHover := T;
+   DrawToolBar;
+   If T > 0 Then Begin
+    StatusMsg := Tools[T].Hint;
+    NeedStatRedraw := True;
+   End;
   End;
  End;
  { Met a jour la position dans la status bar quand on est sur la slide }
