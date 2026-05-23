@@ -1148,6 +1148,43 @@ Begin
  ShowMouse;
 End;
 
+{ Phase 12 : repaint d'une seule rangee d'item dans le menu deroulant ouvert
+  (pas de cadre, pas d'ombre) -- evite le scintillement plein dropdown lors
+  d'un simple changement de surlignage. }
+Procedure DrawDropDownItem(I: Integer);
+Var M, J, Y, Ih, Bg, Fg: Integer; S: String;
+Begin
+ If MenuOpen = 0 Then Exit;
+ M := MenuOpen;
+ If (I < 1) Or (I > Menus[M].Count) Then Exit;
+ If Menus[M].Items[I].IsSep Then Exit;
+ Y := DropY + 2;
+ For J := 1 To I - 1 Do Y := Y + DropItemH(M, J);
+ Ih := DropItemH(M, I);
+ If I = MenuItemHover Then Begin Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG; End
+ Else Begin Bg := CLR_MENU_BG; Fg := CLR_MENU_FG; End;
+ HideMouse;
+ FillBox(DropX + 2, Y, DropX + DropW - 2, Y + Ih - 1, Bg);
+ SetColor(Fg);
+ OutTextXY(DropX + 8, Y + 2, Menus[M].Items[I].Caption);
+ S := Menus[M].Items[I].Shortcut;
+ If S <> '' Then
+  OutTextXY(DropX + DropW - TextWidth(S) - 8, Y + 2, S);
+ ShowMouse;
+End;
+
+{ Phase 12 : change l'item survole sans repeindre tout le dropdown. }
+Procedure SetMenuItemHover(NewSel: Integer);
+Var Old: Integer;
+Begin
+ If MenuOpen = 0 Then Exit;
+ If NewSel = MenuItemHover Then Exit;
+ Old := MenuItemHover;
+ MenuItemHover := NewSel;
+ If Old <> 0 Then DrawDropDownItem(Old);
+ If NewSel <> 0 Then DrawDropDownItem(NewSel);
+End;
+
 Function DropItemAtY(M: Integer; Y: LongInt): Integer;
 Var I, YY, Ih: Integer;
 Begin
@@ -6738,10 +6775,7 @@ Begin
     NewItem := DropItemAtY(MenuOpen, Mouse.Y)
    Else
     NewItem := 0;
-   If NewItem <> MenuItemHover Then Begin
-    MenuItemHover := NewItem;
-    DrawDropDown;
-   End;
+   SetMenuItemHover(NewItem);
   End;
  End;
  If InRect(Mouse.X, Mouse.Y, 0, ToolY1, SCREEN_W - 1, ToolY2) Then
@@ -6783,9 +6817,9 @@ Begin
       Inc(Tries);
      Until (Not Menus[MenuOpen].Items[NewSel].IsSep) Or
            (Tries > Menus[MenuOpen].Count);
-     MenuItemHover := NewSel;
+     SetMenuItemHover(NewSel);
      MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
-     DrawDropDown; Exit;
+     Exit;
     End;
     #72: Begin   { Up : item selectable precedent }
      If Menus[MenuOpen].Count = 0 Then Exit;
@@ -6797,9 +6831,9 @@ Begin
       Inc(Tries);
      Until (Not Menus[MenuOpen].Items[NewSel].IsSep) Or
            (Tries > Menus[MenuOpen].Count);
-     MenuItemHover := NewSel;
+     SetMenuItemHover(NewSel);
      MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
-     DrawDropDown; Exit;
+     Exit;
     End;
     #75: Begin   { Left : menu precedent }
      Dec(MenuOpen); If MenuOpen < 1 Then MenuOpen := MenuCount;
@@ -6817,16 +6851,16 @@ Begin
      NewSel := 1;
      While (NewSel <= Menus[MenuOpen].Count) And
            Menus[MenuOpen].Items[NewSel].IsSep Do Inc(NewSel);
-     If NewSel <= Menus[MenuOpen].Count Then MenuItemHover := NewSel;
+     If NewSel <= Menus[MenuOpen].Count Then SetMenuItemHover(NewSel);
      MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
-     DrawDropDown; Exit;
+     Exit;
     End;
     #79: Begin   { End : dernier selectable }
      NewSel := Menus[MenuOpen].Count;
      While (NewSel >= 1) And Menus[MenuOpen].Items[NewSel].IsSep Do Dec(NewSel);
-     If NewSel >= 1 Then MenuItemHover := NewSel;
+     If NewSel >= 1 Then SetMenuItemHover(NewSel);
      MenuKbdActive := True; MenuKbdMx := Mouse.X; MenuKbdMy := Mouse.Y;
-     DrawDropDown; Exit;
+     Exit;
     End;
    End;
    Exit;
