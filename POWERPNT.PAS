@@ -7490,8 +7490,129 @@ Var F: File;
   RgbToEga := Byte(Best);
  End;
 
+ Function MapCp437(CP: LongInt): Char;
+ Begin
+  Case CP Of
+   $00A0: MapCp437 := #$FF;  { NBSP }
+   $00A1: MapCp437 := #$AD;  { ¡ }
+   $00A2: MapCp437 := #$9B;  { ¢ }
+   $00A3: MapCp437 := #$9C;  { £ }
+   $00A5: MapCp437 := #$9D;  { ¥ }
+   $00AA: MapCp437 := #$A6;  { ª }
+   $00AB: MapCp437 := #$AE;  { « }
+   $00BA: MapCp437 := #$A7;  { º }
+   $00BB: MapCp437 := #$AF;  { » }
+   $00BC: MapCp437 := #$AC;  { ¼ }
+   $00BD: MapCp437 := #$AB;  { ½ }
+   $00BF: MapCp437 := #$A8;  { ¿ }
+   $00B0: MapCp437 := #$F8;  { ° }
+   $00B1: MapCp437 := #$F1;  { ± }
+   $00B2: MapCp437 := #$FD;  { ² }
+   $00B5: MapCp437 := #$E6;  { µ }
+   $00B7: MapCp437 := #$FA;  { · }
+   $00C0: MapCp437 := 'A';
+   $00C1: MapCp437 := 'A';
+   $00C2: MapCp437 := 'A';
+   $00C3: MapCp437 := 'A';
+   $00C4: MapCp437 := #$8E;  { Ä }
+   $00C5: MapCp437 := #$8F;  { Å }
+   $00C6: MapCp437 := #$92;  { Æ }
+   $00C7: MapCp437 := #$80;  { Ç }
+   $00C8: MapCp437 := 'E';
+   $00C9: MapCp437 := #$90;  { É }
+   $00CA: MapCp437 := 'E';
+   $00CB: MapCp437 := 'E';
+   $00CC: MapCp437 := 'I';
+   $00CD: MapCp437 := 'I';
+   $00CE: MapCp437 := 'I';
+   $00CF: MapCp437 := 'I';
+   $00D1: MapCp437 := #$A5;  { Ñ }
+   $00D2: MapCp437 := 'O';
+   $00D3: MapCp437 := 'O';
+   $00D4: MapCp437 := 'O';
+   $00D5: MapCp437 := 'O';
+   $00D6: MapCp437 := #$99;  { Ö }
+   $00D9: MapCp437 := 'U';
+   $00DA: MapCp437 := 'U';
+   $00DB: MapCp437 := 'U';
+   $00DC: MapCp437 := #$9A;  { Ü }
+   $00DF: MapCp437 := #$E1;  { ß }
+   $00E0: MapCp437 := #$85;  { à }
+   $00E1: MapCp437 := #$A0;  { á }
+   $00E2: MapCp437 := #$83;  { â }
+   $00E3: MapCp437 := 'a';
+   $00E4: MapCp437 := #$84;  { ä }
+   $00E5: MapCp437 := #$86;  { å }
+   $00E6: MapCp437 := #$91;  { æ }
+   $00E7: MapCp437 := #$87;  { ç }
+   $00E8: MapCp437 := #$8A;  { è }
+   $00E9: MapCp437 := #$82;  { é }
+   $00EA: MapCp437 := #$88;  { ê }
+   $00EB: MapCp437 := #$89;  { ë }
+   $00EC: MapCp437 := #$8D;  { ì }
+   $00ED: MapCp437 := #$A1;  { í }
+   $00EE: MapCp437 := #$8C;  { î }
+   $00EF: MapCp437 := #$8B;  { ï }
+   $00F1: MapCp437 := #$A4;  { ñ }
+   $00F2: MapCp437 := #$95;  { ò }
+   $00F3: MapCp437 := #$A2;  { ó }
+   $00F4: MapCp437 := #$93;  { ô }
+   $00F5: MapCp437 := 'o';
+   $00F6: MapCp437 := #$94;  { ö }
+   $00F7: MapCp437 := #$F6;  { ÷ }
+   $00F9: MapCp437 := #$97;  { ù }
+   $00FA: MapCp437 := #$A3;  { ú }
+   $00FB: MapCp437 := #$96;  { û }
+   $00FC: MapCp437 := #$81;  { ü }
+   $00FF: MapCp437 := #$98;  { ÿ }
+   $2013: MapCp437 := '-';   { – }
+   $2014: MapCp437 := '-';   { — }
+   $2018: MapCp437 := '''';  { ' }
+   $2019: MapCp437 := '''';  { ' }
+   $201A: MapCp437 := ',';
+   $201C: MapCp437 := '"';   { " }
+   $201D: MapCp437 := '"';   { " }
+   $2022: MapCp437 := #$07;  { • -> bullet }
+   $2026: MapCp437 := '.';   { … }
+   $20AC: MapCp437 := 'E';   { € (CP437 n'a pas euro) }
+  Else
+   If (CP >= 32) And (CP < 127) Then MapCp437 := Char(CP)
+   Else MapCp437 := '?';
+  End;
+ End;
+
+ Function Utf8ToCp437(Const S: String): String;
+ Var R: String; I, L: Integer; B, B2, B3: Byte; CP: LongInt;
+ Begin
+  R := ''; I := 1; L := Length(S);
+  While I <= L Do Begin
+   B := Byte(S[I]);
+   If B < $80 Then Begin
+    R := R + Char(B); Inc(I);
+   End Else If (B And $E0) = $C0 Then Begin
+    If I + 1 <= L Then Begin
+     B2 := Byte(S[I+1]);
+     CP := (LongInt(B And $1F) Shl 6) Or (B2 And $3F);
+     R := R + MapCp437(CP); Inc(I, 2);
+    End Else Begin R := R + '?'; Inc(I); End;
+   End Else If (B And $F0) = $E0 Then Begin
+    If I + 2 <= L Then Begin
+     B2 := Byte(S[I+1]); B3 := Byte(S[I+2]);
+     CP := (LongInt(B And $0F) Shl 12) Or (LongInt(B2 And $3F) Shl 6) Or (B3 And $3F);
+     R := R + MapCp437(CP); Inc(I, 3);
+    End Else Begin R := R + '?'; Inc(I); End;
+   End Else If (B And $F8) = $F0 Then Begin
+    If I + 3 <= L Then Begin R := R + '?'; Inc(I, 4); End
+    Else Begin R := R + '?'; Inc(I); End;
+   End Else Begin
+    R := R + '?'; Inc(I);
+   End;
+  End;
+  Utf8ToCp437 := R;
+ End;
+
  Function DecodeEntities(Const S: String): String;
- Var R: String; I: Integer;
+ Var R: String; I, J: Integer; CP: LongInt; Hex: Boolean; Ch: Char;
  Begin
   R := ''; I := 1;
   While I <= Length(S) Do Begin
@@ -7501,6 +7622,27 @@ Var F: File;
     If Copy(S, I, 4) = '&gt;'   Then Begin R := R + '>';  Inc(I, 4); Continue; End;
     If (I + 5 <= Length(S)) And (Copy(S, I, 6) = '&quot;') Then Begin R := R + '"';  Inc(I, 6); Continue; End;
     If (I + 5 <= Length(S)) And (Copy(S, I, 6) = '&apos;') Then Begin R := R + ''''; Inc(I, 6); Continue; End;
+    If (I + 2 <= Length(S)) And (S[I+1] = '#') Then Begin
+     J := I + 2; Hex := False;
+     If (J <= Length(S)) And ((S[J] = 'x') Or (S[J] = 'X')) Then Begin Hex := True; Inc(J); End;
+     CP := 0;
+     While (J <= Length(S)) And (S[J] <> ';') Do Begin
+      Ch := S[J];
+      If Hex Then Begin
+       If      (Ch >= '0') And (Ch <= '9') Then CP := CP * 16 + (Ord(Ch) - Ord('0'))
+       Else If (Ch >= 'a') And (Ch <= 'f') Then CP := CP * 16 + (Ord(Ch) - Ord('a') + 10)
+       Else If (Ch >= 'A') And (Ch <= 'F') Then CP := CP * 16 + (Ord(Ch) - Ord('A') + 10)
+       Else Break;
+      End Else Begin
+       If (Ch >= '0') And (Ch <= '9') Then CP := CP * 10 + (Ord(Ch) - Ord('0'))
+       Else Break;
+      End;
+      Inc(J);
+     End;
+     If (J <= Length(S)) And (S[J] = ';') Then Begin
+      R := R + MapCp437(CP); I := J + 1; Continue;
+     End;
+    End;
    End;
    R := R + S[I]; Inc(I);
   End;
@@ -7514,7 +7656,7 @@ Var F: File;
   While (P < EP) And (Length(R) < 240) Do Begin
    R := R + Char(PtrToByteAt(P)); Inc(P);
   End;
-  ExtractTextBetween := DecodeEntities(R);
+  ExtractTextBetween := Utf8ToCp437(DecodeEntities(R));
  End;
 
  Function SchemeIdx(Const Name: String): Integer;
