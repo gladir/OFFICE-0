@@ -6358,6 +6358,104 @@ Begin
  Inflate := Not InfError;
 End;
 
+{ Helper de log top-level (PptxLog/LStr ne sont visibles qu'a l'interieur
+  de LoadPPTX). Ecrit dans POWERPNT.LOG. }
+Procedure PicLog(Const S: String);
+Var LF: Text;
+Begin
+ Assign(LF, 'POWERPNT.LOG');
+ {$I-} Append(LF); {$I+} If IOResult <> 0 Then Begin
+  {$I-} Rewrite(LF); {$I+} If IOResult <> 0 Then Exit;
+ End;
+ WriteLn(LF, S); Close(LF);
+End;
+
+Function PicLS(L: LongInt): String;
+Var T: String; Begin Str(L, T); PicLS := T; End;
+
+{ ====================================================================== }
+{           DITHERING FLOYD-STEINBERG VERS EGA 16 (Etape 5D)             }
+{ ----------------------------------------------------------------------
+   Convertit un buffer RGB (R,G,B,R,G,B,...) WxH octets vers indices EGA
+   16 dans OutBuf (W*H octets), avec dithering Floyd-Steinberg :
+     7/16 -> (x+1, y)
+     3/16 -> (x-1, y+1)
+     5/16 -> (x,   y+1)
+     1/16 -> (x+1, y+1)
+   Utilise 2 lignes d'erreur LongInt par canal pour eviter de saturer
+   les corrections (les Bytes ne suffisent pas pour les erreurs signees).
+}
+
+Procedure DitherRgbToEga(W, H: Integer; RgbBuf, OutBuf: Pointer);
+Type
+ TDitBA = Array[0..1024*1024*16 - 1] Of Byte;
+ PDitBA = ^TDitBA;
+ TDitLA = Array[0..16383] Of LongInt;
+ PDitLA = ^TDitLA;
+Var Rgb: PDitBA; Outp: PDitBA;
+    ErrR, ErrG, ErrB: PDitLA;
+    X, Y, Cur, Nxt: Integer;
+    Idx, RowBase, ErrCurOff, ErrNxtOff: LongInt;
+    R, G, B, Best, Er, Eg, Eb: Integer;
+    Stride: LongInt;
+    Sz: LongInt;
+Begin
+ If (W <= 0) Or (H <= 0) Then Exit;
+ Rgb  := RgbBuf;
+ Outp := OutBuf;
+ Stride := LongInt(W) + 2;
+ Sz := Stride * 2 * SizeOf(LongInt);
+ GetMem(ErrR, Sz); GetMem(ErrG, Sz); GetMem(ErrB, Sz);
+ If (ErrR = Nil) Or (ErrG = Nil) Or (ErrB = Nil) Then Begin
+  If ErrR <> Nil Then FreeMem(ErrR, Sz);
+  If ErrG <> Nil Then FreeMem(ErrG, Sz);
+  If ErrB <> Nil Then FreeMem(ErrB, Sz);
+  Exit;
+ End;
+ FillChar(ErrR^, Sz, 0);
+ FillChar(ErrG^, Sz, 0);
+ FillChar(ErrB^, Sz, 0);
+ Cur := 0; Nxt := 1;
+ For Y := 0 To H - 1 Do Begin
+  { Reinitialise la ligne suivante }
+  For X := 0 To W + 1 Do Begin
+   ErrR^[Nxt * Stride + X] := 0;
+   ErrG^[Nxt * Stride + X] := 0;
+   ErrB^[Nxt * Stride + X] := 0;
+  End;
+  For X := 0 To W - 1 Do Begin
+   Idx := (LongInt(Y) * W + X) * 3;
+   R := Rgb^[Idx]     + (ErrR^[Cur * Stride + X + 1] Div 16);
+   G := Rgb^[Idx + 1] + (ErrG^[Cur * Stride + X + 1] Div 16);
+   B := Rgb^[Idx + 2] + (ErrB^[Cur * Stride + X + 1] Div 16);
+   If R < 0 Then R := 0 Else If R > 255 Then R := 255;
+   If G < 0 Then G := 0 Else If G > 255 Then G := 255;
+   If B < 0 Then B := 0 Else If B > 255 Then B := 255;
+   Best := NearestVGA16(R, G, B);
+   Outp^[LongInt(Y) * W + X] := Byte(Best);
+   Er := R - VGA_R[Best];
+   Eg := G - VGA_G[Best];
+   Eb := B - VGA_B[Best];
+   { Repartition (en 16emes pre-multiplies pour eviter division precoce) }
+   ErrR^[Cur * Stride + X + 2] := ErrR^[Cur * Stride + X + 2] + Er * 7;
+   ErrG^[Cur * Stride + X + 2] := ErrG^[Cur * Stride + X + 2] + Eg * 7;
+   ErrB^[Cur * Stride + X + 2] := ErrB^[Cur * Stride + X + 2] + Eb * 7;
+   ErrR^[Nxt * Stride + X]     := ErrR^[Nxt * Stride + X]     + Er * 3;
+   ErrG^[Nxt * Stride + X]     := ErrG^[Nxt * Stride + X]     + Eg * 3;
+   ErrB^[Nxt * Stride + X]     := ErrB^[Nxt * Stride + X]     + Eb * 3;
+   ErrR^[Nxt * Stride + X + 1] := ErrR^[Nxt * Stride + X + 1] + Er * 5;
+   ErrG^[Nxt * Stride + X + 1] := ErrG^[Nxt * Stride + X + 1] + Eg * 5;
+   ErrB^[Nxt * Stride + X + 1] := ErrB^[Nxt * Stride + X + 1] + Eb * 5;
+   ErrR^[Nxt * Stride + X + 2] := ErrR^[Nxt * Stride + X + 2] + Er * 1;
+   ErrG^[Nxt * Stride + X + 2] := ErrG^[Nxt * Stride + X + 2] + Eg * 1;
+   ErrB^[Nxt * Stride + X + 2] := ErrB^[Nxt * Stride + X + 2] + Eb * 1;
+  End;
+  { Echange Cur / Nxt }
+  Cur := 1 - Cur; Nxt := 1 - Nxt;
+ End;
+ FreeMem(ErrR, Sz); FreeMem(ErrG, Sz); FreeMem(ErrB, Sz);
+End;
+
 { ====================================================================== }
 {                       DECODEUR PNG (Etape 5B)                          }
 { ----------------------------------------------------------------------
@@ -6406,6 +6504,9 @@ Var Src: PByteArr;
     PxIdx: LongInt;
     OK: Boolean;
     DeflPtr: Pointer;
+    RgbBuf: PByteArr;
+    RgbSize: LongInt;
+    Step, OutW, OutH, XX, YY: Integer;
 
  Function ReadBE32At(Off: LongInt): LongInt;
  Begin
@@ -6421,7 +6522,9 @@ Begin
  OK       := False;
  IDatBuf  := Nil; IDatCap := 0; IDatLen := 0;
  RawBuf   := Nil; RawSize := 0;
+ RgbBuf   := Nil; RgbSize := 0;
  PltCount := 0;
+ PicLog('PNG decode "' + Nm + '" InSize=' + PicLS(InSize));
  If InSize < 16 Then Exit;
  Src := PByteArr(InBuf);
  { Signature 137,80,78,71,13,10,26,10 }
@@ -6478,13 +6581,23 @@ Begin
   Inc(Pos, ChunkLen + 4);   { saute donnees + CRC }
  End;
 
+ PicLog('  PNG hdr: W=' + PicLS(PngW) + ' H=' + PicLS(PngH)
+        + ' CT=' + PicLS(ColorType) + ' BD=' + PicLS(BitDepth)
+        + ' Inter=' + PicLS(Interlace) + ' Plt=' + PicLS(PltCount)
+        + ' IDatLen=' + PicLS(IDatLen));
  If (PngW <= 0) Or (PngH <= 0) Then Goto LDone;
  If Interlace <> 0 Then Goto LDone;
  If IDatLen < 6 Then Goto LDone;
  { Limites raisonnables pour eviter d'epuiser la heap }
- If (PngW > 2048) Or (PngH > 2048) Then Goto LDone;
- If LongInt(PngW) * PngH > 200000 Then Goto LDone;   { borne TImagePixels }
-
+ If (PngW > 4096) Or (PngH > 4096) Then Goto LDone;
+ { Facteur de sous-echantillonnage pour borner la sortie EGA a 200000 px }
+ Step := 1;
+ While LongInt(PngW Div Step) * (PngH Div Step) > 200000 Do Inc(Step);
+ OutW := Integer(PngW Div Step); If OutW < 1 Then OutW := 1;
+ OutH := Integer(PngH Div Step); If OutH < 1 Then OutH := 1;
+ PicLog('  PNG ok-hdr ' + PicLS(PngW) + 'x' + PicLS(PngH) + ' CT=' + PicLS(ColorType)
+        + ' BD=' + PicLS(BitDepth) + ' step=' + PicLS(Step) + ' out='
+        + PicLS(OutW) + 'x' + PicLS(OutH));
  { Channels selon ColorType }
  Case ColorType Of
   0: Channels := 1;
@@ -6567,14 +6680,21 @@ Begin
  End;
 
  { ---- Allocation du slot image + conversion EGA ---- }
- OutSlot := AllocImageSlot(Integer(PngW), Integer(PngH), Nm);
+ OutSlot := AllocImageSlot(OutW, OutH, Nm);
  If OutSlot = 0 Then Goto LDone;
  Img := Pres.Images[OutSlot];
 
+ { Buffer RGB intermediaire pour dithering Floyd-Steinberg }
+ RgbSize := LongInt(OutW) * OutH * 3;
+ GetMem(RgbBuf, RgbSize);
+ If RgbBuf = Nil Then Goto LDone;
+
  PxIdx := 0;
- For Y := 0 To PngH - 1 Do Begin
+ For YY := 0 To OutH - 1 Do Begin
+  Y := YY * Step;
   LineOff := LongInt(Y) * (RowBytes + 1) + 1;
-  For X := 0 To PngW - 1 Do Begin
+  For XX := 0 To OutW - 1 Do Begin
+   X := XX * Step;
    Case ColorType Of
     0: Begin { Gris }
      If BitDepth = 8 Then BB := RawBuf^[LineOff + X]
@@ -6619,10 +6739,13 @@ Begin
    Else
     R := 0; G := 0; B := 0;
    End;
-   Img^.Pixels^[PxIdx] := NearestVGA16(R, G, B);
+   RgbBuf^[PxIdx * 3]     := Byte(R);
+   RgbBuf^[PxIdx * 3 + 1] := Byte(G);
+   RgbBuf^[PxIdx * 3 + 2] := Byte(B);
    Inc(PxIdx);
   End;
  End;
+ DitherRgbToEga(OutW, OutH, RgbBuf, Img^.Pixels);
  Img^.Loaded := True;
  Slot := OutSlot;
  OK := True;
@@ -6630,6 +6753,7 @@ Begin
 LDone:
  If IDatBuf <> Nil Then FreeMem(IDatBuf, IDatCap);
  If RawBuf  <> Nil Then FreeMem(RawBuf,  RawSize);
+ If RgbBuf  <> Nil Then FreeMem(RgbBuf,  RgbSize);
  LoadImagePngMem := OK;
 End;
 
@@ -6709,6 +6833,9 @@ Var Src: PJByteArr;
     PxIdx: LongInt;
     L, K, Total: Integer;
     HCnt: TBitsCnt;
+    RgbBuf: PJByteArr;
+    RgbSize: LongInt;
+    Step, OutW, OutH, XX, YY: Integer;
 
  Function GetByte: Integer;
  Begin
@@ -6902,6 +7029,8 @@ Begin
  RestartInterval := 0;
  McuCount := 0;
  BitBuf := 0; BitCnt := 0;
+ RgbBuf := Nil; RgbSize := 0;
+ PicLog('JPEG decode "' + Nm + '" InSize=' + PicLS(InSize));
  For i := 0 To 3 Do Begin
   QTbl[i].Have := False;
   Comp[i].Plane := Nil;
@@ -7022,9 +7151,15 @@ Begin
  End;
 
  { ---- Validations ---- }
+ PicLog('  JPEG SOF: ' + PicLS(PicW) + 'x' + PicLS(PicH) + ' Comp=' + PicLS(NumComp));
  If (PicW <= 0) Or (PicH <= 0) Then Goto LDoneJ;
- If (PicW > 1600) Or (PicH > 1200) Then Goto LDoneJ;
- If LongInt(PicW) * PicH > 200000 Then Goto LDoneJ;
+ If (PicW > 4096) Or (PicH > 4096) Then Goto LDoneJ;
+ { Sous-echantillonnage pour borner la sortie EGA }
+ Step := 1;
+ While LongInt(PicW Div Step) * (PicH Div Step) > 200000 Do Inc(Step);
+ OutW := PicW Div Step; If OutW < 1 Then OutW := 1;
+ OutH := PicH Div Step; If OutH < 1 Then OutH := 1;
+ PicLog('  JPEG step=' + PicLS(Step) + ' out=' + PicLS(OutW) + 'x' + PicLS(OutH));
  Hmax := 0; Vmax := 0;
  For i := 1 To NumComp Do Begin
   If Comp[i].H > Hmax Then Hmax := Comp[i].H;
@@ -7066,12 +7201,17 @@ Begin
   End;
 
  { ---- YCbCr -> RGB -> EGA ---- }
- OutSlot := AllocImageSlot(PicW, PicH, Nm);
+ OutSlot := AllocImageSlot(OutW, OutH, Nm);
  If OutSlot = 0 Then Goto LDoneJ;
  Img := Pres.Images[OutSlot];
+ RgbSize := LongInt(OutW) * OutH * 3;
+ GetMem(RgbBuf, RgbSize);
+ If RgbBuf = Nil Then Goto LDoneJ;
  PxIdx := 0;
- For y := 0 To PicH - 1 Do
-  For x := 0 To PicW - 1 Do Begin
+ For YY := 0 To OutH - 1 Do Begin
+  y := YY * Step;
+  For XX := 0 To OutW - 1 Do Begin
+   x := XX * Step;
    YV := Comp[1].Plane^[LongInt(y) * Comp[1].PlaneW + x];
    If NumComp = 3 Then Begin
     cxc := (x * Comp[2].H) Div Hmax;
@@ -7089,9 +7229,13 @@ Begin
    End Else Begin
     RR := YV; GG := YV; BB := YV;
    End;
-   Img^.Pixels^[PxIdx] := NearestVGA16(RR, GG, BB);
+   RgbBuf^[PxIdx * 3]     := Byte(RR);
+   RgbBuf^[PxIdx * 3 + 1] := Byte(GG);
+   RgbBuf^[PxIdx * 3 + 2] := Byte(BB);
    Inc(PxIdx);
   End;
+ End;
+ DitherRgbToEga(OutW, OutH, RgbBuf, Img^.Pixels);
  Img^.Loaded := True;
  Slot := OutSlot;
  OK := True;
@@ -7100,6 +7244,7 @@ LDoneJ:
  For i := 1 To 3 Do
   If Comp[i].Plane <> Nil Then
    FreeMem(Comp[i].Plane, Comp[i].PlaneW * Comp[i].PlaneH);
+ If RgbBuf <> Nil Then FreeMem(RgbBuf, RgbSize);
  LoadImageJpegMem := OK;
 End;
 
