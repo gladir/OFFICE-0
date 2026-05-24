@@ -978,7 +978,7 @@ End;
 
 Procedure DrawDropDownMenu(MI: Integer);
 Const ITEM_H = 14;
-Var Cnt, I, MenuX, MenuY, MW: Integer;
+Var Cnt, I, MenuX, MenuY, MW, MH: Integer;
     Label_, Sc: String;
 Begin
  Cnt := GetMenuItemCount(MI);
@@ -987,9 +987,14 @@ Begin
  MenuY := MENU_Y1 + 1;
  MW    := 230;
 
+ { Hauteur : au moins assez pour couvrir toolbar + onglets de section,
+   sinon le bas des onglets depasse sous un menu court (ex. Aide). }
+ MH := Cnt * ITEM_H;
+ If MenuY + MH < SECTION_Y1 + 2 Then MH := SECTION_Y1 + 2 - MenuY;
+
  { Fond + cadre 3D }
- FillRect(MenuX, MenuY, MenuX + MW, MenuY + Cnt * ITEM_H, CLR_MENU_BG);
- FrameRect3D(MenuX, MenuY, MenuX + MW, MenuY + Cnt * ITEM_H, White, DarkGray);
+ FillRect(MenuX, MenuY, MenuX + MW, MenuY + MH, CLR_MENU_BG);
+ FrameRect3D(MenuX, MenuY, MenuX + MW, MenuY + MH, White, DarkGray);
 
  For I := 1 To Cnt Do Begin
   GetMenuItem(MI, I, Label_, Sc);
@@ -5174,7 +5179,8 @@ BEGIN
   Else Begin
    { Clignotement du caret (Phase 2) ~ toutes les ~25 iterations idle }
    Inc(BlinkCounter);
-   If (EditMode <> EM_NONE) And (BlinkCounter >= 25) Then Begin
+   If (EditMode <> EM_NONE) And (BlinkCounter >= 25) And
+      (MenuState <> MS_DROPDOWN) Then Begin
     BlinkCounter := 0;
     CursorVisible := Not CursorVisible;
     HideMouse; DrawNoteArea; ShowMouse;
