@@ -18,6 +18,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td><b>ACCESS.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Access.</td>
     </tr>
+	<tr>
+		<td><b>EXCEL.PAS</b></td>
+		<td>Cette commande permet de lancer un clone de Excel.</td>
+	</tr>
     <tr>
       <td><b>ONENOTE.PAS</b></td>
       <td>Cette commande permet de lancer un clone de OneNote.</td>
