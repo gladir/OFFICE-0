@@ -22466,7 +22466,50 @@ End;
   PROGRAMME PRINCIPAL
   ============================================================================ }
 
+{ Traiter l aide avant toute ouverture de fenetre ou lecture des comptes. }
+Function CommandLineHelpRequested: Boolean;
+Var I: Integer; Argument: TMailText;
+Begin
+ CommandLineHelpRequested := False;
+ For I := 1 To ParamCount Do Begin
+  Argument := MailUpper(ParamStr(I));
+  If (Argument = '/?') Or (Argument = '-H') Or (Argument = '--HELP') Then Begin
+   CommandLineHelpRequested := True;
+   Exit;
+  End;
+ End;
+End;
+
+Procedure ShowCommandLineHelp;
+Var HelpOutput: Text;
+Begin
+ { Un flux distinct conserve la sortie console, meme avec les unites Crt. }
+ Assign(HelpOutput, '');
+ Rewrite(HelpOutput);
+ WriteLn(HelpOutput, 'OUTLOOK - Client de messagerie graphique');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/? | -h | --help]');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput, '  Sans option   Lance l application graphique.');
+ WriteLn(HelpOutput, '  /?            Affiche cette aide et quitte.');
+ WriteLn(HelpOutput, '  -h, --help    Affichent egalement cette aide.');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput, 'Configurer les comptes : menu Outils / Comptes.');
+ WriteLn(HelpOutput, 'Recevoir les courriels : selectionner la boite du compte,');
+ WriteLn(HelpOutput, 'puis cliquer sur Envoyer/Recevoir (IMAP ou POP3).');
+ WriteLn(HelpOutput, 'Envoyer un message : nouveau message, puis Envoyer (SMTP).');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput, 'Les comptes sont conserves dans OUTLOOK.ACC,');
+ WriteLn(HelpOutput, 'dans le repertoire de l executable.');
+ Close(HelpOutput);
+End;
+
 BEGIN
+ If CommandLineHelpRequested Then Begin
+  ShowCommandLineHelp;
+  Halt(0);
+ End;
+
  { Initialisation du mode graphique }
  InitializeGraphics;
 
