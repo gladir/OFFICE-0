@@ -224,7 +224,7 @@
 Program OUTLOOK;
 
 Uses {$IFDEF FPC}
-      Crt,PtcGraph,PtcCrt,PtcMouse
+      Crt,PtcGraph,PtcCrt,PtcMouse,DOS
      {$ELSE}
       Crt,Graph,DOS
      {$ENDIF};
