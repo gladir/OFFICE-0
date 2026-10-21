@@ -3063,6 +3063,7 @@ Var
 
  { Variables globales pour le gestionnaire de comptes (TODO 11) }
  EmailAccounts: Array[0..MAX_EMAIL_ACCOUNTS-1] of TEmailAccount; { Liste des comptes }
+ AccountStorageError: String[80];
  EmailAccountCount: Integer;           { Nombre de comptes configures }
  CurrentAccountIndex: Integer;         { Index du compte en cours d'edition }
  AccountDialogVisible: Boolean;        { Boite de dialogue visible }
@@ -7192,6 +7193,126 @@ Begin
  XORPassword := Result;
 End;
 
+{ Le fichier suit l executable, independamment du repertoire courant. }
+Function AccountFileName: String;
+Var
+ S: String;
+ I: Integer;
+Begin
+ S := ParamStr(0);
+ I := Length(S);
+ While (I > 0) And (S[I] <> '\') And (S[I] <> '/') And
+       (S[I] <> ':') Do Dec(I);
+ AccountFileName := Copy(S, 1, I) + 'OUTLOOK.ACC';
+End;
+
+{ Format versionne: signature, taille d un compte, nombre, comptes complets.
+  Les mots de passe conservent le codage XOR utilise par l assistant. }
+Procedure SaveAccounts;
+Var
+ F: File;
+ Name, TempName, BackupName: String;
+ Header: Array[0..2] of LongInt;
+ Written: LongInt;
+ Err: Integer;
+Begin
+ AccountStorageError := '';
+ Name := AccountFileName;
+ TempName := Name + '.TMP';
+ BackupName := Name + '.BAK';
+ Header[0] := $4F414301;
+ Header[1] := SizeOf(TEmailAccount);
+ Header[2] := EmailAccountCount;
+ {$I-}
+ Assign(F, TempName);
+ Rewrite(F, 1);
+ Err := IOResult;
+ If Err = 0 Then Begin
+  BlockWrite(F, Header, SizeOf(Header), Written);
+  Err := IOResult;
+  If Written <> SizeOf(Header) Then Err := 101;
+  If Err = 0 Then Begin
+   BlockWrite(F, EmailAccounts, EmailAccountCount * SizeOf(TEmailAccount), Written);
+   Err := IOResult;
+   If Written <> EmailAccountCount * SizeOf(TEmailAccount) Then Err := 101;
+  End;
+  Close(F);
+  If IOResult <> 0 Then Err := 101;
+ End;
+ If Err = 0 Then Begin
+  Assign(F, BackupName);
+  Erase(F);
+  If IOResult <> 0 Then Begin End;
+  Assign(F, Name);
+  Rename(F, BackupName);
+  Err := IOResult;
+  { Un fichier absent est normal lors du premier enregistrement. }
+  If Err = 2 Then Err := 0;
+  If Err = 0 Then Begin
+   Assign(F, TempName);
+   Rename(F, Name);
+   Err := IOResult;
+   If Err <> 0 Then Begin
+    Assign(F, BackupName);
+    Rename(F, Name);
+    If IOResult <> 0 Then Begin End;
+   End;
+  End;
+ End;
+ {$I+}
+ If Err <> 0 Then
+  AccountStorageError := 'Erreur: impossible de sauvegarder OUTLOOK.ACC';
+End;
+
+Procedure LoadAccounts;
+Var
+ F: File;
+ Header: Array[0..2] of LongInt;
+ Loaded: Array[0..MAX_EMAIL_ACCOUNTS-1] of TEmailAccount;
+ ReadCount, ExpectedSize: LongInt;
+ Err: Integer;
+Begin
+ AccountStorageError := '';
+ FillChar(Loaded, SizeOf(Loaded), 0);
+ FillChar(Header, SizeOf(Header), 0);
+ {$I-}
+ Assign(F, AccountFileName);
+ Reset(F, 1);
+ Err := IOResult;
+ If Err = 2 Then Begin
+  { Recuperer la derniere sauvegarde si une ecriture a ete interrompue. }
+  Assign(F, AccountFileName + '.BAK');
+  Reset(F, 1);
+  Err := IOResult;
+  If Err = 2 Then Exit;
+ End;
+ If Err = 0 Then Begin
+  BlockRead(F, Header, SizeOf(Header), ReadCount);
+  Err := IOResult;
+  If (ReadCount <> SizeOf(Header)) Or (Header[0] <> $4F414301) Or
+     (Header[1] <> SizeOf(TEmailAccount)) Or (Header[2] < 0) Or
+     (Header[2] > MAX_EMAIL_ACCOUNTS) Then Err := 100;
+  If Err = 0 Then Begin
+   ExpectedSize := Header[2] * SizeOf(TEmailAccount);
+   If FileSize(F) <> SizeOf(Header) + ExpectedSize Then Err := 100;
+   If IOResult <> 0 Then Err := 100;
+   If Err = 0 Then Begin
+    BlockRead(F, Loaded, ExpectedSize, ReadCount);
+    Err := IOResult;
+    If ReadCount <> ExpectedSize Then Err := 100;
+   End;
+  End;
+  Close(F);
+  If IOResult <> 0 Then Err := 100;
+ End;
+ {$I+}
+ If Err = 0 Then Begin
+  Move(Loaded, EmailAccounts, SizeOf(EmailAccounts));
+  EmailAccountCount := Header[2];
+ End
+ Else AccountStorageError := 'Erreur: impossible de charger OUTLOOK.ACC';
+End;
+
 { Initialise le gestionnaire de comptes }
 Procedure InitializeAccountManager;
 Var
@@ -7215,26 +7336,7 @@ Begin
   EmailAccounts[I].IsActive := False;
  End;
 
- { Creer un compte de demonstration }
- EmailAccounts[0].AccountName := 'Compte principal';
- EmailAccounts[0].DisplayName := 'Utilisateur';
- EmailAccounts[0].EmailAddress := 'user@example.com';
- EmailAccounts[0].IncomingType := istIMAP;
- EmailAccounts[0].IncomingHost := 'imap.example.com';
- EmailAccounts[0].IncomingPort := DEFAULT_IMAPS_PORT;
- EmailAccounts[0].IncomingSecurity := csSSL;
- EmailAccounts[0].IncomingUsername := 'user@example.com';
- EmailAccounts[0].IncomingPassword := XORPassword('password');
- EmailAccounts[0].OutgoingHost := 'smtp.example.com';
- EmailAccounts[0].OutgoingPort := DEFAULT_SMTP_SUBMISSION_PORT;
- EmailAccounts[0].OutgoingSecurity := csSTARTTLS;
- EmailAccounts[0].OutgoingAuthRequired := True;
- EmailAccounts[0].OutgoingUseSameAuth := True;
- EmailAccounts[0].IsActive := True;
- EmailAccounts[0].IsDefault := True;
- EmailAccounts[0].LastConnectionTest := ctrNotTested;
- EmailAccounts[0].CheckIntervalMins := 5;
- EmailAccountCount := 1;
+ LoadAccounts;
 End;
 
 { Initialise un compte vide }
@@ -8123,6 +8225,11 @@ Begin
  BtnY := BtnY + 30;
  DrawDialogButton(BtnX, BtnY, 95, DIALOG_BUTTON_HEIGHT, 'Proprietes', False, SelectedAccountInList >= 0);
 
+ If AccountStorageError <> '' Then Begin
+  SetColor(LightRed);
+  OutTextXY(DIALOG_X + DIALOG_MARGIN, DIALOG_Y + 245, AccountStorageError);
+ End;
+
  { Boutons de fermeture }
  BtnY := DIALOG_Y + DIALOG_HEIGHT - DIALOG_BUTTON_HEIGHT - DIALOG_MARGIN;
  BtnX := DIALOG_X + DIALOG_WIDTH - DIALOG_BUTTON_WIDTH - DIALOG_MARGIN;
@@ -8215,6 +8322,7 @@ Begin
    Else Begin
     EmailAccounts[CurrentAccountIndex] := TempAccount;
    End;
+   SaveAccounts;
    AccountWizardMode := False;
    AccountDialogVisible := True;
   End;
@@ -8306,6 +8414,12 @@ Begin
   EmailAccounts[I] := EmailAccounts[I + 1];
 
  Dec(EmailAccountCount);
+ If EmailAccountCount > 0 Then Begin
+  For I := 0 To EmailAccountCount - 1 Do
+   If EmailAccounts[I].IsDefault Then Break;
+  If Not EmailAccounts[I].IsDefault Then EmailAccounts[0].IsDefault := True;
+ End;
+ SaveAccounts;
 
  { Ajuster la selection }
  If SelectedAccountInList >= EmailAccountCount Then
@@ -8323,6 +8437,7 @@ Begin
 
  For I := 0 To EmailAccountCount - 1 Do
   EmailAccounts[I].IsDefault := (I = Index);
+ SaveAccounts;
 
  DrawAccountManagerDialog;
 End;
