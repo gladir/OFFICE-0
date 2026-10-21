@@ -193,9 +193,9 @@
   ============================================================================
 
   Unités Pascal requises:
-  - Free Pascal: PtcGraph, PtcCrt, PtcMouse, SysUtils, Classes, StrUtils,
-                 DateUtils, Sockets, SSLSockets, Base64, DOM, XMLRead
-  - Turbo Pascal: Graph, Crt, DOS, Strings (support limité réseau)
+  - Free Pascal: Crt, PtcGraph, PtcCrt, PtcMouse
+  - Turbo Pascal: Crt, Graph, DOS
+  - Fonctions utilitaires et declarations des API integrees au programme
 
   Structure des données principales:
   - TOutlookAccount: Configuration d'un compte de messagerie
@@ -224,7 +224,7 @@
 Program OUTLOOK;
 
 Uses {$IFDEF FPC}
-      Crt,PtcGraph,PtcCrt,PtcMouse,SysUtils
+      Crt,PtcGraph,PtcCrt,PtcMouse
      {$ELSE}
       Crt,Graph,DOS
      {$ENDIF};
@@ -284,6 +284,43 @@ Const
  MOUSE_MIDDLE = 4;
 
 Type
+ {$IFDEF FPC}
+ TMailText = AnsiString;
+ {$ELSE}
+ TMailText = String;
+ {$ENDIF}
+ {$IFDEF WINDOWS}
+ TMailHandle = Record Lower, Upper: PtrUInt; End;
+ TMailSecBuffer = Record Count, Kind: LongWord; Data: Pointer; End;
+ TMailSecDesc = Record Version, Count: LongWord; Buffers: Pointer; End;
+ TMailTLSSize = Record Header, Trailer, Maximum, Buffers, BlockSize: LongWord; End;
+ TMailCredentials = Record
+  Version, CertCount: LongWord;
+  Certs, RootStore: Pointer;
+  MapperCount: LongWord; Mappers: Pointer;
+  AlgorithmCount: LongWord; Algorithms: Pointer;
+  Protocols, MinimumStrength, MaximumStrength, Lifespan, Flags, Format: LongWord;
+ End;
+ PMailAddress = ^TMailAddress;
+ TMailAddress = Record
+  Flags, Family, SocketType, Protocol: LongInt;
+  AddressLength: PtrUInt;
+  CanonicalName, Address: Pointer;
+  Next: PMailAddress;
+ End;
+ TMailFDSet = Record Count: LongWord; Sockets: Array[0..63] of PtrUInt; End;
+ TMailTimeVal = Record Seconds, Microseconds: LongInt; End;
+ {$ENDIF}
+ TMailConnection = Record
+  {$IFDEF WINDOWS}
+  Socket: PtrUInt;
+  Credential, Context: TMailHandle;
+  Sizes: TMailTLSSize;
+  HasCredential, HasContext: Boolean;
+  {$ENDIF}
+  Open, Secure: Boolean;
+  Host, Pending, Encrypted: TMailText;
+ End;
  { Structure pour la disposition des zones de l'interface }
  TWindowLayout = Record
   TitleBarRect: Record X1, Y1, X2, Y2: Integer; End;
@@ -355,8 +392,8 @@ Type
   ParentIndex: Integer;      { Index du parent (-1 si racine) }
   Expanded: Boolean;         { Étendu ou replié }
   Selected: Boolean;         { Sélectionné }
-  UnreadCount: Integer;      { Nombre de messages non lus }
-  TotalCount: Integer;       { Nombre total de messages }
+  UnreadCount: LongInt;      { Nombre de messages non lus }
+  TotalCount: LongInt;       { Nombre total de messages }
   Y: Integer;                { Position Y actuelle (calculée lors du dessin) }
   Visible: Boolean;          { Visible dans l'arbre (dépend de l'expansion du parent) }
  End;
@@ -1511,7 +1548,7 @@ Type
 
   { Etat de la connexion }
   State: TIMAPState;       { Etat actuel }
-  TagCounter: Integer;     { Compteur de tags }
+  TagCounter: LongInt;     { Compteur de tags }
   LastTag: String[10];     { Dernier tag envoye }
   LastError: String[80];   { Derniere erreur }
   Capabilities: String[200]; { Capacites du serveur }
@@ -1524,7 +1561,7 @@ Type
   IdleSupported: Boolean;  { Serveur supporte IDLE }
   IdleActive: Boolean;     { IDLE actuellement actif }
 
-  { Socket de connexion (simule pour cette implementation) }
+  { Etat du transport natif; la socket est geree dans TMailConnection. }
   Connected: Boolean;
   SocketHandle: Integer;
  End;
@@ -1614,7 +1651,7 @@ Type
   HeadersOnly: Boolean;    { Telecharger seulement les en-tetes }
   DeleteAfterDays: Integer; { Supprimer apres X jours (0 = jamais) }
 
-  { Socket de connexion (simule pour cette implementation) }
+  { Etat du transport natif; la socket est geree dans TMailConnection. }
   Connected: Boolean;
   SocketHandle: Integer;
  End;
@@ -1708,7 +1745,7 @@ Type
   RcptCount: Integer;      { Nombre de destinataires }
   RcptAccepted: Integer;   { Nombre de destinataires acceptes }
 
-  { Socket de connexion (simule pour cette implementation) }
+  { Etat du transport natif; la socket est geree dans TMailConnection. }
   Connected: Boolean;
   SocketHandle: Integer;
   TLSActive: Boolean;      { TLS actif (apres STARTTLS) }
@@ -3313,6 +3350,435 @@ Var
  UseCustomStrings: Boolean;            { Utiliser les chaines personnalisees }
  LanguageFilePath: String[80];         { Chemin du fichier de langue }
 
+{ Utilitaires integres: aucune unite utilitaire supplementaire. }
+{$IFDEF FPC}
+ {$IFDEF MSWINDOWS}
+Function NativeTickCount: LongWord;
+ stdcall; external 'kernel32.dll' name 'GetTickCount';
+Function NativeEnvironmentVariable(Name, Buffer: PAnsiChar;
+ Size: LongWord): LongWord;
+ stdcall; external 'kernel32.dll' name 'GetEnvironmentVariableA';
+ {$ELSE}
+  {$IFDEF UNIX}
+Type
+ TNativeClock = Record Seconds, Nanoseconds: PtrInt; End;
+Function NativeClockGetTime(ClockID: LongInt; Var Value: TNativeClock): LongInt;
+ cdecl; external 'c' name 'clock_gettime';
+Function NativeGetEnv(Name: PAnsiChar): PAnsiChar;
+ cdecl; external 'c' name 'getenv';
+  {$ENDIF}
+ {$ENDIF}
+
+Function GetEnvironmentVariable(Name: String): TMailText;
+Var
+ NameText: TMailText;
+ {$IFDEF MSWINDOWS}
+ Value: TMailText;
+ Needed, Copied: LongWord;
+ {$ELSE}
+  {$IFDEF UNIX}
+ Value: PAnsiChar;
+ Count: LongInt;
+  {$ENDIF}
+ {$ENDIF}
+Begin
+ GetEnvironmentVariable := '';
+ NameText := Name;
+ {$IFDEF MSWINDOWS}
+ Needed := NativeEnvironmentVariable(PAnsiChar(NameText), nil, 0);
+ While Needed > 0 Do Begin
+  SetLength(Value, Needed);
+  Copied := NativeEnvironmentVariable(PAnsiChar(NameText), @Value[1], Needed);
+  If Copied < Needed Then Begin
+   SetLength(Value, Copied);
+   GetEnvironmentVariable := Value;
+   Exit;
+  End;
+  { La valeur a pu changer entre les deux appels. }
+  Needed := Copied;
+ End;
+ {$ELSE}
+  {$IFDEF UNIX}
+ Value := NativeGetEnv(PAnsiChar(NameText));
+ If Value <> nil Then Begin
+  Count := 0;
+  While Value[Count] <> #0 Do Inc(Count);
+  SetString(GetEnvironmentVariable, Value, Count);
+ End;
+  {$ENDIF}
+ {$ENDIF}
+End;
+{$ENDIF}
+
+{ API natives declarees ici pour conserver un seul fichier source. }
+{$IFDEF WINDOWS}
+Function MailWSAStartup(Version: Word; Data: Pointer): LongInt;
+ stdcall; external 'ws2_32.dll' name 'WSAStartup';
+Function MailWSACleanup: LongInt;
+ stdcall; external 'ws2_32.dll' name 'WSACleanup';
+Function MailSocket(AF, Kind, Protocol: LongInt): PtrUInt;
+ stdcall; external 'ws2_32.dll' name 'socket';
+Function MailCloseSocket(S: PtrUInt): LongInt;
+ stdcall; external 'ws2_32.dll' name 'closesocket';
+Function MailConnect(S: PtrUInt; Addr: Pointer; Len: LongInt): LongInt;
+ stdcall; external 'ws2_32.dll' name 'connect';
+Function MailSend(S: PtrUInt; Data: Pointer; Len, Flags: LongInt): LongInt;
+ stdcall; external 'ws2_32.dll' name 'send';
+Function MailRecv(S: PtrUInt; Data: Pointer; Len, Flags: LongInt): LongInt;
+ stdcall; external 'ws2_32.dll' name 'recv';
+Function MailSocketOption(S: PtrUInt; Level, Opt: LongInt; Data: Pointer; Len: LongInt): LongInt;
+ stdcall; external 'ws2_32.dll' name 'setsockopt';
+Function MailGetSocketOption(S: PtrUInt; Level, Opt: LongInt; Data: Pointer; Var Len: LongInt):
+ LongInt;
+ stdcall; external 'ws2_32.dll' name 'getsockopt';
+Function MailIoctl(S: PtrUInt; Cmd: LongWord; Var Value: LongWord): LongInt;
+ stdcall; external 'ws2_32.dll' name 'ioctlsocket';
+Function MailSelect(N: LongInt; R, W, E: Pointer; Timeout: Pointer): LongInt;
+ stdcall; external 'ws2_32.dll' name 'select';
+Function MailAddressInfo(Host, Service: PAnsiChar; Hints: Pointer; Var Addr: PMailAddress): LongInt;
+ stdcall; external 'ws2_32.dll' name 'getaddrinfo';
+Procedure MailFreeAddress(Addr: PMailAddress);
+ stdcall; external 'ws2_32.dll' name 'freeaddrinfo';
+Function MailAcquire(Principal, Package: PAnsiChar; Use: LongWord; Logon, Auth, GetKey, Arg:
+ Pointer; Var Handle: TMailHandle; Expiry: Pointer): LongInt;
+ stdcall; external 'secur32.dll' name 'AcquireCredentialsHandleA';
+Function MailInitialize(Cred, OldContext: Pointer; Target: PAnsiChar; Flags, Reserved, Rep:
+ LongWord; Input: Pointer; Reserved2: LongWord; Var Context: TMailHandle; Output: Pointer; Var
+ Attributes: LongWord; Expiry: Pointer): LongInt;
+ stdcall; external 'secur32.dll' name 'InitializeSecurityContextA';
+Function MailQuery(Var Context: TMailHandle; Attribute: LongWord; Buffer: Pointer): LongInt;
+ stdcall; external 'secur32.dll' name 'QueryContextAttributesA';
+Function MailEncrypt(Var Context: TMailHandle; Qop: LongWord; Var Desc: TMailSecDesc; Seq:
+ LongWord): LongInt;
+ stdcall; external 'secur32.dll' name 'EncryptMessage';
+Function MailDecrypt(Var Context: TMailHandle; Var Desc: TMailSecDesc; Seq: LongWord; Qop:
+ Pointer): LongInt;
+ stdcall; external 'secur32.dll' name 'DecryptMessage';
+Function MailFreeBuffer(Buffer: Pointer): LongInt;
+ stdcall; external 'secur32.dll' name 'FreeContextBuffer';
+Function MailDeleteContext(Var Context: TMailHandle): LongInt;
+ stdcall; external 'secur32.dll' name 'DeleteSecurityContext';
+Function MailFreeCredential(Var Cred: TMailHandle): LongInt;
+ stdcall; external 'secur32.dll' name 'FreeCredentialsHandle';
+{$ENDIF}
+
+Var
+ IMAPWire, POP3Wire, SMTPWire: TMailConnection;
+ MailError, MailStatus: String[80];
+ MailRaw: TMailText;
+ MailFetchFlags: TMailText;
+ MailFetchUID: LongInt;
+ MailNewMessages: Array[0..MAX_MESSAGES-1] of TMessage;
+ MailFolderAccount: Array[0..MAX_FOLDERS-1] of Integer;
+ MailLoadedFolder: Integer;
+ {$IFDEF WINDOWS}
+ MailWinsockReady: Boolean;
+ {$ENDIF}
+
+Procedure DrawStatusBar; Forward;
+Procedure ReceiveMail; Forward;
+Procedure RefreshAccountFolders; Forward;
+
+Function MailUpper(Text: TMailText): TMailText;
+Var I: LongInt;
+Begin
+ For I:=1 To Length(Text) Do Text[I]:=UpCase(Text[I]);
+ MailUpper:=Text;
+End;
+
+Function MailTrim(Text: TMailText): TMailText;
+Begin
+ While (Length(Text)>0) And (Text[1] In [' ',#9,#13,#10]) Do Delete(Text,1,1);
+ While (Length(Text)>0) And (Text[Length(Text)] In [' ',#9,#13,#10]) Do Delete(Text,Length(Text),1);
+ MailTrim:=Text;
+End;
+
+Procedure MailClose(Var C: TMailConnection);
+Begin
+ {$IFDEF WINDOWS}
+ If C.Open Then MailCloseSocket(C.Socket);
+ If C.HasContext Then MailDeleteContext(C.Context);
+ If C.HasCredential Then MailFreeCredential(C.Credential);
+ C.HasContext := False; C.HasCredential := False;
+ {$ENDIF}
+ C.Open := False; C.Secure := False;
+ C.Pending := ''; C.Encrypted := '';
+End;
+
+Function MailWriteSocket(Var C: TMailConnection; Const Data: TMailText): Boolean;
+{$IFDEF WINDOWS}
+Var Offset, N: LongInt;
+{$ENDIF}
+Begin
+ MailWriteSocket := False;
+ {$IFDEF WINDOWS}
+ Offset := 1;
+ While Offset <= Length(Data) Do Begin
+  N := MailSend(C.Socket, @Data[Offset], Length(Data) - Offset + 1, 0);
+  If N <= 0 Then Begin MailError := 'Erreur envoi socket'; Exit; End;
+  Inc(Offset, N);
+ End;
+ MailWriteSocket := True;
+ {$ELSE}
+ MailError := 'Reseau disponible uniquement sous Windows';
+ {$ENDIF}
+End;
+
+Function MailReadSocket(Var C: TMailConnection; Var Data: TMailText): Boolean;
+{$IFDEF WINDOWS}
+Var B: Array[0..16383] of AnsiChar; N: LongInt; Part: AnsiString;
+{$ENDIF}
+Begin
+ MailReadSocket := False;
+ {$IFDEF WINDOWS}
+ N := MailRecv(C.Socket, @B, SizeOf(B), 0);
+ If N <= 0 Then Begin MailError := 'Connexion fermee ou delai de reception depasse'; Exit; End;
+ SetString(Part, PAnsiChar(@B), N);
+ Data := Data + Part;
+ MailReadSocket := True;
+ {$ELSE}
+ MailError := 'Reseau disponible uniquement sous Windows';
+ {$ENDIF}
+End;
+
+Function MailStartTLS(Var C: TMailConnection): Boolean;
+{$IFDEF WINDOWS}
+Const RequestFlags = $00000010 Or $00000100 Or $00000004 Or $00000008 Or $00008000;
+Var Cred: TMailCredentials; InBuf: Array[0..1] of TMailSecBuffer;
+ OutBuf: TMailSecBuffer; InDesc, OutDesc: TMailSecDesc;
+ Status: LongInt; Attr: LongWord; Old: Pointer; NeedRead: Boolean;
+{$ENDIF}
+Begin
+ MailStartTLS := False;
+ {$IFDEF WINDOWS}
+ If Not C.Open Or C.Secure Or (C.Pending <> '') Then Begin
+  MailError := 'Etat TLS invalide'; Exit;
+ End;
+ FillChar(Cred, SizeOf(Cred), 0);
+ Cred.Version := 4;
+ { TLS 1.2 minimum; validation automatique certificat et nom du serveur.
+   Aucun drapeau MANUAL_CRED_VALIDATION ou IGNORE_* n est utilise. }
+ Cred.Protocols := $00000800;
+ Cred.Flags := $00000010 Or $00400000;
+ Status := MailAcquire(nil, 'Microsoft Unified Security Protocol Provider', 2,
+                       nil, @Cred, nil, nil, C.Credential, nil);
+ If Status <> 0 Then Begin
+  Str(Status,C.Pending); MailError := 'Impossible d initialiser Schannel: '+C.Pending; C.Pending:=''; Exit;
+ End;
+ C.HasCredential := True;
+ NeedRead := False;
+ Repeat
+  If Length(C.Encrypted)>1048576 Then Begin MailError:='Negociation TLS trop longue'; Exit; End;
+  If NeedRead Then
+   If Not MailReadSocket(C, C.Encrypted) Then Exit;
+  FillChar(InBuf, SizeOf(InBuf), 0);
+  InBuf[0].Kind := 2; InBuf[0].Count := Length(C.Encrypted);
+  If C.Encrypted <> '' Then InBuf[0].Data := @C.Encrypted[1];
+  InDesc.Version := 0; InDesc.Count := 2; InDesc.Buffers := @InBuf;
+  FillChar(OutBuf, SizeOf(OutBuf), 0); OutBuf.Kind := 2;
+  OutDesc.Version := 0; OutDesc.Count := 1; OutDesc.Buffers := @OutBuf;
+  Old := nil; If C.HasContext Then Old := @C.Context;
+  If Old = nil Then
+   Status := MailInitialize(@C.Credential, nil, PAnsiChar(C.Host), RequestFlags,
+                0, 0, nil, 0, C.Context, @OutDesc, Attr, nil)
+  Else
+   Status := MailInitialize(@C.Credential, Old, PAnsiChar(C.Host), RequestFlags,
+                0, 0, @InDesc, 0, C.Context, @OutDesc, Attr, nil);
+  If (Status = 0) Or (Status = $00090312) Then C.HasContext := True;
+  If OutBuf.Data <> nil Then Begin
+   If OutBuf.Count > 0 Then Begin
+    SetLength(C.Pending, OutBuf.Count);
+    Move(OutBuf.Data^, C.Pending[1], OutBuf.Count);
+    If Not MailWriteSocket(C, C.Pending) Then Begin
+     MailFreeBuffer(OutBuf.Data); C.Pending := ''; Exit;
+    End;
+    C.Pending := '';
+   End;
+   MailFreeBuffer(OutBuf.Data);
+  End;
+  If Status = LongInt($80090318) Then NeedRead := True
+  Else Begin
+   If InBuf[1].Kind = 5 Then
+    C.Encrypted := Copy(C.Encrypted, Length(C.Encrypted)-InBuf[1].Count+1, InBuf[1].Count)
+   Else C.Encrypted := '';
+   NeedRead := C.Encrypted = '';
+  End;
+  If (Status <> 0) And (Status <> $00090312) And
+     (Status <> LongInt($80090318)) Then Begin
+   MailError := 'Echec TLS: certificat, nom du serveur ou protocole refuse'; Exit;
+  End;
+ Until Status = 0;
+ If MailQuery(C.Context, 4, @C.Sizes) <> 0 Then Begin
+  MailError := 'Impossible de lire les parametres TLS'; Exit;
+ End;
+ C.Secure := True;
+ MailStartTLS := True;
+ {$ELSE}
+ MailError := 'TLS disponible uniquement sous Windows';
+ {$ENDIF}
+End;
+
+Function MailOpen(Var C: TMailConnection; Host: String; Port: Integer; SSL: Boolean): Boolean;
+{$IFDEF WINDOWS}
+Var WSAData: Array[0..511] of Byte; Hints: TMailAddress;
+ Addr, Item: PMailAddress; Service: AnsiString;
+ Timeout, NonBlocking: LongWord; Sets, Errors: TMailFDSet;
+ TV: TMailTimeVal; SocketError, OptLen: LongInt;
+{$ENDIF}
+Begin
+ MailOpen := False; MailClose(C); MailError := '';
+ {$IFDEF WINDOWS}
+ If Not MailWinsockReady Then Begin
+  If MailWSAStartup($0202, @WSAData) <> 0 Then Begin MailError := 'Echec Winsock'; Exit; End;
+  MailWinsockReady := True;
+ End;
+ If (Host = '') Or (Port <= 0) Then Begin
+  MailError := 'Serveur ou port invalide'; Exit;
+ End;
+ C.Host := Host; Str(Port, Service);
+ FillChar(Hints, SizeOf(Hints), 0); Hints.SocketType := 1; Hints.Protocol := 6;
+ If MailAddressInfo(PAnsiChar(C.Host), PAnsiChar(Service), @Hints, Addr) <> 0 Then Begin
+  MailError := 'Resolution DNS impossible'; Exit;
+ End;
+ Item := Addr;
+ While Item <> nil Do Begin
+  C.Socket := MailSocket(Item^.Family, 1, 6);
+  If C.Socket <> High(PtrUInt) Then Begin
+   NonBlocking := 1; MailIoctl(C.Socket, $8004667E, NonBlocking);
+   SocketError := MailConnect(C.Socket, Item^.Address, Item^.AddressLength);
+   If SocketError <> 0 Then Begin
+    FillChar(Sets, SizeOf(Sets), 0); Sets.Count := 1; Sets.Sockets[0] := C.Socket;
+    Errors := Sets; TV.Seconds := 10; TV.Microseconds := 0;
+    If MailSelect(0, nil, @Sets, @Errors, @TV) > 0 Then Begin
+     SocketError := -1; OptLen := SizeOf(SocketError);
+     If MailGetSocketOption(C.Socket, $FFFF, $1007, @SocketError, OptLen) <> 0 Then SocketError := -1;
+    End Else SocketError := -1;
+   End;
+   NonBlocking := 0; MailIoctl(C.Socket, $8004667E, NonBlocking);
+   If SocketError = 0 Then Begin C.Open := True; Break; End;
+   MailCloseSocket(C.Socket);
+  End;
+  Item := Item^.Next;
+ End;
+ MailFreeAddress(Addr);
+ If Not C.Open Then Begin MailError := 'Connexion au serveur impossible (10 s)'; Exit; End;
+ Timeout := 10000;
+ MailSocketOption(C.Socket, $FFFF, $1006, @Timeout, SizeOf(Timeout));
+ MailSocketOption(C.Socket, $FFFF, $1005, @Timeout, SizeOf(Timeout));
+ If SSL Then If Not MailStartTLS(C) Then Begin MailClose(C); Exit; End;
+ MailOpen := True;
+ {$ELSE}
+ MailError := 'Reseau disponible uniquement sous Windows';
+ {$ENDIF}
+End;
+
+Function MailWrite(Var C: TMailConnection; Const Text: TMailText): Boolean;
+{$IFDEF WINDOWS}
+Var B: Array[0..3] of TMailSecBuffer; D: TMailSecDesc;
+ Packet, Part: AnsiString; Offset, N, I: LongInt;
+{$ENDIF}
+Begin
+ MailWrite := False;
+ If Not C.Open Then Begin MailError := 'Non connecte'; Exit; End;
+ If Not C.Secure Then Begin MailWrite := MailWriteSocket(C, Text); Exit; End;
+ {$IFDEF WINDOWS}
+ Offset := 1;
+ While Offset <= Length(Text) Do Begin
+  N := Length(Text)-Offset+1; If N > C.Sizes.Maximum Then N := C.Sizes.Maximum;
+  SetLength(Packet, C.Sizes.Header+N+C.Sizes.Trailer);
+  Move(Text[Offset], Packet[C.Sizes.Header+1], N);
+  FillChar(B, SizeOf(B), 0);
+  B[0].Kind := 7; B[0].Count := C.Sizes.Header; B[0].Data := @Packet[1];
+  B[1].Kind := 1; B[1].Count := N; B[1].Data := @Packet[C.Sizes.Header+1];
+  B[2].Kind := 6; B[2].Count := C.Sizes.Trailer; B[2].Data := @Packet[C.Sizes.Header+N+1];
+  D.Version := 0; D.Count := 4; D.Buffers := @B;
+  If MailEncrypt(C.Context, 0, D, 0) <> 0 Then Begin MailError := 'Erreur chiffrement TLS'; Exit; End;
+  For I := 0 To 2 Do
+   If B[I].Count > 0 Then Begin
+    SetString(Part, PAnsiChar(B[I].Data), B[I].Count);
+    If Not MailWriteSocket(C, Part) Then Exit;
+   End;
+  Inc(Offset, N);
+ End;
+ MailWrite := True;
+ {$ENDIF}
+End;
+
+Function MailFill(Var C: TMailConnection): Boolean;
+{$IFDEF WINDOWS}
+Var B: Array[0..3] of TMailSecBuffer; D: TMailSecDesc;
+ Status: LongInt; I: Integer; Part, Extra: AnsiString;
+{$ENDIF}
+Begin
+ MailFill := False;
+ If Not C.Open Then Begin MailError := 'Non connecte'; Exit; End;
+ If Not C.Secure Then Begin MailFill := MailReadSocket(C, C.Pending); Exit; End;
+ {$IFDEF WINDOWS}
+ Repeat
+  If C.Encrypted = '' Then If Not MailReadSocket(C, C.Encrypted) Then Exit;
+  FillChar(B, SizeOf(B), 0);
+  B[0].Kind := 1; B[0].Count := Length(C.Encrypted); B[0].Data := @C.Encrypted[1];
+  D.Version := 0; D.Count := 4; D.Buffers := @B;
+  Status := MailDecrypt(C.Context, D, 0, nil);
+  If Status = LongInt($80090318) Then Begin
+   If Length(C.Encrypted) > 1048576 Then Begin MailError := 'Paquet TLS trop grand'; Exit; End;
+   If Not MailReadSocket(C, C.Encrypted) Then Exit;
+  End Else If Status <> 0 Then Begin MailError := 'Connexion TLS fermee ou renegociation requise'; Exit; End;
+ Until Status = 0;
+ Extra := '';
+ For I := 0 To 3 Do Begin
+  If (B[I].Kind = 1) And (B[I].Count > 0) Then Begin
+   SetString(Part, PAnsiChar(B[I].Data), B[I].Count); C.Pending := C.Pending + Part;
+  End;
+  If B[I].Kind = 5 Then
+   Extra := Copy(C.Encrypted, Length(C.Encrypted)-B[I].Count+1, B[I].Count);
+ End;
+ C.Encrypted := Extra;
+ MailFill := True;
+ {$ENDIF}
+End;
+
+Function MailReadLine(Var C: TMailConnection; Var Line: TMailText): Boolean;
+Var P: LongInt;
+Begin
+ MailReadLine := False; Line := '';
+ Repeat
+  P := Pos(#13#10, C.Pending);
+  If P > 0 Then Begin
+   Line := Copy(C.Pending, 1, P-1); Delete(C.Pending, 1, P+1);
+   MailReadLine := True; Exit;
+  End;
+  If Length(C.Pending) > 1048576 Then Begin MailError := 'Ligne serveur trop longue'; Exit; End;
+  If Not MailFill(C) Then Exit;
+ Until False;
+End;
+
+Function MailReadBytes(Var C: TMailConnection; Count: LongInt; Var Data: TMailText): Boolean;
+Begin
+ MailReadBytes := False; Data := '';
+ If (Count < 0) Or (Count > 10485760) Then Begin MailError := 'Message trop grand (10 Mo maximum)'; Exit; End;
+ While Length(C.Pending) < Count Do If Not MailFill(C) Then Exit;
+ Data := Copy(C.Pending, 1, Count); Delete(C.Pending, 1, Count);
+ MailReadBytes := True;
+End;
+
+Function MailSafe(Const Text: TMailText): Boolean;
+Begin
+ MailSafe := (Pos(#13, Text)=0) And (Pos(#10, Text)=0) And (Pos(#0, Text)=0);
+ If Not MailSafe Then MailError := 'Caractere interdit dans une commande';
+End;
+
+Function MailQuote(Const Text: TMailText): TMailText;
+Var I: Integer;
+Begin
+ MailQuote := '"';
+ For I := 1 To Length(Text) Do Begin
+  If Text[I] In ['"', '\'] Then MailQuote := MailQuote + '\';
+  MailQuote := MailQuote + Text[I];
+ End;
+ MailQuote := MailQuote + '"';
+End;
+
 { Declarations avancees pour utilisation avant definition }
 Procedure DrawInterface; Forward;
 Procedure CalculateLayout; Forward;
@@ -3411,7 +3877,7 @@ End;
 
 {$ENDIF}
 
-{ Fonction pour obtenir le temps actuel en millisecondes (approximatif) }
+{ Horloge en millisecondes: runtime FPC ou heure DOS, sans unite utilitaire. }
 Function GetTickCount: LongInt;
 {$IFNDEF FPC}
 Var
@@ -3422,9 +3888,29 @@ Begin
                  (LongInt(Sec) * 1000) + (LongInt(Sec100) * 10);
 End;
 {$ELSE}
+ {$IFDEF MSWINDOWS}
 Begin
- GetTickCount := Trunc(Now * 86400000) Mod 2147483647;
+ GetTickCount := NativeTickCount And $7FFFFFFF;
 End;
+ {$ELSE}
+  {$IFDEF UNIX}
+Var ClockValue: TNativeClock;
+Begin
+ { CLOCK_MONOTONIC differe entre les plateformes POSIX. }
+   {$IFDEF DARWIN}
+ NativeClockGetTime(6, ClockValue);
+   {$ELSE}
+    {$IFDEF FREEBSD}
+ NativeClockGetTime(4, ClockValue);
+    {$ELSE}
+ NativeClockGetTime(1, ClockValue);
+    {$ENDIF}
+   {$ENDIF}
+ GetTickCount := ((Int64(ClockValue.Seconds) * 1000) +
+                  (ClockValue.Nanoseconds Div 1000000)) And $7FFFFFFF;
+End;
+  {$ENDIF}
+ {$ENDIF}
 {$ENDIF}
 
 { Initialise les variables de gestion de la souris }
@@ -4225,7 +4711,8 @@ Begin
    ShowMouse;
   End;
 
-  CMD_VIEW_REFRESH: Begin
+  CMD_TB_SENDRECV, CMD_VIEW_REFRESH: Begin
+   ReceiveMail;
    DrawInterface;
   End;
 
@@ -4680,36 +5167,29 @@ End;
 
 { Initialise l'arbre de dossiers avec une structure multi-comptes }
 Procedure InitializeFolderTree;
+Var I, Root: Integer;
 Begin
- FolderCount := 0;
- SelectedFolder := 1; { Sélectionner la boîte de réception par défaut }
- HoveredFolder := -1;
- FolderScrollOffset := 0;
- DraggedFolder := -1;
-
- { Compte local }
- AddFolder('Compte local', ftAccount, 0, -1, True, 0, 0);
-   AddFolder('Boite de reception', ftInbox, 1, 0, False, 5, 23);
-   AddFolder('Elements envoyes', ftSent, 1, 0, False, 0, 15);
-   AddFolder('Brouillons', ftDrafts, 1, 0, False, 2, 2);
-   AddFolder('Elements supprimes', ftDeleted, 1, 0, False, 0, 8);
-   AddFolder('Courrier indesirable', ftJunk, 1, 0, False, 3, 12);
-
- { Compte travail }
- AddFolder('Travail (IMAP)', ftAccount, 0, -1, True, 0, 0);
-   AddFolder('Boite de reception', ftInbox, 1, 6, True, 12, 156);
-     AddFolder('Projets', ftCustom, 2, 7, False, 0, 45);
-     AddFolder('Clients', ftCustom, 2, 7, False, 2, 32);
-   AddFolder('Elements envoyes', ftSent, 1, 6, False, 0, 89);
-   AddFolder('Brouillons', ftDrafts, 1, 6, False, 1, 3);
-   AddFolder('Elements supprimes', ftDeleted, 1, 6, False, 0, 5);
-   AddFolder('Courrier indesirable', ftJunk, 1, 6, False, 0, 2);
-
- { Marquer le dossier sélectionné }
- If SelectedFolder >= 0 Then
-  Folders[SelectedFolder].Selected := True;
-
+ FillChar(Folders,SizeOf(Folders),0);
+ FolderCount:=0; SelectedFolder:=-1; HoveredFolder:=-1;
+ FolderScrollOffset:=0; DraggedFolder:=-1;
+ For I:=0 To MAX_FOLDERS-1 Do MailFolderAccount[I]:=-1;
+ For I:=0 To EmailAccountCount-1 Do Begin
+  Root:=FolderCount;
+  AddFolder(EmailAccounts[I].AccountName,ftAccount,0,-1,True,0,0);
+  MailFolderAccount[Root]:=I;
+  AddFolder('Boite de reception',ftInbox,1,Root,False,0,0);
+  MailFolderAccount[Root+1]:=I;
+  If (SelectedFolder<0) Or EmailAccounts[I].IsDefault Then SelectedFolder:=Root+1;
+ End;
+ If SelectedFolder>=0 Then Folders[SelectedFolder].Selected:=True;
  UpdateFolderVisibility;
+End;
+
+Procedure RefreshAccountFolders;
+Begin
+ InitializeFolderTree;
+ MessageCount:=0; SelectedMessage:=-1; MailLoadedFolder:=-1;
+ MailStatus:='Comptes modifies - cliquez sur Envoyer/Recevoir';
 End;
 
 { Trouve le dossier à une position Y donnée }
@@ -4766,6 +5246,11 @@ Begin
     Folders[SelectedFolder].Selected := False;
    SelectedFolder := FolderIdx;
    Folders[FolderIdx].Selected := True;
+   If MailLoadedFolder<>FolderIdx Then Begin
+    MessageCount:=0; SelectedMessage:=-1; PreviewScrollY:=0; MailLoadedFolder:=-1;
+    MailStatus:='Cliquez sur Envoyer/Recevoir pour charger cette boite';
+    DrawInterface;
+   End;
   End;
 
   { Redessiner le panneau }
@@ -4960,186 +5445,89 @@ Begin
  IMAPClient.UseSSL := UseSSL;
 End;
 
-{ Simule l'envoi d'une commande IMAP et la reception de la reponse }
-{ Note: Dans une implementation reelle, cela utiliserait des sockets }
+{ Envoie une commande IMAP et lit la reponse taguee et ses literals. }
 Function IMAP_SendCommand(Command: String): TIMAPResponse;
-Var
- Response: TIMAPResponse;
- Tag: String;
+Var R: TIMAPResponse; Tag, Line, LiteralData, Cmd, NumberText: TMailText;
+ N, P, Q, Code: LongInt;
 Begin
- Tag := IMAP_GenerateTag;
- IMAPClient.LastTag := Tag;
-
- { Initialiser la reponse }
- Response.Tag := Tag;
- Response.HasData := False;
- Response.Data := '';
- Response.Text := '';
-
- { Simuler le comportement du serveur selon la commande }
- If Pos('LOGIN', Command) > 0 Then Begin
-  { Authentification LOGIN }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'LOGIN completed';
-  IMAPClient.State := isAuthenticated;
- End
- Else If Pos('AUTHENTICATE PLAIN', Command) > 0 Then Begin
-  { Authentification PLAIN }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'AUTHENTICATE completed';
-  IMAPClient.State := isAuthenticated;
- End
- Else If Pos('CAPABILITY', Command) > 0 Then Begin
-  { Capacites du serveur }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'CAPABILITY completed';
-  Response.HasData := True;
-  Response.Data := 'IMAP4rev1 IDLE NAMESPACE LITERAL+ ID AUTH=PLAIN AUTH=LOGIN';
-  IMAPClient.Capabilities := Response.Data;
-  IMAPClient.IdleSupported := Pos('IDLE', Response.Data) > 0;
- End
- Else If Pos('SELECT', Command) > 0 Then Begin
-  { Selection de boite aux lettres }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := '[READ-WRITE] SELECT completed';
-  IMAPClient.State := isSelected;
-  IMAPClient.IsMailboxSelected := True;
-  { Simuler les donnees de la boite }
-  IMAPClient.CurrentMailbox.Exists := 8;
-  IMAPClient.CurrentMailbox.Recent := 2;
-  IMAPClient.CurrentMailbox.Unseen := 3;
-  IMAPClient.CurrentMailbox.UIDValidity := 1234567890;
-  IMAPClient.CurrentMailbox.UIDNext := 100;
-  IMAPClient.CurrentMailbox.ReadOnly := False;
- End
- Else If Pos('EXAMINE', Command) > 0 Then Begin
-  { Examen de boite aux lettres (lecture seule) }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := '[READ-ONLY] EXAMINE completed';
-  IMAPClient.State := isSelected;
-  IMAPClient.IsMailboxSelected := True;
-  IMAPClient.CurrentMailbox.ReadOnly := True;
- End
- Else If Pos('FETCH', Command) > 0 Then Begin
-  { Recuperation de messages }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'FETCH completed';
-  Response.HasData := True;
- End
- Else If Pos('STORE', Command) > 0 Then Begin
-  { Modification des drapeaux }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'STORE completed';
- End
- Else If Pos('COPY', Command) > 0 Then Begin
-  { Copie de messages }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'COPY completed';
- End
- Else If Pos('UID', Command) > 0 Then Begin
-  { Commande UID }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'UID command completed';
- End
- Else If Pos('LIST', Command) > 0 Then Begin
-  { Liste des boites aux lettres }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'LIST completed';
-  Response.HasData := True;
- End
- Else If Pos('LSUB', Command) > 0 Then Begin
-  { Liste des abonnements }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'LSUB completed';
-  Response.HasData := True;
- End
- Else If Pos('IDLE', Command) > 0 Then Begin
-  { Mode IDLE }
-  If IMAPClient.IdleSupported Then Begin
-   Response.ResponseType := irContinue;
-   Response.StatusCode := '+';
-   Response.Text := 'idling';
-   IMAPClient.IdleActive := True;
-  End
-  Else Begin
-   Response.ResponseType := irBAD;
-   Response.StatusCode := 'BAD';
-   Response.Text := 'IDLE not supported';
-  End;
- End
- Else If Pos('DONE', Command) > 0 Then Begin
-  { Fin du mode IDLE }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'IDLE terminated';
-  IMAPClient.IdleActive := False;
- End
- Else If Pos('NOOP', Command) > 0 Then Begin
-  { Commande NOOP }
-  Response.ResponseType := irOK;
-  Response.StatusCode := 'OK';
-  Response.Text := 'NOOP completed';
- End
- Else If Pos('LOGOUT', Command) > 0 Then Begin
-  { Deconnexion }
-  Response.ResponseType := irBYE;
-  Response.StatusCode := 'BYE';
-  Response.Text := 'Logging out';
-  IMAPClient.State := isLogout;
- End
- Else Begin
-  { Commande inconnue }
-  Response.ResponseType := irBAD;
-  Response.StatusCode := 'BAD';
-  Response.Text := 'Unknown command';
+ FillChar(R, SizeOf(R), 0); R.ResponseType := irBAD;
+ R.Text := 'Erreur reseau'; MailRaw := ''; MailFetchFlags:=''; MailFetchUID:=0;
+ Cmd := Command;
+ If (Cmd = 'IDLE') Or (Cmd = 'DONE') Then Begin
+  R.Text := 'IDLE non pris en charge'; IMAP_SendCommand := R; Exit;
  End;
-
- IMAP_SendCommand := Response;
+ If Not MailSafe(Cmd) Then Begin R.Text := MailError; IMAP_SendCommand := R; Exit; End;
+ Tag := IMAP_GenerateTag; R.Tag := Tag; IMAPClient.LastTag := Tag;
+ If MailWrite(IMAPWire, Tag + ' ' + Cmd + #13#10) Then
+ Repeat
+  If Not MailReadLine(IMAPWire, Line) Then Break;
+  If Copy(Line, 1, Length(Tag)+1) = Tag + ' ' Then Begin
+   Line := Copy(Line, Length(Tag)+2, Length(Line));
+   P := Pos(' ', Line); If P=0 Then P := Length(Line)+1;
+   R.StatusCode := Copy(Line, 1, P-1); R.Text := Copy(Line, P+1, 200);
+   If R.StatusCode = 'OK' Then R.ResponseType := irOK
+   Else If R.StatusCode = 'NO' Then R.ResponseType := irNO;
+   If R.ResponseType = irOK Then Begin
+    If (Pos('LOGIN ', Cmd)=1) Or (Pos('AUTHENTICATE ', Cmd)=1) Then IMAPClient.State := isAuthenticated;
+    If (Pos('SELECT ', Cmd)=1) Or (Pos('EXAMINE ', Cmd)=1) Then Begin
+     IMAPClient.State := isSelected; IMAPClient.IsMailboxSelected := True;
+    End;
+   End;
+   IMAP_SendCommand := R; Exit;
+  End;
+  If Copy(Line,1,1)='+' Then Begin
+   If Pos('AUTHENTICATE PLAIN ', Cmd)=1 Then Begin
+    If Not MailWrite(IMAPWire, Copy(Cmd,20,Length(Cmd))+#13#10) Then Break;
+   End Else Begin MailError := 'Continuation IMAP inattendue'; Break; End;
+  End;
+  If Pos('FETCH',Line)>0 Then Begin
+   MailFetchFlags:=MailFetchFlags+Line;
+   P:=Pos('UID ',Line);
+   If P>0 Then Begin
+    NumberText:=''; Q:=P+4;
+    While (Q<=Length(Line)) And (Line[Q] In ['0'..'9']) Do Begin
+     NumberText:=NumberText+Line[Q]; Inc(Q);
+    End;
+    Val(NumberText,N,Code); If Code=0 Then MailFetchUID:=N;
+   End;
+  End;
+  If Pos(' EXISTS', Line)>0 Then Begin
+   NumberText := Copy(Line,3,Pos(' EXISTS',Line)-3);
+   Val(NumberText,N,Code); If (Code=0) And (N>=0) Then IMAPClient.CurrentMailbox.Exists := N;
+  End;
+  If Copy(Line,1,13)='* CAPABILITY ' Then IMAPClient.Capabilities := Copy(Line,14,200);
+  If (Length(Line)>0) And (Line[Length(Line)]='}') Then Begin
+   P := 0; For Q := Length(Line)-1 DownTo 1 Do If Line[Q]='{' Then Begin P:=Q; Break; End;
+   If P>0 Then Begin
+    NumberText := Copy(Line,P+1,Length(Line)-P-1); Val(NumberText,N,Code);
+    If Code<>0 Then Begin MailError := 'Taille de literal IMAP invalide'; Break; End;
+    If Not MailReadBytes(IMAPWire,N,LiteralData) Then Break;
+    MailRaw := MailRaw + LiteralData;
+   End;
+  End;
+  R.HasData := True; R.Data := Copy(Line,1,255);
+ Until False;
+ R.Text := MailError; IMAPClient.LastError := MailError;
+ MailClose(IMAPWire); IMAPClient.Connected := False;
+ IMAP_SendCommand := R;
 End;
 
 { Connecte au serveur IMAP }
 Function IMAP_Connect: Integer;
-Var
- Response: TIMAPResponse;
+Var Line: TMailText; R: TIMAPResponse;
 Begin
- If IMAPClient.Host = '' Then Begin
-  IMAPClient.LastError := 'Serveur non configure';
-  IMAP_Connect := IMAP_ERR_CONNECT;
-  Exit;
+ IMAP_Connect := IMAP_ERR_CONNECT; IMAPClient.Connected := False;
+ If Not MailOpen(IMAPWire,IMAPClient.Host,IMAPClient.Port,IMAPClient.UseSSL) Then Begin
+  IMAPClient.LastError := MailError; Exit;
  End;
-
- IMAPConnecting := True;
-
- { Simuler la connexion socket }
- { Dans une vraie implementation, on utiliserait les sockets }
- IMAPClient.Connected := True;
- IMAPClient.SocketHandle := 1;
- IMAPClient.State := isConnected;
-
- { Recevoir le message de bienvenue }
- { Normalement le serveur envoie "* OK ... ready" }
-
- { Demander les capacites }
- Response := IMAP_SendCommand('CAPABILITY');
- If Response.ResponseType <> irOK Then Begin
-  IMAPClient.LastError := 'Echec CAPABILITY';
-  IMAP_Connect := IMAP_ERR_PROTOCOL;
-  IMAPConnecting := False;
-  Exit;
+ If Not MailReadLine(IMAPWire,Line) Or
+    ((Copy(Line,1,5)<>'* OK ') And (Copy(Line,1,10)<>'* PREAUTH ')) Then Begin
+  IMAPClient.LastError := 'Accueil IMAP invalide: '+Copy(Line,1,50); MailClose(IMAPWire); Exit;
  End;
-
- IMAPConnecting := False;
+ IMAPClient.Connected := True; IMAPClient.State := isConnected;
+ If Copy(Line,1,10)='* PREAUTH ' Then IMAPClient.State := isAuthenticated;
+ R := IMAP_SendCommand('CAPABILITY');
+ If R.ResponseType<>irOK Then Begin IMAPClient.LastError:=R.Text; MailClose(IMAPWire); Exit; End;
  IMAP_Connect := IMAP_OK;
 End;
 
@@ -5155,7 +5543,10 @@ Begin
   Exit;
  End;
 
- Command := 'LOGIN "' + IMAPClient.Username + '" "' + IMAPClient.Password + '"';
+ If Not MailSafe(IMAPClient.Username) Or Not MailSafe(IMAPClient.Password) Then Begin
+  IMAPClient.LastError := MailError; IMAP_LoginAuth := IMAP_ERR_AUTH; Exit;
+ End;
+ Command := 'LOGIN ' + MailQuote(IMAPClient.Username) + ' ' + MailQuote(IMAPClient.Password);
  Response := IMAP_SendCommand(Command);
 
  If Response.ResponseType = irOK Then
@@ -5274,7 +5665,7 @@ Begin
  End;
 
  Str(SeqNum, SeqStr);
- Response := IMAP_SendCommand('FETCH ' + SeqStr + ' BODY[]');
+ Response := IMAP_SendCommand('FETCH ' + SeqStr + ' BODY.PEEK[]');
 
  If Response.ResponseType = irOK Then
   IMAP_FetchBody := IMAP_OK
@@ -5534,6 +5925,7 @@ Begin
   IMAP_StopIdle;
 
  Response := IMAP_SendCommand('LOGOUT');
+ MailClose(IMAPWire);
 
  { Fermer la connexion }
  IMAPClient.Connected := False;
@@ -5594,37 +5986,8 @@ End;
 
 { Synchronise la liste des messages avec le serveur }
 Procedure IMAP_SyncMessages;
-Var
- I: Integer;
 Begin
- If Not IMAPClient.IsMailboxSelected Then Exit;
-
- { Dans une implementation reelle, on recupererait les messages du serveur }
- { Pour la demonstration, on utilise les messages existants }
-
- { Simuler la mise a jour du nombre de messages }
- IMAPMessageCount := MessageCount;
-
- { Copier les messages locaux vers le cache IMAP }
- For I := 0 To IMAPMessageCount - 1 Do Begin
-  IMAPMessages[I].UID := I + 1;
-  IMAPMessages[I].SeqNum := I + 1;
-  IMAPMessages[I].Flags.Seen := Messages[I].IsRead;
-  IMAPMessages[I].Flags.Flagged := Messages[I].IsFlagged;
-  IMAPMessages[I].Flags.Answered := False;
-  IMAPMessages[I].Flags.Deleted := False;
-  IMAPMessages[I].Flags.Draft := False;
-  IMAPMessages[I].Flags.Recent := Not Messages[I].IsRead;
-  IMAPMessages[I].Size := Messages[I].Size;
-  IMAPMessages[I].Envelope.Subject := Messages[I].Subject;
-  IMAPMessages[I].Envelope.FromName := Messages[I].FromName;
-  IMAPMessages[I].Envelope.FromEmail := Messages[I].FromEmail;
-  IMAPMessages[I].Envelope.ToName := Messages[I].ToName;
-  IMAPMessages[I].Envelope.ToEmail := Messages[I].ToEmail;
-  IMAPMessages[I].Envelope.CcEmail := Messages[I].CcEmail;
-  IMAPMessages[I].Envelope.MsgDate := Messages[I].DateFull;
-  IMAPMessages[I].BodyLoaded := True;
- End;
+ ReceiveMail;
 End;
 
 { Convertit les drapeaux IMAP en chaine }
@@ -5755,193 +6118,57 @@ End;
 { Calcule le hash MD5 pour l'authentification APOP }
 { Note: Implementation simplifiee, retourne une chaine hexadecimale }
 Function POP3_MD5Hash(Input: String): String;
-Var
- I: Integer;
- Hash: LongInt;
- HexStr: String;
- HexChars: String;
 Begin
- { Implementation simplifiee du hash MD5 }
- { Dans une vraie implementation, on utiliserait une bibliotheque MD5 }
- HexChars := '0123456789abcdef';
- Hash := 0;
- For I := 1 To Length(Input) Do
-  Hash := (Hash * 31 + Ord(Input[I])) Mod 2147483647;
-
- HexStr := '';
- For I := 1 To 32 Do Begin
-  HexStr := HexStr + HexChars[(Abs(Hash) Mod 16) + 1];
-  Hash := Hash Div 16;
-  If Hash = 0 Then Hash := I * 7919;
- End;
- POP3_MD5Hash := HexStr;
+ POP3_MD5Hash := ''; { APOP non pris en charge; utiliser USER/PASS sur TLS. }
 End;
 
-{ Simule l'envoi d'une commande POP3 et la reception de la reponse }
-{ Note: Dans une implementation reelle, cela utiliserait des sockets }
+
+
+{ Echanges POP3, reponses multilignes et transparence des points. }
 Function POP3_SendCommand(Command: String): TPOP3Response;
-Var
- Response: TPOP3Response;
- CmdUpper: String;
- I: Integer;
+Var R: TPOP3Response; Line, Cmd, Part: TMailText; Multi: Boolean;
 Begin
- { Initialiser la reponse }
- Response.HasMultiline := False;
- Response.Data := '';
- Response.Text := '';
-
- { Convertir la commande en majuscules pour la comparaison }
- CmdUpper := '';
- For I := 1 To Length(Command) Do
-  If Command[I] In ['a'..'z'] Then
-   CmdUpper := CmdUpper + Chr(Ord(Command[I]) - 32)
-  Else
-   CmdUpper := CmdUpper + Command[I];
-
- { Simuler le comportement du serveur selon la commande }
- If Pos('USER', CmdUpper) = 1 Then Begin
-  { Commande USER }
-  Response.ResponseType := prOK;
-  Response.Text := 'User accepted';
- End
- Else If Pos('PASS', CmdUpper) = 1 Then Begin
-  { Commande PASS }
-  Response.ResponseType := prOK;
-  Response.Text := 'Authentication successful';
-  POP3Client.State := psTransaction;
- End
- Else If Pos('APOP', CmdUpper) = 1 Then Begin
-  { Authentification APOP }
-  Response.ResponseType := prOK;
-  Response.Text := 'APOP authentication successful';
-  POP3Client.State := psTransaction;
- End
- Else If Pos('STAT', CmdUpper) = 1 Then Begin
-  { Commande STAT - statistiques }
-  Response.ResponseType := prOK;
-  Response.Text := '8 45678';
-  POP3Client.Stats.MessageCount := 8;
-  POP3Client.Stats.TotalSize := 45678;
- End
- Else If Pos('LIST', CmdUpper) = 1 Then Begin
-  { Commande LIST }
-  If Length(CmdUpper) > 4 Then Begin
-   { LIST avec numero de message }
-   Response.ResponseType := prOK;
-   Response.Text := '1 2450';
-  End
-  Else Begin
-   { LIST sans parametre - liste complete }
-   Response.ResponseType := prOK;
-   Response.Text := '8 messages';
-   Response.HasMultiline := True;
-   Response.Data := '1 2450' + Chr(13) + Chr(10) +
-                    '2 1520' + Chr(13) + Chr(10) +
-                    '3 3200' + Chr(13) + Chr(10) +
-                    '4 980'  + Chr(13) + Chr(10) +
-                    '5 15400'+ Chr(13) + Chr(10) +
-                    '6 1100' + Chr(13) + Chr(10) +
-                    '7 890'  + Chr(13) + Chr(10) +
-                    '8 20138';
+ FillChar(R,SizeOf(R),0); R.ResponseType:=prERR; MailRaw:=''; Cmd:=Command;
+ If Not MailSafe(Cmd) Then Begin R.Text:=MailError; POP3_SendCommand:=R; Exit; End;
+ If MailWrite(POP3Wire,Cmd+#13#10) And MailReadLine(POP3Wire,Line) Then Begin
+  R.Text:=Copy(Line,5,200);
+  If Copy(Line,1,3)='+OK' Then Begin
+   R.ResponseType:=prOK;
+   If Pos('PASS ',Cmd)=1 Then POP3Client.State:=psTransaction;
+   Multi := (Pos('RETR ',Cmd)=1) Or (Pos('TOP ',Cmd)=1) Or (Cmd='LIST') Or (Cmd='UIDL') Or (Cmd='CAPA');
+   R.HasMultiline:=Multi;
+   If Multi Then Repeat
+    If Not MailReadLine(POP3Wire,Part) Then Begin R.ResponseType:=prERR; Break; End;
+    If Part='.' Then Break;
+    If Copy(Part,1,2)='..' Then Delete(Part,1,1);
+    If Length(MailRaw)+Length(Part)>10485760 Then Begin
+     MailError:='Message trop grand (10 Mo maximum)'; R.ResponseType:=prERR; Break;
+    End;
+    MailRaw:=MailRaw+Part+#13#10;
+   Until False;
+   R.Data:=Copy(MailRaw,1,255);
   End;
- End
- Else If Pos('RETR', CmdUpper) = 1 Then Begin
-  { Commande RETR - recuperer message complet }
-  Response.ResponseType := prOK;
-  Response.Text := 'Message follows';
-  Response.HasMultiline := True;
-  Response.Data := 'From: test@example.com' + Chr(13) + Chr(10) +
-                   'To: user@example.com' + Chr(13) + Chr(10) +
-                   'Subject: Test message' + Chr(13) + Chr(10) +
-                   'Date: Sat, 11 Apr 2026 10:00:00 +0000' + Chr(13) + Chr(10) +
-                   Chr(13) + Chr(10) +
-                   'This is a test message body.';
- End
- Else If Pos('DELE', CmdUpper) = 1 Then Begin
-  { Commande DELE - marquer pour suppression }
-  Response.ResponseType := prOK;
-  Response.Text := 'Message marked for deletion';
- End
- Else If Pos('TOP', CmdUpper) = 1 Then Begin
-  { Commande TOP - en-tetes + N lignes du corps }
-  Response.ResponseType := prOK;
-  Response.Text := 'Headers follow';
-  Response.HasMultiline := True;
-  Response.Data := 'From: test@example.com' + Chr(13) + Chr(10) +
-                   'To: user@example.com' + Chr(13) + Chr(10) +
-                   'Subject: Test message' + Chr(13) + Chr(10) +
-                   'Date: Sat, 11 Apr 2026 10:00:00 +0000';
- End
- Else If Pos('UIDL', CmdUpper) = 1 Then Begin
-  { Commande UIDL - identifiants uniques }
-  If Length(CmdUpper) > 4 Then Begin
-   { UIDL avec numero de message }
-   Response.ResponseType := prOK;
-   Response.Text := '1 ABC123DEF456';
-  End
-  Else Begin
-   { UIDL sans parametre - liste complete }
-   Response.ResponseType := prOK;
-   Response.Text := 'Unique-ID listing follows';
-   Response.HasMultiline := True;
-   Response.Data := '1 ABC123DEF456' + Chr(13) + Chr(10) +
-                    '2 GHI789JKL012' + Chr(13) + Chr(10) +
-                    '3 MNO345PQR678' + Chr(13) + Chr(10) +
-                    '4 STU901VWX234' + Chr(13) + Chr(10) +
-                    '5 YZA567BCD890' + Chr(13) + Chr(10) +
-                    '6 EFG123HIJ456' + Chr(13) + Chr(10) +
-                    '7 KLM789NOP012' + Chr(13) + Chr(10) +
-                    '8 QRS345TUV678';
-  End;
- End
- Else If Pos('NOOP', CmdUpper) = 1 Then Begin
-  { Commande NOOP }
-  Response.ResponseType := prOK;
-  Response.Text := 'OK';
- End
- Else If Pos('RSET', CmdUpper) = 1 Then Begin
-  { Commande RSET - annuler les suppressions }
-  Response.ResponseType := prOK;
-  Response.Text := 'Reset OK';
- End
- Else If Pos('QUIT', CmdUpper) = 1 Then Begin
-  { Commande QUIT }
-  Response.ResponseType := prOK;
-  Response.Text := 'Goodbye';
-  POP3Client.State := psUpdate;
- End
- Else Begin
-  { Commande inconnue }
-  Response.ResponseType := prERR;
-  Response.Text := 'Unknown command';
+ End Else R.Text:=MailError;
+ If (R.ResponseType<>prOK) And (MailError<>'') Then Begin
+  R.Text:=MailError; MailClose(POP3Wire); POP3Client.Connected:=False;
  End;
-
- POP3_SendCommand := Response;
+ POP3_SendCommand:=R;
 End;
 
 { Connecte au serveur POP3 }
 Function POP3_Connect: Integer;
+Var Line: TMailText;
 Begin
- If POP3Client.Host = '' Then Begin
-  POP3Client.LastError := 'Serveur non configure';
-  POP3_Connect := POP3_ERR_CONNECT;
-  Exit;
+ POP3_Connect:=POP3_ERR_CONNECT; POP3Client.Connected:=False;
+ If Not MailOpen(POP3Wire,POP3Client.Host,POP3Client.Port,POP3Client.UseSSL) Then Begin
+  POP3Client.LastError:=MailError; Exit;
  End;
-
- POP3Connecting := True;
-
- { Simuler la connexion socket }
- { Dans une vraie implementation, on utiliserait les sockets }
- POP3Client.Connected := True;
- POP3Client.SocketHandle := 2;
- POP3Client.State := psAuthorization;
-
- { Simuler le message de bienvenue avec timestamp APOP }
- POP3Client.ServerGreeting := '+OK POP3 server ready <1234.5678@pop.example.com>';
- POP3Client.APOPTimestamp := POP3_ExtractAPOPTimestamp(POP3Client.ServerGreeting);
-
- POP3Connecting := False;
- POP3_Connect := POP3_OK;
+ If Not MailReadLine(POP3Wire,Line) Or (Copy(Line,1,3)<>'+OK') Then Begin
+  POP3Client.LastError:='Accueil POP3 invalide'; MailClose(POP3Wire); Exit;
+ End;
+ POP3Client.ServerGreeting:=Line; POP3Client.APOPTimestamp:='';
+ POP3Client.Connected:=True; POP3Client.State:=psAuthorization;
+ POP3_Connect:=POP3_OK;
 End;
 
 { Authentifie avec la methode USER/PASS }
@@ -5975,35 +6202,9 @@ End;
 
 { Authentifie avec la methode APOP }
 Function POP3_AuthAPOP: Integer;
-Var
- Response: TPOP3Response;
- DigestInput, Digest: String;
 Begin
- If POP3Client.State <> psAuthorization Then Begin
-  POP3Client.LastError := 'Pas en etat AUTHORIZATION';
-  POP3_AuthAPOP := POP3_ERR_AUTH;
-  Exit;
- End;
-
- If POP3Client.APOPTimestamp = '' Then Begin
-  POP3Client.LastError := 'Serveur ne supporte pas APOP';
-  POP3_AuthAPOP := POP3_ERR_AUTH;
-  Exit;
- End;
-
- { Calculer le digest MD5(timestamp + password) }
- DigestInput := POP3Client.APOPTimestamp + POP3Client.Password;
- Digest := POP3_MD5Hash(DigestInput);
-
- { Envoyer APOP }
- Response := POP3_SendCommand('APOP ' + POP3Client.Username + ' ' + Digest);
-
- If Response.ResponseType = prOK Then
-  POP3_AuthAPOP := POP3_OK
- Else Begin
-  POP3Client.LastError := 'APOP echoue: ' + Response.Text;
-  POP3_AuthAPOP := POP3_ERR_AUTH;
- End;
+ POP3Client.LastError:='APOP non pris en charge; utiliser USER/PASS';
+ POP3_AuthAPOP:=POP3_ERR_AUTH;
 End;
 
 { Obtient les statistiques de la boite (STAT) }
@@ -6207,6 +6408,7 @@ Begin
  End;
 
  Response := POP3_SendCommand('QUIT');
+ MailClose(POP3Wire);
 
  { Fermer la connexion }
  POP3Client.Connected := False;
@@ -6218,50 +6420,13 @@ End;
 
 { Synchronise la liste des messages avec le serveur }
 Procedure POP3_SyncMessages;
-Var
- I: Integer;
 Begin
- If POP3Client.State <> psTransaction Then Exit;
-
- { Obtenir les statistiques }
- POP3_Stat;
-
- { Simuler le remplissage de la liste }
- POP3MessageCount := POP3Client.Stats.MessageCount;
- If POP3MessageCount > POP3_MAX_MESSAGES Then
-  POP3MessageCount := POP3_MAX_MESSAGES;
-
- { Initialiser la liste des messages }
- For I := 0 To POP3MessageCount - 1 Do Begin
-  POP3ListItems[I].MsgNum := I + 1;
-  POP3ListItems[I].Size := 1000 + (I * 500);
-  POP3ListItems[I].Deleted := False;
-  POP3ListItems[I].UIDL := '';
- End;
-
- { Obtenir les UIDLs }
- POP3_UIDL(0);
+ ReceiveMail;
 End;
 
-{ Telecharge les messages selon les options }
 Procedure POP3_DownloadMessages;
-Var
- I: Integer;
 Begin
- If POP3Client.State <> psTransaction Then Exit;
-
- For I := 0 To POP3MessageCount - 1 Do Begin
-  If POP3Client.HeadersOnly Then
-   { Telecharger seulement les en-tetes }
-   POP3_Top(I + 1, 0)
-  Else
-   { Telecharger le message complet }
-   POP3_Retr(I + 1);
-
-  { Supprimer si option activee et pas "Laisser sur serveur" }
-  If Not POP3Client.LeaveOnServer Then
-   POP3_Dele(I + 1);
- End;
+ ReceiveMail;
 End;
 
 { Retourne l'etat de connexion sous forme de chaine }
@@ -6442,166 +6607,29 @@ Begin
  SMTP_ParseResponse := Response;
 End;
 
-{ Envoie une commande SMTP et recoit la reponse (simule) }
+{ Echanges SMTP et reponses multilignes du serveur. }
 Function SMTP_SendCommand(Command: String): TSMTPResponse;
-Var
- Response: TSMTPResponse;
- CmdUpper: String;
- I: Integer;
- NumStr: String;
+Var R: TSMTPResponse; Line, Cmd: TMailText;
 Begin
- Response.Code := 0;
- Response.ResponseClass := srcUnknown;
- Response.Text := '';
- Response.IsMultiline := False;
- Response.IsContinue := False;
-
- { Convertir en majuscules pour la comparaison }
- CmdUpper := '';
- For I := 1 To Length(Command) Do
-  If (Command[I] >= 'a') And (Command[I] <= 'z') Then
-   CmdUpper := CmdUpper + Chr(Ord(Command[I]) - 32)
-  Else
-   CmdUpper := CmdUpper + Command[I];
-
- { Simuler les reponses selon la commande }
- If (Pos('EHLO', CmdUpper) = 1) Or (Pos('HELO', CmdUpper) = 1) Then Begin
-  Response.Code := SMTP_CODE_OK;
-  Response.ResponseClass := srcPositiveComplete;
-  Response.Text := 'smtp.example.com Hello';
-  { Simuler les extensions supportees }
-  SMTPClient.Extensions.STARTTLS := True;
-  SMTPClient.Extensions.AUTH_PLAIN := True;
-  SMTPClient.Extensions.AUTH_LOGIN := True;
-  SMTPClient.Extensions.AUTH_CRAM_MD5 := True;
-  SMTPClient.Extensions.EIGHTBITMIME := True;
-  SMTPClient.Extensions.SIZE := 52428800;
-  SMTPClient.Extensions.PIPELINING := True;
-  SMTPClient.Extensions.DSN := True;
-  SMTPClient.ServerDomain := 'smtp.example.com';
- End
- Else If Pos('STARTTLS', CmdUpper) = 1 Then Begin
-  If SMTPClient.Extensions.STARTTLS Then Begin
-   Response.Code := SMTP_CODE_READY;
-   Response.ResponseClass := srcPositiveComplete;
-   Response.Text := 'Ready to start TLS';
-   SMTPClient.TLSActive := True;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_NOT_IMPLEMENTED;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'STARTTLS not supported';
+ FillChar(R,SizeOf(R),0); R.ResponseClass:=srcUnknown; Cmd:=Command;
+ If Not MailSafe(Cmd) Then Begin R.Text:=MailError; SMTP_SendCommand:=R; Exit; End;
+ If Cmd<>'' Then If Not MailWrite(SMTPWire,Cmd+#13#10) Then Begin R.Text:=MailError; SMTP_SendCommand:=R; Exit; End;
+ Repeat
+  If Not MailReadLine(SMTPWire,Line) Then Begin R.Code:=0; R.Text:=MailError; Break; End;
+  R:=SMTP_ParseResponse(Copy(Line,1,255));
+  If Pos('EHLO ',Cmd)=1 Then Begin
+   If Pos('STARTTLS',Line)>0 Then SMTPClient.Extensions.STARTTLS:=True;
+   If Pos('AUTH',Line)>0 Then Begin
+    SMTPClient.Extensions.AUTH_PLAIN:=Pos('PLAIN',Line)>0;
+    SMTPClient.Extensions.AUTH_LOGIN:=Pos('LOGIN',Line)>0;
+   End;
   End;
- End
- Else If Pos('AUTH PLAIN', CmdUpper) = 1 Then Begin
-  If SMTPClient.Extensions.AUTH_PLAIN Then Begin
-   Response.Code := SMTP_CODE_AUTH_OK;
-   Response.ResponseClass := srcPositiveComplete;
-   Response.Text := 'Authentication successful';
-   SMTPClient.Authenticated := True;
-   SMTPClient.AuthMethod := samPLAIN;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_AUTH_FAILED;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'AUTH PLAIN not supported';
-  End;
- End
- Else If Pos('AUTH LOGIN', CmdUpper) = 1 Then Begin
-  If SMTPClient.Extensions.AUTH_LOGIN Then Begin
-   Response.Code := SMTP_CODE_AUTH_CONTINUE;
-   Response.ResponseClass := srcPositiveInterm;
-   Response.Text := 'VXNlcm5hbWU6'; { Base64 pour "Username:" }
-   SMTPClient.AuthMethod := samLOGIN;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_AUTH_FAILED;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'AUTH LOGIN not supported';
-  End;
- End
- Else If Pos('AUTH CRAM-MD5', CmdUpper) = 1 Then Begin
-  If SMTPClient.Extensions.AUTH_CRAM_MD5 Then Begin
-   Response.Code := SMTP_CODE_AUTH_CONTINUE;
-   Response.ResponseClass := srcPositiveInterm;
-   Response.Text := 'PDEyMzQ1LjY3ODkwQHNtdHAuZXhhbXBsZS5jb20+'; { Challenge simule }
-   SMTPClient.AuthMethod := samCRAMMD5;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_AUTH_FAILED;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'AUTH CRAM-MD5 not supported';
-  End;
- End
- Else If Pos('MAIL FROM:', CmdUpper) = 1 Then Begin
-  If SMTPClient.Authenticated Or (SMTPClient.AuthMethod = samNone) Then Begin
-   Response.Code := SMTP_CODE_OK;
-   Response.ResponseClass := srcPositiveComplete;
-   Response.Text := 'OK';
-   SMTPClient.State := ssMailFrom;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_AUTH_REQUIRED;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'Authentication required';
-  End;
- End
- Else If Pos('RCPT TO:', CmdUpper) = 1 Then Begin
-  If SMTPClient.State >= ssMailFrom Then Begin
-   Response.Code := SMTP_CODE_OK;
-   Response.ResponseClass := srcPositiveComplete;
-   Response.Text := 'OK';
-   SMTPClient.State := ssRcptTo;
-   Inc(SMTPClient.RcptAccepted);
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_BAD_SEQUENCE;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'Need MAIL command first';
-  End;
- End
- Else If Pos('DATA', CmdUpper) = 1 Then Begin
-  If SMTPClient.State >= ssRcptTo Then Begin
-   Response.Code := SMTP_CODE_START_MAIL;
-   Response.ResponseClass := srcPositiveInterm;
-   Response.Text := 'Start mail input; end with <CRLF>.<CRLF>';
-   SMTPClient.State := ssData;
-  End
-  Else Begin
-   Response.Code := SMTP_CODE_BAD_SEQUENCE;
-   Response.ResponseClass := srcNegativePermanent;
-   Response.Text := 'Need RCPT command first';
-  End;
- End
- Else If Pos('RSET', CmdUpper) = 1 Then Begin
-  Response.Code := SMTP_CODE_OK;
-  Response.ResponseClass := srcPositiveComplete;
-  Response.Text := 'OK';
-  SMTPClient.State := ssAuthenticated;
-  SMTPClient.MailFrom := '';
-  SMTPClient.RcptCount := 0;
-  SMTPClient.RcptAccepted := 0;
- End
- Else If Pos('NOOP', CmdUpper) = 1 Then Begin
-  Response.Code := SMTP_CODE_OK;
-  Response.ResponseClass := srcPositiveComplete;
-  Response.Text := 'OK';
- End
- Else If Pos('QUIT', CmdUpper) = 1 Then Begin
-  Response.Code := SMTP_CODE_CLOSING;
-  Response.ResponseClass := srcPositiveComplete;
-  Response.Text := 'Closing connection';
-  SMTPClient.State := ssQuit;
- End
- Else Begin
-  Response.Code := SMTP_CODE_SYNTAX_ERROR;
-  Response.ResponseClass := srcNegativePermanent;
-  Response.Text := 'Syntax error, command unrecognized';
- End;
-
- SMTPClient.LastCode := Response.Code;
- SMTP_SendCommand := Response;
+ Until Not R.IsContinue;
+ SMTPClient.LastCode:=R.Code;
+ SMTP_SendCommand:=R;
 End;
+
+
 
 { Encode une chaine en Base64 (implementation simplifiee) }
 Function SMTP_Base64Encode(Input: String): String;
@@ -6638,58 +6666,25 @@ End;
 
 { Calcule un hash simplifie pour CRAM-MD5 }
 Function SMTP_CRAMMD5Hash(Challenge, Password: String): String;
-Var
- I: Integer;
- Hash: LongInt;
- HexStr: String;
- HexChars: String;
 Begin
- { Implementation simplifiee - en production, utiliser une vraie HMAC-MD5 }
- HexChars := '0123456789abcdef';
- Hash := 0;
- For I := 1 To Length(Challenge) Do
-  Hash := (Hash * 31 + Ord(Challenge[I])) Mod 2147483647;
- For I := 1 To Length(Password) Do
-  Hash := (Hash * 37 + Ord(Password[I])) Mod 2147483647;
-
- HexStr := '';
- For I := 1 To 32 Do Begin
-  HexStr := HexStr + HexChars[(Hash Mod 16) + 1];
-  Hash := Hash Div 16;
-  If Hash = 0 Then Hash := Ord(Password[(I Mod Length(Password)) + 1]) * 12345;
- End;
-
- SMTP_CRAMMD5Hash := HexStr;
+ SMTP_CRAMMD5Hash := ''; { Non pris en charge; AUTH LOGIN/PLAIN sur TLS. }
 End;
+
+
 
 { Connecte au serveur SMTP }
 Function SMTP_Connect: Integer;
-Var
- Response: TSMTPResponse;
+Var R: TSMTPResponse;
 Begin
- If SMTPClient.Host = '' Then Begin
-  SMTPClient.LastError := 'Serveur non configure';
-  SMTP_Connect := SMTP_ERR_CONNECT;
-  Exit;
+ SMTP_Connect:=SMTP_ERR_CONNECT; SMTPClient.Connected:=False;
+ If Not MailOpen(SMTPWire,SMTPClient.Host,SMTPClient.Port,SMTPClient.UseSSL) Then Begin
+  SMTPClient.LastError:=MailError; Exit;
  End;
-
- SMTPSending := True;
-
- { Simuler la connexion socket }
- SMTPClient.Connected := True;
- SMTPClient.SocketHandle := 3;
- SMTPClient.State := ssConnected;
-
- { Si SSL implicite, activer TLS }
- If SMTPClient.UseSSL Then
-  SMTPClient.TLSActive := True;
-
- { Simuler le message de bienvenue }
- SMTPClient.ServerGreeting := '220 smtp.example.com ESMTP ready';
- SMTPClient.LastCode := SMTP_CODE_READY;
-
- SMTPSending := False;
- SMTP_Connect := SMTP_OK;
+ R:=SMTP_SendCommand('');
+ If R.Code<>220 Then Begin SMTPClient.LastError:=R.Text; MailClose(SMTPWire); Exit; End;
+ SMTPClient.ServerGreeting:=R.Text; SMTPClient.Connected:=True;
+ SMTPClient.TLSActive:=SMTPWire.Secure; SMTPClient.State:=ssConnected;
+ SMTP_Connect:=SMTP_OK;
 End;
 
 { Envoie la commande EHLO }
@@ -6739,9 +6734,14 @@ Begin
 
  Response := SMTP_SendCommand('STARTTLS');
  If Response.Code = SMTP_CODE_READY Then Begin
-  { Simuler la negociation TLS }
-  SMTPClient.TLSActive := True;
-  SMTP_STARTTLS := SMTP_OK;
+  If MailStartTLS(SMTPWire) Then Begin
+   SMTPClient.TLSActive := True;
+   FillChar(SMTPClient.Extensions,SizeOf(SMTPClient.Extensions),0);
+   SMTP_STARTTLS := SMTP_EHLO('localhost');
+  End Else Begin
+   SMTPClient.LastError := MailError; MailClose(SMTPWire);
+   SMTP_STARTTLS := SMTP_ERR_STARTTLS;
+  End;
  End
  Else Begin
   SMTPClient.LastError := 'STARTTLS echoue: ' + Response.Text;
@@ -6834,52 +6834,9 @@ End;
 
 { Authentification CRAM-MD5 (RFC 2195) }
 Function SMTP_AuthCRAMMD5: Integer;
-Var
- Response: TSMTPResponse;
- Challenge: String;
- Digest: String;
- AuthResponse: String;
 Begin
- If SMTPClient.State < ssConnected Then Begin
-  SMTPClient.LastError := 'Non connecte';
-  SMTP_AuthCRAMMD5 := SMTP_ERR_AUTH;
-  Exit;
- End;
-
- If Not SMTPClient.Extensions.AUTH_CRAM_MD5 Then Begin
-  SMTPClient.LastError := 'AUTH CRAM-MD5 non supporte';
-  SMTP_AuthCRAMMD5 := SMTP_ERR_AUTH;
-  Exit;
- End;
-
- { Envoyer AUTH CRAM-MD5 }
- Response := SMTP_SendCommand('AUTH CRAM-MD5');
- If Response.Code <> SMTP_CODE_AUTH_CONTINUE Then Begin
-  SMTPClient.LastError := 'AUTH CRAM-MD5 echoue: ' + Response.Text;
-  SMTP_AuthCRAMMD5 := SMTP_ERR_AUTH;
-  Exit;
- End;
-
- { Le challenge est dans Response.Text (en Base64) }
- Challenge := Response.Text;
-
- { Calculer la reponse HMAC-MD5 }
- Digest := SMTP_CRAMMD5Hash(Challenge, SMTPClient.Password);
-
- { Envoyer username + espace + digest en Base64 }
- AuthResponse := SMTP_Base64Encode(SMTPClient.Username + ' ' + Digest);
- Response := SMTP_SendCommand(AuthResponse);
-
- If Response.Code = SMTP_CODE_AUTH_OK Then Begin
-  SMTPClient.Authenticated := True;
-  SMTPClient.AuthMethod := samCRAMMD5;
-  SMTPClient.State := ssAuthenticated;
-  SMTP_AuthCRAMMD5 := SMTP_OK;
- End
- Else Begin
-  SMTPClient.LastError := 'CRAM-MD5 echoue: ' + Response.Text;
-  SMTP_AuthCRAMMD5 := SMTP_ERR_AUTH;
- End;
+ SMTPClient.LastError:='CRAM-MD5 non pris en charge; utiliser LOGIN/PLAIN';
+ SMTP_AuthCRAMMD5:=SMTP_ERR_AUTH;
 End;
 
 { Envoie la commande MAIL FROM }
@@ -6926,6 +6883,7 @@ Begin
    SMTPRecipients[SMTPClient.RcptCount].ErrorMsg := '';
    Inc(SMTPClient.RcptCount);
   End;
+  Inc(SMTPClient.RcptAccepted);
   SMTPClient.State := ssRcptTo;
   SMTP_RcptTo := SMTP_OK;
  End
@@ -6942,9 +6900,11 @@ Begin
 End;
 
 { Envoie la commande DATA et le contenu du message }
-Function SMTP_Data(MessageBody: String): Integer;
+Function SMTP_Data(MessageBody: TMailText): Integer;
 Var
  Response: TSMTPResponse;
+ WireBody: TMailText;
+ I: LongInt;
 Begin
  If SMTPClient.State < ssRcptTo Then Begin
   SMTPClient.LastError := 'RCPT TO requis d''abord';
@@ -6968,13 +6928,17 @@ Begin
 
  SMTPClient.State := ssData;
 
- { Dans une vraie implementation, on enverrait le corps du message ici }
- { puis on terminerait avec CRLF.CRLF }
-
- { Simuler l'envoi reussi }
- Response.Code := SMTP_CODE_OK;
- Response.ResponseClass := srcPositiveComplete;
- Response.Text := 'Message accepted for delivery';
+ WireBody:='';
+ For I:=1 To Length(MessageBody) Do Begin
+  If (MessageBody[I]='.') Then
+   If (I=1) Or (MessageBody[I-1]=#10) Then WireBody:=WireBody+'.';
+  WireBody:=WireBody+MessageBody[I];
+ End;
+ If Copy(WireBody,Length(WireBody)-1,2)<>#13#10 Then WireBody:=WireBody+#13#10;
+ If Not MailWrite(SMTPWire, WireBody + '.'#13#10) Then Begin
+  SMTPClient.LastError:=MailError; SMTP_Data:=SMTP_ERR_SEND; Exit;
+ End;
+ Response:=SMTP_SendCommand('');
 
  If Response.Code = SMTP_CODE_OK Then Begin
   SMTPClient.State := ssAuthenticated;
@@ -7046,6 +7010,7 @@ Begin
   { Ignorer la reponse, on deconnecte quand meme }
  End;
 
+ MailClose(SMTPWire);
  SMTPClient.Connected := False;
  SMTPClient.State := ssDisconnected;
  SMTPClient.SocketHandle := -1;
@@ -7059,7 +7024,7 @@ Function SMTP_SendMessage(Msg: TSMTPMessage): Integer;
 Var
  I: Integer;
  Result: Integer;
- Headers: String;
+ Headers: TMailText;
 Begin
  { Verifier qu'on est connecte et authentifie }
  If SMTPClient.State < ssConnected Then Begin
@@ -7092,7 +7057,7 @@ Begin
  { Construire les en-tetes et le corps }
  Headers := 'From: ';
  If Msg.FromName <> '' Then
-  Headers := Headers + '"' + Msg.FromName + '" '
+  Headers := Headers + '"' + Msg.FromName + '" <' + Msg.From + '>'
  Else
   Headers := Headers + Msg.From;
  Headers := Headers + Chr(13) + Chr(10);
@@ -7191,6 +7156,59 @@ Begin
  For I := 1 To Length(Password) Do
   Result := Result + Chr(Ord(Password[I]) Xor PASSWORD_XOR_KEY);
  XORPassword := Result;
+End;
+
+{ Ouvrir et authentifier le serveur entrant du compte reel. }
+Function OpenIncomingAccount(Const Account: TEmailAccount): Boolean;
+Var R: TIMAPResponse; P: TPOP3Response;
+Begin
+ OpenIncomingAccount:=False; MailError:='';
+ If Account.IncomingType=istIMAP Then Begin
+  IMAP_InitClient;
+  IMAP_Configure(Account.IncomingHost,Account.IncomingPort,
+   Account.IncomingUsername,XORPassword(Account.IncomingPassword),Account.IncomingSecurity=csSSL);
+  If IMAP_Connect<>IMAP_OK Then Begin MailError:=IMAPClient.LastError; Exit; End;
+  If Account.IncomingSecurity=csSTARTTLS Then Begin
+   R:=IMAP_SendCommand('STARTTLS');
+   If R.ResponseType<>irOK Then Begin MailError:='IMAP STARTTLS refuse: '+R.Text; MailClose(IMAPWire); Exit; End;
+   If Not MailStartTLS(IMAPWire) Then Begin MailClose(IMAPWire); Exit; End;
+  End;
+  If IMAPClient.State<>isAuthenticated Then
+   If IMAP_LoginAuth<>IMAP_OK Then Begin MailError:=IMAPClient.LastError; MailClose(IMAPWire); Exit; End;
+ End Else Begin
+  POP3_InitClient;
+  POP3_Configure(Account.IncomingHost,Account.IncomingPort,
+   Account.IncomingUsername,XORPassword(Account.IncomingPassword),Account.IncomingSecurity=csSSL);
+  If POP3_Connect<>POP3_OK Then Begin MailError:=POP3Client.LastError; Exit; End;
+  If Account.IncomingSecurity=csSTARTTLS Then Begin
+   P:=POP3_SendCommand('STLS');
+   If P.ResponseType<>prOK Then Begin MailError:='POP3 STLS refuse: '+P.Text; MailClose(POP3Wire); Exit; End;
+   If Not MailStartTLS(POP3Wire) Then Begin MailClose(POP3Wire); Exit; End;
+  End;
+  If POP3_AuthUserPass<>POP3_OK Then Begin MailError:=POP3Client.LastError; MailClose(POP3Wire); Exit; End;
+ End;
+ OpenIncomingAccount:=True;
+End;
+
+Function OpenOutgoingAccount(Const Account: TEmailAccount): Boolean;
+Var User, Pass: String; ResultCode: Integer;
+Begin
+ OpenOutgoingAccount:=False; MailError:=''; SMTP_InitClient;
+ User:=Account.OutgoingUsername; Pass:=XORPassword(Account.OutgoingPassword);
+ If Account.OutgoingUseSameAuth Then Begin
+  User:=Account.IncomingUsername; Pass:=XORPassword(Account.IncomingPassword);
+ End;
+ SMTP_Configure(Account.OutgoingHost,Account.OutgoingPort,User,Pass,
+  Account.OutgoingSecurity=csSSL,Account.OutgoingSecurity=csSTARTTLS);
+ ResultCode:=SMTP_Connect;
+ If ResultCode=SMTP_OK Then ResultCode:=SMTP_EHLO('localhost');
+ If (ResultCode=SMTP_OK) And (Account.OutgoingSecurity=csSTARTTLS) Then ResultCode:=SMTP_STARTTLS;
+ If (ResultCode=SMTP_OK) And Account.OutgoingAuthRequired Then Begin
+  If SMTPClient.Extensions.AUTH_PLAIN Then ResultCode:=SMTP_AuthPLAIN
+  Else ResultCode:=SMTP_AuthLOGIN;
+ End;
+ If ResultCode<>SMTP_OK Then Begin MailError:=SMTPClient.LastError; MailClose(SMTPWire); Exit; End;
+ OpenOutgoingAccount:=True;
 End;
 
 { Le fichier suit l executable, independamment du repertoire courant. }
@@ -7842,34 +7860,17 @@ End;
 { Teste la connexion au serveur entrant }
 Function TestIncomingConnection: TConnectionTestResult;
 Begin
- { Simulation du test de connexion }
- { Dans une implementation reelle, on utiliserait les clients IMAP/POP3 }
- If (TempAccount.IncomingHost = '') Or (TempAccount.IncomingUsername = '') Then Begin
-  TestIncomingConnection := ctrFailedIncoming;
-  Exit;
- End;
-
- { Simuler un delai de test }
- Delay(500);
-
- { Test simule reussi si les champs sont remplis }
- TestIncomingConnection := ctrSuccess;
+ If OpenIncomingAccount(TempAccount) Then TestIncomingConnection:=ctrSuccess
+ Else TestIncomingConnection:=ctrFailedIncoming;
+ MailClose(IMAPWire); MailClose(POP3Wire);
 End;
 
-{ Teste la connexion au serveur sortant }
+{ Verifie la connexion SMTP, TLS et l authentification sans envoyer de message. }
 Function TestOutgoingConnection: TConnectionTestResult;
 Begin
- { Simulation du test de connexion SMTP }
- If TempAccount.OutgoingHost = '' Then Begin
-  TestOutgoingConnection := ctrFailedOutgoing;
-  Exit;
- End;
-
- { Simuler un delai de test }
- Delay(500);
-
- { Test simule reussi si les champs sont remplis }
- TestOutgoingConnection := ctrSuccess;
+ If OpenOutgoingAccount(TempAccount) Then TestOutgoingConnection:=ctrSuccess
+ Else TestOutgoingConnection:=ctrFailedOutgoing;
+ MailClose(SMTPWire);
 End;
 
 { Execute le test de connexion complet }
@@ -7879,6 +7880,7 @@ Var
 Begin
  ConnectionTestInProgress := True;
  ConnectionTestResult := ctrTesting;
+ MailError := '';
 
  { Tester le serveur entrant }
  Result := TestIncomingConnection;
@@ -8056,6 +8058,8 @@ Begin
  End;
  SetColor(ResultColor);
  OutTextXY(DIALOG_X + DIALOG_MARGIN + 20, Y, GetConnectionTestResultText(ConnectionTestResult));
+ If (ConnectionTestResult<>ctrSuccess) And (MailError<>'') Then
+  OutTextXY(DIALOG_X + DIALOG_MARGIN, Y+18, Copy(MailError,1,60));
 
  Y := Y + 40;
  SetColor(COLOR_MENU_TEXT);
@@ -8323,6 +8327,7 @@ Begin
     EmailAccounts[CurrentAccountIndex] := TempAccount;
    End;
    SaveAccounts;
+   RefreshAccountFolders;
    AccountWizardMode := False;
    AccountDialogVisible := True;
   End;
@@ -8420,6 +8425,7 @@ Begin
   If Not EmailAccounts[I].IsDefault Then EmailAccounts[0].IsDefault := True;
  End;
  SaveAccounts;
+ RefreshAccountFolders;
 
  { Ajuster la selection }
  If SelectedAccountInList >= EmailAccountCount Then
@@ -8438,6 +8444,7 @@ Begin
  For I := 0 To EmailAccountCount - 1 Do
   EmailAccounts[I].IsDefault := (I = Index);
  SaveAccounts;
+ RefreshAccountFolders;
 
  DrawAccountManagerDialog;
 End;
@@ -9148,34 +9155,62 @@ Begin
 End;
 
 { Envoie le message }
+{ Traiter les destinataires To/Cc/Bcc sans annoncer un succes avant DATA 250. }
+Function MailRecipients(List: TMailText): Boolean;
+Var P, Q: LongInt; Address: TMailText;
+Begin
+ MailRecipients:=False;
+ While List<>'' Do Begin
+  P:=1; While (P<=Length(List)) And Not (List[P] In [',',';']) Do Inc(P);
+  Address:=MailTrim(Copy(List,1,P-1)); Delete(List,1,P);
+  If Address<>'' Then Begin
+   P:=Pos('<',Address); Q:=Pos('>',Address);
+   If (P>0) And (Q>P) Then Address:=Copy(Address,P+1,Q-P-1);
+   If (Length(Address)>60) Or Not MailSafe(Address) Then Begin MailError:='Destinataire invalide'; Exit; End;
+   If SMTP_RcptTo(Address)<>SMTP_OK Then Begin MailError:='Destinataire refuse: '+Copy(Address,1,55); Exit; End;
+  End;
+ End;
+ MailRecipients:=True;
+End;
+
 Procedure SendMessage;
+Var A, I: Integer; Body: TMailText; OK: Boolean;
 Begin
  SaveComposerFields;
-
- { Verifier les champs obligatoires }
- If Composer.ToField = '' Then Begin
-  { Afficher erreur }
-  HideMouse;
-  FillRect(Layout.StatusBarRect.X1 + 1, Layout.StatusBarRect.Y1 + 1,
-           Layout.StatusBarRect.X2 - 1, Layout.StatusBarRect.Y2 - 1, COLOR_STATUS_BG);
-  SetColor(LightRed);
-  OutTextXY(Layout.StatusBarRect.X1 + 4, Layout.StatusBarRect.Y1 + 5,
-            'Erreur: Destinataire requis!        ');
-  ShowMouse;
-  Exit;
+ MailError:=''; A:=-1;
+ If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+ If A<0 Then For I:=0 To EmailAccountCount-1 Do
+  If EmailAccounts[I].IsDefault Then A:=I;
+ If A<0 Then Begin MailStatus:='Configurez un compte avant envoi'; DrawStatusBar; Exit; End;
+ If Composer.ToField='' Then Begin MailStatus:='Destinataire requis'; DrawStatusBar; Exit; End;
+ If Composer.AttachmentCount>0 Then Begin
+  MailStatus:='Envoi des pieces jointes non implemente'; DrawStatusBar; Exit;
  End;
-
- { Ici on enverrait le message via SMTP }
- { Pour l'instant, simuler l'envoi }
- HideMouse;
- FillRect(Layout.StatusBarRect.X1 + 1, Layout.StatusBarRect.Y1 + 1,
-          Layout.StatusBarRect.X2 - 1, Layout.StatusBarRect.Y2 - 1, COLOR_STATUS_BG);
- SetColor(LightGreen);
- OutTextXY(Layout.StatusBarRect.X1 + 4, Layout.StatusBarRect.Y1 + 5,
-           'Message envoye avec succes!         ');
- ShowMouse;
-
- CloseComposer;
+ If Not MailSafe(Composer.SubjectField) Or Not MailSafe(Composer.ToField) Or
+    Not MailSafe(Composer.CcField) Or Not MailSafe(Composer.BccField) Or
+    Not MailSafe(EmailAccounts[A].EmailAddress) Then Begin
+  MailStatus:=MailError; DrawStatusBar; Exit;
+ End;
+ OK:=OpenOutgoingAccount(EmailAccounts[A]);
+ If OK Then OK:=SMTP_MailFrom(EmailAccounts[A].EmailAddress)=SMTP_OK;
+ If OK Then OK:=MailRecipients(Composer.ToField);
+ If OK Then OK:=MailRecipients(Composer.CcField);
+ If OK Then OK:=MailRecipients(Composer.BccField);
+ If OK Then Begin
+  Body:='From: '+EmailAccounts[A].EmailAddress+#13#10+
+   'To: '+Composer.ToField+#13#10;
+  If Composer.CcField<>'' Then Body:=Body+'Cc: '+Composer.CcField+#13#10;
+  Body:=Body+'Subject: '+Composer.SubjectField+#13#10+
+   'MIME-Version: 1.0'#13#10'Content-Type: text/plain; charset=windows-1252'#13#10+
+   'Content-Transfer-Encoding: 8bit'#13#10#13#10;
+  For I:=0 To Composer.LineCount-1 Do Body:=Body+Composer.Lines[I].Text+#13#10;
+  OK:=SMTP_Data(Body)=SMTP_OK;
+ End;
+ If OK Then Begin MailStatus:='Message accepte par le serveur SMTP'; MailClose(SMTPWire); CloseComposer; End
+ Else Begin
+  If MailError='' Then MailError:=SMTPClient.LastError;
+  MailStatus:='Echec envoi: '+MailError; MailClose(SMTPWire); DrawStatusBar;
+ End;
 End;
 
 { Gere les clics dans le compositeur }
@@ -20670,12 +20705,202 @@ End;
   FIN DE L'IMPLEMENTATION DU SUPPORT MULTI-LANGUE (TODO 25)
   ============================================================================ }
 
-{ Initialise la liste des messages avec des donnees de demonstration }
+{ En-tetes RFC 5322 avec lignes repliees. }
+Function MailHeader(Const Raw, Name: TMailText): TMailText;
+Var P, Q, StopAt: LongInt; Line, Key, Value: TMailText;
+Begin
+ MailHeader:=''; Key:=''; Value:=''; P:=1;
+ StopAt:=Pos(#13#10#13#10,Raw); If StopAt=0 Then StopAt:=Length(Raw)+1;
+ While P<StopAt Do Begin
+  Q:=P; While (Q<StopAt) And (Raw[Q]<>#13) Do Inc(Q);
+  Line:=Copy(Raw,P,Q-P); P:=Q+2;
+  If (Line<>'') And (Line[1] In [' ',#9]) Then Value:=Value+' '+MailTrim(Line)
+  Else Begin
+   If MailUpper(Key)=MailUpper(Name) Then Begin MailHeader:=Value; Exit; End;
+   Q:=Pos(':',Line); Key:=Copy(Line,1,Q-1); Value:=MailTrim(Copy(Line,Q+1,Length(Line)));
+  End;
+ End;
+ If MailUpper(Key)=MailUpper(Name) Then MailHeader:=Value;
+End;
+
+Function MailDecodeData(Const Data, Encoding: TMailText): TMailText;
+Const Alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+Var I, V, Bits, Acc, Code: LongInt; Hex: String;
+Begin
+ MailDecodeData:='';
+ If Pos('BASE64',MailUpper(Encoding))>0 Then Begin
+  Acc:=0; Bits:=0;
+  For I:=1 To Length(Data) Do Begin
+   V:=Pos(Data[I],Alphabet)-1;
+   If V>=0 Then Begin
+    Acc:=((Acc Shl 6) Or V) And $FFFFFF; Inc(Bits,6);
+    If Bits>=8 Then Begin Dec(Bits,8); MailDecodeData:=MailDecodeData+Chr((Acc Shr Bits) And 255); End;
+   End;
+  End;
+ End Else If Pos('QUOTED-PRINTABLE',MailUpper(Encoding))>0 Then Begin
+  I:=1;
+  While I<=Length(Data) Do Begin
+   If (Data[I]='=') And (I+2<=Length(Data)) Then Begin
+    If Copy(Data,I+1,2)=#13#10 Then Inc(I,3)
+    Else Begin
+     Hex:='$'+Copy(Data,I+1,2); Val(Hex,V,Code);
+     If Code=0 Then Begin MailDecodeData:=MailDecodeData+Chr(V); Inc(I,3); End
+     Else Begin MailDecodeData:=MailDecodeData+Data[I]; Inc(I); End;
+    End;
+   End Else Begin MailDecodeData:=MailDecodeData+Data[I]; Inc(I); End;
+  End;
+ End Else MailDecodeData:=Data;
+End;
+
+{ Parcourir MIME pour afficher la partie texte, sans creer de faux contenu. }
+Function MailTextBody(Const Raw: TMailText; Depth: Integer): TMailText;
+Var P, Q, R: LongInt; ContentType, Boundary, Body, Part, Candidate, Fallback: TMailText;
+ Quoted, InTag: Boolean;
+Begin
+ MailTextBody:=''; If Depth>8 Then Exit;
+ P:=Pos(#13#10#13#10,Raw); If P=0 Then Exit;
+ Body:=Copy(Raw,P+4,Length(Raw)); ContentType:=MailHeader(Raw,'Content-Type');
+ If Pos('MULTIPART/',MailUpper(ContentType))=1 Then Begin
+  P:=Pos('BOUNDARY=',MailUpper(ContentType)); If P=0 Then Exit;
+  Boundary:=MailTrim(Copy(ContentType,P+9,Length(ContentType)));
+  Quoted:=(Boundary<>'') And (Boundary[1]='"');
+  If Quoted Then Begin Delete(Boundary,1,1); P:=Pos('"',Boundary); End
+  Else P:=Pos(';',Boundary);
+  If P>0 Then Boundary:=Copy(Boundary,1,P-1);
+  If Boundary='' Then Exit;
+  Boundary:='--'+Boundary; P:=Pos(Boundary+#13#10,Body); Fallback:='';
+  While P>0 Do Begin
+   Delete(Body,1,P+Length(Boundary)+1); Q:=Pos(#13#10+Boundary,Body);
+   If Q=0 Then Break;
+   Part:=Copy(Body,1,Q-1);
+   If Pos('ATTACHMENT',MailUpper(MailHeader(Part,'Content-Disposition')))=0 Then Begin
+    Candidate:=MailTextBody(Part,Depth+1);
+    If Pos('TEXT/PLAIN',MailUpper(MailHeader(Part,'Content-Type')))=1 Then Begin
+     MailTextBody:=Candidate; Exit;
+    End;
+    If Fallback='' Then Fallback:=Candidate;
+   End;
+   Delete(Body,1,Q+1);
+   If Copy(Body,Length(Boundary)+1,2)='--' Then Break;
+   P:=Pos(Boundary+#13#10,Body);
+  End;
+  MailTextBody:=Fallback; Exit;
+ End;
+ If (ContentType<>'') And (Pos('TEXT/',MailUpper(ContentType))<>1) Then Exit;
+ Body:=MailDecodeData(Body,MailHeader(Raw,'Content-Transfer-Encoding'));
+ If Pos('TEXT/HTML',MailUpper(ContentType))=1 Then Begin
+  Candidate:=''; InTag:=False;
+  For R:=1 To Length(Body) Do Begin
+   If Body[R]='<' Then Begin InTag:=True; Candidate:=Candidate+' '; End
+   Else If Body[R]='>' Then InTag:=False
+   Else If Not InTag Then Candidate:=Candidate+Body[R];
+  End;
+  Body:=Candidate;
+ End;
+ MailTextBody:=Body;
+End;
+
+Procedure MailParseMessage(Const Raw, ID: TMailText; Var Msg: TMessage);
+Var Value, Body, Line: TMailText; P, Q, I, N: LongInt;
+Begin
+ FillChar(Msg,SizeOf(Msg),0); Msg.MsgID:=Copy(ID,1,20); Msg.Priority:=mpNormal;
+ Value:=MailHeader(Raw,'From'); P:=Pos('<',Value); Q:=Pos('>',Value);
+ If (P>0) And (Q>P) Then Begin
+  Msg.FromName:=MIME_DecodeHeader(Copy(MailTrim(Copy(Value,1,P-1)),1,255));
+  Msg.FromEmail:=Copy(Value,P+1,Q-P-1);
+ End Else Begin Msg.FromEmail:=Copy(Value,1,60); Msg.FromName:=Msg.FromEmail; End;
+ If Msg.FromName='' Then Msg.FromName:=Msg.FromEmail;
+ Msg.ToEmail:=Copy(MailHeader(Raw,'To'),1,60);
+ Msg.CcEmail:=Copy(MailHeader(Raw,'Cc'),1,80);
+ Msg.Subject:=MIME_DecodeHeader(Copy(MailHeader(Raw,'Subject'),1,255));
+ Msg.DateFull:=Copy(MailHeader(Raw,'Date'),1,25); Msg.DateStr:=Copy(Msg.DateFull,1,10);
+ Msg.Size:=Length(Raw);
+ Msg.HasAttachment:=(Pos('ATTACHMENT',MailUpper(Raw))>0);
+ Body:=MailTextBody(Raw,0); P:=1; I:=0;
+ While (P<=Length(Body)) And (I<20) Do Begin
+  Q:=P; While (Q<=Length(Body)) And Not (Body[Q] In [#13,#10]) Do Inc(Q);
+  Line:=Copy(Body,P,Q-P);
+  Repeat
+   N:=Length(Line); If N>80 Then N:=80;
+   Msg.Body[I]:=Copy(Line,1,N); Inc(I); Delete(Line,1,N);
+  Until (Line='') Or (I=20);
+  P:=Q+1; If (Q<Length(Body)) And (Body[Q]=#13) And (Body[Q+1]=#10) Then Inc(P);
+ End;
+ Msg.BodyLineCount:=I;
+End;
+
+Procedure ReceiveMail;
+Var AccountIndex, I, Total, First, Count, Code, Unread: LongInt;
+ R: TIMAPResponse; P: TPOP3Response; Number, ID, StatText: TMailText;
+ Success: Boolean;
+Begin
+ If (SelectedFolder<0) Or (SelectedFolder>=FolderCount) Then Begin
+  MailStatus:='Configurez un compte dans Outils / Comptes'; Exit;
+ End;
+ AccountIndex:=MailFolderAccount[SelectedFolder];
+ If (AccountIndex<0) Or (AccountIndex>=EmailAccountCount) Then Exit;
+ If Folders[SelectedFolder].FolderType<>ftInbox Then Begin
+  MailStatus:='Selectionnez la boite de reception du compte'; Exit;
+ End;
+ If Not EmailAccounts[AccountIndex].IsActive Then Begin MailStatus:='Compte desactive'; Exit; End;
+ MailStatus:='Connexion a '+EmailAccounts[AccountIndex].IncomingHost; DrawInterface;
+ If Not OpenIncomingAccount(EmailAccounts[AccountIndex]) Then Begin MailStatus:=MailError; Exit; End;
+ Success:=True; Total:=0; Count:=0; Unread:=0;
+ If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
+  IMAPClient.CurrentMailbox.Exists:=0;
+  If IMAP_Select('INBOX')<>IMAP_OK Then Begin MailError:=IMAPClient.LastError; Success:=False; End;
+  Total:=IMAPClient.CurrentMailbox.Exists;
+ End Else Begin
+  P:=POP3_SendCommand('STAT'); StatText:=P.Text;
+  I:=Pos(' ',StatText); If I>0 Then StatText:=Copy(StatText,1,I-1);
+  Val(StatText,Total,Code);
+  If (P.ResponseType<>prOK) Or (Code<>0) Or (Total<0) Then Begin
+   MailError:='STAT refuse: '+P.Text; Success:=False;
+  End;
+ End;
+ First:=Total-MAX_MESSAGES+1; If First<1 Then First:=1;
+ For I:=Total DownTo First Do Begin
+  If Not Success Then Break;
+  Str(I,Number);
+  If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
+   R:=IMAP_SendCommand('FETCH '+Number+' (UID FLAGS BODY.PEEK[])');
+   Success:=R.ResponseType=irOK;
+   If Not Success Then MailError:='Lecture IMAP refusee: '+R.Text;
+   Str(MailFetchUID,ID);
+  End Else Begin
+   P:=POP3_SendCommand('RETR '+Number); Success:=P.ResponseType=prOK;
+   If Not Success Then MailError:='Lecture POP3 refusee: '+P.Text;
+   ID:=Number;
+  End;
+  If Success Then Begin
+   MailParseMessage(MailRaw,ID,MailNewMessages[Count]);
+   If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
+    MailNewMessages[Count].IsRead:=Pos('\Seen',MailFetchFlags)>0;
+    MailNewMessages[Count].IsFlagged:=Pos('\Flagged',MailFetchFlags)>0;
+   End;
+   If Not MailNewMessages[Count].IsRead Then Inc(Unread);
+   Inc(Count);
+  End;
+ End;
+ MailClose(IMAPWire); MailClose(POP3Wire);
+ IMAPClient.Connected:=False; IMAPClient.State:=isDisconnected;
+ POP3Client.Connected:=False; POP3Client.State:=psDisconnected;
+ If Not Success Then Begin MailStatus:=MailError; Exit; End;
+ Move(MailNewMessages,Messages,SizeOf(Messages)); MessageCount:=Count;
+ SelectedMessage:=-1; LastSelectedMessage:=-1; MessageScrollOffset:=0; PreviewScrollY:=0;
+ If Count>0 Then Begin SelectedMessage:=0; Messages[0].IsSelected:=True; End;
+ MailLoadedFolder:=SelectedFolder;
+ Folders[SelectedFolder].TotalCount:=Total; Folders[SelectedFolder].UnreadCount:=Unread;
+ Str(Count,Number); Str(Total,ID);
+ MailStatus:=Number+' messages charges sur '+ID+' | '+EmailAccounts[AccountIndex].AccountName;
+End;
+
+{ Demarre avec une boite vide; seul le serveur fournit les messages. }
 Procedure InitializeMessageList;
 Begin
- MessageCount := 8;
- SelectedMessage := 0;
- LastSelectedMessage := 0;
+ MessageCount := 0;
+ SelectedMessage := -1;
+ LastSelectedMessage := -1;
  MessageScrollOffset := 0;
  SortColumn := 5;  { Tri par date par defaut }
  SortOrder := soDescending;
@@ -20696,260 +20921,11 @@ Begin
 
  { Initialiser le client IMAP }
  IMAP_InitClient;
- { Configurer un serveur IMAP de demonstration }
- IMAP_Configure('imap.example.com', IMAPS_PORT, 'user@example.com', 'password', True);
-
- { Message 1 - Non lu, priorite haute }
- Messages[0].MsgID := 'MSG001';
- Messages[0].FromName := 'Jean Dupont';
- Messages[0].FromEmail := 'jean.dupont@example.com';
- Messages[0].ToName := 'Moi';
- Messages[0].ToEmail := 'moi@example.com';
- Messages[0].CcEmail := '';
- Messages[0].Subject := 'URGENT: Reunion demain matin';
- Messages[0].DateStr := '01/04/26';
- Messages[0].DateFull := '01 avril 2026, 09:30';
- Messages[0].DateSort := 1743465600;
- Messages[0].Size := 2450;
- Messages[0].Priority := mpHigh;
- Messages[0].HasAttachment := True;
- Messages[0].IsRead := False;
- Messages[0].IsFlagged := True;
- Messages[0].IsSelected := True;
- Messages[0].BodyLineCount := 7;
- Messages[0].Body[0] := 'Bonjour,';
- Messages[0].Body[1] := '';
- Messages[0].Body[2] := 'Je vous rappelle notre reunion de demain a 10h.';
- Messages[0].Body[3] := 'Merci de confirmer votre presence.';
- Messages[0].Body[4] := '';
- Messages[0].Body[5] := 'Cordialement,';
- Messages[0].Body[6] := 'Jean Dupont';
- { Pieces jointes pour Message 1 (TODO 13) }
- Messages[0].AttachmentCount := 1;
- Messages[0].Attachments[0].FileName := 'ordre_du_jour.pdf';
- Messages[0].Attachments[0].FilePath := '';
- Messages[0].Attachments[0].FileSize := 125000;
- Messages[0].Attachments[0].FileType := atPDF;
- Messages[0].Attachments[0].IsEmbedded := False;
- Messages[0].Attachments[0].ContentID := '';
- Messages[0].Attachments[0].IsDangerous := False;
-
- { Message 2 - Lu }
- Messages[1].MsgID := 'MSG002';
- Messages[1].FromName := 'Marie Martin';
- Messages[1].FromEmail := 'marie.martin@example.com';
- Messages[1].ToName := 'Equipe Projet';
- Messages[1].ToEmail := 'equipe@example.com';
- Messages[1].CcEmail := 'manager@example.com';
- Messages[1].Subject := 'Re: Projet Alpha - Avancement';
- Messages[1].DateStr := '31/03/26';
- Messages[1].DateFull := '31 mars 2026, 14:15';
- Messages[1].DateSort := 1743379200;
- Messages[1].Size := 15230;
- Messages[1].Priority := mpNormal;
- Messages[1].HasAttachment := True;
- Messages[1].IsRead := True;
- Messages[1].IsFlagged := False;
- Messages[1].IsSelected := False;
- Messages[1].BodyLineCount := 10;
- Messages[1].Body[0] := 'Bonjour a tous,';
- Messages[1].Body[1] := '';
- Messages[1].Body[2] := 'Voici le rapport d''avancement du projet Alpha:';
- Messages[1].Body[3] := '- Phase 1: terminee a 100%';
- Messages[1].Body[4] := '- Phase 2: en cours, 65% complete';
- Messages[1].Body[5] := '- Phase 3: planifiee pour le mois prochain';
- Messages[1].Body[6] := '';
- Messages[1].Body[7] := 'Voir le document joint pour les details.';
- Messages[1].Body[8] := '';
- Messages[1].Body[9] := 'Marie';
- { Pieces jointes pour Message 2 (TODO 13) }
- Messages[1].AttachmentCount := 2;
- Messages[1].Attachments[0].FileName := 'rapport_alpha.docx';
- Messages[1].Attachments[0].FilePath := '';
- Messages[1].Attachments[0].FileSize := 85400;
- Messages[1].Attachments[0].FileType := atDocument;
- Messages[1].Attachments[0].IsEmbedded := False;
- Messages[1].Attachments[0].ContentID := '';
- Messages[1].Attachments[0].IsDangerous := False;
- Messages[1].Attachments[1].FileName := 'planning.xlsx';
- Messages[1].Attachments[1].FilePath := '';
- Messages[1].Attachments[1].FileSize := 42300;
- Messages[1].Attachments[1].FileType := atSpreadsheet;
- Messages[1].Attachments[1].IsEmbedded := False;
- Messages[1].Attachments[1].ContentID := '';
- Messages[1].Attachments[1].IsDangerous := False;
-
- { Message 3 - Lu }
- Messages[2].MsgID := 'MSG003';
- Messages[2].FromName := 'Support Technique';
- Messages[2].FromEmail := 'support@techcorp.com';
- Messages[2].ToName := 'Client';
- Messages[2].ToEmail := 'moi@example.com';
- Messages[2].CcEmail := '';
- Messages[2].Subject := 'Votre demande #1234 a ete traitee';
- Messages[2].DateStr := '30/03/26';
- Messages[2].DateFull := '30 mars 2026, 11:42';
- Messages[2].DateSort := 1743292800;
- Messages[2].Size := 5670;
- Messages[2].Priority := mpNormal;
- Messages[2].HasAttachment := False;
- Messages[2].IsRead := True;
- Messages[2].IsFlagged := False;
- Messages[2].IsSelected := False;
- Messages[2].AttachmentCount := 0;
- Messages[2].BodyLineCount := 8;
- Messages[2].Body[0] := 'Cher client,';
- Messages[2].Body[1] := '';
- Messages[2].Body[2] := 'Votre demande de support #1234 a ete traitee.';
- Messages[2].Body[3] := 'Le probleme a ete resolu par notre equipe technique.';
- Messages[2].Body[4] := '';
- Messages[2].Body[5] := 'Si vous avez d''autres questions, n''hesitez pas.';
- Messages[2].Body[6] := '';
- Messages[2].Body[7] := 'L''equipe Support TechCorp';
-
- { Message 4 - Non lu, priorite basse }
- Messages[3].MsgID := 'MSG004';
- Messages[3].FromName := 'Newsletter Info';
- Messages[3].FromEmail := 'news@infolettre.com';
- Messages[3].ToName := 'Abonne';
- Messages[3].ToEmail := 'moi@example.com';
- Messages[3].CcEmail := '';
- Messages[3].Subject := 'Les nouveautes de la semaine';
- Messages[3].DateStr := '29/03/26';
- Messages[3].DateFull := '29 mars 2026, 08:00';
- Messages[3].DateSort := 1743206400;
- Messages[3].Size := 45000;
- Messages[3].Priority := mpLow;
- Messages[3].HasAttachment := False;
- Messages[3].IsRead := False;
- Messages[3].IsFlagged := False;
- Messages[3].IsSelected := False;
- Messages[3].BodyLineCount := 12;
- Messages[3].Body[0] := 'Bonjour cher abonne,';
- Messages[3].Body[1] := '';
- Messages[3].Body[2] := 'Decouvrez les nouveautes de cette semaine:';
- Messages[3].Body[3] := '';
- Messages[3].Body[4] := '1. Nouvelle fonctionnalite de recherche avancee';
- Messages[3].Body[5] := '2. Amelioration des performances';
- Messages[3].Body[6] := '3. Correction de bugs mineurs';
- Messages[3].Body[7] := '4. Nouvelle interface utilisateur';
- Messages[3].Body[8] := '';
- Messages[3].Body[9] := 'Pour plus d''informations, visitez notre site.';
- Messages[3].Body[10] := '';
- Messages[3].Body[11] := 'L''equipe Newsletter';
-
- { Message 5 - Lu }
- Messages[4].MsgID := 'MSG005';
- Messages[4].FromName := 'Admin Systeme';
- Messages[4].FromEmail := 'admin@company.local';
- Messages[4].ToName := 'Tous les employes';
- Messages[4].ToEmail := 'all@company.local';
- Messages[4].CcEmail := 'direction@company.local';
- Messages[4].Subject := 'Maintenance planifiee ce weekend';
- Messages[4].DateStr := '28/03/26';
- Messages[4].DateFull := '28 mars 2026, 16:30';
- Messages[4].DateSort := 1743120000;
- Messages[4].Size := 1234;
- Messages[4].Priority := mpNormal;
- Messages[4].HasAttachment := False;
- Messages[4].IsRead := True;
- Messages[4].IsFlagged := True;
- Messages[4].IsSelected := False;
- Messages[4].BodyLineCount := 9;
- Messages[4].Body[0] := 'Chers collegues,';
- Messages[4].Body[1] := '';
- Messages[4].Body[2] := 'Une maintenance est planifiee ce weekend:';
- Messages[4].Body[3] := '- Debut: Samedi 30 mars, 22h00';
- Messages[4].Body[4] := '- Fin prevue: Dimanche 31 mars, 06h00';
- Messages[4].Body[5] := '';
- Messages[4].Body[6] := 'Les services seront temporairement indisponibles.';
- Messages[4].Body[7] := '';
- Messages[4].Body[8] := 'L''equipe IT';
-
- { Message 6 - Non lu }
- Messages[5].MsgID := 'MSG006';
- Messages[5].FromName := 'Pierre Durand';
- Messages[5].FromEmail := 'p.durand@mail.fr';
- Messages[5].ToName := 'Moi';
- Messages[5].ToEmail := 'moi@example.com';
- Messages[5].CcEmail := 'secretariat@mail.fr';
- Messages[5].Subject := 'Documents a signer';
- Messages[5].DateStr := '27/03/26';
- Messages[5].DateFull := '27 mars 2026, 10:15';
- Messages[5].DateSort := 1743033600;
- Messages[5].Size := 125000;
- Messages[5].Priority := mpHigh;
- Messages[5].HasAttachment := True;
- Messages[5].IsRead := False;
- Messages[5].IsFlagged := False;
- Messages[5].IsSelected := False;
- Messages[5].BodyLineCount := 8;
- Messages[5].Body[0] := 'Bonjour,';
- Messages[5].Body[1] := '';
- Messages[5].Body[2] := 'Veuillez trouver ci-joint les documents a signer.';
- Messages[5].Body[3] := 'Merci de les retourner signes avant vendredi.';
- Messages[5].Body[4] := '';
- Messages[5].Body[5] := 'En cas de questions, n''hesitez pas a me contacter.';
- Messages[5].Body[6] := '';
- Messages[5].Body[7] := 'Pierre Durand';
-
- { Message 7 - Lu }
- Messages[6].MsgID := 'MSG007';
- Messages[6].FromName := 'Sophie Leblanc';
- Messages[6].FromEmail := 'sophie.l@webmail.com';
- Messages[6].ToName := 'Amis';
- Messages[6].ToEmail := 'moi@example.com';
- Messages[6].CcEmail := 'autres.amis@webmail.com';
- Messages[6].Subject := 'Invitation anniversaire';
- Messages[6].DateStr := '25/03/26';
- Messages[6].DateFull := '25 mars 2026, 18:45';
- Messages[6].DateSort := 1742860800;
- Messages[6].Size := 8900;
- Messages[6].Priority := mpNormal;
- Messages[6].HasAttachment := True;
- Messages[6].IsRead := True;
- Messages[6].IsFlagged := False;
- Messages[6].IsSelected := False;
- Messages[6].BodyLineCount := 11;
- Messages[6].Body[0] := 'Salut!';
- Messages[6].Body[1] := '';
- Messages[6].Body[2] := 'Je vous invite a mon anniversaire!';
- Messages[6].Body[3] := '';
- Messages[6].Body[4] := 'Date: Samedi 5 avril 2026';
- Messages[6].Body[5] := 'Heure: 19h00';
- Messages[6].Body[6] := 'Lieu: Chez moi';
- Messages[6].Body[7] := '';
- Messages[6].Body[8] := 'Voir le plan en piece jointe.';
- Messages[6].Body[9] := '';
- Messages[6].Body[10] := 'A bientot! Sophie';
-
- { Message 8 - Lu }
- Messages[7].MsgID := 'MSG008';
- Messages[7].FromName := 'Service Client';
- Messages[7].FromEmail := 'service@boutique.fr';
- Messages[7].ToName := 'Client';
- Messages[7].ToEmail := 'moi@example.com';
- Messages[7].CcEmail := '';
- Messages[7].Subject := 'Votre commande a ete expediee';
- Messages[7].DateStr := '24/03/26';
- Messages[7].DateFull := '24 mars 2026, 14:00';
- Messages[7].DateSort := 1742774400;
- Messages[7].Size := 3200;
- Messages[7].Priority := mpNormal;
- Messages[7].HasAttachment := False;
- Messages[7].IsRead := True;
- Messages[7].IsFlagged := False;
- Messages[7].IsSelected := False;
- Messages[7].BodyLineCount := 9;
- Messages[7].Body[0] := 'Cher client,';
- Messages[7].Body[1] := '';
- Messages[7].Body[2] := 'Votre commande #98765 a ete expediee.';
- Messages[7].Body[3] := '';
- Messages[7].Body[4] := 'Numero de suivi: FR123456789';
- Messages[7].Body[5] := 'Livraison estimee: 2-3 jours ouvrables';
- Messages[7].Body[6] := '';
- Messages[7].Body[7] := 'Merci pour votre achat!';
- Messages[7].Body[8] := 'L''equipe Boutique';
+ POP3_InitClient;
+ SMTP_InitClient;
+ FillChar(Messages,SizeOf(Messages),0);
+ MailLoadedFolder:=-1;
+ MailStatus:='Pret - cliquez sur Envoyer/Recevoir';
 
  { Initialiser les colonnes }
  InitializeMessageColumns;
@@ -21798,7 +21774,7 @@ Begin
 
  SetColor(COLOR_STATUS_TEXT);
  OutTextXY(Layout.StatusBarRect.X1 + 4, Layout.StatusBarRect.Y1 + 5,
-           '5 messages, 5 non lus | Connecte');
+           MailStatus);
 End;
 
 { ============================================================================
@@ -22515,14 +22491,16 @@ BEGIN
  { Initialisation de la barre d'outils }
  InitializeToolbar;
 
+ { Charger les comptes avant de construire leurs dossiers. }
+ InitializeAccountManager;
+
  { Initialisation de l'arbre de dossiers }
  InitializeFolderTree;
 
  { Initialisation de la liste des messages }
  InitializeMessageList;
 
- { Initialisation du gestionnaire de comptes (TODO 11) }
- InitializeAccountManager;
+
 
  { Initialisation du compositeur de messages (TODO 12) }
  InitializeComposer;
@@ -22566,8 +22544,8 @@ BEGIN
 
  { Initialisation du mode hors ligne (TODO 24) }
  Offline_Init;
- Offline_LoadCache;
- Offline_LoadQueue;
+ { Les anciens caches de demonstration ne constituent pas une source serveur. }
+ { La boite est chargee explicitement via Envoyer/Recevoir. }
 
  { Initialisation du support multi-langue (TODO 25) }
  Lang_Init;
@@ -22582,6 +22560,11 @@ BEGIN
  { Sauvegarde du cache avant fermeture }
  Offline_SaveCache;
  Offline_SaveQueue;
+
+ MailClose(IMAPWire); MailClose(POP3Wire); MailClose(SMTPWire);
+ {$IFDEF WINDOWS}
+ If MailWinsockReady Then MailWSACleanup;
+ {$ENDIF}
 
  { Fermeture du mode graphique }
  HideMouse;
