@@ -3100,6 +3100,7 @@ Var
 
  { Variables globales pour le gestionnaire de comptes (TODO 11) }
  EmailAccounts: Array[0..MAX_EMAIL_ACCOUNTS-1] of TEmailAccount; { Liste des comptes }
+ CommandLineAccountsFile: String[251];
  AccountStorageError: String[80];
  EmailAccountCount: Integer;           { Nombre de comptes configures }
  CurrentAccountIndex: Integer;         { Index du compte en cours d'edition }
@@ -7211,12 +7212,16 @@ Begin
  OpenOutgoingAccount:=True;
 End;
 
-{ Le fichier suit l executable, independamment du repertoire courant. }
+{ Sans option, le fichier des comptes suit le repertoire de l executable. }
 Function AccountFileName: String;
 Var
  S: String;
  I: Integer;
 Begin
+ If CommandLineAccountsFile <> '' Then Begin
+  AccountFileName := CommandLineAccountsFile;
+  Exit;
+ End;
  S := ParamStr(0);
  I := Length(S);
  While (I > 0) And (S[I] <> '\') And (S[I] <> '/') And
@@ -7279,7 +7284,7 @@ Begin
  End;
  {$I+}
  If Err <> 0 Then
-  AccountStorageError := 'Erreur: impossible de sauvegarder OUTLOOK.ACC';
+  AccountStorageError := 'Erreur: impossible de sauvegarder le fichier des comptes';
 End;
 
 Procedure LoadAccounts;
@@ -7328,7 +7333,7 @@ Begin
   Move(Loaded, EmailAccounts, SizeOf(EmailAccounts));
   EmailAccountCount := Header[2];
  End
- Else AccountStorageError := 'Erreur: impossible de charger OUTLOOK.ACC';
+ Else AccountStorageError := 'Erreur: impossible de charger le fichier des comptes';
 End;
 
 { Initialise le gestionnaire de comptes }
@@ -22480,26 +22485,75 @@ Begin
  End;
 End;
 
+{ Les chemins relatifs sont interpretes depuis le repertoire courant. }
+Function ParseAccountsOption: Boolean;
+Var
+ I: Integer;
+ Argument, UpperArgument, FileName: TMailText;
+ ErrorOutput: Text;
+Begin
+ ParseAccountsOption := False;
+ CommandLineAccountsFile := '';
+ I := 1;
+ While I <= ParamCount Do Begin
+  Argument := ParamStr(I);
+  UpperArgument := MailUpper(Argument);
+  FileName := '';
+  If Copy(UpperArgument, 1, 10) = '/ACCOUNTS:' Then
+   FileName := Copy(Argument, 11, Length(Argument))
+  Else If Copy(UpperArgument, 1, 11) = '--ACCOUNTS=' Then
+   FileName := Copy(Argument, 12, Length(Argument))
+  Else If (UpperArgument = '/ACCOUNTS') Or (UpperArgument = '--ACCOUNTS') Then Begin
+   Inc(I);
+   If I <= ParamCount Then FileName := ParamStr(I);
+  End
+  Else Begin
+   Inc(I);
+   Continue;
+  End;
+  { Reserver quatre caracteres pour les fichiers temporaires .TMP et .BAK. }
+  If (FileName = '') Or (Length(FileName) > 251) Or
+     (Length(Argument) = 255) Then Begin
+   Assign(ErrorOutput, '');
+   Rewrite(ErrorOutput);
+   WriteLn(ErrorOutput, 'Erreur: /ACCOUNTS exige un chemin de 1 a 251 caracteres.');
+   WriteLn(ErrorOutput, 'Exemple : OUTLOOK /ACCOUNTS:"C:\Courriel\Mes comptes.ACC"');
+   WriteLn(ErrorOutput, 'Utilisez OUTLOOK /? pour afficher l aide.');
+   Close(ErrorOutput);
+   Exit;
+  End;
+  CommandLineAccountsFile := FileName;
+  Inc(I);
+ End;
+ ParseAccountsOption := True;
+End;
+
 Procedure ShowCommandLineHelp;
 Var HelpOutput: Text;
 Begin
  { Un flux distinct conserve la sortie console, meme avec les unites Crt. }
  Assign(HelpOutput, '');
  Rewrite(HelpOutput);
- WriteLn(HelpOutput, 'OUTLOOK - Client de messagerie graphique');
+ WriteLn(HelpOutput, 'OUTLOOK - Cette commande permet de lancer le client de messagerie graphique.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/? | -h | --help]');
+ WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/ACCOUNTS:<fichier>] [/? | -h | --help]');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, '  Sans option   Lance l application graphique.');
- WriteLn(HelpOutput, '  /?            Affiche cette aide et quitte.');
- WriteLn(HelpOutput, '  -h, --help    Affichent egalement cette aide.');
+ WriteLn(HelpOutput, '  Sans option          Lance l''application graphique.');
+ WriteLn(HelpOutput, '  /?                   Affiche cette aide et quitte.');
+ WriteLn(HelpOutput, '  -h, --help           Affichent egalement cette aide.');
+ WriteLn(HelpOutput, '  /ACCOUNTS:<fichier>  Utilise ce fichier pour lire et sauvegarder les comptes.');
+ WriteLn(HelpOutput, '  /ACCOUNTS <fichier> et --accounts <fichier> sont aussi acceptes.');
+ WriteLn(HelpOutput, '  La forme --accounts=<fichier> est egalement acceptee.');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput, 'Exemple : OUTLOOK /ACCOUNTS:"C:\Courriel\Mes comptes.ACC"');
+ WriteLn(HelpOutput, 'Les chemins relatifs partent du repertoire courant.');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput, 'Configurer les comptes : menu Outils / Comptes.');
  WriteLn(HelpOutput, 'Recevoir les courriels : selectionner la boite du compte,');
  WriteLn(HelpOutput, 'puis cliquer sur Envoyer/Recevoir (IMAP ou POP3).');
  WriteLn(HelpOutput, 'Envoyer un message : nouveau message, puis Envoyer (SMTP).');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, 'Les comptes sont conserves dans OUTLOOK.ACC,');
+ WriteLn(HelpOutput, 'Par defaut, les comptes sont conserves dans OUTLOOK.ACC,');
  WriteLn(HelpOutput, 'dans le repertoire de l executable.');
  Close(HelpOutput);
 End;
@@ -22509,6 +22563,7 @@ BEGIN
   ShowCommandLineHelp;
   Halt(0);
  End;
+ If Not ParseAccountsOption Then Halt(1);
 
  { Initialisation du mode graphique }
  InitializeGraphics;
