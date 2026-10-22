@@ -3793,6 +3793,7 @@ End;
 
 { Declarations avancees pour utilisation avant definition }
 Procedure DrawInterface; Forward;
+Procedure DrawMenuBar; Forward;
 Procedure CalculateLayout; Forward;
 Procedure DrawFolderPane; Forward;
 Procedure OpenNewMessage; Forward;
@@ -4610,6 +4611,7 @@ Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
 
  HideMouse;
+ DrawMenuBar;
 
  { Fond du menu déroulant }
  FillRect(Menus[MenuIndex].DropX, Menus[MenuIndex].DropY,
@@ -4981,32 +4983,23 @@ End;
 { Dessine la barre de menu }
 Procedure DrawMenuBar;
 Var
- MenuX: Integer;
+ I: Integer;
 Begin
  FillRect(Layout.MenuBarRect.X1, Layout.MenuBarRect.Y1,
           Layout.MenuBarRect.X2, Layout.MenuBarRect.Y2, COLOR_MENU_BG);
  Draw3DRect(Layout.MenuBarRect.X1, Layout.MenuBarRect.Y1,
             Layout.MenuBarRect.X2, Layout.MenuBarRect.Y2, True);
 
- SetColor(COLOR_MENU_TEXT);
- MenuX := 8;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, 'Fichier');
- MenuX := MenuX + TextWidth('Fichier') + 16;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, 'Edition');
- MenuX := MenuX + TextWidth('Edition') + 16;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, 'Affichage');
- MenuX := MenuX + TextWidth('Affichage') + 16;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, 'Outils');
- MenuX := MenuX + TextWidth('Outils') + 16;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, 'Message');
- MenuX := MenuX + TextWidth('Message') + 16;
-
- OutTextXY(MenuX, Layout.MenuBarRect.Y1 + 4, '?');
+ For I := 0 To MenuCount - 1 Do Begin
+  If I = ActiveMenu Then Begin
+   FillRect(Menus[I].X, Layout.MenuBarRect.Y1 + 1,
+            Menus[I].X + Menus[I].Width - 1, Layout.MenuBarRect.Y2 - 1,
+            COLOR_MENU_HIGHLIGHT);
+   SetColor(COLOR_MENU_HIGHLIGHT_TEXT);
+  End Else
+   SetColor(COLOR_MENU_TEXT);
+  OutTextXY(Menus[I].X + 8, Layout.MenuBarRect.Y1 + 4, Menus[I].Title);
+ End;
 End;
 
 { Dessine la barre d'outils avec icônes et états }
