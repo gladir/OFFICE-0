@@ -3794,6 +3794,7 @@ End;
 { Declarations avancees pour utilisation avant definition }
 Procedure DrawInterface; Forward;
 Procedure DrawMenuBar; Forward;
+Procedure DrawComposerWindow; Forward;
 Procedure CalculateLayout; Forward;
 Procedure DrawFolderPane; Forward;
 Procedure OpenNewMessage; Forward;
@@ -8793,6 +8794,12 @@ Procedure InitComposerFields;
 Var
  BaseX, BaseY: Integer;
 Begin
+ ActiveMenu := -1;
+ ActiveMenuItem := -1;
+ MenuBarActive := False;
+ TooltipVisible := False;
+ ContextMenuVisible := False;
+ DragState := dsNone;
  BaseX := COMPOSER_X + COMPOSER_LABEL_WIDTH + 10;
  BaseY := COMPOSER_Y + 28;
 
@@ -9279,12 +9286,9 @@ Var
 Begin
  If Not ComposerVisible Then Exit;
 
- { Verifier si clic hors de la fenetre }
+ { Le compositeur conserve le focus, meme lors d un clic a l exterieur. }
  If (X < COMPOSER_X) Or (X > COMPOSER_X + COMPOSER_WIDTH) Or
-    (Y < COMPOSER_Y) Or (Y > COMPOSER_Y + COMPOSER_HEIGHT) Then Begin
-  CloseComposer;
-  Exit;
- End;
+    (Y < COMPOSER_Y) Or (Y > COMPOSER_Y + COMPOSER_HEIGHT) Then Exit;
 
  { Verifier les boutons d'action }
  BtnY := COMPOSER_Y + COMPOSER_HEIGHT - 30;
@@ -21859,6 +21863,7 @@ Begin
  DrawPreviewPane;
  DrawStatusBar;
 
+ If ComposerVisible Then DrawComposerWindow;
  ShowMouse;
 End;
 
@@ -22199,7 +22204,7 @@ Begin
   ToolButtons[PressedToolButton].State := tbsNormal;
   PressedToolButton := -1;
   HideMouse;
-  DrawToolBar;
+  If ComposerVisible Then DrawComposerWindow Else DrawToolBar;
   ShowMouse;
  End;
 End;
@@ -22346,185 +22351,194 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  { Mise à jour du survol des menus (seulement si la souris a bouge) }
-  If (ActiveMenu >= 0) And
-     ((MouseX <> LastMouseX) Or (MouseY <> LastMouseY)) Then
-   UpdateMenuHover;
+  If ComposerVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleComposerClick(MouseX, MouseY);
+   LastMouseX := MouseX;
+   LastMouseY := MouseY;
+   LastBtn := MouseBtn;
+  End Else Begin
+   { Mise à jour du survol des menus (seulement si la souris a bouge) }
+   If (ActiveMenu >= 0) And
+      ((MouseX <> LastMouseX) Or (MouseY <> LastMouseY)) Then
+    UpdateMenuHover;
 
-  { Mise à jour du survol du menu contextuel (seulement si la souris a bouge) }
-  If ContextMenuVisible And
-     ((MouseX <> LastMouseX) Or (MouseY <> LastMouseY)) Then Begin
-   HoveredContextItem := GetContextMenuItemAtPoint(MouseX, MouseY);
-   HideMouse;
-   DrawContextMenu;
-   ShowMouse;
-  End;
-
-  { Mise à jour du survol des boutons de barre d'outils }
-  InToolbar := (MouseY >= Layout.ToolBarRect.Y1) And
-               (MouseY <= Layout.ToolBarRect.Y2);
-  InFolderPane := (MouseX >= Layout.FolderPaneRect.X1) And
-                  (MouseX <= Layout.FolderPaneRect.X2) And
-                  (MouseY >= Layout.FolderPaneRect.Y1 + 28) And
-                  (MouseY <= Layout.FolderPaneRect.Y2);
-  InMessageListHeader := (MouseX >= Layout.MessageListRect.X1) And
-                         (MouseX <= Layout.MessageListRect.X2) And
-                         (MouseY >= Layout.MessageListRect.Y1) And
-                         (MouseY <= Layout.MessageListRect.Y1 + COLUMN_HEADER_HEIGHT);
-  InMessageList := (MouseX >= Layout.MessageListRect.X1) And
-                   (MouseX <= Layout.MessageListRect.X2) And
-                   (MouseY >= Layout.MessageListRect.Y1 + COLUMN_HEADER_HEIGHT) And
-                   (MouseY <= Layout.MessageListRect.Y2);
-
-  If (ActiveMenu < 0) And InToolbar Then
-   UpdateToolbarHover
-  Else If HoveredToolButton >= 0 Then Begin
-   { Réinitialiser quand on quitte la barre d'outils }
-   ToolButtons[HoveredToolButton].State := tbsNormal;
-   HoveredToolButton := -1;
-   If TooltipVisible Then HideTooltip;
-   HideMouse;
-   DrawToolBar;
-   ShowMouse;
-  End;
-
-  { Mise à jour du survol de l'arbre de dossiers }
-  If (ActiveMenu < 0) And (Not InToolbar) And InFolderPane Then
-   UpdateFolderHover
-  Else If HoveredFolder >= 0 Then Begin
-   HoveredFolder := -1;
-   HideMouse;
-   DrawFolderPane;
-   ShowMouse;
-  End;
-
-  { Cacher l'infobulle si la souris bouge trop }
-  If TooltipVisible And
-     ((Abs(MouseX - LastMouseX) > 5) Or (Abs(MouseY - LastMouseY) > 5)) Then Begin
-   HideTooltip;
-   TooltipStartTime := GetTickCount;
-  End;
-
-  LastMouseX := MouseX;
-  LastMouseY := MouseY;
-
-  { Détection des événements souris avancés }
-  MouseEvent := DetectMouseEvent(LastBtn, MouseBtn, MouseX, MouseY);
-
-  Case MouseEvent Of
-   meLeftClick: Begin
-    { Clic simple traité lors de l'appui du bouton }
+   { Mise à jour du survol du menu contextuel (seulement si la souris a bouge) }
+   If ContextMenuVisible And
+      ((MouseX <> LastMouseX) Or (MouseY <> LastMouseY)) Then Begin
+    HoveredContextItem := GetContextMenuItemAtPoint(MouseX, MouseY);
+    HideMouse;
+    DrawContextMenu;
+    ShowMouse;
    End;
-   meRightClick: Begin
-    { Fermer le menu contextuel si visible }
-    If ContextMenuVisible Then Begin
+
+   { Mise à jour du survol des boutons de barre d'outils }
+   InToolbar := (MouseY >= Layout.ToolBarRect.Y1) And
+                (MouseY <= Layout.ToolBarRect.Y2);
+   InFolderPane := (MouseX >= Layout.FolderPaneRect.X1) And
+                   (MouseX <= Layout.FolderPaneRect.X2) And
+                   (MouseY >= Layout.FolderPaneRect.Y1 + 28) And
+                   (MouseY <= Layout.FolderPaneRect.Y2);
+   InMessageListHeader := (MouseX >= Layout.MessageListRect.X1) And
+                          (MouseX <= Layout.MessageListRect.X2) And
+                          (MouseY >= Layout.MessageListRect.Y1) And
+                          (MouseY <= Layout.MessageListRect.Y1 + COLUMN_HEADER_HEIGHT);
+   InMessageList := (MouseX >= Layout.MessageListRect.X1) And
+                    (MouseX <= Layout.MessageListRect.X2) And
+                    (MouseY >= Layout.MessageListRect.Y1 + COLUMN_HEADER_HEIGHT) And
+                    (MouseY <= Layout.MessageListRect.Y2);
+
+   If (ActiveMenu < 0) And InToolbar Then
+    UpdateToolbarHover
+   Else If HoveredToolButton >= 0 Then Begin
+    { Réinitialiser quand on quitte la barre d'outils }
+    ToolButtons[HoveredToolButton].State := tbsNormal;
+    HoveredToolButton := -1;
+    If TooltipVisible Then HideTooltip;
+    HideMouse;
+    DrawToolBar;
+    ShowMouse;
+   End;
+
+   { Mise à jour du survol de l'arbre de dossiers }
+   If (ActiveMenu < 0) And (Not InToolbar) And InFolderPane Then
+    UpdateFolderHover
+   Else If HoveredFolder >= 0 Then Begin
+    HoveredFolder := -1;
+    HideMouse;
+    DrawFolderPane;
+    ShowMouse;
+   End;
+
+   { Cacher l'infobulle si la souris bouge trop }
+   If TooltipVisible And
+      ((Abs(MouseX - LastMouseX) > 5) Or (Abs(MouseY - LastMouseY) > 5)) Then Begin
+    HideTooltip;
+    TooltipStartTime := GetTickCount;
+   End;
+
+   LastMouseX := MouseX;
+   LastMouseY := MouseY;
+
+   { Détection des événements souris avancés }
+   MouseEvent := DetectMouseEvent(LastBtn, MouseBtn, MouseX, MouseY);
+
+   Case MouseEvent Of
+    meLeftClick: Begin
+     { Clic simple traité lors de l'appui du bouton }
+    End;
+    meRightClick: Begin
+     { Fermer le menu contextuel si visible }
+     If ContextMenuVisible Then Begin
+      HideContextMenu;
+      HideMouse;
+      DrawMessageList;
+      ShowMouse;
+     End
+     { Fermer le menu si ouvert }
+     Else If ActiveMenu >= 0 Then
+      CloseDropdownMenu
+     { Clic droit sur la liste des messages }
+     Else If InMessageList Then Begin
+      ClickedMsg := GetMessageAtPoint(MouseX, MouseY);
+      If ClickedMsg >= 0 Then Begin
+       { Selectionner le message si pas deja selectionne }
+       If Not Messages[ClickedMsg].IsSelected Then Begin
+        DeselectAllMessages;
+        Messages[ClickedMsg].IsSelected := True;
+        SelectedMessage := ClickedMsg;
+       End;
+       ShowContextMenu(MouseX, MouseY);
+       HideMouse;
+       DrawMessageList;
+       ShowMouse;
+      End;
+     End
+     Else
+      HandleRightClick;
+    End;
+    meLeftDoubleClick: Begin
+     HandleDoubleClick;
+    End;
+    meRightDoubleClick: Begin
+     { Double-clic droit: pas d'action spécifique }
+    End;
+    meWheelUp: Begin
+     HandleMouseWheel(1);
+    End;
+    meWheelDown: Begin
+     HandleMouseWheel(-1);
+    End;
+   End;
+
+   { Détection du clic gauche (bouton enfoncé) }
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
+    { Gerer les clics dans le compositeur de messages (TODO 12) }
+    If ComposerVisible Then Begin
+     HandleComposerClick(MouseX, MouseY);
+    End
+    { Gerer les clics dans la boite de dialogue des comptes }
+    Else If AccountDialogVisible Then Begin
+     HandleAccountDialogClick(MouseX, MouseY);
+    End
+    { Fermer le menu contextuel si clic ailleurs }
+    Else If ContextMenuVisible Then Begin
+     ClickedMsg := GetContextMenuItemAtPoint(MouseX, MouseY);
+     If ClickedMsg >= 0 Then Begin
+      { Executer la commande du menu }
+      { TODO: Implementer les actions des commandes }
+     End;
      HideContextMenu;
      HideMouse;
      DrawMessageList;
      ShowMouse;
     End
-    { Fermer le menu si ouvert }
-    Else If ActiveMenu >= 0 Then
-     CloseDropdownMenu
-    { Clic droit sur la liste des messages }
-    Else If InMessageList Then Begin
+    { Vérifier d'abord si c'est un clic sur la barre d'outils }
+    Else If InToolbar And (ActiveMenu < 0) Then
+     HandleToolbarClick
+    { Vérifier si c'est un clic sur l'arbre de dossiers }
+    Else If InFolderPane And (ActiveMenu < 0) Then
+     HandleFolderClick(MouseX, MouseY)
+    { Verifier si c'est un clic sur l'en-tete de colonne }
+    Else If InMessageListHeader And (ActiveMenu < 0) Then Begin
+     ClickedCol := GetColumnAtPoint(MouseX);
+     If ClickedCol >= 0 Then Begin
+      HandleColumnHeaderClick(ClickedCol);
+      HideMouse;
+      DrawMessageList;
+      ShowMouse;
+     End;
+    End
+    { Verifier si c'est un clic sur un message }
+    Else If InMessageList And (ActiveMenu < 0) Then Begin
      ClickedMsg := GetMessageAtPoint(MouseX, MouseY);
      If ClickedMsg >= 0 Then Begin
-      { Selectionner le message si pas deja selectionne }
-      If Not Messages[ClickedMsg].IsSelected Then Begin
-       DeselectAllMessages;
-       Messages[ClickedMsg].IsSelected := True;
-       SelectedMessage := ClickedMsg;
-      End;
-      ShowContextMenu(MouseX, MouseY);
+      HandleMessageClick(ClickedMsg);
       HideMouse;
       DrawMessageList;
       ShowMouse;
      End;
     End
     Else
-     HandleRightClick;
+     HandleMouseClick;
    End;
-   meLeftDoubleClick: Begin
-    HandleDoubleClick;
-   End;
-   meRightDoubleClick: Begin
-    { Double-clic droit: pas d'action spécifique }
-   End;
-   meWheelUp: Begin
-    HandleMouseWheel(1);
-   End;
-   meWheelDown: Begin
-    HandleMouseWheel(-1);
-   End;
-  End;
 
-  { Détection du clic gauche (bouton enfoncé) }
-  If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
-   { Gerer les clics dans le compositeur de messages (TODO 12) }
-   If ComposerVisible Then Begin
-    HandleComposerClick(MouseX, MouseY);
-   End
-   { Gerer les clics dans la boite de dialogue des comptes }
-   Else If AccountDialogVisible Then Begin
-    HandleAccountDialogClick(MouseX, MouseY);
-   End
-   { Fermer le menu contextuel si clic ailleurs }
-   Else If ContextMenuVisible Then Begin
-    ClickedMsg := GetContextMenuItemAtPoint(MouseX, MouseY);
-    If ClickedMsg >= 0 Then Begin
-     { Executer la commande du menu }
-     { TODO: Implementer les actions des commandes }
-    End;
-    HideContextMenu;
-    HideMouse;
-    DrawMessageList;
-    ShowMouse;
-   End
-   { Vérifier d'abord si c'est un clic sur la barre d'outils }
-   Else If InToolbar And (ActiveMenu < 0) Then
-    HandleToolbarClick
-   { Vérifier si c'est un clic sur l'arbre de dossiers }
-   Else If InFolderPane And (ActiveMenu < 0) Then
-    HandleFolderClick(MouseX, MouseY)
-   { Verifier si c'est un clic sur l'en-tete de colonne }
-   Else If InMessageListHeader And (ActiveMenu < 0) Then Begin
-    ClickedCol := GetColumnAtPoint(MouseX);
-    If ClickedCol >= 0 Then Begin
-     HandleColumnHeaderClick(ClickedCol);
-     HideMouse;
-     DrawMessageList;
-     ShowMouse;
-    End;
-   End
-   { Verifier si c'est un clic sur un message }
-   Else If InMessageList And (ActiveMenu < 0) Then Begin
-    ClickedMsg := GetMessageAtPoint(MouseX, MouseY);
-    If ClickedMsg >= 0 Then Begin
-     HandleMessageClick(ClickedMsg);
-     HideMouse;
-     DrawMessageList;
-     ShowMouse;
-    End;
-   End
-   Else
-    HandleMouseClick;
-  End;
+   { Détection du relâchement du bouton gauche }
+   If (MouseBtn And MOUSE_LEFT = 0) And (LastBtn And MOUSE_LEFT <> 0) Then Begin
+    If PressedToolButton >= 0 Then
+     HandleToolbarRelease
+    Else
+     HandleMouseRelease;
+   End;
 
-  { Détection du relâchement du bouton gauche }
-  If (MouseBtn And MOUSE_LEFT = 0) And (LastBtn And MOUSE_LEFT <> 0) Then Begin
-   If PressedToolButton >= 0 Then
-    HandleToolbarRelease
-   Else
-    HandleMouseRelease;
-  End;
+   { Gestion du glissement }
+   If (MouseBtn And MOUSE_LEFT <> 0) And (DragState <> dsNone) Then Begin
+    HandleMouseDrag;
+   End;
 
-  { Gestion du glissement }
-  If (MouseBtn And MOUSE_LEFT <> 0) And (DragState <> dsNone) Then Begin
-   HandleMouseDrag;
-  End;
+   LastBtn := MouseBtn;
 
-  LastBtn := MouseBtn;
+  End; { Evenements de la fenetre principale }
 
   { Vérification des touches du clavier }
   If KeyPressed Then Begin
