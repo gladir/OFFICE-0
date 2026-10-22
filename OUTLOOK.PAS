@@ -3018,6 +3018,7 @@ Var
  MenuCount: Integer;
  ActiveMenu: Integer;        { Index du menu actif (-1 = aucun) }
  ActiveMenuItem: Integer;    { Index de l'élément survolé (-1 = aucun) }
+ LastMenuShortcut: Integer;
  MenuBarActive: Boolean;     { True si la barre de menu est active }
 
  { Variables pour la barre d'outils }
@@ -3412,6 +3413,17 @@ End;
 
 { API natives declarees ici pour conserver un seul fichier source. }
 {$IFDEF WINDOWS}
+{ Interroger le clavier seulement lorsque notre fenetre est au premier plan. }
+Function OutlookGetAsyncKeyState(Key: LongInt): SmallInt;
+ stdcall; external 'user32.dll' name 'GetAsyncKeyState';
+Function OutlookVkKeyScan(Character: AnsiChar): SmallInt;
+ stdcall; external 'user32.dll' name 'VkKeyScanA';
+Function OutlookGetForegroundWindow: PtrUInt;
+ stdcall; external 'user32.dll' name 'GetForegroundWindow';
+Function OutlookGetWindowProcess(Window: PtrUInt; Var ProcessID: LongWord): LongWord;
+ stdcall; external 'user32.dll' name 'GetWindowThreadProcessId';
+Function OutlookGetCurrentProcessID: LongWord;
+ stdcall; external 'kernel32.dll' name 'GetCurrentProcessId';
 Function MailWSAStartup(Version: Word; Data: Pointer): LongInt;
  stdcall; external 'ws2_32.dll' name 'WSAStartup';
 Function MailWSACleanup: LongInt;
@@ -22190,19 +22202,118 @@ Begin
  End;
 End;
 
+Function ApplicationHasKeyboardFocus: Boolean;
+{$IFDEF WINDOWS}
+Var Window: PtrUInt; ProcessID: LongWord;
+{$ENDIF}
+Begin
+ ApplicationHasKeyboardFocus := False;
+ {$IFDEF WINDOWS}
+ Window := OutlookGetForegroundWindow;
+ If Window = 0 Then Exit;
+ ProcessID := 0;
+ OutlookGetWindowProcess(Window, ProcessID);
+ ApplicationHasKeyboardFocus := ProcessID = OutlookGetCurrentProcessID;
+ {$ENDIF}
+End;
+
+Function MenuShortcutFromScan(Key: Char): Integer;
+Begin
+ Case Ord(Key) of
+  33: MenuShortcutFromScan := 0; { Alt+F }
+  18: MenuShortcutFromScan := 1; { Alt+E }
+  30: MenuShortcutFromScan := 2; { Alt+A }
+  24: MenuShortcutFromScan := 3; { Alt+O }
+  50: MenuShortcutFromScan := 4; { Alt+M }
+  53: MenuShortcutFromScan := 5; { Alt+? }
+  Else MenuShortcutFromScan := -1;
+ End;
+End;
+
+Procedure OpenMenuShortcut(MenuIndex: Integer);
+Var I: Integer;
+Begin
+ If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
+ If ComposerVisible Or AccountDialogVisible Then Exit;
+ TooltipVisible := False;
+ ContextMenuVisible := False;
+ MenuBarActive := True;
+ ActiveMenu := MenuIndex;
+ ActiveMenuItem := -1;
+ For I := 0 To Menus[MenuIndex].ItemCount - 1 Do
+  If Menus[MenuIndex].Items[I].Enabled And
+     Not Menus[MenuIndex].Items[I].Separator Then Begin
+   ActiveMenuItem := I;
+   Break;
+  End;
+ DrawInterface;
+ DrawDropdownMenu(MenuIndex);
+End;
+
+Function NativeMenuShortcut: Integer;
+{$IFDEF WINDOWS}
+Const Letters: Array[0..4] of Byte = ($46, $45, $41, $4F, $4D);
+Var I: Integer; QuestionKey: SmallInt; ShiftDown, ShiftNeeded: Boolean;
+{$ENDIF}
+Begin
+ NativeMenuShortcut := -1;
+ {$IFDEF WINDOWS}
+ If Not ApplicationHasKeyboardFocus Then Exit;
+ If (Word(OutlookGetAsyncKeyState($12)) And $8000) = 0 Then Exit;
+ { Ne pas interpreter AltGr (Ctrl+Alt) comme un raccourci de menu. }
+ If (Word(OutlookGetAsyncKeyState($11)) And $8000) <> 0 Then Exit;
+ For I := 0 To 4 Do
+  If (Word(OutlookGetAsyncKeyState(Letters[I])) And $8000) <> 0 Then Begin
+   NativeMenuShortcut := I;
+   Exit;
+  End;
+ { Le point d interrogation depend de la disposition du clavier. }
+ QuestionKey := OutlookVkKeyScan('?');
+ If QuestionKey = -1 Then Exit;
+ ShiftNeeded := (Word(QuestionKey) And $0100) <> 0;
+ ShiftDown := (Word(OutlookGetAsyncKeyState($10)) And $8000) <> 0;
+ If (ShiftDown = ShiftNeeded) And
+    ((Word(OutlookGetAsyncKeyState(Word(QuestionKey) And $FF)) And $8000) <> 0) Then
+  NativeMenuShortcut := 5;
+ {$ENDIF}
+End;
+
+Procedure PollMenuShortcut;
+Var MenuIndex: Integer;
+Begin
+ MenuIndex := NativeMenuShortcut;
+ If (MenuIndex >= 0) And (MenuIndex <> LastMenuShortcut) Then
+  OpenMenuShortcut(MenuIndex);
+ LastMenuShortcut := MenuIndex;
+End;
+
+{ PtcCrt ne transmet pas toujours Alt+F4 dans son tampon de touches. }
+Function ApplicationQuitRequested: Boolean;
+Begin
+ ApplicationQuitRequested := False;
+ {$IFDEF WINDOWS}
+ If Not ApplicationHasKeyboardFocus Then Exit;
+ If (Word(OutlookGetAsyncKeyState($12)) And $8000 = 0) Or
+    (Word(OutlookGetAsyncKeyState($73)) And $8000 = 0) Then Exit;
+ ApplicationQuitRequested := True; { VK_MENU + VK_F4 }
+ {$ENDIF}
+End;
+
 { Boucle principale de gestion des événements }
 Procedure MainEventLoop;
 Var
  LastBtn: Integer;
  Key: Char;
+ IsExtendedKey: Boolean;
  MouseEvent: TMouseEvent;
  InToolbar: Boolean;
  InFolderPane: Boolean;
  InMessageList: Boolean;
  InMessageListHeader: Boolean;
- ClickedCol, ClickedMsg: Integer;
+ ClickedCol, ClickedMsg, ShortcutMenu: Integer;
 Begin
  Running := True;
+ LastMenuShortcut := -1;
  LastBtn := 0;
  DragState := dsNone;
  InitMouseState;
@@ -22218,6 +22329,13 @@ Begin
  ContextMenuVisible := False;
 
  While Running Do Begin
+  If ApplicationQuitRequested Then Begin
+   Running := False;
+   Break;
+  End;
+
+  PollMenuShortcut;
+
   { Lecture de l'état de la souris }
   {$IFDEF FPC}
    GetMouseState(MouseX, MouseY, MouseButtons);
@@ -22409,38 +22527,21 @@ Begin
   { Vérification des touches du clavier }
   If KeyPressed Then Begin
    Key := ReadKey;
-   { Gerer les touches dans le compositeur de messages (TODO 12) }
-   If ComposerVisible Then Begin
-    HandleComposerKeyPress(Key);
-   End
-   { Gerer les touches dans la boite de dialogue des comptes }
-   Else If AccountDialogVisible Then Begin
-    HandleAccountDialogKeyPress(Key);
-   End
-   Else If Key = #27 Then Begin
-    If TooltipVisible Then
-     HideTooltip
-    Else If ContextMenuVisible Then Begin
-     HideContextMenu;
-     HideMouse;
-     DrawMessageList;
-     ShowMouse;
-    End
-    Else If ActiveMenu >= 0 Then
-     CloseDropdownMenu
-    Else
-     Running := False; { Echap pour quitter }
-   End
-   Else If Key = #13 Then Begin
-    { Entree: executer l'element de menu selectionne }
-    If (ActiveMenu >= 0) And (ActiveMenuItem >= 0) Then Begin
-     If Menus[ActiveMenu].Items[ActiveMenuItem].Enabled Then
-      ExecuteMenuCommand(Menus[ActiveMenu].Items[ActiveMenuItem].ItemID);
-    End;
-   End
-   Else If Key = #0 Then Begin
-    { Touches etendues (fleches, F1-F12, etc.) }
+   IsExtendedKey := (Key = #0) Or (Key = #224);
+   If IsExtendedKey Then Begin
     Key := ReadKey;
+    If Key = #107 Then Begin { Code etendu Alt+F4, y compris sous DOS. }
+     Running := False;
+     Break;
+    End;
+   End;
+   If IsExtendedKey Then Begin
+    ShortcutMenu := MenuShortcutFromScan(Key);
+    If ShortcutMenu >= 0 Then Begin
+     OpenMenuShortcut(ShortcutMenu);
+     Continue;
+    End;
+    { Touches etendues (fleches, F1-F12, etc.) }
     If ActiveMenu >= 0 Then Begin
      Case Key Of
       #72: Begin { Fleche Haut }
@@ -22506,6 +22607,35 @@ Begin
       End;
      End; { Case }
     End; { ActiveMenu >= 0 }
+   End
+   { Gerer les touches dans le compositeur de messages (TODO 12) }
+   Else If ComposerVisible Then Begin
+    HandleComposerKeyPress(Key);
+   End
+   { Gerer les touches dans la boite de dialogue des comptes }
+   Else If AccountDialogVisible Then Begin
+    HandleAccountDialogKeyPress(Key);
+   End
+   Else If Key = #27 Then Begin
+    If TooltipVisible Then
+     HideTooltip
+    Else If ContextMenuVisible Then Begin
+     HideContextMenu;
+     HideMouse;
+     DrawMessageList;
+     ShowMouse;
+    End
+    Else If ActiveMenu >= 0 Then
+     CloseDropdownMenu
+    Else
+     Running := False; { Echap pour quitter }
+   End
+   Else If Key = #13 Then Begin
+    { Entree: executer l'element de menu selectionne }
+    If (ActiveMenu >= 0) And (ActiveMenuItem >= 0) Then Begin
+     If Menus[ActiveMenu].Items[ActiveMenuItem].Enabled Then
+      ExecuteMenuCommand(Menus[ActiveMenu].Items[ActiveMenuItem].ItemID);
+    End;
    End;
   End; { KeyPressed }
 
