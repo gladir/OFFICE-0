@@ -22102,14 +22102,23 @@ End;
 { Met à jour le survol des éléments de menu }
 Procedure UpdateMenuHover;
 Var
- NewItem: Integer;
+ NewMenu, NewItem: Integer;
 Begin
- If ActiveMenu >= 0 Then Begin
-  NewItem := GetMenuItemAtPoint(MouseX, MouseY);
-  If NewItem <> ActiveMenuItem Then Begin
-   ActiveMenuItem := NewItem;
-   DrawDropdownMenu(ActiveMenu);
-  End;
+ If ActiveMenu < 0 Then Exit;
+ NewMenu := GetMenuAtPoint(MouseX, MouseY);
+ If (NewMenu >= 0) And (NewMenu <> ActiveMenu) Then Begin
+  { Effacer le deroulant precedent avant de dessiner le nouveau. }
+  ActiveMenu := NewMenu;
+  ActiveMenuItem := -1;
+  MenuBarActive := True;
+  DrawInterface;
+  DrawDropdownMenu(ActiveMenu);
+  Exit;
+ End;
+ NewItem := GetMenuItemAtPoint(MouseX, MouseY);
+ If NewItem <> ActiveMenuItem Then Begin
+  ActiveMenuItem := NewItem;
+  DrawDropdownMenu(ActiveMenu);
  End;
 End;
 
