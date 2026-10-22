@@ -231,8 +231,8 @@ Uses {$IFDEF FPC}
 
 Const
  { Dimensions de l'écran VGA 640x480 }
- SCREEN_WIDTH = 640;
- SCREEN_HEIGHT = 480;
+ DEFAULT_SCREEN_WIDTH = 640;
+ DEFAULT_SCREEN_HEIGHT = 480;
 
  { Couleurs style Windows 95/98 }
  COLOR_DESKTOP = 1;       { Bleu foncé - fond bureau }
@@ -2155,8 +2155,6 @@ Const
  { Dimensions de la boite de dialogue de gestion des comptes }
  DIALOG_WIDTH = 500;
  DIALOG_HEIGHT = 350;
- DIALOG_X = (SCREEN_WIDTH - DIALOG_WIDTH) Div 2;
- DIALOG_Y = (SCREEN_HEIGHT - DIALOG_HEIGHT) Div 2;
 
  { Dimensions des elements de dialogue }
  DIALOG_BUTTON_WIDTH = 80;
@@ -2185,8 +2183,6 @@ Const
  { Dimensions de la fenetre du compositeur }
  COMPOSER_WIDTH = 550;
  COMPOSER_HEIGHT = 400;
- COMPOSER_X = (SCREEN_WIDTH - COMPOSER_WIDTH) Div 2;
- COMPOSER_Y = (SCREEN_HEIGHT - COMPOSER_HEIGHT) Div 2;
 
  { Zones de la fenetre du compositeur }
  COMPOSER_HEADER_HEIGHT = 120;    { Zone des champs d'en-tete }
@@ -2232,7 +2228,6 @@ Const
  ATTACH_PANEL_HEIGHT = 50;
  ATTACH_ICON_SIZE = 32;
  ATTACH_ICON_SPACING = 40;
- ATTACH_PANEL_Y = COMPOSER_Y + COMPOSER_HEADER_HEIGHT - ATTACH_PANEL_HEIGHT - 5;
 
  { Extensions dangereuses (executables) }
  DANGEROUS_EXT_COUNT = 12;
@@ -2989,6 +2984,10 @@ Const
  );
 
 Var
+ MaxScreen: Boolean;
+ SCREEN_WIDTH, SCREEN_HEIGHT: Integer;
+ DIALOG_X, DIALOG_Y, COMPOSER_X, COMPOSER_Y: Integer;
+ ATTACH_PANEL_Y: Integer;
  Layout: TWindowLayout;
  DragState: TDragState;
  DragStartX, DragStartY: Integer;
@@ -3795,21 +3794,69 @@ Procedure Offline_StartSync; Forward;
   PROCÉDURES D'INITIALISATION GRAPHIQUE
   ============================================================================ }
 
+{ Meme selection que BROWSER.PAS: palette indexee et resolution maximale. }
+Procedure SelectScreenDriverMode(WantMaxScreen: Boolean;
+ Var Driver, Mode: Integer);
+{$IFDEF FPC}
+Var LoMode, HiMode: SmallInt;
+{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ If WantMaxScreen Then Begin
+  Driver := D8bit;
+  GetModeRange(Driver, LoMode, HiMode);
+  If HiMode >= LoMode Then Mode := HiMode
+  Else Begin Driver := Detect; Mode := 0; End;
+ End Else Begin
+  Driver := VGA;
+  Mode := VGAHi;
+ End;
+ {$ELSE}
+ Driver := Detect;
+ Mode := VGAHi;
+ {$ENDIF}
+End;
+
+Procedure UpdateScreenGeometry(Width, Height: Integer);
+Begin
+ SCREEN_WIDTH := Width;
+ SCREEN_HEIGHT := Height;
+ DIALOG_X := (SCREEN_WIDTH - DIALOG_WIDTH) Div 2;
+ DIALOG_Y := (SCREEN_HEIGHT - DIALOG_HEIGHT) Div 2;
+ COMPOSER_X := (SCREEN_WIDTH - COMPOSER_WIDTH) Div 2;
+ COMPOSER_Y := (SCREEN_HEIGHT - COMPOSER_HEIGHT) Div 2;
+ ATTACH_PANEL_Y := COMPOSER_Y + COMPOSER_HEADER_HEIGHT - ATTACH_PANEL_HEIGHT - 5;
+End;
+
+{ Les seize couleurs de l interface restent identiques dans le pilote D8bit. }
+Procedure InitializeScreenPalette;
+{$IFDEF FPC}
+Const
+ RGB: Array[0..15, 0..2] of Byte = (
+  (0,0,0), (0,0,170), (0,170,0), (0,170,170),
+  (170,0,0), (170,0,170), (170,85,0), (170,170,170),
+  (85,85,85), (85,85,255), (85,255,85), (85,255,255),
+  (255,85,85), (255,85,255), (255,255,85), (255,255,255));
+Var I: Integer;
+{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ If GetMaxColor > 15 Then
+  For I := 0 To 15 Do SetRGBPalette(I, RGB[I,0], RGB[I,1], RGB[I,2]);
+ {$ENDIF}
+End;
+
 Procedure InitializeGraphics;
 Var
  Driver, Mode: Integer;
  ErrCode: Integer;
 Begin
- {$IFDEF FPC}
-  Driver:=VGA;
-  Mode:=VGAHi;
- {$ELSE}
-  Driver:=Detect;
-  Mode:=VGAHi;
- {$ENDIF}
+ SelectScreenDriverMode(MaxScreen, Driver, Mode);
  InitGraph(Driver,Mode,'');
  ErrCode:=GraphResult;
  If ErrCode=grOk Then Begin
+  UpdateScreenGeometry(GetMaxX + 1, GetMaxY + 1);
+  InitializeScreenPalette;
   SetColor(White);
   SetLineStyle(0,0,1);
  End
@@ -22494,10 +22541,16 @@ Var
 Begin
  ParseAccountsOption := False;
  CommandLineAccountsFile := '';
+ MaxScreen := False;
  I := 1;
  While I <= ParamCount Do Begin
   Argument := ParamStr(I);
   UpperArgument := MailUpper(Argument);
+  If UpperArgument = '-MAXSCREEN' Then Begin
+   MaxScreen := True;
+   Inc(I);
+   Continue;
+  End;
   FileName := '';
   If Copy(UpperArgument, 1, 10) = '/ACCOUNTS:' Then
    FileName := Copy(Argument, 11, Length(Argument))
@@ -22536,9 +22589,10 @@ Begin
  Rewrite(HelpOutput);
  WriteLn(HelpOutput, 'OUTLOOK - Cette commande permet de lancer le client de messagerie graphique.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/ACCOUNTS:<fichier>] [/? | -h | --help]');
+ WriteLn(HelpOutput, 'Utilisation : OUTLOOK [-maxscreen] [/ACCOUNTS:<fichier>] [/? | -h | --help]');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, '  Sans option          Lance l''application graphique.');
+ WriteLn(HelpOutput, '  Sans option          Lance l''application graphique en 640x480.');
+ WriteLn(HelpOutput, '  -maxscreen           Utilise la resolution maximale disponible.');
  WriteLn(HelpOutput, '  /?                   Affiche cette aide et quitte.');
  WriteLn(HelpOutput, '  -h, --help           Affichent egalement cette aide.');
  WriteLn(HelpOutput, '  /ACCOUNTS:<fichier>  Utilise ce fichier pour lire et sauvegarder les comptes.');
