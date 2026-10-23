@@ -8808,12 +8808,15 @@ End;
 { Ouvre la boite de dialogue de gestion des comptes }
 Procedure ShowAccountManagerDialog;
 Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
+    RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
+ RibbonKeyboardActive:=False; RibbonFocus:=-1;
  AccountDialogVisible := True;
  AccountWizardMode := False;
  SelectedAccountInList := -1;
  If EmailAccountCount > 0 Then
   SelectedAccountInList := 0;
- DrawAccountManagerDialog;
+ DrawInterface;
 End;
 
 { Ferme la boite de dialogue de gestion des comptes }
@@ -9080,7 +9083,15 @@ Var
  FieldValue: String;
 Begin
  If Not AccountDialogVisible Then Exit;
- If Not AccountWizardMode Then Exit;
+ If Not AccountWizardMode Then Begin
+  If Key=#27 Then HideAccountManagerDialog;
+  If Key=#13 Then Begin
+   If SelectedAccountInList>=0 Then EditExistingAccount(SelectedAccountInList) Else StartNewAccountWizard;
+  End;
+  Exit;
+ End;
+ If Key=#27 Then Begin WizardCancel; Exit; End;
+ If Key=#13 Then Begin WizardNextStep; Exit; End;
  If FocusedInputField < 0 Then Exit;
 
  FieldValue := AccountDialogInputFields[FocusedInputField].Value;
@@ -23736,6 +23747,7 @@ Begin
  DrawStatusBar;
 
  If ComposerVisible Then DrawComposerWindow;
+ If AccountDialogVisible Then DrawAccountManagerDialog;
  If FileOpenVisible Then DrawOpenFileDialog;
  If SortDialogVisible Then DrawSortDialog;
  If ColumnsDialogVisible Then DrawColumnsDialog;
@@ -24315,6 +24327,10 @@ Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleOpenFileClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If AccountDialogVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleAccountDialogClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
   End Else If ComposerVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleComposerClick(MouseX, MouseY);
@@ -24553,6 +24569,10 @@ Begin
     HandleOpenFileKey(Key,IsExtendedKey);
     Continue;
    End;
+   If AccountDialogVisible Then Begin
+    If Not IsExtendedKey Then HandleAccountDialogKeyPress(Key);
+    Continue;
+   End;
    If RibbonMode Then Begin
     ShortcutMenu:=-1;
     If IsExtendedKey Then ShortcutMenu:=MenuShortcutFromScan(Key);
@@ -24649,10 +24669,6 @@ Begin
    { Gerer les touches dans le compositeur de messages (TODO 12) }
    Else If ComposerVisible Then Begin
     HandleComposerKeyPress(Key);
-   End
-   { Gerer les touches dans la boite de dialogue des comptes }
-   Else If AccountDialogVisible Then Begin
-    HandleAccountDialogKeyPress(Key);
    End
    Else If Key = #15 Then Begin { Ctrl+O }
     ExecuteMenuCommand(CMD_FILE_OPEN);
