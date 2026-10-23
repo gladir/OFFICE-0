@@ -1861,6 +1861,19 @@ Type
   CheckIntervalMins: Integer;  { Intervalle de verification (minutes) }
  End;
 
+ { Rendez-vous et reunions : heures locales dans le calendrier. }
+ TCalendarEvent = Record
+  ID,Sequence: LongInt;
+  IsMeeting,InvitationSent: Boolean;
+  Title,Location,UID,Organizer: String[80];
+  StartDate,EndDate: String[10];
+  StartTime,EndTime: String[5];
+  Participants,Notes: String[255];
+ End;
+ TEventGUID = Record A: LongWord; B,C: Word; D: Array[0..7] Of Byte; End;
+ TEventMoment = {$IFDEF FPC} Int64 {$ELSE} Real {$ENDIF};
+ TEventSystemTime = Record Year,Month,WeekDay,Day,Hour,Minute,Second,Millis: Word; End;
+
  { Structure pour un champ de saisie dans une boite de dialogue }
  TInputField = Record
   X, Y: Integer;               { Position }
@@ -1964,6 +1977,9 @@ Const
 
  CMD_VIEW_CALENDAR = 307;
  CMD_VIEW_MAIL = 308;
+ CMD_EVENT_NEW = 312;
+ CMD_EVENT_MEETING = 313;
+ CMD_EVENT_AGENDA = 314;
  CMD_CAL_PREVIOUS = 309;
  CMD_CAL_NEXT = 310;
  CMD_CAL_TODAY = 311;
@@ -3336,6 +3352,13 @@ Var
    ============================================================================ }
 
  OptionsDraft: TUserPreferences;
+ EventDialogVisible,EventEditing,EventReturnToList,EventDeletePending: Boolean;
+ CalendarEvents,EventBackup: Array[0..127] Of TCalendarEvent;
+ EventDraft: TCalendarEvent;
+ EventCount,EventEditIndex,EventFocus,EventCursor,EventListCount,EventListSelection,EventListScroll: Integer;
+ EventList: Array[0..127] Of Integer;
+ EventNextID: LongInt;
+ EventError: String[90];
  CalendarVisible, CalendarInitialized, CalendarHasFocus: Boolean;
  CalendarYear,CalendarMonth,CalendarDay: Integer;
  LastViewShortcut: Integer;
@@ -3459,6 +3482,17 @@ End;
 
 { API natives declarees ici pour conserver un seul fichier source. }
 {$IFDEF WINDOWS}
+Function EventCreateGUID(Var Value: TEventGUID): LongInt;
+ stdcall; external 'ole32.dll' name 'CoCreateGuid';
+Procedure EventGetSystemTime(Var T: TEventSystemTime);
+ stdcall; external 'kernel32.dll' name 'GetSystemTime';
+Function EventLocalToUTC(TZ,Local,UTC: Pointer): LongBool;
+ stdcall; external 'kernel32.dll' name 'TzSpecificLocalTimeToSystemTime';
+Function EventToWide(Page,Flags: LongWord; Source: Pointer; Count: LongInt; Dest: Pointer; Size: LongInt): LongInt;
+ stdcall; external 'kernel32.dll' name 'MultiByteToWideChar';
+Function EventToUTF8(Page,Flags: LongWord; Source: Pointer; Count: LongInt; Dest: Pointer;
+ Size: LongInt; DefaultChar,UsedDefault: Pointer): LongInt;
+ stdcall; external 'kernel32.dll' name 'WideCharToMultiByte';
 { Interroger le clavier seulement lorsque notre fenetre est au premier plan. }
 Function OutlookGetAsyncKeyState(Key: LongInt): SmallInt;
  stdcall; external 'user32.dll' name 'GetAsyncKeyState';
@@ -3858,6 +3892,10 @@ Procedure CalendarMoveMonth(Delta: Integer); Forward;
 Procedure CalendarToday; Forward;
 Procedure CalendarUpdateMenus; Forward;
 Function CalendarPaneWidth: Integer; Forward;
+Procedure EventNew(Meeting: Boolean); Forward;
+Procedure EventAgenda; Forward;
+Function EventOnDay(Const E: TCalendarEvent; Y,M,D: Integer): Boolean; Forward;
+Procedure EventDraw; Forward;
 Function WriteMessageFile(Path: TMailText; AllowReplace: Boolean): Boolean; Forward;
 Function MailTextBody(Const Raw: TMailText; Depth: Integer): TMailText; Forward;
 Procedure DrawColumnsDialog; Forward;
@@ -4567,7 +4605,7 @@ End;
 { Initialise tous les menus de la barre }
 Procedure InitializeMenus;
 Var
- I: Integer;
+ I,J,NeededWidth: Integer;
  MenuX: Integer;
 Begin
  MenuCount := 6;
@@ -4584,6 +4622,8 @@ Begin
  Menus[0].Width := TextWidth('Fichier') + 16;
  Menus[0].ItemCount := 0;
  AddMenuItem(Menus[0], 'Nouveau message', 'Ctrl+N', False, CMD_FILE_NEW);
+ AddMenuItem(Menus[0], 'Nouveau rendez-vous...', '', False, CMD_EVENT_NEW);
+ AddMenuItem(Menus[0], 'Nouvelle reunion...', '', False, CMD_EVENT_MEETING);
  AddMenuItem(Menus[0], 'Ouvrir', 'Ctrl+O', False, CMD_FILE_OPEN);
  AddMenuItem(Menus[0], '', '', True, 0); { Séparateur }
  AddMenuItem(Menus[0], 'Enregistrer sous...', 'Ctrl+S', False, CMD_FILE_SAVEAS);
@@ -4627,6 +4667,7 @@ Begin
  AddMenuItem(Menus[2], 'Mois precedent', 'PgPrec', False, CMD_CAL_PREVIOUS);
  AddMenuItem(Menus[2], 'Mois suivant', 'PgSuiv', False, CMD_CAL_NEXT);
  AddMenuItem(Menus[2], 'Aujourd''hui', 'Debut', False, CMD_CAL_TODAY);
+ AddMenuItem(Menus[2], 'Agenda du jour...', '', False, CMD_EVENT_AGENDA);
 
  MenuX := MenuX + Menus[2].Width;
 
@@ -4674,6 +4715,12 @@ Begin
   Menus[I].DropX := Menus[I].X;
   Menus[I].DropY := Layout.MenuBarRect.Y2 + 1;
   Menus[I].DropWidth := 180;
+  For J:=0 To Menus[I].ItemCount-1 Do Begin
+   NeededWidth:=TextWidth(Menus[I].Items[J].Caption)+TextWidth(Menus[I].Items[J].Shortcut)+32;
+   If NeededWidth>Menus[I].DropWidth Then Menus[I].DropWidth:=NeededWidth;
+  End;
+  If Menus[I].DropX+Menus[I].DropWidth>SCREEN_WIDTH Then
+   Menus[I].DropX:=SCREEN_WIDTH-Menus[I].DropWidth;
   Menus[I].DropHeight := Menus[I].ItemCount * 18 + 4;
  End;
 End;
@@ -4806,6 +4853,9 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_EVENT_NEW: EventNew(False);
+  CMD_EVENT_MEETING: EventNew(True);
+  CMD_EVENT_AGENDA: EventAgenda;
   CMD_VIEW_CALENDAR: CalendarShow(Not CalendarVisible);
   CMD_VIEW_MAIL: FocusMail;
   CMD_CAL_PREVIOUS: Begin CalendarMoveMonth(-1); DrawInterface; End;
@@ -13861,7 +13911,7 @@ End;
 Procedure Rules_Show;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  RulesWindowX:=(SCREEN_WIDTH-RULES_WINDOW_WIDTH) Div 2;
  RulesWindowY:=(SCREEN_HEIGHT-RULES_WINDOW_HEIGHT) Div 2;
  RulesVisible:=True; RulesWindowState:=rwsList; RulesFocus:=0; RulesDeletePending:=False;
@@ -19105,7 +19155,7 @@ End;
 Procedure CalendarShow(Visible: Boolean);
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  If Not CalendarInitialized Then CalendarToday;
  CalendarVisible:=Visible; CalendarHasFocus:=Visible; ContextMenuVisible:=False; TooltipVisible:=False;
  ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
@@ -19119,7 +19169,7 @@ End;
 Procedure FocusMail;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  CalendarHasFocus:=False; ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
  ContextMenuVisible:=False; TooltipVisible:=False; DragState:=dsNone;
  DrawInterface;
@@ -19144,7 +19194,7 @@ End;
 Procedure DrawCalendar;
 Const WeekDays: Array[0..6] Of String[3]=('Lun','Mar','Mer','Jeu','Ven','Sam','Dim');
 Var X,Y,W,H,I,Col,Day,First,CX,CY,Top,Left,Width: Integer; TY,TM,TD,TW: Word;
- Text,Number: String; Bg,Fg: Word;
+ Text,Number: String; Bg,Fg: Word; EventIndex: Integer;
 Begin
  If Not CalendarInitialized Then CalendarToday;
  GetDate(TY,TM,TD,TW); CalendarGeometry(X,Y,W,H); Top:=Layout.ToolBarRect.Y2+1;
@@ -19170,6 +19220,10 @@ Begin
   Rectangle(CX,CY,CX+W-1,CY+H-1);
   If (Day>=1) And (Day<=CalendarDays(CalendarYear,CalendarMonth)) Then Begin
    Str(Day,Text); SetColor(Fg); OutTextXY(CX+4,CY+6,Text);
+   For EventIndex:=0 To EventCount-1 Do
+    If EventOnDay(CalendarEvents[EventIndex],CalendarYear,CalendarMonth,Day) Then Begin
+     OutTextXY(CX+W-10,CY+H-12,'*'); Break;
+    End;
    If (TY=CalendarYear) And (TM=CalendarMonth) And (TD=Day) Then Begin
     SetColor(LightRed); Rectangle(CX+2,CY+2,CX+W-3,CY+H-3);
    End;
@@ -19177,8 +19231,9 @@ Begin
  End;
  Str(CalendarDay,Text); SetColor(Black);
  OutTextXY(Left+10,Y+6*H+12,Text+' '+CalendarMonthName(CalendarMonth)+' '+Number);
- OutTextXY(Left+10,Y+6*H+34,'PgPrec/PgSuiv : mois');
- OutTextXY(Left+10,Y+6*H+52,'Debut : aujourd''hui');
+ DrawDialogButton(Left+8,Y+6*H+32,56,26,'RDV',False,True);
+ DrawDialogButton(Left+70,Y+6*H+32,70,26,'Reunion',False,True);
+ DrawDialogButton(Left+146,Y+6*H+32,Width-154,26,'Agenda',False,True);
 End;
 
 Procedure CalendarClick(MX,MY: Integer);
@@ -19187,6 +19242,13 @@ Begin
  Top:=Layout.ToolBarRect.Y2+1; Left:=SCREEN_WIDTH-CalendarPaneWidth;
  If (MX<Left) Or (MY<Top) Or (MY>=Layout.StatusBarRect.Y1) Then Exit;
  CalendarHasFocus:=True;
+ CalendarGeometry(X,Y,W,H);
+ If (MY>=Y+6*H+32) And (MY<=Y+6*H+58) Then Begin
+  If (MX>=Left+8) And (MX<=Left+64) Then EventNew(False)
+  Else If (MX>=Left+70) And (MX<=Left+140) Then EventNew(True)
+  Else If MX>=Left+146 Then EventAgenda;
+  Exit;
+ End;
  If (MX>=SCREEN_WIDTH-26) And (MX<=SCREEN_WIDTH-6) And (MY>=Top+5) And (MY<=Top+25) Then Begin
   CalendarShow(False); Exit;
  End;
@@ -19231,7 +19293,657 @@ Begin
   #72: CalendarMoveDay(-7); #80: CalendarMoveDay(7);
   #73: CalendarMoveMonth(-1); #81: CalendarMoveMonth(1);
   #71: CalendarToday;
- End Else If Key=#27 Then Begin FocusMail; Exit; End;
+ End Else Case Key Of
+  #27: Begin FocusMail; Exit; End;
+  #13: Begin EventAgenda; Exit; End;
+  'n','N': Begin EventNew(False); Exit; End;
+  'm','M': Begin EventNew(True); Exit; End;
+ End;
+ DrawInterface;
+End;
+
+{ Agenda local persistant. Les invitations sont envoyees seulement sur demande. }
+Function EventNumber(N,Width: LongInt): String;
+Var S: String;
+Begin Str(N,S); While Length(S)<Width Do S:='0'+S; EventNumber:=S; End;
+
+Function EventNewUID: String;
+{$IFDEF WINDOWS}
+Const Digits: String[16]='0123456789abcdef';
+Var Value: TEventGUID; Bytes: Array[0..15] Of Byte; I: Integer; Text: String;
+{$ENDIF}
+Begin
+ EventNewUID:='outlook-'+EventNumber(GetTickCount,0)+'-'+EventNumber(EventNextID,0)+'@local';
+ {$IFDEF WINDOWS}
+ If EventCreateGUID(Value)<>0 Then Exit;
+ Move(Value,Bytes,16); Text:='';
+ For I:=0 To 15 Do Text:=Text+Digits[Bytes[I] Shr 4+1]+Digits[(Bytes[I] And 15)+1];
+ EventNewUID:=Text+'@outlook.local';
+ {$ENDIF}
+End;
+
+Function EventDate(Y,M,D: Integer): String;
+Begin EventDate:=EventNumber(Y,4)+'-'+EventNumber(M,2)+'-'+EventNumber(D,2); End;
+
+Function EventParseDate(S: String; Var Y,M,D: Integer): Boolean;
+Var C,I: Integer;
+Begin
+ EventParseDate:=False;
+ If (Length(S)<>10) Then Exit;
+ If (S[5]<>'-') Or (S[8]<>'-') Then Exit;
+ For I:=1 To 10 Do If Not (I In [5,8]) And Not (S[I] In ['0'..'9']) Then Exit;
+ Val(Copy(S,1,4),Y,C); Val(Copy(S,6,2),M,C); Val(Copy(S,9,2),D,C);
+ If (Y<1) Or (Y>9999) Or (M<1) Or (M>12) Then Exit;
+ EventParseDate:=(D>=1) And (D<=CalendarDays(Y,M));
+End;
+
+Function EventMoment(Date,Time: String): TEventMoment;
+Var Y,M,D,H,Mi,C,I: Integer; Days: LongInt;
+Begin
+ EventMoment:=-1;
+ If Not EventParseDate(Date,Y,M,D) Or (Length(Time)<>5) Then Exit;
+ If (Time[3]<>':') Or Not (Time[1] In ['0'..'9']) Or Not (Time[2] In ['0'..'9']) Or
+    Not (Time[4] In ['0'..'9']) Or Not (Time[5] In ['0'..'9']) Then Exit;
+ Val(Copy(Time,1,2),H,C); Val(Copy(Time,4,2),Mi,C);
+ If (H>23) Or (Mi>59) Then Exit;
+ Days:=LongInt(Y-1)*365+(Y-1) Div 4-(Y-1) Div 100+(Y-1) Div 400+D-1;
+ For I:=1 To M-1 Do Inc(Days,CalendarDays(Y,I));
+ EventMoment:=(TEventMoment(Days)*1440)+H*60+Mi;
+End;
+
+Function EventOnDay(Const E: TCalendarEvent; Y,M,D: Integer): Boolean;
+Var Start: TEventMoment;
+Begin
+ Start:=EventMoment(EventDate(Y,M,D),'00:00');
+ EventOnDay:=(EventMoment(E.StartDate,E.StartTime)<Start+1440) And
+             (EventMoment(E.EndDate,E.EndTime)>Start);
+End;
+
+Function EventAddresses(List: String; Var Normalized: String): Boolean;
+Var Token: String; P,I,AtPos,N: Integer;
+Begin
+ EventAddresses:=False; Normalized:=''; N:=0;
+ While List<>'' Do Begin
+  P:=1; While (P<=Length(List)) And Not (List[P] In [',',';']) Do Inc(P);
+  Token:=MailTrim(Copy(List,1,P-1)); Delete(List,1,P);
+  If Token='' Then Continue;
+  If (Length(Token)>60) Or (Length(Token)<3) Then Exit;
+  AtPos:=0;
+  For I:=1 To Length(Token) Do Begin
+   If (Token[I]<#33) Or (Token[I]>#126) Or (Token[I] In ['<','>','"',Chr(92),':']) Then Exit;
+   If Token[I]='@' Then Begin If AtPos<>0 Then Exit; AtPos:=I; End;
+  End;
+  If (AtPos<2) Or (AtPos=Length(Token)) Then Exit;
+  Inc(N); If N>20 Then Exit;
+  If Normalized<>'' Then Normalized:=Normalized+';';
+  If Length(Normalized)+Length(Token)>255 Then Exit;
+  Normalized:=Normalized+Token;
+ End;
+ EventAddresses:=N>0;
+End;
+
+Function EventValid(Const E: TCalendarEvent): Boolean;
+Var Addresses: String;
+Begin
+ EventValid:=False;
+ If MailTrim(E.Title)='' Then Begin EventError:='Saisir un objet.'; Exit; End;
+ If (EventMoment(E.StartDate,E.StartTime)<0) Or (EventMoment(E.EndDate,E.EndTime)<0) Then Begin
+  EventError:='Dates AAAA-MM-JJ et heures HH:MM valides requises.'; Exit;
+ End;
+ If EventMoment(E.EndDate,E.EndTime)<=EventMoment(E.StartDate,E.StartTime) Then Begin
+  EventError:='La fin doit etre apres le debut.'; Exit;
+ End;
+ If Not MailSafe(E.Title) Or Not MailSafe(E.Location) Or Not MailSafe(E.Notes) Or
+    Not MailSafe(E.UID) Or Not MailSafe(E.Organizer) Or Not MailSafe(E.Participants) Then Begin
+  EventError:='Caractere interdit dans la fiche.'; Exit;
+ End;
+ If E.IsMeeting And Not EventAddresses(E.Participants,Addresses) Then Begin
+  EventError:='Participants : adresses courriel separees par ;'; Exit;
+ End;
+ EventValid:=True;
+End;
+
+Function EventPath: String;
+Var P: String; I: Integer;
+Begin
+ P:=AccountFileName; I:=Length(P);
+ While (I>0) And Not (P[I] In ['.',Chr(92),'/']) Do Dec(I);
+ If (I>0) And (P[I]='.') Then Delete(P,I,255);
+ EventPath:=P+'.CAL';
+End;
+
+Function EventSave: Boolean;
+Var Data: TMailText; SavedError: String; I: Integer;
+ Procedure Add(S: String);
+ Begin FileSaveData:=FileSaveData+S+#13#10; End;
+Begin
+ Data:=FileSaveData; SavedError:=FileOpenError; FileSaveData:='OUTLOOK-AGENDA-1'+#13#10;
+ Add(EventNumber(EventCount,0)); Add(EventNumber(EventNextID,0));
+ For I:=0 To EventCount-1 Do With CalendarEvents[I] Do Begin
+  Add(EventNumber(ID,0)); Add(EventNumber(Ord(IsMeeting),0)); Add(Title); Add(Location);
+  Add(StartDate); Add(StartTime); Add(EndDate); Add(EndTime); Add(Participants); Add(Notes);
+  Add(UID); Add(EventNumber(Sequence,0)); Add(Organizer); Add(EventNumber(Ord(InvitationSent),0));
+ End;
+ EventSave:=WriteMessageFile(EventPath,True);
+ If FileOpenError<>'' Then EventError:='Impossible de sauvegarder l agenda.' Else EventError:='';
+ FileSaveData:=Data; FileOpenError:=SavedError;
+End;
+
+Procedure EventInit;
+Const Limits: Array[0..13] Of Byte=(10,1,80,80,10,5,10,5,255,255,80,10,80,1);
+Var F: Text; I,J,K,Err,C,N,OldMode: Integer; Line: String; Next,NValue: LongInt; Valid: Boolean;
+ Function ReadNumber(Low,High: LongInt): LongInt;
+ Var S: String; Code: Integer; V: LongInt;
+ Begin
+  V:=0;
+  If Err=0 Then Begin
+   {$I-}
+   If Eof(F) Then Err:=100 Else Begin ReadLn(F,S); Err:=IOResult; End;
+   {$I+}
+   If Err=0 Then Begin Val(S,V,Code); If (Code<>0) Or (V<Low) Or (V>High) Then Err:=100; End;
+  End;
+  ReadNumber:=V;
+ End;
+Begin
+ EventCount:=0; EventNextID:=1; EventError:=''; EventEditIndex:=-1;
+ {$I-}
+ Assign(F,EventPath); OldMode:=FileMode; FileMode:=0; Reset(F); FileMode:=OldMode; Err:=IOResult;
+ If Err=2 Then Exit;
+ If Err<>0 Then Begin EventError:='Impossible de lire l agenda.'; Exit; End;
+ ReadLn(F,Line); Err:=IOResult; If Line<>'OUTLOOK-AGENDA-1' Then Err:=100;
+ N:=ReadNumber(0,128); Next:=ReadNumber(1,2147483646);
+ For I:=0 To N-1 Do Begin
+  If Err<>0 Then Break;
+  FillChar(EventBackup[I],SizeOf(TCalendarEvent),0);
+  For J:=0 To 13 Do Begin
+   If Err<>0 Then Break;
+   If Eof(F) Then Begin Err:=100; Break; End;
+   ReadLn(F,Line); Err:=IOResult; If Length(Line)>Limits[J] Then Err:=100;
+   If Err<>0 Then Break;
+   NValue:=0;
+   If J In [0,1,11,13] Then Begin
+    Val(Line,NValue,C); If (C<>0) Or (NValue<0) Then Err:=100;
+    If (J In [1,13]) And (NValue>1) Then Err:=100;
+   End;
+   With EventBackup[I] Do Case J Of
+    0: ID:=NValue; 1: IsMeeting:=NValue=1; 2: Title:=Line; 3: Location:=Line;
+    4: StartDate:=Line; 5: StartTime:=Line; 6: EndDate:=Line; 7: EndTime:=Line;
+    8: Participants:=Line; 9: Notes:=Line; 10: UID:=Line; 11: Sequence:=NValue;
+    12: Organizer:=Line; 13: InvitationSent:=NValue=1;
+   End;
+  End;
+  If Err=0 Then Begin
+   Valid:=EventValid(EventBackup[I]);
+   If Not Valid Or (EventBackup[I].ID<1) Or (EventBackup[I].ID>=Next) Or
+      (EventBackup[I].UID='') Then Err:=100;
+   For K:=0 To I-1 Do
+    If (EventBackup[K].ID=EventBackup[I].ID) Or (EventBackup[K].UID=EventBackup[I].UID) Then Err:=100;
+  End;
+ End;
+ If (Err=0) And Not Eof(F) Then Err:=100;
+ Close(F); C:=IOResult; If Err=0 Then Err:=C;
+ {$I+}
+ If Err<>0 Then Begin EventError:='Agenda invalide ou incomplet : aucun evenement charge.'; Exit; End;
+ EventCount:=N; EventNextID:=Next;
+ For I:=0 To N-1 Do CalendarEvents[I]:=EventBackup[I];
+ EventError:='';
+End;
+
+Procedure EventBuildList;
+Var I,J,T: Integer;
+Begin
+ EventListCount:=0;
+ For I:=0 To EventCount-1 Do
+  If EventOnDay(CalendarEvents[I],CalendarYear,CalendarMonth,CalendarDay) Then Begin
+   EventList[EventListCount]:=I; Inc(EventListCount);
+  End;
+ For I:=0 To EventListCount-2 Do For J:=I+1 To EventListCount-1 Do
+  If EventMoment(CalendarEvents[EventList[J]].StartDate,CalendarEvents[EventList[J]].StartTime)<
+     EventMoment(CalendarEvents[EventList[I]].StartDate,CalendarEvents[EventList[I]].StartTime) Then Begin
+   T:=EventList[I]; EventList[I]:=EventList[J]; EventList[J]:=T;
+  End;
+ If EventListSelection>=EventListCount Then EventListSelection:=EventListCount-1;
+ If EventListSelection<0 Then If EventListCount>0 Then EventListSelection:=0;
+End;
+
+Function EventCanOpen: Boolean;
+Begin
+ EventCanOpen:=Not (ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+  ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible);
+End;
+
+Procedure EventAgenda;
+Begin
+ If Not EventCanOpen Or EventDialogVisible Then Exit;
+ If Not CalendarVisible Then CalendarShow(True);
+ EventListSelection:=0; EventListScroll:=0; EventBuildList;
+ EventDialogVisible:=True; EventEditing:=False; EventDeletePending:=False; EventFocus:=0;
+ DrawInterface;
+End;
+
+Procedure EventNew(Meeting: Boolean);
+Var H,M,S,HS: Word;
+Begin
+ If Not EventCanOpen Or (EventDialogVisible And EventEditing) Then Exit;
+ If EventCount>=128 Then Begin EventError:='Agenda plein (128 evenements).';
+  MailStatus:=EventError; DrawInterface; Exit; End;
+ EventReturnToList:=EventDialogVisible;
+ If Not CalendarVisible Then CalendarShow(True);
+ FillChar(EventDraft,SizeOf(EventDraft),0); EventDraft.IsMeeting:=Meeting;
+ EventDraft.StartDate:=EventDate(CalendarYear,CalendarMonth,CalendarDay);
+ EventDraft.EndDate:=EventDraft.StartDate;
+ GetTime(H,M,S,HS); If H>22 Then H:=22;
+ EventDraft.StartTime:=EventNumber(H,2)+':00'; EventDraft.EndTime:=EventNumber(H+1,2)+':00';
+ EventEditIndex:=-1; EventDialogVisible:=True; EventEditing:=True;
+ EventDeletePending:=False; EventFocus:=0; EventCursor:=0; EventError:=''; DrawInterface;
+End;
+
+Procedure EventEditSelected;
+Begin
+ If (EventListSelection<0) Or (EventListSelection>=EventListCount) Then Exit;
+ EventEditIndex:=EventList[EventListSelection]; EventDraft:=CalendarEvents[EventEditIndex];
+ EventReturnToList:=True; EventEditing:=True; EventFocus:=0;
+ EventCursor:=Length(EventDraft.Title); EventError:=''; DrawInterface;
+End;
+
+Procedure EventCloseEditor;
+Begin
+ EventDeletePending:=False; EventError:='';
+ If EventReturnToList Then Begin EventEditing:=False; EventFocus:=0; EventBuildList; End
+ Else EventDialogVisible:=False;
+ DrawInterface;
+End;
+
+Function EventCommit: Boolean;
+Var I,Y,M,D,OldCount: Integer; OldNext: LongInt; Old: TCalendarEvent; Normalized: String;
+Begin
+ EventCommit:=False; EventError:=''; If Not EventValid(EventDraft) Then Exit;
+ If EventDraft.IsMeeting Then Begin
+  EventAddresses(EventDraft.Participants,Normalized); EventDraft.Participants:=Normalized;
+ End;
+ If EventDraft.IsMeeting Then Begin
+  If EventDraft.Organizer<>'' Then Begin
+   If Not EventAddresses(EventDraft.Organizer,Normalized) Then Begin EventError:='Organisateur invalide.'; Exit; End;
+  End;
+ End;
+ OldCount:=EventCount; OldNext:=EventNextID;
+ If EventEditIndex<0 Then Begin
+  If EventCount>=128 Then Begin EventError:='Agenda plein.'; Exit; End;
+  If EventNextID>=2147483646 Then Begin EventError:='Limite des identifiants atteinte.'; Exit; End;
+  I:=EventCount; EventDraft.ID:=EventNextID; Inc(EventNextID); Inc(EventCount);
+  EventDraft.UID:=EventNewUID;
+ End Else Begin
+  I:=EventEditIndex; Old:=CalendarEvents[I]; EventDraft.ID:=Old.ID; EventDraft.UID:=Old.UID;
+  If Old.Sequence>=2147483646 Then Begin EventError:='Limite de versions atteinte.'; Exit; End;
+  EventDraft.Sequence:=Old.Sequence+1;
+ End;
+ CalendarEvents[I]:=EventDraft;
+ If Not EventSave Then Begin
+  EventCount:=OldCount; EventNextID:=OldNext;
+  If EventEditIndex>=0 Then CalendarEvents[I]:=Old;
+  Exit;
+ End;
+ EventEditIndex:=I;
+ If EventParseDate(EventDraft.StartDate,Y,M,D) Then Begin CalendarYear:=Y; CalendarMonth:=M; CalendarDay:=D; End;
+ EventBuildList; EventCommit:=True;
+End;
+
+Procedure EventDelete;
+Var I,N: Integer;
+Begin
+ If (EventEditIndex<0) Or (EventEditIndex>=EventCount) Then Exit;
+ N:=EventCount;
+ For I:=0 To N-1 Do EventBackup[I]:=CalendarEvents[I];
+ For I:=EventEditIndex To N-2 Do CalendarEvents[I]:=CalendarEvents[I+1];
+ Dec(EventCount);
+ If Not EventSave Then Begin
+  EventCount:=N; For I:=0 To N-1 Do CalendarEvents[I]:=EventBackup[I]; Exit;
+ End;
+ EventEditIndex:=-1; EventCloseEditor;
+End;
+
+{ Conversion et encodage des invitations iCalendar, sans nouvelle unite. }
+Function EventUTF8(S: TMailText): TMailText;
+{$IFDEF WINDOWS}
+Var Wide: Array[0..1023] Of WideChar; N,K: LongInt;
+{$ENDIF}
+Begin
+ EventUTF8:=S;
+ {$IFDEF WINDOWS}
+ If S='' Then Exit;
+ N:=EventToWide(0,0,@S[1],Length(S),@Wide,1024);
+ If N=0 Then Exit;
+ K:=EventToUTF8(65001,0,@Wide,N,nil,0,nil,nil);
+ If K<=0 Then Exit;
+ SetLength(EventUTF8,K); EventToUTF8(65001,0,@Wide,N,@EventUTF8[1],K,nil,nil);
+ {$ENDIF}
+End;
+
+Function EventBase64(Const Data: TMailText): TMailText;
+Const Alphabet: String[64]='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+Var I,N,Col: LongInt; A,B,C: Byte; Chunk: String;
+Begin
+ EventBase64:=''; I:=1; Col:=0; N:=Length(Data);
+ While I<=N Do Begin
+  A:=Ord(Data[I]); B:=0; C:=0;
+  If I+1<=N Then B:=Ord(Data[I+1]); If I+2<=N Then C:=Ord(Data[I+2]);
+  Chunk:=Alphabet[A Shr 2+1]+Alphabet[((A And 3) Shl 4 Or (B Shr 4))+1];
+  If I+1<=N Then Chunk:=Chunk+Alphabet[((B And 15) Shl 2 Or (C Shr 6))+1] Else Chunk:=Chunk+'=';
+  If I+2<=N Then Chunk:=Chunk+Alphabet[(C And 63)+1] Else Chunk:=Chunk+'=';
+  EventBase64:=EventBase64+Chunk; Inc(I,3); Inc(Col,4);
+  If Col=76 Then Begin EventBase64:=EventBase64+#13#10; Col:=0; End;
+ End;
+ If Col<>0 Then EventBase64:=EventBase64+#13#10;
+End;
+
+Function EventEscape(Const S: TMailText): TMailText;
+Var I: LongInt;
+Begin
+ EventEscape:='';
+ For I:=1 To Length(S) Do Case S[I] Of
+  Chr(92),';',',': EventEscape:=EventEscape+Chr(92)+S[I];
+  #13: ; #10: EventEscape:=EventEscape+Chr(92)+'n';
+ Else EventEscape:=EventEscape+S[I];
+ End;
+End;
+
+Function EventUTC(Date,Time: String): String;
+{$IFDEF WINDOWS}
+Var Local,UTC: TEventSystemTime; Y,M,D,C: Integer;
+{$ENDIF}
+Begin
+ EventUTC:='';
+ {$IFDEF WINDOWS}
+ If EventMoment(Date,Time)<0 Then Exit;
+ EventParseDate(Date,Y,M,D); FillChar(Local,SizeOf(Local),0);
+ Local.Year:=Y; Local.Month:=M; Local.Day:=D;
+ Val(Copy(Time,1,2),Local.Hour,C); Val(Copy(Time,4,2),Local.Minute,C);
+ If Not EventLocalToUTC(nil,@Local,@UTC) Then Exit;
+ EventUTC:=EventNumber(UTC.Year,4)+EventNumber(UTC.Month,2)+EventNumber(UTC.Day,2)+'T'+
+  EventNumber(UTC.Hour,2)+EventNumber(UTC.Minute,2)+'00Z';
+ {$ENDIF}
+End;
+
+Function EventInvitation(Const E: TCalendarEvent): TMailText;
+Const Days: Array[0..6] Of String[3]=('Sun','Mon','Tue','Wed','Thu','Fri','Sat');
+ Months: Array[1..12] Of String[3]=('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+Var Data,Line,Participants,Address: TMailText; P,N: LongInt; Stamp: TEventSystemTime;
+ Procedure Add(S: TMailText);
+ Var Cut: LongInt;
+ Begin
+  While Length(S)>75 Do Begin
+   Cut:=75;
+   While (Cut>1) And ((Ord(S[Cut+1]) And $C0)=$80) Do Dec(Cut);
+   Data:=Data+Copy(S,1,Cut)+#13#10; Delete(S,1,Cut); S:=' '+S;
+  End;
+  Data:=Data+S+#13#10;
+ End;
+Begin
+ Data:=''; EventInvitation:='';
+ If (EventUTC(E.StartDate,E.StartTime)='') Or (EventUTC(E.EndDate,E.EndTime)='') Then Begin
+  EventError:='Conversion UTC impossible pour ces dates.'; Exit;
+ End;
+ FillChar(Stamp,SizeOf(Stamp),0);
+ {$IFDEF WINDOWS} EventGetSystemTime(Stamp); {$ENDIF}
+ Add('BEGIN:VCALENDAR'); Add('VERSION:2.0'); Add('PRODID:-//OFFICE-0//Outlook Clone//FR');
+ Add('CALSCALE:GREGORIAN'); Add('METHOD:REQUEST'); Add('BEGIN:VEVENT'); Add('UID:'+E.UID);
+ Add('DTSTAMP:'+EventNumber(Stamp.Year,4)+EventNumber(Stamp.Month,2)+EventNumber(Stamp.Day,2)+'T'+
+  EventNumber(Stamp.Hour,2)+EventNumber(Stamp.Minute,2)+EventNumber(Stamp.Second,2)+'Z');
+ Add('SEQUENCE:'+EventNumber(E.Sequence,0)); Add('DTSTART:'+EventUTC(E.StartDate,E.StartTime));
+ Add('DTEND:'+EventUTC(E.EndDate,E.EndTime)); Add('SUMMARY:'+EventEscape(EventUTF8(E.Title)));
+ Add('LOCATION:'+EventEscape(EventUTF8(E.Location))); Add('DESCRIPTION:'+EventEscape(EventUTF8(E.Notes)));
+ Add('ORGANIZER:mailto:'+E.Organizer); Participants:=E.Participants;
+ While Participants<>'' Do Begin
+  P:=1; While (P<=Length(Participants)) And Not (Participants[P] In [',',';']) Do Inc(P);
+  Address:=MailTrim(Copy(Participants,1,P-1)); Delete(Participants,1,P);
+  If Address<>'' Then Add('ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:'+Address);
+ End;
+ Add('STATUS:CONFIRMED'); Add('END:VEVENT'); Add('END:VCALENDAR');
+ { Les mots encodes d en-tete ne depassent pas 75 caracteres. }
+ Participants:='';
+ For P:=1 To Length(E.Participants) Do
+  If E.Participants[P]=';' Then Participants:=Participants+', ' Else Participants:=Participants+E.Participants[P];
+ EventInvitation:='From: '+E.Organizer+#13#10+'To: '+Participants+#13#10+
+  'Date: '+Days[Stamp.WeekDay]+', '+EventNumber(Stamp.Day,2)+' '+Months[Stamp.Month]+' '+
+  EventNumber(Stamp.Year,4)+' '+EventNumber(Stamp.Hour,2)+':'+EventNumber(Stamp.Minute,2)+':'+
+  EventNumber(Stamp.Second,2)+' +0000'+#13#10+'Message-ID: <'+EventNewUID+'>'+#13#10+'Subject: ';
+ Line:=EventUTF8('Invitation : '+E.Title); N:=1;
+ While N<=Length(Line) Do Begin
+  P:=30; If Length(Line)-N+1<P Then P:=Length(Line)-N+1;
+  While (P>1) And (N+P<=Length(Line)) And ((Ord(Line[N+P]) And $C0)=$80) Do Dec(P);
+  Address:=EventBase64(Copy(Line,N,P)); While Pos(#13#10,Address)>0 Do Delete(Address,Pos(#13#10,Address),2);
+  If N>1 Then EventInvitation:=EventInvitation+#13#10+' ';
+  EventInvitation:=EventInvitation+'=?UTF-8?B?'+Address+'?='; Inc(N,P);
+ End;
+ EventInvitation:=EventInvitation+#13#10+'MIME-Version: 1.0'+#13#10+
+  'Content-Type: text/calendar; charset=UTF-8; method=REQUEST'+#13#10+
+  'Content-Disposition: attachment; filename="invitation.ics"'+#13#10+
+  'Content-Transfer-Encoding: base64'+#13#10+#13#10+EventBase64(Data);
+End;
+
+Procedure EventSendInvitation;
+Var A,I: Integer; OK: Boolean; Body: TMailText; Addresses: String;
+Begin
+ EventError:='';
+ If Not EventDraft.IsMeeting Then Begin EventError:='L invitation est reservee aux reunions.'; Exit; End;
+ If Not EventValid(EventDraft) Then Exit;
+ If UserPrefs.Connection.OfflineMode Then Begin EventError:='Mode hors ligne : invitation non envoyee.'; Exit; End;
+ A:=-1;
+ If EventDraft.InvitationSent Then Begin
+  For I:=0 To EmailAccountCount-1 Do
+   If MailUpper(EmailAccounts[I].EmailAddress)=MailUpper(EventDraft.Organizer) Then A:=I;
+ End Else Begin
+  If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+  If A<0 Then For I:=0 To EmailAccountCount-1 Do If EmailAccounts[I].IsDefault Then A:=I;
+ End;
+ If (A<0) Or (A>=EmailAccountCount) Then Begin EventError:='Compte organisateur non configure.'; Exit; End;
+ If Not EventAddresses(EmailAccounts[A].EmailAddress,Addresses) Then Begin
+  EventError:='Adresse du compte organisateur invalide.'; Exit;
+ End;
+ EventDraft.Organizer:=EmailAccounts[A].EmailAddress;
+ If Not EventCommit Then Exit;
+ Body:=EventInvitation(EventDraft); If Body='' Then Exit;
+ OK:=OpenOutgoingAccount(EmailAccounts[A]);
+ If OK Then OK:=SMTP_MailFrom(EventDraft.Organizer)=SMTP_OK;
+ If OK Then OK:=MailRecipients(EventDraft.Participants);
+ If OK Then OK:=SMTP_Data(Body)=SMTP_OK;
+ MailClose(SMTPWire);
+ If Not OK Then Begin
+  EventError:='Invitation non envoyee : '+Copy(MailError,1,60);
+  If MailError='' Then EventError:='Invitation refusee : '+Copy(SMTPClient.LastError,1,60);
+  Exit;
+ End;
+ EventDraft.InvitationSent:=True; CalendarEvents[EventEditIndex].InvitationSent:=True;
+ If Not EventSave Then Begin EventError:='Invitation envoyee; sauvegarde du statut impossible.'; Exit; End;
+ EventError:='Invitation acceptee par le serveur SMTP.';
+End;
+
+Function EventField(Index: Integer): String;
+Begin
+ Case Index Of
+  0: EventField:=EventDraft.Title; 1: EventField:=EventDraft.Location;
+  2: EventField:=EventDraft.StartDate; 3: EventField:=EventDraft.StartTime;
+  4: EventField:=EventDraft.EndDate; 5: EventField:=EventDraft.EndTime;
+  6: EventField:=EventDraft.Participants; 7: EventField:=EventDraft.Notes;
+ Else EventField:='';
+ End;
+End;
+
+Procedure EventPutField(Index: Integer; Text: String);
+Begin
+ Case Index Of
+  0: EventDraft.Title:=Text; 1: EventDraft.Location:=Text;
+  2: EventDraft.StartDate:=Text; 3: EventDraft.StartTime:=Text;
+  4: EventDraft.EndDate:=Text; 5: EventDraft.EndTime:=Text;
+  6: EventDraft.Participants:=Text; 7: EventDraft.Notes:=Text;
+ End;
+End;
+
+Procedure EventDraw;
+Const Labels: Array[0..8] Of String[15]=('Objet','Lieu','Date debut','Heure debut','Date fin','Heure fin',
+ 'Participants','Notes','Reunion');
+Var X,Y,I,Index: Integer; Text,Title: String;
+Begin
+ If Not EventDialogVisible Then Exit;
+ X:=(SCREEN_WIDTH-550) Div 2; Y:=(SCREEN_HEIGHT-420) Div 2;
+ If EventEditing Then Begin
+  Title:='Rendez-vous'; If EventDraft.IsMeeting Then Title:='Reunion';
+  DrawDialogBox(X,Y,550,420,Title);
+  For I:=0 To 8 Do Begin
+   SetColor(Black); OutTextXY(X+14,Y+42+I*32,Labels[I]+' :');
+   FillRect(X+146,Y+34+I*32,X+532,Y+60+I*32,White);
+   Text:=EventField(I);
+   If I=8 Then Begin Text:='Non'; If EventDraft.IsMeeting Then Text:='Oui'; End;
+   If (EventFocus=I) And (I<8) Then Begin
+    Insert('|',Text,EventCursor+1);
+    If EventCursor>42 Then Delete(Text,1,EventCursor-42);
+   End;
+   If EventFocus=I Then Text:='> '+Text;
+   OutTextXY(X+150,Y+42+I*32,Copy(Text,1,47));
+  End;
+  DrawDialogButton(X+12,Y+378,94,26,'Enregistrer',EventFocus=9,True);
+  DrawDialogButton(X+116,Y+378,110,26,'Inviter',EventFocus=10,EventDraft.IsMeeting);
+  DrawDialogButton(X+236,Y+378,94,26,'Supprimer',EventFocus=11,EventEditIndex>=0);
+  DrawDialogButton(X+440,Y+378,94,26,'Annuler',EventFocus=12,True);
+  SetColor(Black); OutTextXY(X+14,Y+350,'Heures locales. Dates AAAA-MM-JJ, heures HH:MM.');
+ End Else Begin
+  DrawDialogBox(X,Y,550,420,'Agenda du jour - '+EventDate(CalendarYear,CalendarMonth,CalendarDay));
+  DrawDialogButton(X+12,Y+30,104,26,'Nouveau RDV',EventFocus=1,EventCount<128);
+  DrawDialogButton(X+126,Y+30,128,26,'Nouvelle reunion',EventFocus=2,EventCount<128);
+  DrawDialogButton(X+264,Y+30,94,26,'Modifier',EventFocus=3,EventListCount>0);
+  If EventListSelection<EventListScroll Then EventListScroll:=EventListSelection;
+  If EventListSelection>=EventListScroll+12 Then EventListScroll:=EventListSelection-11;
+  If EventListScroll<0 Then EventListScroll:=0;
+  For I:=0 To 11 Do Begin
+   Index:=EventListScroll+I;
+   If Index>=EventListCount Then Break;
+   If Index=EventListSelection Then Begin
+    FillRect(X+12,Y+70+I*22,X+534,Y+90+I*22,Blue); SetColor(White);
+   End Else SetColor(Black);
+   With CalendarEvents[EventList[Index]] Do Begin
+    Text:=StartTime+'-'+EndTime+' '; If IsMeeting Then Text:=Text+'[R] ';
+    Text:=Text+Title;
+   End;
+   OutTextXY(X+16,Y+76+I*22,Copy(Text,1,62));
+  End;
+  If EventListCount=0 Then Begin SetColor(Black); OutTextXY(X+16,Y+86,'Aucun rendez-vous pour ce jour.'); End;
+  DrawDialogButton(X+12,Y+378,88,26,'Page -',EventFocus=4,EventListScroll>0);
+  DrawDialogButton(X+110,Y+378,88,26,'Page +',EventFocus=5,EventListScroll+12<EventListCount);
+  DrawDialogButton(X+440,Y+378,94,26,'Fermer',EventFocus=6,True);
+ End;
+ SetColor(Black);
+ If EventEditing Then OutTextXY(X+14,Y+330,Copy(EventError,1,64))
+ Else OutTextXY(X+14,Y+350,Copy(EventError,1,64));
+ If EventDeletePending Then Begin
+  FillRect(X+8,Y+318,X+540,Y+412,LightGray); SetColor(Black);
+  OutTextXY(X+14,Y+328,'Supprimer du calendrier local ?');
+  If EventDraft.InvitationSent Then OutTextXY(X+14,Y+350,'Cette action n annule pas l invitation envoyee.');
+  DrawDialogButton(X+14,Y+378,94,26,'Oui (O)',False,True);
+  DrawDialogButton(X+122,Y+378,94,26,'Non (N)',True,True);
+ End;
+End;
+
+Procedure EventAction(Action: Integer);
+Begin
+ If EventEditing Then Case Action Of
+  8: EventDraft.IsMeeting:=Not EventDraft.IsMeeting;
+  9: If EventCommit Then EventCloseEditor;
+  10: EventSendInvitation;
+  11: If EventEditIndex>=0 Then EventDeletePending:=True;
+  12: EventCloseEditor;
+ End Else Case Action Of
+  1: EventNew(False); 2: EventNew(True); 3: EventEditSelected;
+  4: Begin Dec(EventListSelection,12); If EventListSelection<0 Then EventListSelection:=0; End;
+  5: Begin Inc(EventListSelection,12);
+   If EventListSelection>=EventListCount Then EventListSelection:=EventListCount-1; End;
+  6: EventDialogVisible:=False;
+ End;
+ DrawInterface;
+End;
+
+Procedure EventKey(Key: Char; Extended: Boolean);
+Const Limits: Array[0..7] Of Integer=(80,80,10,5,10,5,255,255);
+Var Text: String; OldFocus: Integer;
+Begin
+ If EventDeletePending Then Begin
+  If Not Extended Then Case UpCase(Key) Of
+   'O': Begin EventDeletePending:=False; EventDelete; End;
+   'N',#27,#13: EventDeletePending:=False;
+  End;
+ End Else If EventEditing Then Begin
+  OldFocus:=EventFocus; Text:=EventField(EventFocus);
+  If Extended Then Case Key Of
+   #15: EventFocus:=(EventFocus+12) Mod 13;
+   #75: If EventFocus<8 Then If EventCursor>0 Then Dec(EventCursor);
+   #77: If EventFocus<8 Then If EventCursor<Length(Text) Then Inc(EventCursor);
+   #71: EventCursor:=0; #79: EventCursor:=Length(Text);
+   #83: If EventFocus<8 Then Delete(Text,EventCursor+1,1);
+  End Else Case Key Of
+   #27: Begin EventCloseEditor; Exit; End;
+   #9: EventFocus:=(EventFocus+1) Mod 13;
+   #13: Begin If EventFocus<8 Then EventAction(9) Else EventAction(EventFocus); Exit; End;
+   #8: If (EventFocus<8) And (EventCursor>0) Then Begin Delete(Text,EventCursor,1); Dec(EventCursor); End;
+   #32..#255: If EventFocus<8 Then Begin
+    If Length(Text)<Limits[EventFocus] Then Begin Insert(Key,Text,EventCursor+1); Inc(EventCursor); End;
+   End Else If Key=' ' Then Begin EventAction(EventFocus); Exit; End;
+  End;
+  EventPutField(OldFocus,Text);
+  If EventFocus<>OldFocus Then EventCursor:=Length(EventField(EventFocus));
+ End Else Begin
+  If Extended Then Case Key Of
+   #72: If EventListSelection>0 Then Dec(EventListSelection);
+   #80: If EventListSelection<EventListCount-1 Then Inc(EventListSelection);
+   #73: EventAction(4); #81: EventAction(5);
+   #71: If EventListCount>0 Then EventListSelection:=0;
+   #79: EventListSelection:=EventListCount-1;
+   #82: EventNew(False);
+   #83: Begin EventEditSelected; If EventEditing Then EventDeletePending:=True; End;
+   #15: EventFocus:=(EventFocus+6) Mod 7;
+  End Else Case Key Of
+   #27: EventDialogVisible:=False;
+   #9: EventFocus:=(EventFocus+1) Mod 7;
+   #13,' ': If EventFocus=0 Then EventEditSelected Else EventAction(EventFocus);
+   'n','N': EventNew(False); 'm','M': EventNew(True);
+  End;
+ End;
+ DrawInterface;
+End;
+
+Procedure EventClick(MX,MY: Integer);
+Var X,Y,Row: Integer;
+Begin
+ X:=MX-(SCREEN_WIDTH-550) Div 2; Y:=MY-(SCREEN_HEIGHT-420) Div 2;
+ If (X<0) Or (X>550) Or (Y<0) Or (Y>420) Then Exit;
+ If EventDeletePending Then Begin
+  If (Y>=378) And (Y<=404) Then Begin
+   If (X>=14) And (X<=108) Then Begin EventDeletePending:=False; EventDelete; End
+   Else If (X>=122) And (X<=216) Then EventDeletePending:=False;
+  End;
+ End Else If EventEditing Then Begin
+  If (X>=146) And (X<=532) And (Y>=34) And (Y<316) Then Begin
+   Row:=(Y-34) Div 32;
+   If Y<=60+Row*32 Then Begin EventFocus:=Row; EventCursor:=Length(EventField(Row));
+    If Row=8 Then EventAction(8); End;
+  End Else If (Y>=378) And (Y<=404) Then Begin
+   If (X>=12) And (X<=106) Then EventAction(9)
+   Else If (X>=116) And (X<=226) Then EventAction(10)
+   Else If (X>=236) And (X<=330) Then EventAction(11)
+   Else If (X>=440) And (X<=534) Then EventAction(12);
+  End;
+ End Else Begin
+  If (Y>=30) And (Y<=56) Then Begin
+   If (X>=12) And (X<=116) Then EventAction(1)
+   Else If (X>=126) And (X<=254) Then EventAction(2)
+   Else If (X>=264) And (X<=358) Then EventAction(3);
+  End Else If (X>=12) And (X<=534) And (Y>=70) And (Y<334) Then Begin
+   Row:=EventListScroll+(Y-70) Div 22;
+   If Row<EventListCount Then Begin EventListSelection:=Row; EventFocus:=0; End;
+  End Else If (Y>=378) And (Y<=404) Then Begin
+   If (X>=12) And (X<=100) Then EventAction(4)
+   Else If (X>=110) And (X<=198) Then EventAction(5)
+   Else If (X>=440) And (X<=534) Then EventAction(6);
+  End;
+ End;
  DrawInterface;
 End;
 
@@ -19262,7 +19974,7 @@ End;
 Procedure ShowAboutDialog;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  AboutVisible:=True; ContextMenuVisible:=False; DrawInterface;
 End;
 
@@ -19435,7 +20147,7 @@ End;
 Procedure Prefs_Show;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  OptionsDraft:=UserPrefs;
  OptionsDraft.Reading.ShowPreviewPane:=PreviewVisible;
  OptionsDraft.Reading.PreviewOnRight:=PreviewOrientation=poVertical;
@@ -21394,7 +22106,7 @@ Var Err: Integer;
 Begin
  BeginMessageFileDialog:=False;
  If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Or AboutVisible Or
+    RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Or
     (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
@@ -21442,7 +22154,7 @@ Procedure SaveMessageAs;
 Var Subject: String; I: Integer; Data: TMailText;
 Begin
  If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  If ComposerVisible Then Begin
   If Composer.AttachmentCount>0 Then Begin
    MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
@@ -21812,7 +22524,8 @@ Procedure ShowColumnsDialog;
 Var I: Integer;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or
-    SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or
+    EventDialogVisible Then Exit;
  For I:=0 To ColumnCount-1 Do ColumnsDraft[I]:=Columns[I];
  ColumnsDialogSelection:=0; ColumnsDialogFocus:=0; ColumnsDialogError:='';
  ColumnsDialogVisible:=True; ContextMenuVisible:=False; DrawInterface;
@@ -21944,7 +22657,7 @@ End;
 Procedure ShowSortDialog;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  SortDialogCriterion:=Ord(ctDate);
  If (SortColumn>=0) And (SortColumn<ColumnCount) Then
   SortDialogCriterion:=Ord(Columns[SortColumn].ColType);
@@ -22793,6 +23506,7 @@ Begin
  If RulesVisible Then Rules_DrawWindow;
  If PrefsVisible Then Prefs_DrawWindow;
  If AboutVisible Then DrawAboutDialog;
+ If EventDialogVisible Then EventDraw;
  ShowMouse;
 End;
 
@@ -23179,7 +23893,7 @@ Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -23308,7 +24022,10 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If AboutVisible Then Begin
+  If EventDialogVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then EventClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If AboutVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleAboutClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -23542,6 +24259,7 @@ Begin
      Break;
     End;
    End;
+   If EventDialogVisible Then Begin EventKey(Key,IsExtendedKey); Continue; End;
    If AboutVisible Then Begin
     If Not IsExtendedKey Then HandleAboutKey(Key);
     Continue;
@@ -23846,6 +24564,7 @@ BEGIN
  { Initialisation du systeme de regles (TODO 17) }
  Rules_Init;
  Rules_Load;
+ EventInit;
 
  { Initialisation de la recherche avancee (TODO 18) }
  Search_Init;
