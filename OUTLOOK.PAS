@@ -2,6 +2,7 @@
   @created: 2026
   @version: 1.00
   @website(https://www.gladir.com/office-0)
+  @website(https://www.gladir.com/networkkitp)
   @abstract(Target: Turbo Pascal 7, Free Pascal
   @description: Clone de l'application Outlook en mode graphique
 
@@ -233,6 +234,10 @@ Const
  { Dimensions de l'écran VGA 640x480 }
  DEFAULT_SCREEN_WIDTH = 640;
  DEFAULT_SCREEN_HEIGHT = 480;
+ OPEN_DIALOG_WIDTH = 560;
+ OPEN_DIALOG_HEIGHT = 380;
+ OPEN_DIALOG_ROWS = 14;
+ MAX_OPEN_DIALOG_FILES = 256;
 
  { Couleurs style Windows 95/98 }
  COLOR_DESKTOP = 1;       { Bleu foncé - fond bureau }
@@ -311,6 +316,10 @@ Type
  TMailFDSet = Record Count: LongWord; Sockets: Array[0..63] of PtrUInt; End;
  TMailTimeVal = Record Seconds, Microseconds: LongInt; End;
  {$ENDIF}
+ TOpenFileEntry = Record
+  Name: String[255];
+  IsDirectory: Boolean;
+ End;
  TMailConnection = Record
   {$IFDEF WINDOWS}
   Socket: PtrUInt;
@@ -2984,6 +2993,13 @@ Const
  );
 
 Var
+ FileOpenVisible, FileOpenShowAll: Boolean;
+ FileOpenDirectory, FileOpenName: String[255];
+ FileOpenError: String[80];
+ FileOpenEntries: Array[0..MAX_OPEN_DIALOG_FILES-1] of TOpenFileEntry;
+ FileOpenCount, FileOpenSelection, FileOpenScroll: Integer;
+ FileOpenFocus, FileOpenCursor: Integer;
+ FileOpenTruncated: Boolean;
  MaxScreen: Boolean;
  SCREEN_WIDTH, SCREEN_HEIGHT: Integer;
  DIALOG_X, DIALOG_Y, COMPOSER_X, COMPOSER_Y: Integer;
@@ -3795,6 +3811,8 @@ End;
 Procedure DrawInterface; Forward;
 Procedure DrawMenuBar; Forward;
 Procedure DrawComposerWindow; Forward;
+Procedure OpenMessageFile; Forward;
+Procedure DrawOpenFileDialog; Forward;
 Procedure CalculateLayout; Forward;
 Procedure DrawFolderPane; Forward;
 Procedure OpenNewMessage; Forward;
@@ -4730,6 +4748,8 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_FILE_OPEN: OpenMessageFile;
+
   CMD_FILE_NEW, CMD_MSG_NEW: Begin
    { Ouvrir le compositeur pour un nouveau message (TODO 12) }
    OpenNewMessage;
@@ -20890,6 +20910,431 @@ Begin
  Msg.BodyLineCount:=I;
 End;
 
+{ Accepter les fins de ligne LF des fichiers exportes sur d autres systemes. }
+Function NormalizeMessageLines(Const Raw: TMailText): TMailText;
+{$IFDEF FPC}
+Var I, Extra, Target: LongInt;
+{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ Extra := 0;
+ For I := 1 To Length(Raw) Do
+  If Raw[I] = #10 Then
+   If (I = 1) Or (Raw[I-1] <> #13) Then Inc(Extra);
+ If Extra = 0 Then Begin NormalizeMessageLines := Raw; Exit; End;
+ SetLength(NormalizeMessageLines, Length(Raw) + Extra);
+ Target := 0;
+ For I := 1 To Length(Raw) Do Begin
+  If Raw[I] = #10 Then
+   If (I = 1) Or (Raw[I-1] <> #13) Then Begin
+    Inc(Target); NormalizeMessageLines[Target] := #13;
+   End;
+  Inc(Target); NormalizeMessageLines[Target] := Raw[I];
+ End;
+ {$ELSE}
+ NormalizeMessageLines := Raw;
+ {$ENDIF}
+End;
+
+{ Ne modifier la vue que lorsque le fichier a ete entierement lu et valide. }
+Function LoadMessageFile(FileName: TMailText): Boolean;
+Var
+ F: File;
+ Raw, Headers: TMailText;
+ OpenedMessage: TMessage;
+ Count, HeaderEnd: LongInt;
+ {$IFDEF FPC}
+ FileLength: Int64;
+ {$ELSE}
+ FileLength: LongInt;
+ {$ENDIF}
+ Err, I: Integer;
+Begin
+ LoadMessageFile := False;
+ If (FileName = '') Or (Length(FileName) > 255) Then Begin
+  MailStatus := 'Erreur: chemin du courriel vide ou trop long'; Exit;
+ End;
+ {$I-}
+ Assign(F, FileName);
+ Reset(F, 1);
+ Err := IOResult;
+ If Err <> 0 Then Begin
+  MailStatus := 'Erreur: impossible d ouvrir le fichier de courriel'; Exit;
+ End;
+ FileLength := FileSize(F);
+ Err := IOResult;
+ If (Err = 0) And (FileLength > 0) And (FileLength <= 10485760) Then Begin
+  {$IFDEF FPC}
+  SetLength(Raw, FileLength);
+  {$ELSE}
+  If FileLength > 255 Then Err := 100
+  Else Raw[0] := Chr(FileLength);
+  {$ENDIF}
+  If Err = 0 Then Begin
+   BlockRead(F, Raw[1], FileLength, Count);
+   Err := IOResult;
+   If Count <> FileLength Then Err := 100;
+  End;
+ End Else Err := 100;
+ Close(F);
+ If IOResult <> 0 Then Err := 100;
+ {$I+}
+ If Err <> 0 Then Begin
+  MailStatus := 'Erreur: lecture impossible, fichier vide ou plus de 10 Mo'; Exit;
+ End;
+ Raw := NormalizeMessageLines(Raw);
+ If Copy(Raw, 1, 3) = #$EF#$BB#$BF Then Delete(Raw, 1, 3);
+ HeaderEnd := Pos(#13#10#13#10, Raw);
+ Headers := Copy(Raw, 1, HeaderEnd);
+ If (HeaderEnd = 0) Or (Pos(#0, Headers) > 0) Or
+    ((MailHeader(Raw, 'From') = '') And (MailHeader(Raw, 'Subject') = '') And
+     (MailHeader(Raw, 'To') = '')) Then Begin
+  MailStatus := 'Erreur: fichier invalide; un courriel au format EML est requis'; Exit;
+ End;
+ MailParseMessage(Raw, MailHeader(Raw, 'Message-ID'), OpenedMessage);
+ OpenedMessage.IsRead := True;
+ OpenedMessage.IsSelected := True;
+ For I := 0 To FolderCount - 1 Do Folders[I].Selected := False;
+ SelectedFolder := -1;
+ MailLoadedFolder := -1;
+ MessageCount := 1;
+ Messages[0] := OpenedMessage;
+ SelectedMessage := 0;
+ LastSelectedMessage := 0;
+ MessageScrollOffset := 0;
+ PreviewScrollX := 0;
+ PreviewScrollY := 0;
+ PreviewVisible := True;
+ If Layout.PreviewPaneHeight = 0 Then Layout.PreviewPaneHeight := 150;
+ MailStatus := 'Fichier ouvert : ' + Copy(FileName, 1, 62);
+ LoadMessageFile := True;
+End;
+
+{ Navigation de fichiers avec les routines DOS deja presentes dans Uses.
+  Aucune boite de dialogue native ni unite supplementaire n est utilisee. }
+Function OpenFileJoin(DirectoryName, Name: TMailText): TMailText;
+Var Separator: Char;
+Begin
+ Separator := '\';
+ {$IFDEF UNIX}
+ Separator := '/';
+ {$ENDIF}
+ If (DirectoryName <> '') And
+    Not (DirectoryName[Length(DirectoryName)] In ['\','/']) Then
+  DirectoryName := DirectoryName + Separator;
+ OpenFileJoin := DirectoryName + Name;
+End;
+
+Function OpenFileFullPath(Name: TMailText): TMailText;
+Begin
+ Name := MailTrim(Name);
+ If (Length(Name) >= 2) And (Name[1] = '"') And (Name[Length(Name)] = '"') Then
+  Name := Copy(Name, 2, Length(Name)-2);
+ If Name = '' Then Begin OpenFileFullPath := ''; Exit; End;
+ If Not (Name[1] In ['\','/']) And (Copy(Name,2,1) <> ':') Then
+  Name := OpenFileJoin(FileOpenDirectory, Name);
+ If Length(Name) > 255 Then OpenFileFullPath := ''
+ Else OpenFileFullPath := FExpand(Name);
+End;
+
+Function OpenFileIsDirectory(Path: TMailText): Boolean;
+Var F: File; Attributes: Word;
+Begin
+ OpenFileIsDirectory := False;
+ If (Path = '') Or (Length(Path) > 255) Then Exit;
+ Assign(F, Path);
+ GetFAttr(F, Attributes);
+ If DosError = 0 Then OpenFileIsDirectory := (Attributes And $10) <> 0;
+End;
+
+Procedure ReadOpenFileDirectory;
+Var
+ Entry: SearchRec;
+ I, J: Integer;
+ FirstError: Integer;
+ Item, Swap: TOpenFileEntry;
+ Pattern: TMailText;
+Begin
+ FileOpenCount := 1;
+ FileOpenEntries[0].Name := '..';
+ FileOpenEntries[0].IsDirectory := True;
+ FileOpenSelection := 0;
+ FileOpenScroll := 0;
+ FileOpenTruncated := False;
+ Pattern := OpenFileJoin(FileOpenDirectory, '*.*');
+ If Length(Pattern) > 255 Then Begin
+  FileOpenError := 'Erreur: chemin du repertoire trop long'; Exit;
+ End;
+ FindFirst(Pattern, AnyFile, Entry);
+ FirstError := DosError;
+ While DosError = 0 Do Begin
+  If (Entry.Name <> '.') And (Entry.Name <> '..') Then Begin
+   Item.Name := Entry.Name;
+   Item.IsDirectory := (Entry.Attr And $10) <> 0;
+   If Item.IsDirectory Or FileOpenShowAll Or
+      (MailUpper(Copy(Item.Name, Length(Item.Name)-3, 4)) = '.EML') Then Begin
+    If FileOpenCount < MAX_OPEN_DIALOG_FILES Then Begin
+     FileOpenEntries[FileOpenCount] := Item;
+     Inc(FileOpenCount);
+    End Else FileOpenTruncated := True;
+   End;
+  End;
+  FindNext(Entry);
+ End;
+ {$IFDEF FPC}
+ If FirstError = 0 Then FindClose(Entry);
+ {$ENDIF}
+ If (FirstError <> 0) And (FirstError <> 18) And (FirstError <> 2) Then
+  FileOpenError := 'Erreur: impossible de lire ce repertoire';
+ { Conserver .. en premier, puis les dossiers, puis les fichiers. }
+ For I := 1 To FileOpenCount-2 Do
+  For J := I+1 To FileOpenCount-1 Do
+   If (FileOpenEntries[J].IsDirectory And Not FileOpenEntries[I].IsDirectory) Or
+      ((FileOpenEntries[J].IsDirectory = FileOpenEntries[I].IsDirectory) And
+       (MailUpper(FileOpenEntries[J].Name) < MailUpper(FileOpenEntries[I].Name))) Then Begin
+    Swap := FileOpenEntries[I];
+    FileOpenEntries[I] := FileOpenEntries[J];
+    FileOpenEntries[J] := Swap;
+   End;
+End;
+
+Procedure OpenFileSelect(Index: Integer);
+Begin
+ If Index < 0 Then Index := 0;
+ If Index >= FileOpenCount Then Index := FileOpenCount-1;
+ FileOpenSelection := Index;
+ If Index < FileOpenScroll Then FileOpenScroll := Index;
+ If Index >= FileOpenScroll + OPEN_DIALOG_ROWS Then
+  FileOpenScroll := Index - OPEN_DIALOG_ROWS + 1;
+ If Index >= 0 Then Begin
+  FileOpenName := FileOpenEntries[Index].Name;
+  FileOpenCursor := Length(FileOpenName);
+ End;
+End;
+
+Procedure OpenFileChangeDirectory(Path: TMailText);
+Begin
+ If Not OpenFileIsDirectory(Path) Then Begin
+  FileOpenError := 'Erreur: repertoire introuvable ou inaccessible'; Exit;
+ End;
+ FileOpenDirectory := Path;
+ FileOpenName := '';
+ FileOpenCursor := 0;
+ FileOpenError := '';
+ ReadOpenFileDirectory;
+ FileOpenFocus := 1;
+End;
+
+Procedure CancelOpenFileDialog;
+Begin
+ FileOpenVisible := False;
+ DrawInterface;
+End;
+
+Procedure ConfirmOpenFileDialog;
+Var Path: TMailText; PreviousStatus: String[80];
+Begin
+ If FileOpenFocus = 1 Then
+  Path := OpenFileFullPath(FileOpenEntries[FileOpenSelection].Name)
+ Else Path := OpenFileFullPath(FileOpenName);
+ If Path = '' Then Begin
+  FileOpenError := 'Indiquez un nom de fichier ou un chemin de 255 caracteres au plus';
+  DrawOpenFileDialog; Exit;
+ End;
+ If OpenFileIsDirectory(Path) Then OpenFileChangeDirectory(Path)
+ Else Begin
+  PreviousStatus := MailStatus;
+  If LoadMessageFile(Path) Then Begin
+   FileOpenVisible := False;
+   DrawInterface;
+   Exit;
+  End;
+  FileOpenError := MailStatus;
+  MailStatus := PreviousStatus;
+ End;
+ DrawOpenFileDialog;
+End;
+
+Procedure ToggleOpenFileFilter;
+Begin
+ FileOpenShowAll := Not FileOpenShowAll;
+ FileOpenError := '';
+ ReadOpenFileDirectory;
+ DrawOpenFileDialog;
+End;
+
+Procedure DrawOpenFileDialog;
+Var X, Y, I, Index, FirstChar: Integer; Text, CursorText: String;
+Begin
+ If Not FileOpenVisible Then Exit;
+ X := (SCREEN_WIDTH - OPEN_DIALOG_WIDTH) Div 2;
+ Y := (SCREEN_HEIGHT - OPEN_DIALOG_HEIGHT) Div 2;
+ HideMouse;
+ DrawDialogBox(X, Y, OPEN_DIALOG_WIDTH, OPEN_DIALOG_HEIGHT, 'Ouvrir un courriel');
+ SetColor(COLOR_MENU_TEXT);
+ Text := FileOpenDirectory;
+ While (Text <> '') And (TextWidth(Text) > OPEN_DIALOG_WIDTH-120) Do Delete(Text,1,1);
+ OutTextXY(X+15, Y+35, Text);
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-90,Y+28,75,22,'Parent',False,True);
+ SetFillStyle(SolidFill, COLOR_LIST_BG);
+ Bar(X+15,Y+60,X+OPEN_DIALOG_WIDTH-15,Y+260);
+ Draw3DRect(X+15,Y+60,X+OPEN_DIALOG_WIDTH-15,Y+260,False);
+ For I := 0 To OPEN_DIALOG_ROWS-1 Do Begin
+  Index := FileOpenScroll + I;
+  If Index < FileOpenCount Then Begin
+   If Index = FileOpenSelection Then Begin
+    FillRect(X+17,Y+63+I*14,X+OPEN_DIALOG_WIDTH-38,Y+76+I*14,COLOR_MENU_HIGHLIGHT);
+    SetColor(COLOR_MENU_HIGHLIGHT_TEXT);
+   End Else SetColor(COLOR_MENU_TEXT);
+   Text := FileOpenEntries[Index].Name;
+   If FileOpenEntries[Index].IsDirectory Then Text := '['+Text+']';
+   While (Text <> '') And (TextWidth(Text) > OPEN_DIALOG_WIDTH-65) Do
+    Delete(Text,Length(Text),1);
+   OutTextXY(X+20,Y+66+I*14,Text);
+  End;
+ End;
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-35,Y+62,18,18,'^',False,True);
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-35,Y+240,18,18,'v',False,True);
+ SetColor(COLOR_MENU_TEXT);
+ OutTextXY(X+15,Y+271,'Nom du fichier :');
+ If FileOpenFocus = 0 Then SetFillStyle(SolidFill,COLOR_LIST_BG)
+ Else SetFillStyle(SolidFill,COLOR_WINDOW_BG);
+ Bar(X+15,Y+286,X+OPEN_DIALOG_WIDTH-15,Y+306);
+ Draw3DRect(X+15,Y+286,X+OPEN_DIALOG_WIDTH-15,Y+306,False);
+ FirstChar := 1;
+ CursorText := Copy(FileOpenName,1,FileOpenCursor);
+ While (CursorText <> '') And (TextWidth(CursorText) > OPEN_DIALOG_WIDTH-45) Do Begin
+  Delete(CursorText,1,1); Inc(FirstChar);
+ End;
+ Text := Copy(FileOpenName,FirstChar,255);
+ While (Text <> '') And (TextWidth(Text) > OPEN_DIALOG_WIDTH-45) Do
+  Delete(Text,Length(Text),1);
+ SetColor(COLOR_MENU_TEXT);
+ OutTextXY(X+19,Y+291,Text);
+ If FileOpenFocus = 0 Then
+  Line(X+19+TextWidth(CursorText),Y+289,X+19+TextWidth(CursorText),Y+303);
+ Text := FileOpenError;
+ If (Text = '') And FileOpenTruncated Then Text := 'Liste limitee: saisir le chemin pour un autre fichier.';
+ While (Text <> '') And (TextWidth(Text) > OPEN_DIALOG_WIDTH-30) Do
+  Delete(Text,Length(Text),1);
+ SetColor(LightRed);
+ OutTextXY(X+15,Y+316,Text);
+ If FileOpenShowAll Then Text := '*.eml' Else Text := 'Tous fichiers';
+ DrawDialogButton(X+15,Y+344,110,22,Text,FileOpenFocus=4,True);
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-180,Y+344,75,22,'Ouvrir',FileOpenFocus=2,True);
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-90,Y+344,75,22,'Annuler',FileOpenFocus=3,True);
+ ShowMouse;
+End;
+
+Procedure HandleOpenFileKey(Key: Char; Extended: Boolean);
+Begin
+ If Not FileOpenVisible Then Exit;
+ If FileOpenFocus=0 Then FileOpenError:='';
+ If Extended Then Begin
+  If FileOpenFocus = 1 Then Begin
+   Case Ord(Key) of
+    72: OpenFileSelect(FileOpenSelection-1);
+    80: OpenFileSelect(FileOpenSelection+1);
+    73: OpenFileSelect(FileOpenSelection-OPEN_DIALOG_ROWS);
+    81: OpenFileSelect(FileOpenSelection+OPEN_DIALOG_ROWS);
+    71: OpenFileSelect(0);
+    79: OpenFileSelect(FileOpenCount-1);
+   End;
+  End Else If FileOpenFocus = 0 Then Begin
+   Case Ord(Key) of
+    75: If FileOpenCursor>0 Then Dec(FileOpenCursor);
+    77: If FileOpenCursor<Length(FileOpenName) Then Inc(FileOpenCursor);
+    71: FileOpenCursor:=0;
+    79: FileOpenCursor:=Length(FileOpenName);
+    83: Delete(FileOpenName,FileOpenCursor+1,1);
+   End;
+  End;
+ End Else Begin
+  Case Ord(Key) of
+   27: Begin CancelOpenFileDialog; Exit; End;
+   9: FileOpenFocus := (FileOpenFocus+1) Mod 5;
+   13: Begin
+    If FileOpenFocus=3 Then CancelOpenFileDialog
+    Else If FileOpenFocus=4 Then ToggleOpenFileFilter
+    Else ConfirmOpenFileDialog;
+    Exit;
+   End;
+   8: If FileOpenFocus=0 Then Begin
+       If FileOpenCursor>0 Then Begin
+        Delete(FileOpenName,FileOpenCursor,1); Dec(FileOpenCursor);
+       End;
+      End Else If FileOpenFocus=1 Then
+       OpenFileChangeDirectory(OpenFileFullPath('..'));
+   Else If (FileOpenFocus=0) And (Key>=#32) And (Key<>#127) And
+           (Length(FileOpenName)<255) Then Begin
+    Insert(Key,FileOpenName,FileOpenCursor+1); Inc(FileOpenCursor);
+   End;
+  End;
+ End;
+ DrawOpenFileDialog;
+End;
+
+Procedure HandleOpenFileClick(MX, MY: Integer);
+Var X, Y, Index: Integer; DoubleClick: Boolean;
+Begin
+ If Not FileOpenVisible Then Exit;
+ X := (SCREEN_WIDTH-OPEN_DIALOG_WIDTH) Div 2;
+ Y := (SCREEN_HEIGHT-OPEN_DIALOG_HEIGHT) Div 2;
+ If (MX<X) Or (MX>X+OPEN_DIALOG_WIDTH) Or (MY<Y) Or (MY>Y+OPEN_DIALOG_HEIGHT) Then Exit;
+ If (MY>=Y+344) And (MY<=Y+366) Then Begin
+  If (MX>=X+OPEN_DIALOG_WIDTH-90) And (MX<=X+OPEN_DIALOG_WIDTH-15) Then Begin
+   CancelOpenFileDialog; Exit;
+  End;
+  If (MX>=X+OPEN_DIALOG_WIDTH-180) And (MX<=X+OPEN_DIALOG_WIDTH-105) Then Begin
+   FileOpenFocus:=0; ConfirmOpenFileDialog; Exit;
+  End;
+  If (MX>=X+15) And (MX<=X+125) Then Begin
+   FileOpenFocus:=4; ToggleOpenFileFilter; Exit;
+  End;
+ End;
+ If (MX>=X+OPEN_DIALOG_WIDTH-90) And (MY>=Y+28) And (MY<=Y+50) Then Begin
+  OpenFileChangeDirectory(OpenFileFullPath('..')); DrawOpenFileDialog; Exit;
+ End;
+ If (MX>=X+15) And (MX<=X+OPEN_DIALOG_WIDTH-15) And (MY>=Y+286) And (MY<=Y+306) Then Begin
+  FileOpenFocus:=0; FileOpenCursor:=Length(FileOpenName); DrawOpenFileDialog; Exit;
+ End;
+ If (MX>=X+15) And (MX<=X+OPEN_DIALOG_WIDTH-15) And (MY>=Y+63) And (MY<Y+259) Then Begin
+  FileOpenFocus:=1;
+  If MX>=X+OPEN_DIALOG_WIDTH-36 Then Begin
+   If MY<Y+90 Then OpenFileSelect(FileOpenSelection-1)
+   Else If MY>=Y+240 Then OpenFileSelect(FileOpenSelection+1);
+  End Else Begin
+   Index:=FileOpenScroll+(MY-Y-63) Div 14;
+   If Index<FileOpenCount Then Begin
+    DoubleClick:=IsDoubleClick(MX,MY,MOUSE_LEFT);
+    OpenFileSelect(Index);
+    If DoubleClick Then Begin ConfirmOpenFileDialog; Exit; End;
+   End;
+  End;
+ End;
+ DrawOpenFileDialog;
+End;
+
+Procedure OpenMessageFile;
+Var Err: Integer;
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Then Exit;
+ If FileOpenDirectory='' Then Begin
+  {$I-}
+  GetDir(0,FileOpenDirectory);
+  Err:=IOResult;
+  {$I+}
+  If Err<>0 Then FileOpenDirectory:='.';
+ End;
+ FileOpenName:=''; FileOpenCursor:=0; FileOpenFocus:=0; FileOpenError:='';
+ FileOpenVisible:=True;
+ TooltipVisible:=False; ContextMenuVisible:=False;
+ ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False; DragState:=dsNone;
+ LastClickTime:=0;
+ ReadOpenFileDirectory;
+ DrawOpenFileDialog;
+End;
+
 Procedure ReceiveMail;
 Var AccountIndex, I, Total, First, Count, Code, Unread: LongInt;
  R: TIMAPResponse; P: TPOP3Response; Number, ID, StatText: TMailText;
@@ -21864,6 +22309,7 @@ Begin
  DrawStatusBar;
 
  If ComposerVisible Then DrawComposerWindow;
+ If FileOpenVisible Then DrawOpenFileDialog;
  ShowMouse;
 End;
 
@@ -22241,7 +22687,7 @@ Procedure OpenMenuShortcut(MenuIndex: Integer);
 Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
- If ComposerVisible Or AccountDialogVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -22351,7 +22797,11 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If ComposerVisible Then Begin
+  If FileOpenVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleOpenFileClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If ComposerVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleComposerClick(MouseX, MouseY);
    LastMouseX := MouseX;
@@ -22551,6 +23001,10 @@ Begin
      Break;
     End;
    End;
+   If FileOpenVisible Then Begin
+    HandleOpenFileKey(Key,IsExtendedKey);
+    Continue;
+   End;
    If IsExtendedKey Then Begin
     ShortcutMenu := MenuShortcutFromScan(Key);
     If ShortcutMenu >= 0 Then Begin
@@ -22631,6 +23085,9 @@ Begin
    { Gerer les touches dans la boite de dialogue des comptes }
    Else If AccountDialogVisible Then Begin
     HandleAccountDialogKeyPress(Key);
+   End
+   Else If Key = #15 Then Begin { Ctrl+O }
+    ExecuteMenuCommand(CMD_FILE_OPEN);
    End
    Else If Key = #27 Then Begin
     If TooltipVisible Then
@@ -22748,6 +23205,7 @@ Begin
  WriteLn(HelpOutput, 'Exemple : OUTLOOK /ACCOUNTS:"C:\Courriel\Mes comptes.ACC"');
  WriteLn(HelpOutput, 'Les chemins relatifs partent du repertoire courant.');
  WriteLn(HelpOutput);
+ WriteLn(HelpOutput, 'Ouvrir un courriel .eml : menu Fichier / Ouvrir ou Ctrl+O.');
  WriteLn(HelpOutput, 'Configurer les comptes : menu Outils / Comptes.');
  WriteLn(HelpOutput, 'Recevoir les courriels : selectionner la boite du compte,');
  WriteLn(HelpOutput, 'puis cliquer sur Envoyer/Recevoir (IMAP ou POP3).');
