@@ -3331,6 +3331,7 @@ Var
    ============================================================================ }
 
  OptionsDraft: TUserPreferences;
+ AboutVisible: Boolean;
  OptionsReady: Boolean;
  OptionsFocus, OptionsCursor: Integer;
  PreviewPaneWidth: Integer;
@@ -3842,6 +3843,7 @@ Procedure ShowSortDialog; Forward;
 Procedure ShowColumnsDialog; Forward;
 Procedure Rules_Show; Forward;
 Procedure Prefs_Show; Forward;
+Procedure ShowAboutDialog; Forward;
 Function WriteMessageFile(Path: TMailText; AllowReplace: Boolean): Boolean; Forward;
 Function MailTextBody(Const Raw: TMailText; Depth: Integer): TMailText; Forward;
 Procedure DrawColumnsDialog; Forward;
@@ -4894,15 +4896,7 @@ Begin
 
   CMD_TOOLS_OPTIONS: Prefs_Show;
 
-  CMD_HELP_ABOUT: Begin
-   HideMouse;
-   FillRect(Layout.StatusBarRect.X1 + 1, Layout.StatusBarRect.Y1 + 1,
-            Layout.StatusBarRect.X2 - 1, Layout.StatusBarRect.Y2 - 1, COLOR_STATUS_BG);
-   SetColor(COLOR_STATUS_TEXT);
-   OutTextXY(Layout.StatusBarRect.X1 + 4, Layout.StatusBarRect.Y1 + 5,
-             'Outlook Express Clone - NETWORKKIT-P');
-   ShowMouse;
-  End;
+  CMD_HELP_ABOUT: ShowAboutDialog;
 
   Else Begin
    { Commande non implementée }
@@ -13836,7 +13830,7 @@ End;
 Procedure Rules_Show;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  RulesWindowX:=(SCREEN_WIDTH-RULES_WINDOW_WIDTH) Div 2;
  RulesWindowY:=(SCREEN_HEIGHT-RULES_WINDOW_HEIGHT) Div 2;
  RulesVisible:=True; RulesWindowState:=rwsList; RulesFocus:=0; RulesDeletePending:=False;
@@ -19012,6 +19006,51 @@ Begin
  PrefsNeedsSave := False;
 End;
 
+{ Informations du programme dans une boite graphique modale. }
+Procedure DrawAboutDialog;
+Var X,Y: Integer;
+Begin
+ If Not AboutVisible Then Exit;
+ X:=(SCREEN_WIDTH-440) Div 2; Y:=(SCREEN_HEIGHT-260) Div 2;
+ DrawDialogBox(X,Y,440,260,'A propos...');
+ DrawDialogButton(X+416,Y+3,18,16,'X',False,True);
+ { Petite enveloppe dessinee avec les primitives graphiques. }
+ FillRect(X+20,Y+44,X+66,Y+78,White);
+ SetColor(Blue);
+ Rectangle(X+20,Y+44,X+66,Y+78);
+ Line(X+20,Y+44,X+43,Y+62); Line(X+66,Y+44,X+43,Y+62);
+ OutTextXY(X+84,Y+46,'Outlook Express Clone');
+ SetColor(Black);
+ OutTextXY(X+84,Y+66,'Version 1.00');
+ OutTextXY(X+20,Y+100,'Client de messagerie graphique en Pascal');
+ OutTextXY(X+20,Y+124,'Auteur : Sylvain Maltais');
+ OutTextXY(X+20,Y+144,'support@gladir.com');
+ OutTextXY(X+20,Y+166,'https://www.gladir.com/office-0');
+ OutTextXY(X+20,Y+186,'https://www.gladir.com/networkkitp');
+ DrawDialogButton(X+176,Y+220,88,26,'OK',True,True);
+End;
+
+Procedure ShowAboutDialog;
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+ AboutVisible:=True; ContextMenuVisible:=False; DrawInterface;
+End;
+
+Procedure CloseAboutDialog;
+Begin AboutVisible:=False; DrawInterface; End;
+
+Procedure HandleAboutClick(MX,MY: Integer);
+Var X,Y: Integer;
+Begin
+ X:=(SCREEN_WIDTH-440) Div 2; Y:=(SCREEN_HEIGHT-260) Div 2;
+ If ((MX>=X+176) And (MX<=X+264) And (MY>=Y+220) And (MY<=Y+246)) Or
+    ((MX>=X+416) And (MX<=X+434) And (MY>=Y+3) And (MY<=Y+19)) Then CloseAboutDialog;
+End;
+
+Procedure HandleAboutKey(Key: Char);
+Begin If Key In [#13,#27,' '] Then CloseAboutDialog; End;
+
 { Les options proposees sont reliees au comportement effectif du programme. }
 Function Prefs_Path: String;
 Var Path: String; I: Integer;
@@ -19167,7 +19206,7 @@ End;
 Procedure Prefs_Show;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
-    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Then Exit;
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  OptionsDraft:=UserPrefs;
  OptionsDraft.Reading.ShowPreviewPane:=PreviewVisible;
  OptionsDraft.Reading.PreviewOnRight:=PreviewOrientation=poVertical;
@@ -21125,7 +21164,8 @@ Function BeginMessageFileDialog(SaveMode: Boolean): Boolean;
 Var Err: Integer;
 Begin
  BeginMessageFileDialog:=False;
- If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
+    RulesVisible Or PrefsVisible Or AboutVisible Or
     (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
@@ -21173,7 +21213,7 @@ Procedure SaveMessageAs;
 Var Subject: String; I: Integer; Data: TMailText;
 Begin
  If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  If ComposerVisible Then Begin
   If Composer.AttachmentCount>0 Then Begin
    MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
@@ -21543,7 +21583,7 @@ Procedure ShowColumnsDialog;
 Var I: Integer;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or
-    SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or PrefsVisible Then Exit;
+    SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  For I:=0 To ColumnCount-1 Do ColumnsDraft[I]:=Columns[I];
  ColumnsDialogSelection:=0; ColumnsDialogFocus:=0; ColumnsDialogError:='';
  ColumnsDialogVisible:=True; ContextMenuVisible:=False; DrawInterface;
@@ -21675,7 +21715,7 @@ End;
 Procedure ShowSortDialog;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  SortDialogCriterion:=Ord(ctDate);
  If (SortColumn>=0) And (SortColumn<ColumnCount) Then
   SortDialogCriterion:=Ord(Columns[SortColumn].ColType);
@@ -22520,6 +22560,7 @@ Begin
  If ColumnsDialogVisible Then DrawColumnsDialog;
  If RulesVisible Then Rules_DrawWindow;
  If PrefsVisible Then Prefs_DrawWindow;
+ If AboutVisible Then DrawAboutDialog;
  ShowMouse;
 End;
 
@@ -22903,7 +22944,7 @@ Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
-    RulesVisible Or PrefsVisible Then Exit;
+    RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -23013,7 +23054,11 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If PrefsVisible Then Begin
+  If AboutVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleAboutClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If PrefsVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     Prefs_HandleClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -23233,6 +23278,10 @@ Begin
      Running := False;
      Break;
     End;
+   End;
+   If AboutVisible Then Begin
+    If Not IsExtendedKey Then HandleAboutKey(Key);
+    Continue;
    End;
    If PrefsVisible Then Begin Prefs_HandleKey(Key,IsExtendedKey); Continue; End;
    If RulesVisible Then Begin
