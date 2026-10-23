@@ -1862,6 +1862,9 @@ Type
  End;
 
  { Rendez-vous et reunions : heures locales dans le calendrier. }
+ TRibbonButton = Record
+  X,Y,W,H,MenuItem,Group: Integer;
+ End;
  TCalendarEvent = Record
   ID,Sequence: LongInt;
   IsMeeting,InvitationSent: Boolean;
@@ -3359,6 +3362,11 @@ Var
  EventList: Array[0..127] Of Integer;
  EventNextID: LongInt;
  EventError: String[90];
+ RibbonMode,RibbonKeyboardActive: Boolean;
+ RibbonTab,RibbonFocus,RibbonPressed,RibbonHover,RibbonCount: Integer;
+ RibbonButtons: Array[0..14] Of TRibbonButton;
+ RibbonGroupCount: Integer;
+ RibbonGroupX,RibbonGroupW: Array[0..7] Of Integer;
  CalendarVisible, CalendarInitialized, CalendarHasFocus: Boolean;
  CalendarYear,CalendarMonth,CalendarDay: Integer;
  LastViewShortcut: Integer;
@@ -3878,6 +3886,10 @@ End;
 { Declarations avancees pour utilisation avant definition }
 Procedure DrawInterface; Forward;
 Procedure DrawMenuBar; Forward;
+Procedure DrawRibbonTabs; Forward;
+Procedure DrawRibbon; Forward;
+Procedure RibbonSelectTab(Index: Integer; Keyboard: Boolean); Forward;
+Function RibbonTabAt(X,Y: Integer): Integer; Forward;
 Procedure DrawComposerWindow; Forward;
 Procedure OpenMessageFile; Forward;
 Procedure SaveMessageAs; Forward;
@@ -4696,6 +4708,11 @@ Begin
  AddMenuItem(Menus[4], 'Transferer', 'Ctrl+F', False, CMD_MSG_FORWARD);
  AddMenuItem(Menus[4], '', '', True, 0); { Séparateur }
  AddMenuItem(Menus[4], 'Supprimer', 'Suppr', False, CMD_MSG_DELETE);
+ If RibbonMode Then Begin
+  AddMenuItem(Menus[4], '', '', True, 0);
+  AddMenuItem(Menus[4], 'Envoyer/Recevoir', '', False, CMD_TB_SENDRECV);
+  AddMenuItem(Menus[4], 'Carnet d''adresses', '', False, CMD_TB_ADDRESSBOOK);
+ End;
 
  MenuX := MenuX + Menus[4].Width;
 
@@ -4733,6 +4750,7 @@ Var
  ItemX1, ItemY1, ItemX2, ItemY2: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
+ If RibbonMode Then Begin RibbonSelectTab(MenuIndex,True); Exit; End;
 
  HideMouse;
  DrawMenuBar;
@@ -4810,6 +4828,7 @@ Var
  I: Integer;
 Begin
  GetMenuAtPoint := -1;
+ If RibbonMode Then Begin GetMenuAtPoint:=RibbonTabAt(X,Y); Exit; End;
  If (Y >= Layout.MenuBarRect.Y1) And (Y <= Layout.MenuBarRect.Y2) Then Begin
   For I := 0 To MenuCount - 1 Do Begin
    If (X >= Menus[I].X) And (X < Menus[I].X + Menus[I].Width) Then Begin
@@ -4998,10 +5017,12 @@ End;
 { Calcule les rectangles de toutes les zones de l'interface }
 Procedure CalculateLayout;
 Var
- ClientTop, ClientBottom: Integer;
+ ClientTop, ClientBottom,MenuHeight,ToolbarHeight: Integer;
  RightPaneLeft, RightPaneRight: Integer;
  MessageListBottom: Integer;
 Begin
+ MenuHeight:=MENUBAR_HEIGHT; ToolbarHeight:=TOOLBAR_HEIGHT;
+ If RibbonMode Then Begin MenuHeight:=24; ToolbarHeight:=92; End;
  { Barre de titre }
  Layout.TitleBarRect.X1 := 0;
  Layout.TitleBarRect.Y1 := 0;
@@ -5012,13 +5033,13 @@ Begin
  Layout.MenuBarRect.X1 := 0;
  Layout.MenuBarRect.Y1 := TITLEBAR_HEIGHT;
  Layout.MenuBarRect.X2 := SCREEN_WIDTH - 1;
- Layout.MenuBarRect.Y2 := TITLEBAR_HEIGHT + MENUBAR_HEIGHT - 1;
+ Layout.MenuBarRect.Y2 := TITLEBAR_HEIGHT + MenuHeight - 1;
 
  { Barre d'outils }
  Layout.ToolBarRect.X1 := 0;
- Layout.ToolBarRect.Y1 := TITLEBAR_HEIGHT + MENUBAR_HEIGHT;
+ Layout.ToolBarRect.Y1 := TITLEBAR_HEIGHT + MenuHeight;
  Layout.ToolBarRect.X2 := SCREEN_WIDTH - 1;
- Layout.ToolBarRect.Y2 := TITLEBAR_HEIGHT + MENUBAR_HEIGHT + TOOLBAR_HEIGHT - 1;
+ Layout.ToolBarRect.Y2 := TITLEBAR_HEIGHT + MenuHeight + ToolbarHeight - 1;
 
  { Barre d'état }
  Layout.StatusBarRect.X1 := 0;
@@ -5027,7 +5048,7 @@ Begin
  Layout.StatusBarRect.Y2 := SCREEN_HEIGHT - 1;
 
  { Zone cliente (entre toolbar et statusbar) }
- ClientTop := TITLEBAR_HEIGHT + MENUBAR_HEIGHT + TOOLBAR_HEIGHT;
+ ClientTop := Layout.ToolBarRect.Y2+1;
  ClientBottom := SCREEN_HEIGHT - STATUSBAR_HEIGHT - 1;
 
  { Panneau des dossiers (gauche) }
@@ -5123,11 +5144,222 @@ Begin
  Line(SCREEN_WIDTH - 16, 13, SCREEN_WIDTH - 8, 6);
 End;
 
+{ Ruban graphique : les commandes et leurs etats proviennent des menus existants. }
+Function RibbonTitle(Index: Integer): String;
+Begin
+ RibbonTitle:=''; If (Index<0) Or (Index>=MenuCount) Then Exit;
+ RibbonTitle:=Menus[Index].Title; If Index=5 Then RibbonTitle:='Aide';
+End;
+
+Function RibbonTabAt(X,Y: Integer): Integer;
+Var I,Left,Width: Integer;
+Begin
+ RibbonTabAt:=-1;
+ If (Y<Layout.MenuBarRect.Y1) Or (Y>Layout.MenuBarRect.Y2) Then Exit;
+ Left:=8;
+ For I:=0 To MenuCount-1 Do Begin
+  Width:=TextWidth(RibbonTitle(I))+24;
+  If (X>=Left) And (X<Left+Width) Then Begin RibbonTabAt:=I; Exit; End;
+  Inc(Left,Width+2);
+ End;
+End;
+
+Procedure RibbonBuild;
+Var Counts,Used: Array[0..7] Of Integer;
+ I,G,Cols,TotalCols,ColW,Left,Slot: Integer;
+Begin
+ RibbonCount:=0; RibbonGroupCount:=0;
+ If MenuCount=0 Then Exit;
+ If (RibbonTab<0) Or (RibbonTab>=MenuCount) Then RibbonTab:=0;
+ FillChar(Counts,SizeOf(Counts),0); FillChar(Used,SizeOf(Used),0); G:=0;
+ For I:=0 To Menus[RibbonTab].ItemCount-1 Do
+  If Menus[RibbonTab].Items[I].Separator Then Begin If G<7 Then Inc(G); End
+  Else Inc(Counts[G]);
+ RibbonGroupCount:=G+1; TotalCols:=0;
+ For G:=0 To RibbonGroupCount-1 Do Inc(TotalCols,(Counts[G]+1) Div 2);
+ If TotalCols=0 Then Exit;
+ ColW:=(SCREEN_WIDTH-16-RibbonGroupCount*6) Div TotalCols;
+ If ColW>160 Then ColW:=160;
+ Left:=8;
+ For G:=0 To RibbonGroupCount-1 Do Begin
+  Cols:=(Counts[G]+1) Div 2; RibbonGroupX[G]:=Left;
+  RibbonGroupW[G]:=Cols*ColW; Inc(Left,Cols*ColW+6);
+ End;
+ G:=0;
+ For I:=0 To Menus[RibbonTab].ItemCount-1 Do
+  If Menus[RibbonTab].Items[I].Separator Then Begin If G<7 Then Inc(G); End
+  Else If RibbonCount<15 Then Begin
+   Slot:=Used[G]; Inc(Used[G]);
+   With RibbonButtons[RibbonCount] Do Begin
+    X:=RibbonGroupX[G]+(Slot Div 2)*ColW; Y:=Layout.ToolBarRect.Y1+5+(Slot Mod 2)*33;
+    W:=ColW-4; H:=30; MenuItem:=I; Group:=G;
+   End;
+   Inc(RibbonCount);
+  End;
+End;
+
+Function RibbonButtonAt(MX,MY: Integer): Integer;
+Var I: Integer;
+Begin
+ RibbonBuild; RibbonButtonAt:=-1;
+ For I:=0 To RibbonCount-1 Do With RibbonButtons[I] Do
+  If (MX>=RibbonButtons[I].X) And (MX<RibbonButtons[I].X+W) And
+     (MY>=RibbonButtons[I].Y) And (MY<RibbonButtons[I].Y+H) Then Begin
+   RibbonButtonAt:=I; Exit;
+  End;
+End;
+
+Function RibbonGroupTitle(Group: Integer): String;
+Begin
+ RibbonGroupTitle:=RibbonTitle(RibbonTab);
+ Case RibbonTab Of
+  0: Case Group Of
+   0: RibbonGroupTitle:='Nouveau / Ouvrir'; 1: RibbonGroupTitle:='Enregistrer';
+   2: RibbonGroupTitle:='Imprimer'; 3: RibbonGroupTitle:='Fermer'; End;
+  1: Case Group Of
+   0: RibbonGroupTitle:='Annuler'; 1: RibbonGroupTitle:='Presse-papiers'; 2: RibbonGroupTitle:='Selection'; End;
+  2: Case Group Of
+   0: RibbonGroupTitle:='Lecture'; 1: RibbonGroupTitle:='Liste';
+   2: RibbonGroupTitle:='Actualiser'; 3: RibbonGroupTitle:='Calendrier'; End;
+  3: Case Group Of
+   0: RibbonGroupTitle:='Comptes'; 1: RibbonGroupTitle:='Regles'; 2: RibbonGroupTitle:='Options'; End;
+  4: Case Group Of
+   0: RibbonGroupTitle:='Nouveau'; 1: RibbonGroupTitle:='Repondre';
+   2: RibbonGroupTitle:='Actions'; 3: RibbonGroupTitle:='Communiquer'; End;
+ End;
+End;
+
+Function RibbonFit(Text: String; Width: Integer): String;
+Begin
+ If TextWidth(Text)>Width Then Begin
+  While (Length(Text)>0) And (TextWidth(Text+'...')>Width) Do Delete(Text,Length(Text),1);
+  Text:=Text+'...';
+ End;
+ RibbonFit:=Text;
+End;
+
+Procedure DrawRibbonTabs;
+Var I,Left,Width: Integer; Title: String;
+Begin
+ FillRect(0,Layout.MenuBarRect.Y1,SCREEN_WIDTH-1,Layout.MenuBarRect.Y2,LightGray); Left:=8;
+ For I:=0 To MenuCount-1 Do Begin
+  Title:=RibbonTitle(I); Width:=TextWidth(Title)+24;
+  If I=RibbonTab Then Begin
+   FillRect(Left,Layout.MenuBarRect.Y1+1,Left+Width,Layout.MenuBarRect.Y2,White);
+   Draw3DRect(Left,Layout.MenuBarRect.Y1+1,Left+Width,Layout.MenuBarRect.Y2,True); SetColor(Blue);
+  End Else SetColor(Black);
+  OutTextXY(Left+12,Layout.MenuBarRect.Y1+7,Title);
+  If RibbonKeyboardActive And (RibbonFocus<0) And (I=RibbonTab) Then
+   Line(Left+10,Layout.MenuBarRect.Y2-3,Left+Width-10,Layout.MenuBarRect.Y2-3);
+  Inc(Left,Width+2);
+ End;
+End;
+
+Procedure DrawRibbon;
+Var I,J,P,Width,Command: Integer; Caption,First,Second: String; Icon: TToolIconType; Enabled,Selected: Boolean;
+Begin
+ RibbonBuild;
+ FillRect(0,Layout.ToolBarRect.Y1,SCREEN_WIDTH-1,Layout.ToolBarRect.Y2,White);
+ SetColor(DarkGray); Line(0,Layout.ToolBarRect.Y2,SCREEN_WIDTH-1,Layout.ToolBarRect.Y2);
+ For I:=0 To RibbonGroupCount-1 Do Begin
+  J:=RibbonGroupX[I]+RibbonGroupW[I]+1;
+  SetColor(LightGray); Line(J,Layout.ToolBarRect.Y1+5,J,Layout.ToolBarRect.Y2-6);
+  SetColor(DarkGray);
+  Caption:=RibbonFit(RibbonGroupTitle(I),RibbonGroupW[I]-4);
+  OutTextXY(RibbonGroupX[I]+2,Layout.ToolBarRect.Y2-13,Caption);
+ End;
+ For I:=0 To RibbonCount-1 Do With RibbonButtons[I] Do Begin
+  Enabled:=Menus[RibbonTab].Items[MenuItem].Enabled;
+  Selected:=Enabled And ((RibbonHover=I) Or (RibbonPressed=I) Or (RibbonKeyboardActive And (RibbonFocus=I)));
+  If Selected Then Begin
+   FillRect(X,Y,X+W-1,Y+H-1,LightCyan); Draw3DRect(X,Y,X+W-1,Y+H-1,RibbonPressed<>I);
+  End;
+  Command:=Menus[RibbonTab].Items[MenuItem].ItemID; Icon:=tiAddressBook;
+  Case Command Of
+   CMD_FILE_NEW,CMD_MSG_NEW,CMD_EVENT_NEW,CMD_EVENT_MEETING: Icon:=tiNewMsg;
+   CMD_MSG_REPLY: Icon:=tiReply; CMD_MSG_REPLYALL: Icon:=tiReplyAll;
+   CMD_MSG_FORWARD: Icon:=tiForward; CMD_MSG_DELETE: Icon:=tiDelete;
+   CMD_TB_SENDRECV,CMD_VIEW_REFRESH: Icon:=tiSendRecv; CMD_FILE_PRINT: Icon:=tiPrint;
+  End;
+  DrawToolbarIcon(X+4,Y+7,Icon,Not Enabled);
+  Caption:=Menus[RibbonTab].Items[MenuItem].Caption; Width:=W-28;
+  First:=Caption; Second:='';
+  If TextWidth(First)>Width Then Begin
+   P:=Length(First);
+   While (P>1) And ((First[P]<>' ') Or (TextWidth(Copy(First,1,P-1))>Width)) Do Dec(P);
+   If P>1 Then Begin Second:=Copy(First,P+1,255); First:=Copy(First,1,P-1); End;
+  End;
+  If Enabled Then SetColor(Black) Else SetColor(DarkGray);
+  If Second='' Then OutTextXY(X+25,Y+11,RibbonFit(First,Width)) Else Begin
+   OutTextXY(X+25,Y+5,RibbonFit(First,Width)); OutTextXY(X+25,Y+17,RibbonFit(Second,Width));
+  End;
+ End;
+End;
+
+Procedure RibbonSelectTab(Index: Integer; Keyboard: Boolean);
+Var I: Integer;
+Begin
+ If (Index<0) Or (Index>=MenuCount) Then Exit;
+ RibbonTab:=Index; RibbonKeyboardActive:=Keyboard; RibbonFocus:=-1; RibbonPressed:=-1; RibbonHover:=-1;
+ ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False; TooltipVisible:=False;
+ RibbonBuild;
+ If Keyboard Then For I:=0 To RibbonCount-1 Do
+  If Menus[RibbonTab].Items[RibbonButtons[I].MenuItem].Enabled Then Begin RibbonFocus:=I; Break; End;
+ DrawInterface;
+End;
+
+Procedure RibbonAdvance(Delta: Integer; TabCycle: Boolean);
+Var Index,Step,Count: Integer;
+Begin
+ RibbonBuild; If RibbonCount=0 Then Exit;
+ Step:=1; If Delta<0 Then Step:=-1;
+ If RibbonFocus<0 Then Begin
+  If Delta<0 Then Index:=RibbonCount-1 Else Index:=0;
+ End Else Index:=RibbonFocus+Delta;
+ For Count:=0 To RibbonCount Do Begin
+  If (Index<0) Or (Index>=RibbonCount) Then Begin
+   If TabCycle Then Begin RibbonFocus:=-1; Exit; End;
+   If Index<0 Then Index:=RibbonCount-1 Else Index:=0;
+  End;
+  If Menus[RibbonTab].Items[RibbonButtons[Index].MenuItem].Enabled Then Begin RibbonFocus:=Index; Exit; End;
+  Inc(Index,Step);
+ End;
+ RibbonFocus:=-1;
+End;
+
+Procedure RibbonKey(Key: Char; Extended: Boolean);
+Var Index: Integer;
+Begin
+ If Extended Then Case Key Of
+  #15: RibbonAdvance(-1,True);
+  #75,#77: If RibbonFocus<0 Then Begin
+   Index:=-1; If Key=#77 Then Index:=1;
+   RibbonSelectTab((RibbonTab+Index+MenuCount) Mod MenuCount,False);
+   RibbonKeyboardActive:=True; RibbonFocus:=-1;
+  End Else If Key=#75 Then RibbonAdvance(-2,False) Else RibbonAdvance(2,False);
+  #72: RibbonAdvance(-1,False); #80: RibbonAdvance(1,False);
+  #71: Begin RibbonFocus:=-1; RibbonAdvance(1,False); End;
+  #79: Begin RibbonFocus:=-1; RibbonAdvance(-1,False); End;
+ End Else Case Key Of
+  #27: If RibbonFocus>=0 Then RibbonFocus:=-1 Else RibbonKeyboardActive:=False;
+  #9: RibbonAdvance(1,True);
+  #13,' ': If (RibbonFocus>=0) And (RibbonFocus<RibbonCount) Then Begin
+   Index:=RibbonButtons[RibbonFocus].MenuItem;
+   If Menus[RibbonTab].Items[Index].Enabled Then Begin
+    RibbonKeyboardActive:=False; RibbonFocus:=-1;
+    ExecuteMenuCommand(Menus[RibbonTab].Items[Index].ItemID);
+   End;
+  End;
+ End;
+ DrawInterface;
+End;
+
 { Dessine la barre de menu }
 Procedure DrawMenuBar;
 Var
  I: Integer;
 Begin
+ If RibbonMode Then Begin DrawRibbonTabs; Exit; End;
  FillRect(Layout.MenuBarRect.X1, Layout.MenuBarRect.Y1,
           Layout.MenuBarRect.X2, Layout.MenuBarRect.Y2, COLOR_MENU_BG);
  Draw3DRect(Layout.MenuBarRect.X1, Layout.MenuBarRect.Y1,
@@ -5153,6 +5385,7 @@ Var
  TextX: Integer;
  TextColor: Word;
 Begin
+ If RibbonMode Then Begin DrawRibbon; Exit; End;
  { Dessiner le fond de la barre d'outils }
  FillRect(Layout.ToolBarRect.X1, Layout.ToolBarRect.Y1,
           Layout.ToolBarRect.X2, Layout.ToolBarRect.Y2, COLOR_TOOLBAR_BG);
@@ -19157,6 +19390,7 @@ Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
     ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
  If Not CalendarInitialized Then CalendarToday;
+ RibbonKeyboardActive:=False; RibbonFocus:=-1; RibbonPressed:=-1;
  CalendarVisible:=Visible; CalendarHasFocus:=Visible; ContextMenuVisible:=False; TooltipVisible:=False;
  ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
  DragState:=dsNone; PressedToolButton:=-1; HoveredToolButton:=-1;
@@ -19170,6 +19404,7 @@ Procedure FocusMail;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
     ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Or EventDialogVisible Then Exit;
+ RibbonKeyboardActive:=False; RibbonFocus:=-1; RibbonPressed:=-1;
  CalendarHasFocus:=False; ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
  ContextMenuVisible:=False; TooltipVisible:=False; DragState:=dsNone;
  DrawInterface;
@@ -19241,6 +19476,7 @@ Var X,Y,W,H,Day,Top,Left: Integer;
 Begin
  Top:=Layout.ToolBarRect.Y2+1; Left:=SCREEN_WIDTH-CalendarPaneWidth;
  If (MX<Left) Or (MY<Top) Or (MY>=Layout.StatusBarRect.Y1) Then Exit;
+ RibbonKeyboardActive:=False; RibbonFocus:=-1; RibbonHover:=-1;
  CalendarHasFocus:=True;
  CalendarGeometry(X,Y,W,H);
  If (MY>=Y+6*H+32) And (MY<=Y+6*H+58) Then Begin
@@ -23567,6 +23803,10 @@ Var
  ClickedMenu: Integer;
  ClickedItem: Integer;
 Begin
+ If RibbonMode Then Begin
+  ClickedMenu:=RibbonTabAt(MouseX,MouseY);
+  If ClickedMenu>=0 Then Begin RibbonSelectTab(ClickedMenu,False); Exit; End;
+ End;
  { Si un menu est ouvert, vérifier le clic }
  If ActiveMenu >= 0 Then Begin
   { Clic sur un élément du menu déroulant? }
@@ -23778,6 +24018,11 @@ Var
  I: Integer;
  NeedRedraw: Boolean;
 Begin
+ If RibbonMode Then Begin
+  NewHover:=RibbonButtonAt(MouseX,MouseY);
+  If NewHover<>RibbonHover Then Begin RibbonHover:=NewHover; DrawToolBar; End;
+  Exit;
+ End;
  NewHover := GetToolButtonAtPoint(MouseX, MouseY);
  NeedRedraw := False;
 
@@ -23825,6 +24070,12 @@ Procedure HandleToolbarClick;
 Var
  BtnIdx: Integer;
 Begin
+ If RibbonMode Then Begin
+  RibbonPressed:=RibbonButtonAt(MouseX,MouseY); RibbonKeyboardActive:=False; RibbonFocus:=-1;
+  If RibbonPressed>=0 Then
+   If Not Menus[RibbonTab].Items[RibbonButtons[RibbonPressed].MenuItem].Enabled Then RibbonPressed:=-1;
+  DrawToolBar; Exit;
+ End;
  BtnIdx := GetToolButtonAtPoint(MouseX, MouseY);
  If BtnIdx >= 0 Then Begin
   If ToolButtons[BtnIdx].Enabled Then Begin
@@ -23843,7 +24094,16 @@ End;
 
 { Gère le relâchement d'un bouton de barre d'outils }
 Procedure HandleToolbarRelease;
+Var Index,Command: Integer;
 Begin
+ If RibbonMode Then Begin
+  Index:=RibbonPressed; RibbonPressed:=-1;
+  If (Index>=0) And (Index<RibbonCount) And (RibbonButtonAt(MouseX,MouseY)=Index) Then Begin
+   Command:=RibbonButtons[Index].MenuItem;
+   If Menus[RibbonTab].Items[Command].Enabled Then ExecuteMenuCommand(Menus[RibbonTab].Items[Command].ItemID);
+  End;
+  DrawInterface; Exit;
+ End;
  If PressedToolButton >= 0 Then Begin
   { Vérifier si on est toujours sur le même bouton }
   If GetToolButtonAtPoint(MouseX, MouseY) = PressedToolButton Then Begin
@@ -23897,6 +24157,7 @@ Begin
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
+ If RibbonMode Then Begin RibbonSelectTab(MenuIndex,True); Exit; End;
  ActiveMenu := MenuIndex;
  ActiveMenuItem := -1;
  For I := 0 To Menus[MenuIndex].ItemCount - 1 Do
@@ -24022,6 +24283,10 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
+  { Un relachement hors du ruban annule aussi le bouton, meme au-dessus du calendrier. }
+  If RibbonMode And (RibbonPressed>=0) And (MouseBtn And MOUSE_LEFT=0) And
+     (LastBtn And MOUSE_LEFT<>0) Then HandleToolbarRelease;
+
   If EventDialogVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then EventClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -24059,9 +24324,14 @@ Begin
   End Else If CalendarVisible And (ActiveMenu<0) And
      (MouseX>=SCREEN_WIDTH-CalendarPaneWidth) And (MouseY>Layout.ToolBarRect.Y2) And
      (MouseY<Layout.StatusBarRect.Y1) Then Begin
+   If RibbonMode And (RibbonHover>=0) Then Begin RibbonHover:=-1; DrawToolBar; End;
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then CalendarClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
   End Else Begin
+   If RibbonMode And RibbonKeyboardActive And
+      (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
+    RibbonKeyboardActive:=False; RibbonFocus:=-1; DrawMenuBar; DrawToolBar;
+   End;
    If CalendarVisible And CalendarHasFocus And (ActiveMenu<0) And
       (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
     CalendarHasFocus:=False; DrawInterface;
@@ -24096,6 +24366,9 @@ Begin
                     (MouseY >= Layout.MessageListRect.Y1 + COLUMN_HEADER_HEIGHT) And
                     (MouseY <= Layout.MessageListRect.Y2);
 
+   If RibbonMode And Not InToolbar And (RibbonHover>=0) Then Begin
+    RibbonHover:=-1; DrawToolBar;
+   End;
    If (ActiveMenu < 0) And InToolbar Then
     UpdateToolbarHover
    Else If HoveredToolButton >= 0 Then Begin
@@ -24233,7 +24506,7 @@ Begin
 
    { Détection du relâchement du bouton gauche }
    If (MouseBtn And MOUSE_LEFT = 0) And (LastBtn And MOUSE_LEFT <> 0) Then Begin
-    If PressedToolButton >= 0 Then
+    If (PressedToolButton >= 0) Or (RibbonMode And (RibbonPressed>=0)) Then
      HandleToolbarRelease
     Else
      HandleMouseRelease;
@@ -24279,6 +24552,15 @@ Begin
    If FileOpenVisible Then Begin
     HandleOpenFileKey(Key,IsExtendedKey);
     Continue;
+   End;
+   If RibbonMode Then Begin
+    ShortcutMenu:=-1;
+    If IsExtendedKey Then ShortcutMenu:=MenuShortcutFromScan(Key);
+    If ShortcutMenu>=0 Then Begin OpenMenuShortcut(ShortcutMenu); Continue; End;
+    If IsExtendedKey And (Key=#68) Then Begin
+     RibbonKeyboardActive:=Not RibbonKeyboardActive; RibbonFocus:=-1; DrawInterface; Continue;
+    End;
+    If RibbonKeyboardActive Then Begin RibbonKey(Key,IsExtendedKey); Continue; End;
    End;
    If CalendarVisible And CalendarHasFocus And (ActiveMenu<0) Then Begin
     ShortcutMenu:=-1;
@@ -24430,11 +24712,15 @@ Var
 Begin
  ParseAccountsOption := False;
  CommandLineAccountsFile := '';
- MaxScreen := False;
+ MaxScreen := False; RibbonMode:=False; RibbonTab:=4;
+ RibbonKeyboardActive:=False; RibbonFocus:=-1; RibbonHover:=-1; RibbonPressed:=-1;
  I := 1;
  While I <= ParamCount Do Begin
   Argument := ParamStr(I);
   UpperArgument := MailUpper(Argument);
+  If (UpperArgument='/CLASSICMENU') Or (UpperArgument='/RUBANMENU') Then Begin
+   RibbonMode:=UpperArgument='/RUBANMENU'; Inc(I); Continue;
+  End;
   If UpperArgument = '-MAXSCREEN' Then Begin
    MaxScreen := True;
    Inc(I);
@@ -24478,9 +24764,14 @@ Begin
  Rewrite(HelpOutput);
  WriteLn(HelpOutput, 'OUTLOOK - Cette commande permet de lancer le client de messagerie graphique.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, 'Utilisation : OUTLOOK [-maxscreen] [/ACCOUNTS:<fichier>] [/? | -h | --help]');
+ WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/CLASSICMENU | /RUBANMENU] [-maxscreen]');
+ WriteLn(HelpOutput, '                     [/ACCOUNTS:<fichier>] [/? | -h | --help]');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput, '  Sans option          Lance l''application graphique en 640x480.');
+ WriteLn(HelpOutput, '  /CLASSICMENU         Menus classiques (par defaut).');
+ WriteLn(HelpOutput, '  /RUBANMENU           Onglets et commandes en ruban.');
+ WriteLn(HelpOutput, '  Si les deux sont specifies, le dernier parametre est utilise.');
+ WriteLn(HelpOutput, '  Ruban : Alt+lettre ou F10, Tab/fleches, Entree et Echap.');
  WriteLn(HelpOutput, '  -maxscreen           Utilise la resolution maximale disponible.');
  WriteLn(HelpOutput, '  /?                   Affiche cette aide et quitte.');
  WriteLn(HelpOutput, '  -h, --help           Affichent egalement cette aide.');
