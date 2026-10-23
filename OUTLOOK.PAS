@@ -11,7 +11,7 @@
   ============================================================================
 
   1.  [x] Interface graphique principale (fenêtre principale VGA/SVGA)
-      - Créer la fenêtre principale avec barre de titre "Outlook Express"
+      - Créer la fenêtre principale avec barre de titre "Outlook"
       - Implémenter les zones: menu, barre d'outils, panneau de navigation,
         liste des messages, volet de lecture
       - Gérer le redimensionnement des panneaux avec la souris
@@ -5053,7 +5053,7 @@ Begin
 
  { Titre de la fenêtre }
  SetColor(COLOR_TITLEBAR_TEXT);
- OutTextXY(22, 5, 'Outlook Express');
+ OutTextXY(22, 5, 'Outlook');
 
  { Boutons de contrôle de fenêtre (Minimiser, Maximiser, Fermer) }
  { Bouton Minimiser }
@@ -16811,7 +16811,7 @@ Begin
  PrintSettings.Margins.Left := PRINT_DEFAULT_MARGIN_LEFT;
  PrintSettings.Margins.Right := PRINT_DEFAULT_MARGIN_RIGHT;
  PrintSettings.Header.Left := '';
- PrintSettings.Header.Center := 'Outlook Express';
+ PrintSettings.Header.Center := 'Outlook';
  PrintSettings.Header.Right := '';
  PrintSettings.Header.Enabled := True;
  PrintSettings.Footer.Left := '';
@@ -17148,7 +17148,7 @@ Begin
 
  { Pied de page }
  WriteLn(F, '<div class="footer">');
- WriteLn(F, '<p>Imprime depuis Outlook Express - ' + Print_ReplaceVariables('%DATE%', 1, 1) + '</p>');
+ WriteLn(F, '<p>Imprime depuis Outlook - ' + Print_ReplaceVariables('%DATE%', 1, 1) + '</p>');
  WriteLn(F, '</div>');
 
  WriteLn(F, '</body>');
@@ -19248,7 +19248,7 @@ Begin
  SetColor(Blue);
  Rectangle(X+20,Y+44,X+66,Y+78);
  Line(X+20,Y+44,X+43,Y+62); Line(X+66,Y+44,X+43,Y+62);
- OutTextXY(X+84,Y+46,'Outlook Express Clone');
+ OutTextXY(X+84,Y+46,'Outlook Clone');
  SetColor(Black);
  OutTextXY(X+84,Y+66,'Version 1.00');
  OutTextXY(X+20,Y+100,'Client de messagerie graphique en Pascal');
@@ -20578,7 +20578,7 @@ Begin
  Rewrite(F);
  If IOResult <> 0 Then Exit;
 
- WriteLn(F, '; Fichier de langue pour Outlook Express');
+ WriteLn(F, '; Fichier de langue pour Outlook');
  WriteLn(F, '; Langue: ' + LANG_NAMES[CurrentLanguage]);
  WriteLn(F, '; Code: ' + LANG_CODES[CurrentLanguage]);
  WriteLn(F, ';');
@@ -23898,5 +23898,5 @@ BEGIN
  HideMouse;
  CloseGraph;
 
- WriteLn('Outlook Express - Ferme normalement.');
+ WriteLn('Outlook - Ferme normalement.');
 END.
