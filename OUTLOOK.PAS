@@ -1787,6 +1787,7 @@ Type
   Title: String[15];        { Titre de la colonne }
   X: Integer;               { Position X }
   Width: Integer;           { Largeur de la colonne }
+  Visible: Boolean;         { Colonne affichee }
   Sortable: Boolean;        { Triable ou non }
  End;
 
@@ -2993,6 +2994,10 @@ Const
  );
 
 Var
+ ColumnsDialogVisible: Boolean;
+ ColumnsDraft: Array[0..MAX_COLUMNS-1] Of TColumnHeader;
+ ColumnsDialogSelection, ColumnsDialogFocus: Integer;
+ ColumnsDialogError: String[60];
  SortDialogVisible: Boolean;
  SortDialogCriterion, SortDialogFocus: Integer;
  SortDialogOrder: TSortOrder;
@@ -3822,6 +3827,8 @@ Procedure DrawComposerWindow; Forward;
 Procedure OpenMessageFile; Forward;
 Procedure SaveMessageAs; Forward;
 Procedure ShowSortDialog; Forward;
+Procedure ShowColumnsDialog; Forward;
+Procedure DrawColumnsDialog; Forward;
 Procedure DrawSortDialog; Forward;
 Procedure DrawOpenFileDialog; Forward;
 Procedure CalculateLayout; Forward;
@@ -4759,6 +4766,7 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_VIEW_COLUMNS: ShowColumnsDialog;
   CMD_VIEW_SORTBY: ShowSortDialog;
   CMD_FILE_OPEN: OpenMessageFile;
   CMD_FILE_SAVE, CMD_FILE_SAVEAS: SaveMessageAs;
@@ -5376,42 +5384,49 @@ Begin
  Columns[0].Title := '!';
  Columns[0].Width := 20;
  Columns[0].Sortable := True;
+ Columns[0].Visible := True;
 
  { Colonne Piece jointe (icone) }
  Columns[1].ColType := ctAttachment;
  Columns[1].Title := '@';
  Columns[1].Width := 20;
  Columns[1].Sortable := True;
+ Columns[1].Visible := True;
 
  { Colonne Drapeau (icone) }
  Columns[2].ColType := ctFlag;
  Columns[2].Title := '*';
  Columns[2].Width := 20;
  Columns[2].Sortable := True;
+ Columns[2].Visible := True;
 
  { Colonne De }
  Columns[3].ColType := ctFrom;
  Columns[3].Title := 'De';
  Columns[3].Width := 120;
  Columns[3].Sortable := True;
+ Columns[3].Visible := True;
 
  { Colonne Objet }
  Columns[4].ColType := ctSubject;
  Columns[4].Title := 'Objet';
  Columns[4].Width := 200;
  Columns[4].Sortable := True;
+ Columns[4].Visible := True;
 
  { Colonne Date }
  Columns[5].ColType := ctDate;
  Columns[5].Title := 'Date';
  Columns[5].Width := 70;
  Columns[5].Sortable := True;
+ Columns[5].Visible := True;
 
  { Colonne Taille }
  Columns[6].ColType := ctSize;
  Columns[6].Title := 'Taille';
  Columns[6].Width := 60;
  Columns[6].Sortable := True;
+ Columns[6].Visible := True;
 End;
 
 { Formate une taille en octets pour l'affichage }
@@ -21509,7 +21524,7 @@ Function BeginMessageFileDialog(SaveMode: Boolean): Boolean;
 Var Err: Integer;
 Begin
  BeginMessageFileDialog:=False;
- If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
     (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
@@ -21556,7 +21571,7 @@ End;
 Procedure SaveMessageAs;
 Var Subject: String; I: Integer; Data: TMailText;
 Begin
- If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
  If ComposerVisible Then Begin
   If Composer.AttachmentCount>0 Then Begin
    MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
@@ -21893,6 +21908,140 @@ Begin
  End;
 End;
 
+{ Configuration transactionnelle des colonnes : aucun effet avant OK. }
+Procedure DrawColumnsDialog;
+Var X,Y,I,C: Integer; Text: String;
+Begin
+ If Not ColumnsDialogVisible Then Exit;
+ X:=(SCREEN_WIDTH-380) Div 2; Y:=(SCREEN_HEIGHT-290) Div 2;
+ DrawDialogBox(X,Y,380,290,'Colonnes...');
+ SetColor(Black); OutTextXY(X+16,Y+34,'Colonnes a afficher :');
+ For I:=0 To ColumnCount-1 Do Begin
+  C:=White; If I=ColumnsDialogSelection Then C:=Blue;
+  FillRect(X+16,Y+54+I*22,X+236,Y+74+I*22,C);
+  If I=ColumnsDialogSelection Then SetColor(White) Else SetColor(Black);
+  Text:='[ ] '; If ColumnsDraft[I].Visible Then Text:='[x] ';
+  Text:=Text+SortCriterionName(Ord(ColumnsDraft[I].ColType));
+  If (ColumnsDialogFocus=0) And (I=ColumnsDialogSelection) Then Text:='> '+Text;
+  OutTextXY(X+20,Y+60+I*22,Text);
+ End;
+ DrawDialogButton(X+250,Y+56,112,24,'Monter',ColumnsDialogFocus=1,ColumnsDialogSelection>0);
+ DrawDialogButton(X+250,Y+90,112,24,'Descendre',ColumnsDialogFocus=2,
+                  ColumnsDialogSelection<ColumnCount-1);
+ DrawDialogButton(X+250,Y+132,112,24,'Par defaut',ColumnsDialogFocus=3,True);
+ SetColor(Black); OutTextXY(X+16,Y+216,ColumnsDialogError);
+ DrawDialogButton(X+180,Y+250,76,24,'OK',ColumnsDialogFocus=4,True);
+ DrawDialogButton(X+268,Y+250,94,24,'Annuler',ColumnsDialogFocus=5,True);
+End;
+
+Procedure ShowColumnsDialog;
+Var I: Integer;
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or
+    SortDialogVisible Or ColumnsDialogVisible Then Exit;
+ For I:=0 To ColumnCount-1 Do ColumnsDraft[I]:=Columns[I];
+ ColumnsDialogSelection:=0; ColumnsDialogFocus:=0; ColumnsDialogError:='';
+ ColumnsDialogVisible:=True; ContextMenuVisible:=False; DrawInterface;
+End;
+
+Procedure CloseColumnsDialog(Apply: Boolean);
+Var I,N: Integer; SortedType: TColumnType; HasSort: Boolean;
+Begin
+ If Apply Then Begin
+  N:=0;
+  For I:=0 To ColumnCount-1 Do If ColumnsDraft[I].Visible Then Inc(N);
+  If N=0 Then Begin
+   ColumnsDialogError:='Afficher au moins une colonne.'; DrawInterface; Exit;
+  End;
+  HasSort:=(SortColumn>=0) And (SortColumn<ColumnCount);
+  If HasSort Then SortedType:=Columns[SortColumn].ColType Else SortedType:=ctDate;
+  For I:=0 To ColumnCount-1 Do Begin
+   Columns[I]:=ColumnsDraft[I];
+   If HasSort And (Columns[I].ColType=SortedType) Then SortColumn:=I;
+  End;
+ End;
+ ColumnsDialogVisible:=False; DrawInterface;
+End;
+
+Procedure MoveColumnsDraft(Delta: Integer);
+Var Target: Integer; Temp: TColumnHeader;
+Begin
+ Target:=ColumnsDialogSelection+Delta;
+ If (Target<0) Or (Target>=ColumnCount) Then Exit;
+ Temp:=ColumnsDraft[Target]; ColumnsDraft[Target]:=ColumnsDraft[ColumnsDialogSelection];
+ ColumnsDraft[ColumnsDialogSelection]:=Temp; ColumnsDialogSelection:=Target;
+End;
+
+Procedure ColumnsDialogAction(Action: Integer);
+Var Saved: Array[0..MAX_COLUMNS-1] Of TColumnHeader;
+ I,J: Integer;
+Begin
+ ColumnsDialogError:='';
+ Case Action Of
+  0: ColumnsDraft[ColumnsDialogSelection].Visible:=Not ColumnsDraft[ColumnsDialogSelection].Visible;
+  1: MoveColumnsDraft(-1);
+  2: MoveColumnsDraft(1);
+  3: Begin
+   { Retrouver l ordre initial sans modifier les colonnes actives. }
+   For I:=0 To ColumnCount-1 Do Saved[I]:=ColumnsDraft[I];
+   For I:=0 To ColumnCount-1 Do
+    For J:=0 To ColumnCount-1 Do If Ord(Saved[J].ColType)=I Then Begin
+     ColumnsDraft[I]:=Saved[J]; ColumnsDraft[I].Visible:=True;
+    End;
+   ColumnsDialogSelection:=0;
+  End;
+  4: Begin CloseColumnsDialog(True); Exit; End;
+  5: Begin CloseColumnsDialog(False); Exit; End;
+ End;
+ DrawInterface;
+End;
+
+Procedure HandleColumnsDialogClick(MX,MY: Integer);
+Var X,Y: Integer;
+Begin
+ X:=(SCREEN_WIDTH-380) Div 2; Y:=(SCREEN_HEIGHT-290) Div 2;
+ If (MX>=X+16) And (MX<=X+236) And (MY>=Y+54) And (MY<Y+54+ColumnCount*22) Then Begin
+  ColumnsDialogSelection:=(MY-Y-54) Div 22; ColumnsDialogFocus:=0;
+  If MX<X+65 Then Begin ColumnsDialogAction(0); Exit; End;
+ End Else If (MX>=X+250) And (MX<=X+362) And
+             ((MY<Y+200) Or (MX>=X+268)) Then Begin
+  If (MY>=Y+56) And (MY<=Y+80) Then ColumnsDialogFocus:=1
+  Else If (MY>=Y+90) And (MY<=Y+114) Then ColumnsDialogFocus:=2
+  Else If (MY>=Y+132) And (MY<=Y+156) Then ColumnsDialogFocus:=3
+  Else If (MX>=X+268) And (MY>=Y+250) And (MY<=Y+274) Then ColumnsDialogFocus:=5
+  Else Begin DrawInterface; Exit; End;
+  ColumnsDialogAction(ColumnsDialogFocus); Exit;
+ End Else If (MX>=X+180) And (MX<=X+256) And (MY>=Y+250) And (MY<=Y+274) Then Begin
+  ColumnsDialogAction(4); Exit;
+ End;
+ DrawInterface;
+End;
+
+Procedure HandleColumnsDialogKey(Key: Char; Extended: Boolean);
+Begin
+ If Extended Then Begin
+  Case Key Of
+   #72: If ColumnsDialogFocus=0 Then
+    ColumnsDialogSelection:=(ColumnsDialogSelection+ColumnCount-1) Mod ColumnCount;
+   #80: If ColumnsDialogFocus=0 Then
+    ColumnsDialogSelection:=(ColumnsDialogSelection+1) Mod ColumnCount;
+   #71: If ColumnsDialogFocus=0 Then ColumnsDialogSelection:=0;
+   #79: If ColumnsDialogFocus=0 Then ColumnsDialogSelection:=ColumnCount-1;
+   #15: ColumnsDialogFocus:=(ColumnsDialogFocus+5) Mod 6;
+  End;
+ End Else Case Key Of
+  #27: Begin CloseColumnsDialog(False); Exit; End;
+  #9: ColumnsDialogFocus:=(ColumnsDialogFocus+1) Mod 6;
+  #13: Begin
+   If ColumnsDialogFocus=0 Then CloseColumnsDialog(True)
+   Else ColumnsDialogAction(ColumnsDialogFocus);
+   Exit;
+  End;
+  ' ': Begin ColumnsDialogAction(ColumnsDialogFocus); Exit; End;
+ End;
+ DrawInterface;
+End;
+
 Procedure DrawSortDialog;
 Var X,Y,I,C: Integer; LabelText: String;
 Begin
@@ -21920,7 +22069,7 @@ End;
 
 Procedure ShowSortDialog;
 Begin
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
  SortDialogCriterion:=Ord(ctDate);
  If (SortColumn>=0) And (SortColumn<ColumnCount) Then
   SortDialogCriterion:=Ord(Columns[SortColumn].ColType);
@@ -22031,7 +22180,7 @@ Begin
  X := Layout.MessageListRect.X1 + 2;
  For I := 0 To ColumnCount - 1 Do Begin
   Columns[I].X := X;
-  X := X + Columns[I].Width;
+  If Columns[I].Visible Then X := X + Columns[I].Width;
  End;
 End;
 
@@ -22042,7 +22191,8 @@ Var
 Begin
  GetColumnAtPoint := -1;
  For I := 0 To ColumnCount - 1 Do Begin
-  If (X >= Columns[I].X) And (X < Columns[I].X + Columns[I].Width) Then Begin
+  If Columns[I].Visible And (X >= Columns[I].X) And
+     (X < Columns[I].X + Columns[I].Width) Then Begin
    GetColumnAtPoint := I;
    Exit;
   End;
@@ -22454,6 +22604,7 @@ Begin
 
  { Dessiner chaque en-tete de colonne }
  For I := 0 To ColumnCount - 1 Do Begin
+  If Not Columns[I].Visible Then Continue;
   { Separateur vertical }
   If I > 0 Then Begin
    SetColor(COLOR_BUTTON_DARK);
@@ -22502,6 +22653,7 @@ Begin
 
   { Dessiner chaque colonne }
   For J := 0 To ColumnCount - 1 Do Begin
+   If Not Columns[J].Visible Then Continue;
    Case Columns[J].ColType Of
     ctPriority: Begin
      DrawPriorityIcon(Columns[J].X, Y + 1, Messages[I].Priority);
@@ -22755,6 +22907,7 @@ Begin
  If ComposerVisible Then DrawComposerWindow;
  If FileOpenVisible Then DrawOpenFileDialog;
  If SortDialogVisible Then DrawSortDialog;
+ If ColumnsDialogVisible Then DrawColumnsDialog;
  ShowMouse;
 End;
 
@@ -23132,7 +23285,7 @@ Procedure OpenMenuShortcut(MenuIndex: Integer);
 Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -23242,7 +23395,11 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If SortDialogVisible Then Begin
+  If ColumnsDialogVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleColumnsDialogClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If SortDialogVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleSortDialogClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -23449,6 +23606,10 @@ Begin
      Running := False;
      Break;
     End;
+   End;
+   If ColumnsDialogVisible Then Begin
+    HandleColumnsDialogKey(Key,IsExtendedKey);
+    Continue;
    End;
    If SortDialogVisible Then Begin
     HandleSortDialogKey(Key,IsExtendedKey);
