@@ -3362,6 +3362,9 @@ Var
  EventList: Array[0..127] Of Integer;
  EventNextID: LongInt;
  EventError: String[90];
+ BusyVisible,BusyGraphicsReady: Boolean;
+ BusyTitle,BusyDetail,BusyStageText: String[80];
+ BusyDone,BusyTotal,BusyStarted,BusyLastPaint,BusyFrame: LongInt;
  RibbonMode,RibbonKeyboardActive: Boolean;
  RibbonTab,RibbonFocus,RibbonPressed,RibbonHover,RibbonCount: Integer;
  RibbonButtons: Array[0..14] Of TRibbonButton;
@@ -3579,6 +3582,12 @@ Var
 Procedure DrawStatusBar; Forward;
 Procedure ReceiveMail; Forward;
 Procedure RefreshAccountFolders; Forward;
+Function GetTickCount: LongInt; Forward;
+Procedure BusyBegin(Title,Detail: String); Forward;
+Procedure BusyUpdate(Stage: String; Done,Total: LongInt); Forward;
+Procedure BusyStage(Stage: String); Forward;
+Procedure BusyPulse(Force: Boolean); Forward;
+Procedure BusyEnd; Forward;
 
 Function MailUpper(Text: TMailText): TMailText;
 Var I: LongInt;
@@ -3606,16 +3615,51 @@ Begin
  C.Pending := ''; C.Encrypted := '';
 End;
 
+{ Attente courte repetee : le reseau garde ses delais, l indicateur reste anime. }
+Function MailWaitSocket(Var C: TMailConnection; Writing: Boolean): Boolean;
+{$IFDEF WINDOWS}
+Var Ready,Errors: TMailFDSet; TV: TMailTimeVal; ResultCode: LongInt;
+ Started,Budget,Elapsed: LongWord;
+{$ENDIF}
+Begin
+ MailWaitSocket:=False;
+ {$IFDEF WINDOWS}
+ Budget:=10000;
+ If OptionsReady Then Budget:=LongWord(UserPrefs.Connection.ConnectionTimeout)*1000;
+ If Budget<1000 Then Budget:=1000;
+ If Budget>120000 Then Budget:=120000;
+ Started:=GetTickCount;
+ Repeat
+  BusyPulse(False);
+  FillChar(Ready,SizeOf(Ready),0); Ready.Count:=1; Ready.Sockets[0]:=C.Socket; Errors:=Ready;
+  TV.Seconds:=0; TV.Microseconds:=100000;
+  If Writing Then ResultCode:=MailSelect(0,nil,@Ready,@Errors,@TV)
+  Else ResultCode:=MailSelect(0,@Ready,nil,@Errors,@TV);
+  If ResultCode<0 Then Begin MailError:='Erreur pendant l attente reseau'; Exit; End;
+  If ResultCode>0 Then Begin
+   If Errors.Count<>0 Then Begin MailError:='Connexion au serveur refusee'; Exit; End;
+   MailWaitSocket:=True; Exit;
+  End;
+  Elapsed:=(LongWord(GetTickCount)-Started) And $7FFFFFFF;
+ Until Elapsed>=Budget;
+ MailError:='Delai d attente reseau depasse';
+ {$ELSE}
+ MailError:='Reseau disponible uniquement sous Windows';
+ {$ENDIF}
+End;
+
 Function MailWriteSocket(Var C: TMailConnection; Const Data: TMailText): Boolean;
 {$IFDEF WINDOWS}
-Var Offset, N: LongInt;
+Var Offset, N,Chunk: LongInt;
 {$ENDIF}
 Begin
  MailWriteSocket := False;
  {$IFDEF WINDOWS}
  Offset := 1;
  While Offset <= Length(Data) Do Begin
-  N := MailSend(C.Socket, @Data[Offset], Length(Data) - Offset + 1, 0);
+  If Not MailWaitSocket(C,True) Then Exit;
+  Chunk:=Length(Data)-Offset+1; If Chunk>16384 Then Chunk:=16384;
+  N := MailSend(C.Socket, @Data[Offset], Chunk, 0);
   If N <= 0 Then Begin MailError := 'Erreur envoi socket'; Exit; End;
   Inc(Offset, N);
  End;
@@ -3632,6 +3676,7 @@ Var B: Array[0..16383] of AnsiChar; N: LongInt; Part: AnsiString;
 Begin
  MailReadSocket := False;
  {$IFDEF WINDOWS}
+ If Not MailWaitSocket(C,False) Then Exit;
  N := MailRecv(C.Socket, @B, SizeOf(B), 0);
  If N <= 0 Then Begin MailError := 'Connexion fermee ou delai de reception depasse'; Exit; End;
  SetString(Part, PAnsiChar(@B), N);
@@ -3651,6 +3696,7 @@ Var Cred: TMailCredentials; InBuf: Array[0..1] of TMailSecBuffer;
 {$ENDIF}
 Begin
  MailStartTLS := False;
+ BusyStage('Negociation de la connexion securisee TLS...');
  {$IFDEF WINDOWS}
  If Not C.Open Or C.Secure Or (C.Pending <> '') Then Begin
   MailError := 'Etat TLS invalide'; Exit;
@@ -3723,8 +3769,7 @@ Function MailOpen(Var C: TMailConnection; Host: String; Port: Integer; SSL: Bool
 {$IFDEF WINDOWS}
 Var WSAData: Array[0..511] of Byte; Hints: TMailAddress;
  Addr, Item: PMailAddress; Service: AnsiString;
- Timeout, NonBlocking: LongWord; Sets, Errors: TMailFDSet;
- TV: TMailTimeVal; SocketError, OptLen: LongInt;
+ Timeout, NonBlocking: LongWord; SocketError, OptLen: LongInt;
 {$ENDIF}
 Begin
  MailOpen := False; MailClose(C); MailError := '';
@@ -3737,11 +3782,13 @@ Begin
  If (Host = '') Or (Port <= 0) Then Begin
   MailError := 'Serveur ou port invalide'; Exit;
  End;
+ BusyStage('Resolution du serveur...');
  C.Host := Host; Str(Port, Service);
  FillChar(Hints, SizeOf(Hints), 0); Hints.SocketType := 1; Hints.Protocol := 6;
  If MailAddressInfo(PAnsiChar(C.Host), PAnsiChar(Service), @Hints, Addr) <> 0 Then Begin
   MailError := 'Resolution DNS impossible'; Exit;
  End;
+ BusyStage('Connexion au serveur...');
  Item := Addr;
  While Item <> nil Do Begin
   C.Socket := MailSocket(Item^.Family, 1, 6);
@@ -3749,10 +3796,7 @@ Begin
    NonBlocking := 1; MailIoctl(C.Socket, $8004667E, NonBlocking);
    SocketError := MailConnect(C.Socket, Item^.Address, Item^.AddressLength);
    If SocketError <> 0 Then Begin
-    FillChar(Sets, SizeOf(Sets), 0); Sets.Count := 1; Sets.Sockets[0] := C.Socket;
-    Errors := Sets; TV.Seconds := 10; TV.Microseconds := 0;
-    If OptionsReady Then TV.Seconds:=UserPrefs.Connection.ConnectionTimeout;
-    If MailSelect(0, nil, @Sets, @Errors, @TV) > 0 Then Begin
+    If MailWaitSocket(C,True) Then Begin
      SocketError := -1; OptLen := SizeOf(SocketError);
      If MailGetSocketOption(C.Socket, $FFFF, $1007, @SocketError, OptLen) <> 0 Then SocketError := -1;
     End Else SocketError := -1;
@@ -7609,6 +7653,7 @@ Begin
    If R.ResponseType<>irOK Then Begin MailError:='IMAP STARTTLS refuse: '+R.Text; MailClose(IMAPWire); Exit; End;
    If Not MailStartTLS(IMAPWire) Then Begin MailClose(IMAPWire); Exit; End;
   End;
+  BusyStage('Authentification IMAP...');
   If IMAPClient.State<>isAuthenticated Then
    If IMAP_LoginAuth<>IMAP_OK Then Begin MailError:=IMAPClient.LastError; MailClose(IMAPWire); Exit; End;
  End Else Begin
@@ -7621,6 +7666,7 @@ Begin
    If P.ResponseType<>prOK Then Begin MailError:='POP3 STLS refuse: '+P.Text; MailClose(POP3Wire); Exit; End;
    If Not MailStartTLS(POP3Wire) Then Begin MailClose(POP3Wire); Exit; End;
   End;
+  BusyStage('Authentification POP3...');
   If POP3_AuthUserPass<>POP3_OK Then Begin MailError:=POP3Client.LastError; MailClose(POP3Wire); Exit; End;
  End;
  OpenIncomingAccount:=True;
@@ -7640,6 +7686,7 @@ Begin
  If ResultCode=SMTP_OK Then ResultCode:=SMTP_EHLO('localhost');
  If (ResultCode=SMTP_OK) And (Account.OutgoingSecurity=csSTARTTLS) Then ResultCode:=SMTP_STARTTLS;
  If (ResultCode=SMTP_OK) And Account.OutgoingAuthRequired Then Begin
+  BusyStage('Authentification SMTP...');
   If SMTPClient.Extensions.AUTH_PLAIN Then ResultCode:=SMTP_AuthPLAIN
   Else ResultCode:=SMTP_AuthLOGIN;
  End;
@@ -7879,6 +7926,73 @@ Begin
   Inc(TextY);
  End;
  OutTextXY(TextX, TextY, Caption);
+End;
+
+{ Boite d activite, avec progression reelle quand le total est connu. }
+Procedure DrawBusyDialog;
+Var X,Y,Width,Offset,Filled: Integer; Text,TotalText: String; Elapsed: LongInt;
+Begin
+ If Not BusyVisible Or Not BusyGraphicsReady Then Exit;
+ X:=(SCREEN_WIDTH-440) Div 2; Y:=(SCREEN_HEIGHT-190) Div 2;
+ HideMouse; SetViewPort(0,0,SCREEN_WIDTH-1,SCREEN_HEIGHT-1,True);
+ DrawDialogBox(X,Y,440,190,BusyTitle);
+ SetColor(Black); OutTextXY(X+18,Y+40,Copy(BusyStageText,1,50));
+ OutTextXY(X+18,Y+62,Copy(BusyDetail,1,50));
+ Width:=400;
+ FillRect(X+18,Y+90,X+18+Width,Y+110,White);
+ Draw3DRect(X+18,Y+90,X+18+Width,Y+110,False);
+ If BusyTotal>0 Then Begin
+  Filled:=(BusyDone*LongInt(Width-4)) Div BusyTotal;
+  If Filled>0 Then FillRect(X+20,Y+92,X+19+Filled,Y+108,Blue);
+  Str(BusyDone,Text); Str(BusyTotal,TotalText); SetColor(Black);
+  OutTextXY(X+18,Y+124,Text+' / '+TotalText+' messages');
+ End Else Begin
+  Offset:=(BusyFrame Mod 24)*(Width-64) Div 23;
+  FillRect(X+20+Offset,Y+92,X+78+Offset,Y+108,Blue); SetColor(Black);
+  OutTextXY(X+18,Y+124,'En cours...');
+ End;
+ Elapsed:=(LongWord(GetTickCount)-LongWord(BusyStarted)) And $7FFFFFFF;
+ Str(Elapsed Div 1000,Text); SetColor(Black); OutTextXY(X+18,Y+146,'Duree : '+Text+' s');
+ Case BusyFrame Mod 4 Of 0: Text:='|'; 1: Text:='/'; 2: Text:='-'; 3: Text:=Chr(92); End;
+ OutTextXY(X+18,Y+168,'Veuillez patienter... '+Text); ShowMouse;
+End;
+
+Procedure BusyPulse(Force: Boolean);
+Var Tick,Elapsed: LongInt;
+Begin
+ If Not BusyVisible Or Not BusyGraphicsReady Then Exit;
+ Tick:=GetTickCount; Elapsed:=(LongWord(Tick)-LongWord(BusyLastPaint)) And $7FFFFFFF;
+ If Not Force And (Elapsed<100) Then Exit;
+ BusyLastPaint:=Tick; Inc(BusyFrame); DrawBusyDialog;
+ { Laisser le pilote graphique presenter l image, sans executer de commande utilisateur. }
+ Delay(1);
+End;
+
+Procedure BusyBegin(Title,Detail: String);
+Begin
+ BusyTitle:=Title; BusyDetail:=Detail; BusyStageText:='Preparation...';
+ BusyDone:=0; BusyTotal:=0; BusyFrame:=0; BusyStarted:=GetTickCount; BusyLastPaint:=BusyStarted;
+ BusyVisible:=True; BusyPulse(True);
+End;
+
+Procedure BusyUpdate(Stage: String; Done,Total: LongInt);
+Begin
+ If Not BusyVisible Then Exit;
+ BusyStageText:=Stage; BusyDone:=Done; BusyTotal:=Total;
+ If BusyTotal<0 Then BusyTotal:=0;
+ If BusyDone<0 Then BusyDone:=0;
+ If (BusyTotal>0) And (BusyDone>BusyTotal) Then BusyDone:=BusyTotal;
+ BusyPulse(True);
+End;
+
+Procedure BusyStage(Stage: String);
+Begin If BusyVisible Then BusyUpdate(Stage,BusyDone,BusyTotal); End;
+
+Procedure BusyEnd;
+Begin
+ If Not BusyVisible Then Exit;
+ BusyVisible:=False;
+ If BusyGraphicsReady Then DrawInterface;
 End;
 
 { Dessine un champ de saisie }
@@ -8314,7 +8428,7 @@ Begin
 End;
 
 { Execute le test de connexion complet }
-Procedure RunConnectionTest;
+Procedure RunConnectionTestWork;
 Var
  Result: TConnectionTestResult;
 Begin
@@ -8330,6 +8444,7 @@ Begin
   Exit;
  End;
 
+ BusyDetail:=TempAccount.OutgoingHost; BusyStage('Verification du serveur sortant...');
  { Tester le serveur sortant }
  Result := TestOutgoingConnection;
  If Result <> ctrSuccess Then Begin
@@ -8341,6 +8456,14 @@ Begin
  ConnectionTestResult := ctrSuccess;
  TempAccount.LastConnectionTest := ctrSuccess;
  ConnectionTestInProgress := False;
+End;
+
+Procedure RunConnectionTest;
+Begin
+ If BusyVisible Then Exit;
+ BusyBegin('Test de connexion du compte',TempAccount.IncomingHost);
+ RunConnectionTestWork;
+ BusyEnd;
 End;
 
 { Retourne le texte du resultat du test }
@@ -9636,7 +9759,7 @@ Begin
  MailRecipients:=True;
 End;
 
-Procedure SendMessage;
+Procedure SendMessageWork;
 Var A, I: Integer; Body: TMailText; OK: Boolean;
 Begin
  SaveComposerFields;
@@ -9654,7 +9777,9 @@ Begin
     Not MailSafe(EmailAccounts[A].EmailAddress) Then Begin
   MailStatus:=MailError; DrawStatusBar; Exit;
  End;
+ BusyBegin('Envoi du message',EmailAccounts[A].OutgoingHost);
  OK:=OpenOutgoingAccount(EmailAccounts[A]);
+ If OK Then BusyStage('Envoi du message et attente de confirmation SMTP...');
  If OK Then OK:=SMTP_MailFrom(EmailAccounts[A].EmailAddress)=SMTP_OK;
  If OK Then OK:=MailRecipients(Composer.ToField);
  If OK Then OK:=MailRecipients(Composer.CcField);
@@ -9674,6 +9799,13 @@ Begin
   If MailError='' Then MailError:=SMTPClient.LastError;
   MailStatus:='Echec envoi: '+MailError; MailClose(SMTPWire); DrawStatusBar;
  End;
+End;
+
+Procedure SendMessage;
+Begin
+ If BusyVisible Then Exit;
+ SendMessageWork;
+ BusyEnd;
 End;
 
 { Gere les clics dans le compositeur }
@@ -19968,7 +20100,7 @@ Begin
   'Content-Transfer-Encoding: base64'+#13#10+#13#10+EventBase64(Data);
 End;
 
-Procedure EventSendInvitation;
+Procedure EventSendInvitationWork;
 Var A,I: Integer; OK: Boolean; Body: TMailText; Addresses: String;
 Begin
  EventError:='';
@@ -19990,7 +20122,9 @@ Begin
  EventDraft.Organizer:=EmailAccounts[A].EmailAddress;
  If Not EventCommit Then Exit;
  Body:=EventInvitation(EventDraft); If Body='' Then Exit;
+ BusyBegin('Envoi de l invitation',EmailAccounts[A].OutgoingHost);
  OK:=OpenOutgoingAccount(EmailAccounts[A]);
+ If OK Then BusyStage('Envoi de l invitation et confirmation SMTP...');
  If OK Then OK:=SMTP_MailFrom(EventDraft.Organizer)=SMTP_OK;
  If OK Then OK:=MailRecipients(EventDraft.Participants);
  If OK Then OK:=SMTP_Data(Body)=SMTP_OK;
@@ -20003,6 +20137,13 @@ Begin
  EventDraft.InvitationSent:=True; CalendarEvents[EventEditIndex].InvitationSent:=True;
  If Not EventSave Then Begin EventError:='Invitation envoyee; sauvegarde du statut impossible.'; Exit; End;
  EventError:='Invitation acceptee par le serveur SMTP.';
+End;
+
+Procedure EventSendInvitation;
+Begin
+ If BusyVisible Then Exit;
+ EventSendInvitationWork;
+ BusyEnd;
 End;
 
 Function EventField(Index: Integer): String;
@@ -22430,8 +22571,8 @@ Begin
  DrawOpenFileDialog;
 End;
 
-Procedure ReceiveMail;
-Var AccountIndex, I, Total, First, Count, Code, Unread: LongInt;
+Procedure ReceiveMailWork;
+Var AccountIndex, I, Total, First, Count, Code, Unread,ToFetch: LongInt;
  R: TIMAPResponse; P: TPOP3Response; Number, ID, StatText: TMailText;
  Success: Boolean;
 Begin
@@ -22444,9 +22585,11 @@ Begin
   MailStatus:='Selectionnez la boite de reception du compte'; Exit;
  End;
  If Not EmailAccounts[AccountIndex].IsActive Then Begin MailStatus:='Compte desactive'; Exit; End;
- MailStatus:='Connexion a '+EmailAccounts[AccountIndex].IncomingHost; DrawInterface;
+ MailStatus:='Connexion a '+EmailAccounts[AccountIndex].IncomingHost;
+ BusyBegin('Reception du courrier',EmailAccounts[AccountIndex].IncomingHost);
  If Not OpenIncomingAccount(EmailAccounts[AccountIndex]) Then Begin MailStatus:=MailError; Exit; End;
  For I:=0 To MAX_MESSAGES-1 Do PendingMessageSources[I]:='';
+ BusyStage('Lecture de la boite de reception...');
  Success:=True; Total:=0; Count:=0; Unread:=0;
  If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
   IMAPClient.CurrentMailbox.Exists:=0;
@@ -22461,6 +22604,8 @@ Begin
   End;
  End;
  First:=Total-MAX_MESSAGES+1; If First<1 Then First:=1;
+ ToFetch:=Total; If ToFetch>MAX_MESSAGES Then ToFetch:=MAX_MESSAGES;
+ BusyUpdate('Reception des messages...',0,ToFetch);
  For I:=Total DownTo First Do Begin
   If Not Success Then Break;
   Str(I,Number);
@@ -22482,7 +22627,7 @@ Begin
     MailNewMessages[Count].IsFlagged:=Pos('\Flagged',MailFetchFlags)>0;
    End;
    If Not MailNewMessages[Count].IsRead Then Inc(Unread);
-   Inc(Count);
+   Inc(Count); BusyUpdate('Reception des messages...',Count,ToFetch);
   End;
  End;
  MailClose(IMAPWire); MailClose(POP3Wire);
@@ -22492,6 +22637,7 @@ Begin
   For I:=0 To MAX_MESSAGES-1 Do PendingMessageSources[I]:='';
   MailStatus:=MailError; Exit;
  End;
+ BusyUpdate('Application des regles et preparation des messages...',0,0);
  Move(MailNewMessages,Messages,SizeOf(Messages)); MessageCount:=Count;
  For I:=0 To MAX_MESSAGES-1 Do Begin
   MessageSources[I]:=PendingMessageSources[I];
@@ -22506,6 +22652,13 @@ Begin
  Folders[SelectedFolder].TotalCount:=Total; Folders[SelectedFolder].UnreadCount:=Unread;
  Str(Count,Number); Str(Total,ID);
  MailStatus:=Number+' messages charges sur '+ID+' | '+EmailAccounts[AccountIndex].AccountName;
+End;
+
+Procedure ReceiveMail;
+Begin
+ If BusyVisible Then Exit;
+ ReceiveMailWork;
+ BusyEnd;
 End;
 
 { Demarre avec une boite vide; seul le serveur fournit les messages. }
@@ -23755,6 +23908,7 @@ Begin
  If PrefsVisible Then Prefs_DrawWindow;
  If AboutVisible Then DrawAboutDialog;
  If EventDialogVisible Then EventDraw;
+ If BusyVisible Then DrawBusyDialog;
  ShowMouse;
 End;
 
@@ -24819,6 +24973,7 @@ BEGIN
 
  { Initialisation du mode graphique }
  InitializeGraphics;
+ BusyGraphicsReady:=True;
 
  { Vérification de la souris }
  If Not MouseDriverFound Then Begin
@@ -24921,6 +25076,7 @@ BEGIN
  {$ENDIF}
 
  { Fermeture du mode graphique }
+ BusyGraphicsReady:=False;
  HideMouse;
  CloseGraph;
 
