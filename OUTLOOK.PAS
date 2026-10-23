@@ -2993,6 +2993,9 @@ Const
  );
 
 Var
+ SortDialogVisible: Boolean;
+ SortDialogCriterion, SortDialogFocus: Integer;
+ SortDialogOrder: TSortOrder;
  FileOpenVisible, FileOpenShowAll: Boolean;
  FileDialogSaveMode, FileSaveFromComposer: Boolean;
  FileSaveOverwritePending, FileSaveOverwriteYes: Boolean;
@@ -3818,6 +3821,8 @@ Procedure DrawMenuBar; Forward;
 Procedure DrawComposerWindow; Forward;
 Procedure OpenMessageFile; Forward;
 Procedure SaveMessageAs; Forward;
+Procedure ShowSortDialog; Forward;
+Procedure DrawSortDialog; Forward;
 Procedure DrawOpenFileDialog; Forward;
 Procedure CalculateLayout; Forward;
 Procedure DrawFolderPane; Forward;
@@ -4754,6 +4759,7 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_VIEW_SORTBY: ShowSortDialog;
   CMD_FILE_OPEN: OpenMessageFile;
   CMD_FILE_SAVE, CMD_FILE_SAVEAS: SaveMessageAs;
 
@@ -21503,7 +21509,8 @@ Function BeginMessageFileDialog(SaveMode: Boolean): Boolean;
 Var Err: Integer;
 Begin
  BeginMessageFileDialog:=False;
- If AccountDialogVisible Or FileOpenVisible Or (ComposerVisible And Not SaveMode) Then Exit;
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+    (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
   GetDir(0,FileOpenDirectory);
@@ -21549,7 +21556,7 @@ End;
 Procedure SaveMessageAs;
 Var Subject: String; I: Integer; Data: TMailText;
 Begin
- If AccountDialogVisible Or FileOpenVisible Then Exit;
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
  If ComposerVisible Then Begin
   If Composer.AttachmentCount>0 Then Begin
    MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
@@ -21711,6 +21718,72 @@ Begin
  End;
 End;
 
+{ Cle chronologique RFC 5322, independante du format de la date affichee. }
+Function MessageDateKey(Index: Integer):
+ {$IFDEF FPC} Int64 {$ELSE} Real {$ENDIF};
+Const Months: String[36]='JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC';
+Var Text, Token: TMailText; Parts: Array[0..5] Of String;
+ I,N,P,Code,D,M,Y,H,Mi,Sec,Zone,ZHour,ZMin,MaxDay: Integer;
+ Days: LongInt;
+ Function Number(S: String): Integer;
+ Var V,E: Integer;
+ Begin Val(S,V,E); If E<>0 Then V:=-1; Number:=V; End;
+ Function Leap(Year: Integer): Boolean;
+ Begin Leap:=(Year Mod 4=0) And ((Year Mod 100<>0) Or (Year Mod 400=0)); End;
+Begin
+ MessageDateKey:=Messages[Index].DateSort;
+ Text:=MailUpper(MailHeader(MessageSources[Index],'Date'));
+ If Text='' Then Text:=MailUpper(Messages[Index].DateFull);
+ P:=Pos(',',Text); If P>0 Then Delete(Text,1,P);
+ N:=0;
+ While (Text<>'') And (N<6) Do Begin
+  Text:=MailTrim(Text); If Text='' Then Break;
+  P:=1; While (P<=Length(Text)) And Not (Text[P] In [' ',#9]) Do Inc(P);
+  Parts[N]:=Copy(Text,1,P-1); Inc(N); Delete(Text,1,P);
+ End;
+ If N<5 Then Exit;
+ D:=Number(Parts[0]); P:=Pos(Parts[1],Months);
+ If (Length(Parts[1])<>3) Or (P=0) Or ((P-1) Mod 3<>0) Then Exit;
+ M:=(P-1) Div 3+1; Y:=Number(Parts[2]);
+ If (Y>=0) And (Y<50) Then Inc(Y,2000)
+ Else If (Y>=50) And (Y<100) Then Inc(Y,1900);
+ If (Y<1601) Or (Y>9999) Then Exit;
+ MaxDay:=31;
+ If M In [4,6,9,11] Then MaxDay:=30;
+ If M=2 Then Begin MaxDay:=28; If Leap(Y) Then Inc(MaxDay); End;
+ If (D<1) Or (D>MaxDay) Then Exit;
+ Token:=Parts[3]; P:=Pos(':',Token); If P=0 Then Exit;
+ H:=Number(Copy(Token,1,P-1)); Delete(Token,1,P); P:=Pos(':',Token);
+ Sec:=0;
+ If P>0 Then Begin Sec:=Number(Copy(Token,P+1,255)); Token:=Copy(Token,1,P-1); End;
+ Mi:=Number(Token);
+ If (H<0) Or (H>23) Or (Mi<0) Or (Mi>59) Or (Sec<0) Or (Sec>60) Then Exit;
+ Zone:=0; Token:=Parts[4];
+ If (Length(Token)=5) And (Token[1] In ['+','-']) Then Begin
+  ZHour:=Number(Copy(Token,2,2)); ZMin:=Number(Copy(Token,4,2));
+  If (ZHour<0) Or (ZHour>23) Or (ZMin<0) Or (ZMin>59) Then Exit;
+  Zone:=ZHour*60+ZMin; If Token[1]='-' Then Zone:=-Zone;
+ End Else If (Token<>'UT') And (Token<>'UTC') And (Token<>'GMT') And (Token<>'Z') Then Begin
+  { Zones historiques autorisees dans les en-tetes RFC 5322. }
+  Code:=Pos('|'+Token+'|','|EST|EDT|CST|CDT|MST|MDT|PST|PDT|');
+  If (Length(Token)<>3) Or (Code=0) Then Exit;
+  Case (Code-1) Div 4 Of
+   0: Zone:=-300; 1: Zone:=-240; 2: Zone:=-360; 3: Zone:=-300;
+   4: Zone:=-420; 5: Zone:=-360; 6: Zone:=-480; 7: Zone:=-420;
+  End;
+ End;
+ Days:=365*(Y-1)+(Y-1) Div 4-(Y-1) Div 100+(Y-1) Div 400;
+ For I:=1 To M-1 Do Begin
+  Inc(Days,31); If I In [4,6,9,11] Then Dec(Days);
+  If I=2 Then Begin Dec(Days,3); If Leap(Y) Then Inc(Days); End;
+ End;
+ {$IFDEF FPC}
+ MessageDateKey:=(Int64(Days)+D-1-719162)*86400+H*3600+Mi*60+Sec-LongInt(Zone)*60;
+ {$ELSE}
+ MessageDateKey:=(Days+0.0+D-1-719162)*86400+LongInt(H)*3600+Mi*60+Sec-LongInt(Zone)*60;
+ {$ENDIF}
+End;
+
 { Compare deux messages selon la colonne de tri }
 Function CompareMessages(Idx1, Idx2: Integer): Integer;
 Var
@@ -21741,23 +21814,23 @@ Begin
   End;
 
   ctFrom: Begin
-   If Messages[Idx1].FromName < Messages[Idx2].FromName Then
+   If MailUpper(Messages[Idx1].FromName) < MailUpper(Messages[Idx2].FromName) Then
     Result := -1
-   Else If Messages[Idx1].FromName > Messages[Idx2].FromName Then
+   Else If MailUpper(Messages[Idx1].FromName) > MailUpper(Messages[Idx2].FromName) Then
     Result := 1;
   End;
 
   ctSubject: Begin
-   If Messages[Idx1].Subject < Messages[Idx2].Subject Then
+   If MailUpper(Messages[Idx1].Subject) < MailUpper(Messages[Idx2].Subject) Then
     Result := -1
-   Else If Messages[Idx1].Subject > Messages[Idx2].Subject Then
+   Else If MailUpper(Messages[Idx1].Subject) > MailUpper(Messages[Idx2].Subject) Then
     Result := 1;
   End;
 
   ctDate: Begin
-   If Messages[Idx1].DateSort < Messages[Idx2].DateSort Then
+   If MessageDateKey(Idx1) < MessageDateKey(Idx2) Then
     Result := -1
-   Else If Messages[Idx1].DateSort > Messages[Idx2].DateSort Then
+   Else If MessageDateKey(Idx1) > MessageDateKey(Idx2) Then
     Result := 1;
   End;
 
@@ -21786,7 +21859,7 @@ Begin
  If (SortColumn < 0) Or (SortColumn >= ColumnCount) Then Exit;
  If SortOrder = soNone Then Exit;
 
- { Tri a bulles simple (suffisant pour une demo) }
+ { Tri stable : les messages de meme valeur conservent leur ordre. }
  For I := 0 To MessageCount - 2 Do Begin
   For J := 0 To MessageCount - I - 2 Do Begin
    If CompareMessages(J, J + 1) > 0 Then Begin
@@ -21803,6 +21876,113 @@ Begin
    End;
   End;
  End;
+End;
+
+{ Boite modale de tri, entierement dessinee avec les routines graphiques. }
+Function SortCriterionName(Index: Integer): String;
+Begin
+ Case Index Of
+  0: SortCriterionName:='Priorite';
+  1: SortCriterionName:='Pieces jointes';
+  2: SortCriterionName:='Drapeau';
+  3: SortCriterionName:='Expediteur';
+  4: SortCriterionName:='Objet';
+  5: SortCriterionName:='Date';
+  6: SortCriterionName:='Taille';
+ Else SortCriterionName:='';
+ End;
+End;
+
+Procedure DrawSortDialog;
+Var X,Y,I,C: Integer; LabelText: String;
+Begin
+ If Not SortDialogVisible Then Exit;
+ X:=(SCREEN_WIDTH-340) Div 2; Y:=(SCREEN_HEIGHT-270) Div 2;
+ DrawDialogBox(X,Y,340,270,'Trier par...');
+ SetColor(Black); OutTextXY(X+16,Y+34,'Critere :');
+ For I:=0 To 6 Do Begin
+  C:=White; If I=SortDialogCriterion Then C:=Blue;
+  FillRect(X+16,Y+52+I*22,X+180,Y+72+I*22,C);
+  If I=SortDialogCriterion Then SetColor(White) Else SetColor(Black);
+  LabelText:=SortCriterionName(I);
+  If (SortDialogFocus=0) And (I=SortDialogCriterion) Then LabelText:='> '+LabelText;
+  OutTextXY(X+20,Y+58+I*22,LabelText);
+ End;
+ SetColor(Black); OutTextXY(X+196,Y+34,'Ordre :');
+ LabelText:='( ) Croissant'; If SortDialogOrder=soAscending Then LabelText:='(*) Croissant';
+ OutTextXY(X+196,Y+64,LabelText);
+ LabelText:='( ) Decroissant'; If SortDialogOrder=soDescending Then LabelText:='(*) Decroissant';
+ OutTextXY(X+196,Y+94,LabelText);
+ If SortDialogFocus=1 Then OutTextXY(X+188,Y+120,'^ Fleches / Espace');
+ DrawDialogButton(X+150,Y+232,76,24,'OK',SortDialogFocus=2,True);
+ DrawDialogButton(X+238,Y+232,86,24,'Annuler',SortDialogFocus=3,True);
+End;
+
+Procedure ShowSortDialog;
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
+ SortDialogCriterion:=Ord(ctDate);
+ If (SortColumn>=0) And (SortColumn<ColumnCount) Then
+  SortDialogCriterion:=Ord(Columns[SortColumn].ColType);
+ SortDialogOrder:=SortOrder;
+ If SortDialogOrder=soNone Then SortDialogOrder:=soAscending;
+ SortDialogFocus:=0; SortDialogVisible:=True;
+ ContextMenuVisible:=False; DrawInterface;
+End;
+
+Procedure CloseSortDialog(Apply: Boolean);
+Var I: Integer;
+Begin
+ If Apply Then Begin
+  For I:=0 To ColumnCount-1 Do
+   If Ord(Columns[I].ColType)=SortDialogCriterion Then Begin
+    SortColumn:=I; SortOrder:=SortDialogOrder; SortMessageList; Break;
+   End;
+ End;
+ SortDialogVisible:=False; DrawInterface;
+End;
+
+Procedure HandleSortDialogClick(MX,MY: Integer);
+Var X,Y: Integer;
+Begin
+ X:=(SCREEN_WIDTH-340) Div 2; Y:=(SCREEN_HEIGHT-270) Div 2;
+ If (MX>=X+16) And (MX<=X+180) And (MY>=Y+52) And (MY<Y+206) Then Begin
+  SortDialogCriterion:=(MY-Y-52) Div 22; SortDialogFocus:=0;
+ End Else If (MX>=X+188) And (MX<X+330) And (MY>=Y+52) And (MY<Y+112) Then Begin
+  SortDialogFocus:=1;
+  If MY<Y+82 Then SortDialogOrder:=soAscending Else SortDialogOrder:=soDescending;
+ End Else If (MY>=Y+232) And (MY<=Y+256) Then Begin
+  If (MX>=X+150) And (MX<=X+226) Then Begin CloseSortDialog(True); Exit; End;
+  If (MX>=X+238) And (MX<=X+324) Then Begin CloseSortDialog(False); Exit; End;
+ End;
+ DrawInterface;
+End;
+
+Procedure HandleSortDialogKey(Key: Char; Extended: Boolean);
+Begin
+ If Extended Then Begin
+  Case Key Of
+   #72,#75: If SortDialogFocus=0 Then
+     SortDialogCriterion:=(SortDialogCriterion+6) Mod 7
+    Else If SortDialogFocus=1 Then SortDialogOrder:=soAscending;
+   #80,#77: If SortDialogFocus=0 Then
+     SortDialogCriterion:=(SortDialogCriterion+1) Mod 7
+    Else If SortDialogFocus=1 Then SortDialogOrder:=soDescending;
+   #71: If SortDialogFocus=0 Then SortDialogCriterion:=0;
+   #79: If SortDialogFocus=0 Then SortDialogCriterion:=6;
+   #15: SortDialogFocus:=(SortDialogFocus+3) Mod 4;
+  End;
+ End Else Case Key Of
+  #27: Begin CloseSortDialog(False); Exit; End;
+  #13: Begin CloseSortDialog(SortDialogFocus<>3); Exit; End;
+  #9: SortDialogFocus:=(SortDialogFocus+1) Mod 4;
+  ' ': Case SortDialogFocus Of
+   1: If SortDialogOrder=soAscending Then SortDialogOrder:=soDescending
+      Else SortDialogOrder:=soAscending;
+   2,3: Begin CloseSortDialog(SortDialogFocus=2); Exit; End;
+  End;
+ End;
+ DrawInterface;
 End;
 
 { Dessine l'icone de priorite }
@@ -22574,6 +22754,7 @@ Begin
 
  If ComposerVisible Then DrawComposerWindow;
  If FileOpenVisible Then DrawOpenFileDialog;
+ If SortDialogVisible Then DrawSortDialog;
  ShowMouse;
 End;
 
@@ -22951,7 +23132,7 @@ Procedure OpenMenuShortcut(MenuIndex: Integer);
 Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -23061,7 +23242,11 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If FileOpenVisible Then Begin
+  If SortDialogVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
+    HandleSortDialogClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If FileOpenVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleOpenFileClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -23264,6 +23449,10 @@ Begin
      Running := False;
      Break;
     End;
+   End;
+   If SortDialogVisible Then Begin
+    HandleSortDialogKey(Key,IsExtendedKey);
+    Continue;
    End;
    If FileOpenVisible Then Begin
     HandleOpenFileKey(Key,IsExtendedKey);
