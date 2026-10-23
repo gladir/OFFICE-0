@@ -1962,6 +1962,11 @@ Const
  CMD_EDIT_PASTE    = 204;
  CMD_EDIT_SELECTALL= 205;
 
+ CMD_VIEW_CALENDAR = 307;
+ CMD_VIEW_MAIL = 308;
+ CMD_CAL_PREVIOUS = 309;
+ CMD_CAL_NEXT = 310;
+ CMD_CAL_TODAY = 311;
  CMD_VIEW_PREVIEW  = 301;
  CMD_VIEW_SORTBY   = 302;
  CMD_VIEW_COLUMNS  = 303;
@@ -3331,6 +3336,9 @@ Var
    ============================================================================ }
 
  OptionsDraft: TUserPreferences;
+ CalendarVisible, CalendarInitialized, CalendarHasFocus: Boolean;
+ CalendarYear,CalendarMonth,CalendarDay: Integer;
+ LastViewShortcut: Integer;
  AboutVisible: Boolean;
  OptionsReady: Boolean;
  OptionsFocus, OptionsCursor: Integer;
@@ -3844,6 +3852,12 @@ Procedure ShowColumnsDialog; Forward;
 Procedure Rules_Show; Forward;
 Procedure Prefs_Show; Forward;
 Procedure ShowAboutDialog; Forward;
+Procedure CalendarShow(Visible: Boolean); Forward;
+Procedure FocusMail; Forward;
+Procedure CalendarMoveMonth(Delta: Integer); Forward;
+Procedure CalendarToday; Forward;
+Procedure CalendarUpdateMenus; Forward;
+Function CalendarPaneWidth: Integer; Forward;
 Function WriteMessageFile(Path: TMailText; AllowReplace: Boolean): Boolean; Forward;
 Function MailTextBody(Const Raw: TMailText; Depth: Integer): TMailText; Forward;
 Procedure DrawColumnsDialog; Forward;
@@ -4607,6 +4621,12 @@ Begin
  AddMenuItem(Menus[2], 'Colonnes...', '', False, CMD_VIEW_COLUMNS);
  AddMenuItem(Menus[2], '', '', True, 0); { Séparateur }
  AddMenuItem(Menus[2], 'Actualiser', 'F5', False, CMD_VIEW_REFRESH);
+ AddMenuItem(Menus[2], '', '', True, 0);
+ AddMenuItem(Menus[2], 'Calendrier', 'Ctrl+2', False, CMD_VIEW_CALENDAR);
+ AddMenuItem(Menus[2], 'Courrier', 'Ctrl+1', False, CMD_VIEW_MAIL);
+ AddMenuItem(Menus[2], 'Mois precedent', 'PgPrec', False, CMD_CAL_PREVIOUS);
+ AddMenuItem(Menus[2], 'Mois suivant', 'PgSuiv', False, CMD_CAL_NEXT);
+ AddMenuItem(Menus[2], 'Aujourd''hui', 'Debut', False, CMD_CAL_TODAY);
 
  MenuX := MenuX + Menus[2].Width;
 
@@ -4646,6 +4666,8 @@ Begin
  AddMenuItem(Menus[5], 'Aide en ligne', 'F1', False, CMD_HELP_HELP);
  AddMenuItem(Menus[5], '', '', True, 0); { Séparateur }
  AddMenuItem(Menus[5], 'A propos...', '', False, CMD_HELP_ABOUT);
+
+ CalendarUpdateMenus;
 
  { Calculer les dimensions des menus déroulants }
  For I := 0 To MenuCount - 1 Do Begin
@@ -4784,6 +4806,11 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_VIEW_CALENDAR: CalendarShow(Not CalendarVisible);
+  CMD_VIEW_MAIL: FocusMail;
+  CMD_CAL_PREVIOUS: Begin CalendarMoveMonth(-1); DrawInterface; End;
+  CMD_CAL_NEXT: Begin CalendarMoveMonth(1); DrawInterface; End;
+  CMD_CAL_TODAY: Begin CalendarToday; DrawInterface; End;
   CMD_TOOLS_RULES: Rules_Show;
   CMD_VIEW_COLUMNS: ShowColumnsDialog;
   CMD_VIEW_SORTBY: ShowSortDialog;
@@ -4834,7 +4861,10 @@ Begin
    ShowMouse;
   End;
 
-  CMD_TB_SENDRECV, CMD_VIEW_REFRESH: Begin
+  CMD_VIEW_REFRESH: Begin
+   ReceiveMail; DrawInterface;
+  End;
+  CMD_TB_SENDRECV: Begin
    ReceiveMail;
    DrawInterface;
   End;
@@ -4965,6 +4995,7 @@ Begin
  { Zone de droite }
  RightPaneLeft := Layout.FolderPaneWidth + SPLITTER_SIZE;
  RightPaneRight := SCREEN_WIDTH - 1;
+ If CalendarVisible Then Dec(RightPaneRight,CalendarPaneWidth+SPLITTER_SIZE);
 
  { Calcul de la hauteur du volet de prévisualisation }
  MessageListBottom := ClientBottom - Layout.PreviewPaneHeight - SPLITTER_SIZE;
@@ -19006,6 +19037,204 @@ Begin
  PrefsNeedsSave := False;
 End;
 
+{ Calendrier gregorien : aucune donnee de demonstration ni dependance externe. }
+Function CalendarDays(Year,Month: Integer): Integer;
+Begin
+ CalendarDays:=31;
+ If Month In [4,6,9,11] Then CalendarDays:=30;
+ If Month=2 Then Begin
+  CalendarDays:=28;
+  If (Year Mod 4=0) And ((Year Mod 100<>0) Or (Year Mod 400=0)) Then CalendarDays:=29;
+ End;
+End;
+
+Function CalendarFirstDay(Year,Month: Integer): Integer;
+Var Days: LongInt; I: Integer;
+Begin
+ Days:=LongInt(Year-1)*365+(Year-1) Div 4-(Year-1) Div 100+(Year-1) Div 400;
+ For I:=1 To Month-1 Do Inc(Days,CalendarDays(Year,I));
+ CalendarFirstDay:=Days Mod 7; { Lundi=0, dimanche=6. }
+End;
+
+Function CalendarMonthName(Month: Integer): String;
+Begin
+ Case Month Of
+  1: CalendarMonthName:='Janvier'; 2: CalendarMonthName:='Fevrier';
+  3: CalendarMonthName:='Mars'; 4: CalendarMonthName:='Avril';
+  5: CalendarMonthName:='Mai'; 6: CalendarMonthName:='Juin';
+  7: CalendarMonthName:='Juillet'; 8: CalendarMonthName:='Aout';
+  9: CalendarMonthName:='Septembre'; 10: CalendarMonthName:='Octobre';
+  11: CalendarMonthName:='Novembre'; 12: CalendarMonthName:='Decembre';
+ Else CalendarMonthName:='';
+ End;
+End;
+
+Procedure CalendarUpdateMenus;
+Var I: Integer;
+Begin
+ For I:=0 To Menus[2].ItemCount-1 Do Begin
+  Case Menus[2].Items[I].ItemID Of
+   CMD_VIEW_CALENDAR: If CalendarVisible Then Menus[2].Items[I].Caption:='[x] Calendrier'
+                     Else Menus[2].Items[I].Caption:='[ ] Calendrier';
+   CMD_VIEW_MAIL: Menus[2].Items[I].Caption:='Courrier';
+   CMD_CAL_PREVIOUS,CMD_CAL_NEXT,CMD_CAL_TODAY: Menus[2].Items[I].Enabled:=CalendarVisible;
+   CMD_VIEW_PREVIEW_SHOW,CMD_VIEW_PREVIEW_ORIENT,CMD_VIEW_SORTBY,CMD_VIEW_COLUMNS:
+    Menus[2].Items[I].Enabled:=True;
+  End;
+ End;
+End;
+
+Procedure CalendarToday;
+Var Y,M,D,W: Word;
+Begin
+ GetDate(Y,M,D,W); CalendarYear:=Y; CalendarMonth:=M; CalendarDay:=D;
+ CalendarInitialized:=True;
+End;
+
+Procedure CalendarMoveMonth(Delta: Integer);
+Var N: LongInt;
+Begin
+ If Not CalendarInitialized Then CalendarToday;
+ N:=LongInt(CalendarYear-1)*12+CalendarMonth-1+Delta;
+ If (N<0) Or (N>=9999*12) Then Exit;
+ CalendarYear:=N Div 12+1; CalendarMonth:=N Mod 12+1;
+ If CalendarDay>CalendarDays(CalendarYear,CalendarMonth) Then
+  CalendarDay:=CalendarDays(CalendarYear,CalendarMonth);
+End;
+
+Procedure CalendarShow(Visible: Boolean);
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+ If Not CalendarInitialized Then CalendarToday;
+ CalendarVisible:=Visible; CalendarHasFocus:=Visible; ContextMenuVisible:=False; TooltipVisible:=False;
+ ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
+ DragState:=dsNone; PressedToolButton:=-1; HoveredToolButton:=-1;
+ If Visible And (Layout.FolderPaneWidth>SCREEN_WIDTH-CalendarPaneWidth-144) Then
+  Layout.FolderPaneWidth:=SCREEN_WIDTH-CalendarPaneWidth-144;
+ CalendarUpdateMenus; DrawInterface;
+End;
+
+{ Le focus du courrier est independant de la visibilite du calendrier. }
+Procedure FocusMail;
+Begin
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+    ColumnsDialogVisible Or RulesVisible Or PrefsVisible Or AboutVisible Then Exit;
+ CalendarHasFocus:=False; ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False;
+ ContextMenuVisible:=False; TooltipVisible:=False; DragState:=dsNone;
+ DrawInterface;
+End;
+
+Function CalendarPaneWidth: Integer;
+Begin
+ CalendarPaneWidth:=SCREEN_WIDTH Div 4;
+ If CalendarPaneWidth<224 Then CalendarPaneWidth:=224;
+ If CalendarPaneWidth>320 Then CalendarPaneWidth:=320;
+End;
+
+Procedure CalendarGeometry(Var X,Y,W,H: Integer);
+Begin
+ X:=SCREEN_WIDTH-CalendarPaneWidth+8; Y:=Layout.ToolBarRect.Y2+113;
+ W:=(CalendarPaneWidth-16) Div 7;
+ H:=(Layout.StatusBarRect.Y1-Y-76) Div 6;
+ If H>46 Then H:=46;
+ If H<24 Then H:=24;
+End;
+
+Procedure DrawCalendar;
+Const WeekDays: Array[0..6] Of String[3]=('Lun','Mar','Mer','Jeu','Ven','Sam','Dim');
+Var X,Y,W,H,I,Col,Day,First,CX,CY,Top,Left,Width: Integer; TY,TM,TD,TW: Word;
+ Text,Number: String; Bg,Fg: Word;
+Begin
+ If Not CalendarInitialized Then CalendarToday;
+ GetDate(TY,TM,TD,TW); CalendarGeometry(X,Y,W,H); Top:=Layout.ToolBarRect.Y2+1;
+ Width:=CalendarPaneWidth; Left:=SCREEN_WIDTH-Width;
+ FillRect(Left-SPLITTER_SIZE,Top,SCREEN_WIDTH-1,Layout.StatusBarRect.Y1-1,LightGray);
+ SetColor(DarkGray); Line(Left-2,Top,Left-2,Layout.StatusBarRect.Y1-1);
+ SetColor(Black); OutTextXY(Left+12,Top+12,'Calendrier');
+ If CalendarHasFocus Then Begin SetColor(Blue); Line(Left+12,Top+26,Left+96,Top+26); End;
+ DrawDialogButton(SCREEN_WIDTH-26,Top+5,20,20,'X',False,True);
+ DrawDialogButton(Left+8,Top+36,28,24,'<',False,True);
+ DrawDialogButton(Left+44,Top+36,Width-88,24,'Aujourd''hui',False,True);
+ DrawDialogButton(SCREEN_WIDTH-36,Top+36,28,24,'>',False,True);
+ Str(CalendarYear,Number); Text:=CalendarMonthName(CalendarMonth)+' '+Number;
+ SetColor(Black); OutTextXY(Left+12,Top+74,Text);
+ For I:=0 To 6 Do OutTextXY(X+I*W+2,Y-18,WeekDays[I]);
+ First:=CalendarFirstDay(CalendarYear,CalendarMonth);
+ For I:=0 To 41 Do Begin
+  Col:=I Mod 7; CX:=X+Col*W; CY:=Y+(I Div 7)*H;
+  Day:=I-First+1; Bg:=White; Fg:=Black;
+  If Col>=5 Then Bg:=LightGray;
+  If Day=CalendarDay Then Begin Bg:=Blue; Fg:=White; End;
+  FillRect(CX,CY,CX+W-1,CY+H-1,Bg); SetColor(DarkGray);
+  Rectangle(CX,CY,CX+W-1,CY+H-1);
+  If (Day>=1) And (Day<=CalendarDays(CalendarYear,CalendarMonth)) Then Begin
+   Str(Day,Text); SetColor(Fg); OutTextXY(CX+4,CY+6,Text);
+   If (TY=CalendarYear) And (TM=CalendarMonth) And (TD=Day) Then Begin
+    SetColor(LightRed); Rectangle(CX+2,CY+2,CX+W-3,CY+H-3);
+   End;
+  End;
+ End;
+ Str(CalendarDay,Text); SetColor(Black);
+ OutTextXY(Left+10,Y+6*H+12,Text+' '+CalendarMonthName(CalendarMonth)+' '+Number);
+ OutTextXY(Left+10,Y+6*H+34,'PgPrec/PgSuiv : mois');
+ OutTextXY(Left+10,Y+6*H+52,'Debut : aujourd''hui');
+End;
+
+Procedure CalendarClick(MX,MY: Integer);
+Var X,Y,W,H,Day,Top,Left: Integer;
+Begin
+ Top:=Layout.ToolBarRect.Y2+1; Left:=SCREEN_WIDTH-CalendarPaneWidth;
+ If (MX<Left) Or (MY<Top) Or (MY>=Layout.StatusBarRect.Y1) Then Exit;
+ CalendarHasFocus:=True;
+ If (MX>=SCREEN_WIDTH-26) And (MX<=SCREEN_WIDTH-6) And (MY>=Top+5) And (MY<=Top+25) Then Begin
+  CalendarShow(False); Exit;
+ End;
+ If (MY>=Top+36) And (MY<=Top+60) Then Begin
+  If (MX>=Left+8) And (MX<=Left+36) Then CalendarMoveMonth(-1)
+  Else If (MX>=Left+44) And (MX<=SCREEN_WIDTH-44) Then CalendarToday
+  Else If (MX>=SCREEN_WIDTH-36) And (MX<=SCREEN_WIDTH-8) Then CalendarMoveMonth(1);
+ End Else Begin
+  CalendarGeometry(X,Y,W,H);
+  If (MX<X) Or (MX>=X+7*W) Or (MY<Y) Or (MY>=Y+6*H) Then Begin DrawInterface; Exit; End;
+  Day:=(MY-Y) Div H*7+(MX-X) Div W-CalendarFirstDay(CalendarYear,CalendarMonth)+1;
+  If (Day<1) Or (Day>CalendarDays(CalendarYear,CalendarMonth)) Then Begin DrawInterface; Exit; End;
+  CalendarDay:=Day;
+ End;
+ DrawInterface;
+End;
+
+Procedure CalendarMoveDay(Delta: Integer);
+Begin
+ While Delta>0 Do Begin
+  If CalendarDay<CalendarDays(CalendarYear,CalendarMonth) Then Inc(CalendarDay)
+  Else Begin
+   If (CalendarYear=9999) And (CalendarMonth=12) Then Exit;
+   CalendarDay:=1; CalendarMoveMonth(1);
+  End;
+  Dec(Delta);
+ End;
+ While Delta<0 Do Begin
+  If CalendarDay>1 Then Dec(CalendarDay)
+  Else Begin
+   If (CalendarYear=1) And (CalendarMonth=1) Then Exit;
+   CalendarMoveMonth(-1); CalendarDay:=CalendarDays(CalendarYear,CalendarMonth);
+  End;
+  Inc(Delta);
+ End;
+End;
+
+Procedure CalendarKey(Key: Char; Extended: Boolean);
+Begin
+ If Extended Then Case Key Of
+  #75: CalendarMoveDay(-1); #77: CalendarMoveDay(1);
+  #72: CalendarMoveDay(-7); #80: CalendarMoveDay(7);
+  #73: CalendarMoveMonth(-1); #81: CalendarMoveMonth(1);
+  #71: CalendarToday;
+ End Else If Key=#27 Then Begin FocusMail; Exit; End;
+ DrawInterface;
+End;
+
 { Informations du programme dans une boite graphique modale. }
 Procedure DrawAboutDialog;
 Var X,Y: Integer;
@@ -22404,6 +22633,7 @@ Var
 Begin
  { Si le volet est masque, ne rien dessiner }
  If Not PreviewVisible Then Exit;
+ SetViewPort(0,0,Layout.PreviewPaneRect.X2,SCREEN_HEIGHT-1,True);
 
  { Fond du volet }
  FillRect(Layout.PreviewPaneRect.X1, Layout.PreviewPaneRect.Y1,
@@ -22416,6 +22646,7 @@ Begin
   SetColor(COLOR_BUTTON_DARK);
   Y := (Layout.PreviewPaneRect.Y1 + Layout.PreviewPaneRect.Y2) Div 2;
   OutTextXY(Layout.PreviewPaneRect.X1 + 20, Y, 'Selectionnez un message pour le previsualiser');
+  SetViewPort(0,0,SCREEN_WIDTH-1,SCREEN_HEIGHT-1,True);
   Exit;
  End;
 
@@ -22552,6 +22783,7 @@ Begin
  DrawSplitters;
  DrawMessageList;
  DrawPreviewPane;
+ If CalendarVisible Then DrawCalendar;
  DrawStatusBar;
 
  If ComposerVisible Then DrawComposerWindow;
@@ -22586,6 +22818,8 @@ Begin
    If NewWidth < MIN_FOLDER_WIDTH Then NewWidth := MIN_FOLDER_WIDTH;
    If NewWidth > SCREEN_WIDTH - MIN_MESSAGE_WIDTH - SPLITTER_SIZE Then
     NewWidth := SCREEN_WIDTH - MIN_MESSAGE_WIDTH - SPLITTER_SIZE;
+   If CalendarVisible And (NewWidth>SCREEN_WIDTH-CalendarPaneWidth-144) Then
+    NewWidth:=SCREEN_WIDTH-CalendarPaneWidth-144;
    If NewWidth <> Layout.FolderPaneWidth Then Begin
     Layout.FolderPaneWidth := NewWidth;
     DrawInterface;
@@ -22594,6 +22828,7 @@ Begin
   dsDragHSplitter: Begin
    If PreviewOrientation=poVertical Then Begin
     PreviewPaneWidth:=SCREEN_WIDTH-MouseX;
+    If CalendarVisible Then Dec(PreviewPaneWidth,CalendarPaneWidth+SPLITTER_SIZE);
     If PreviewPaneWidth<120 Then PreviewPaneWidth:=120;
     DrawInterface; Exit;
    End;
@@ -22988,9 +23223,28 @@ Begin
  {$ENDIF}
 End;
 
-Procedure PollMenuShortcut;
-Var MenuIndex: Integer;
+{ Ctrl+1 donne le focus au courrier; Ctrl+2 affiche et active le calendrier. }
+Function NativeViewShortcut: Integer;
 Begin
+ NativeViewShortcut:=0;
+ {$IFDEF WINDOWS}
+ If Not ApplicationHasKeyboardFocus Then Exit;
+ If (Word(OutlookGetAsyncKeyState($11)) And $8000)=0 Then Exit;
+ If (Word(OutlookGetAsyncKeyState($12)) And $8000)<>0 Then Exit;
+ If (Word(OutlookGetAsyncKeyState($10)) And $8000)<>0 Then Exit;
+ If (Word(OutlookGetAsyncKeyState($31)) And $8000)<>0 Then NativeViewShortcut:=1
+ Else If (Word(OutlookGetAsyncKeyState($32)) And $8000)<>0 Then NativeViewShortcut:=2;
+ {$ENDIF}
+End;
+
+Procedure PollMenuShortcut;
+Var MenuIndex,ViewIndex: Integer;
+Begin
+ ViewIndex:=NativeViewShortcut;
+ If (ViewIndex<>0) And (ViewIndex<>LastViewShortcut) Then Begin
+  If ViewIndex=1 Then FocusMail Else CalendarShow(True);
+ End;
+ LastViewShortcut:=ViewIndex;
  MenuIndex := NativeMenuShortcut;
  If (MenuIndex >= 0) And (MenuIndex <> LastMenuShortcut) Then
   OpenMenuShortcut(MenuIndex);
@@ -23023,7 +23277,7 @@ Var
  ClickedCol, ClickedMsg, ShortcutMenu: Integer;
 Begin
  Running := True;
- LastMenuShortcut := -1;
+ LastMenuShortcut := -1; LastViewShortcut:=0;
  LastBtn := 0;
  DragState := dsNone;
  InitMouseState;
@@ -23085,7 +23339,16 @@ Begin
    LastMouseX := MouseX;
    LastMouseY := MouseY;
    LastBtn := MouseBtn;
+  End Else If CalendarVisible And (ActiveMenu<0) And
+     (MouseX>=SCREEN_WIDTH-CalendarPaneWidth) And (MouseY>Layout.ToolBarRect.Y2) And
+     (MouseY<Layout.StatusBarRect.Y1) Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then CalendarClick(MouseX,MouseY);
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
   End Else Begin
+   If CalendarVisible And CalendarHasFocus And (ActiveMenu<0) And
+      (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
+    CalendarHasFocus:=False; DrawInterface;
+   End;
    { Mise à jour du survol des menus (seulement si la souris a bouge) }
    If (ActiveMenu >= 0) And
       ((MouseX <> LastMouseX) Or (MouseY <> LastMouseY)) Then
@@ -23297,6 +23560,13 @@ Begin
    End;
    If FileOpenVisible Then Begin
     HandleOpenFileKey(Key,IsExtendedKey);
+    Continue;
+   End;
+   If CalendarVisible And CalendarHasFocus And (ActiveMenu<0) Then Begin
+    ShortcutMenu:=-1;
+    If IsExtendedKey Then ShortcutMenu:=MenuShortcutFromScan(Key);
+    If ShortcutMenu>=0 Then OpenMenuShortcut(ShortcutMenu)
+    Else CalendarKey(Key,IsExtendedKey);
     Continue;
    End;
    If Not IsExtendedKey And (Key=#19) Then Begin { Ctrl+S }
