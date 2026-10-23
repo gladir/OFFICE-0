@@ -2994,6 +2994,10 @@ Const
 
 Var
  FileOpenVisible, FileOpenShowAll: Boolean;
+ FileDialogSaveMode, FileSaveFromComposer: Boolean;
+ FileSaveOverwritePending, FileSaveOverwriteYes: Boolean;
+ FileSaveOverwritePath: String[255];
+ FileSaveData: TMailText;
  FileOpenDirectory, FileOpenName: String[255];
  FileOpenError: String[80];
  FileOpenEntries: Array[0..MAX_OPEN_DIALOG_FILES-1] of TOpenFileEntry;
@@ -3494,6 +3498,7 @@ Var
  IMAPWire, POP3Wire, SMTPWire: TMailConnection;
  MailError, MailStatus: String[80];
  MailRaw: TMailText;
+ MessageSources, PendingMessageSources: Array[0..MAX_MESSAGES-1] of TMailText;
  MailFetchFlags: TMailText;
  MailFetchUID: LongInt;
  MailNewMessages: Array[0..MAX_MESSAGES-1] of TMessage;
@@ -3812,6 +3817,7 @@ Procedure DrawInterface; Forward;
 Procedure DrawMenuBar; Forward;
 Procedure DrawComposerWindow; Forward;
 Procedure OpenMessageFile; Forward;
+Procedure SaveMessageAs; Forward;
 Procedure DrawOpenFileDialog; Forward;
 Procedure CalculateLayout; Forward;
 Procedure DrawFolderPane; Forward;
@@ -4749,6 +4755,7 @@ Begin
 
  Case CmdID Of
   CMD_FILE_OPEN: OpenMessageFile;
+  CMD_FILE_SAVE, CMD_FILE_SAVEAS: SaveMessageAs;
 
   CMD_FILE_NEW, CMD_MSG_NEW: Begin
    { Ouvrir le compositeur pour un nouveau message (TODO 12) }
@@ -20940,7 +20947,7 @@ End;
 Function LoadMessageFile(FileName: TMailText): Boolean;
 Var
  F: File;
- Raw, Headers: TMailText;
+ Raw, OriginalRaw, Headers: TMailText;
  OpenedMessage: TMessage;
  Count, HeaderEnd: LongInt;
  {$IFDEF FPC}
@@ -20948,7 +20955,7 @@ Var
  {$ELSE}
  FileLength: LongInt;
  {$ENDIF}
- Err, I: Integer;
+ Err, I: Integer; OldFileMode: Byte;
 Begin
  LoadMessageFile := False;
  If (FileName = '') Or (Length(FileName) > 255) Then Begin
@@ -20956,7 +20963,9 @@ Begin
  End;
  {$I-}
  Assign(F, FileName);
+ OldFileMode:=FileMode; FileMode:=0;
  Reset(F, 1);
+ FileMode:=OldFileMode;
  Err := IOResult;
  If Err <> 0 Then Begin
   MailStatus := 'Erreur: impossible d ouvrir le fichier de courriel'; Exit;
@@ -20982,13 +20991,14 @@ Begin
  If Err <> 0 Then Begin
   MailStatus := 'Erreur: lecture impossible, fichier vide ou plus de 10 Mo'; Exit;
  End;
+ OriginalRaw := Raw;
  Raw := NormalizeMessageLines(Raw);
  If Copy(Raw, 1, 3) = #$EF#$BB#$BF Then Delete(Raw, 1, 3);
  HeaderEnd := Pos(#13#10#13#10, Raw);
  Headers := Copy(Raw, 1, HeaderEnd);
  If (HeaderEnd = 0) Or (Pos(#0, Headers) > 0) Or
     ((MailHeader(Raw, 'From') = '') And (MailHeader(Raw, 'Subject') = '') And
-     (MailHeader(Raw, 'To') = '')) Then Begin
+     (MailHeader(Raw, 'To') = '') And (MailHeader(Raw, 'MIME-Version') <> '1.0')) Then Begin
   MailStatus := 'Erreur: fichier invalide; un courriel au format EML est requis'; Exit;
  End;
  MailParseMessage(Raw, MailHeader(Raw, 'Message-ID'), OpenedMessage);
@@ -20999,6 +21009,8 @@ Begin
  MailLoadedFolder := -1;
  MessageCount := 1;
  Messages[0] := OpenedMessage;
+ For I := 0 To MAX_MESSAGES-1 Do MessageSources[I] := '';
+ MessageSources[0] := OriginalRaw;
  SelectedMessage := 0;
  LastSelectedMessage := 0;
  MessageScrollOffset := 0;
@@ -21106,7 +21118,8 @@ Begin
  If Index < FileOpenScroll Then FileOpenScroll := Index;
  If Index >= FileOpenScroll + OPEN_DIALOG_ROWS Then
   FileOpenScroll := Index - OPEN_DIALOG_ROWS + 1;
- If Index >= 0 Then Begin
+ If (Index >= 0) And
+    (Not FileDialogSaveMode Or Not FileOpenEntries[Index].IsDirectory) Then Begin
   FileOpenName := FileOpenEntries[Index].Name;
   FileOpenCursor := Length(FileOpenName);
  End;
@@ -21118,21 +21131,155 @@ Begin
   FileOpenError := 'Erreur: repertoire introuvable ou inaccessible'; Exit;
  End;
  FileOpenDirectory := Path;
- FileOpenName := '';
- FileOpenCursor := 0;
+ If Not FileDialogSaveMode Then Begin
+  FileOpenName := ''; FileOpenCursor := 0;
+ End;
  FileOpenError := '';
  ReadOpenFileDirectory;
  FileOpenFocus := 1;
 End;
 
+{ Ecrire le courriel complet, pas seulement les vingt lignes de previsualisation. }
+Function MessageFileExists(Path: TMailText): Boolean;
+Var F: File; Attributes: Word;
+Begin
+ Assign(F,Path); GetFAttr(F,Attributes);
+ MessageFileExists:=DosError=0;
+End;
+
+Function MessageSaveSibling(Path, Extension: TMailText): TMailText;
+Var I, LastSeparator, Attempt: Integer; Number: String; Candidate: TMailText;
+Begin
+ MessageSaveSibling:=''; LastSeparator:=0;
+ For I:=1 To Length(Path) Do If Path[I] In ['\','/',':'] Then LastSeparator:=I;
+ For Attempt:=0 To 9999 Do Begin
+  Str(Attempt,Number);
+  While Length(Number)<4 Do Number:='0'+Number;
+  Candidate:=Copy(Path,1,LastSeparator)+'~OE'+Number+Extension;
+  If Length(Candidate)>255 Then Exit;
+  If Not MessageFileExists(Candidate) Then Begin MessageSaveSibling:=Candidate; Exit; End;
+ End;
+End;
+
+Procedure DeleteMessageSaveTemporary(Path: TMailText);
+Var F: File; Err: Integer;
+Begin
+ {$I-}
+ Assign(F,Path); Erase(F); Err:=IOResult;
+ {$I+}
+End;
+
+Function WriteMessageFile(Path: TMailText; AllowReplace: Boolean): Boolean;
+Var F: File; Temporary, Backup: TMailText; Written: LongInt;
+ Err, RestoreError: Integer; Attributes: Word; HadOriginal, Created: Boolean;
+Begin
+ WriteMessageFile:=False; FileOpenError:='';
+ If (FileSaveData='') Or (Path='') Or (Length(Path)>255) Then Begin
+  FileOpenError:='Erreur: nom de fichier ou contenu du courriel invalide'; Exit;
+ End;
+ HadOriginal:=MessageFileExists(Path);
+ If HadOriginal Then Begin
+  If Not AllowReplace Then Begin FileOpenError:='Ce fichier existe deja'; Exit; End;
+  Assign(F,Path); GetFAttr(F,Attributes);
+  If (DosError<>0) Or ((Attributes And $11)<>0) Then Begin
+   FileOpenError:='Erreur: fichier en lecture seule ou inaccessible'; Exit;
+  End;
+ End;
+ Created:=False;
+ Temporary:=MessageSaveSibling(Path,'.TMP');
+ If Temporary='' Then Begin FileOpenError:='Erreur: impossible de creer un fichier temporaire'; Exit; End;
+ {$I-}
+ Assign(F,Temporary); Rewrite(F,1); Err:=IOResult;
+ If Err=0 Then Begin
+  Created:=True;
+  BlockWrite(F,FileSaveData[1],Length(FileSaveData),Written);
+  Err:=IOResult;
+  If Written<>Length(FileSaveData) Then Err:=101;
+  Close(F);
+  If IOResult<>0 Then Err:=101;
+ End;
+ {$I+}
+ If Err<>0 Then Begin
+  If Created Then DeleteMessageSaveTemporary(Temporary);
+  FileOpenError:='Erreur: impossible d ecrire le courriel sur disque'; Exit;
+ End;
+ Backup:='';
+ If HadOriginal Then Begin
+  Backup:=MessageSaveSibling(Path,'.BAK');
+  If Backup='' Then Err:=101
+  Else Begin
+   {$I-}
+   Assign(F,Path); Rename(F,Backup); Err:=IOResult;
+   {$I+}
+  End;
+  If Err<>0 Then Begin
+   DeleteMessageSaveTemporary(Temporary);
+   FileOpenError:='Erreur: le fichier existant ne peut pas etre remplace'; Exit;
+  End;
+ End;
+ {$I-}
+ Assign(F,Temporary); Rename(F,Path); Err:=IOResult;
+ {$I+}
+ If Err<>0 Then Begin
+  RestoreError:=0;
+  If Backup<>'' Then Begin
+   {$I-}
+   Assign(F,Backup); Rename(F,Path); RestoreError:=IOResult;
+   {$I+}
+  End;
+  If RestoreError=0 Then Begin
+   DeleteMessageSaveTemporary(Temporary);
+   FileOpenError:='Erreur: enregistrement impossible, fichier precedent conserve';
+  End Else FileOpenError:='Erreur: ancienne copie conservee dans '+Copy(Backup,1,34);
+  Exit;
+ End;
+ If Backup<>'' Then DeleteMessageSaveTemporary(Backup);
+ WriteMessageFile:=True;
+End;
+
+Procedure FinishMessageSave(Path: TMailText; AllowReplace: Boolean);
+Begin
+ If WriteMessageFile(Path,AllowReplace) Then Begin
+  If FileSaveFromComposer Then Composer.Modified:=False;
+  MailStatus:='Courriel enregistre : '+Copy(Path,1,58);
+  FileOpenVisible:=False;
+  FileSaveData:='';
+  DrawInterface;
+ End Else DrawOpenFileDialog;
+End;
+
+Procedure AnswerMessageOverwrite(ReplaceFile: Boolean);
+Var Path: TMailText;
+Begin
+ Path:=FileSaveOverwritePath;
+ FileSaveOverwritePending:=False;
+ If ReplaceFile Then FinishMessageSave(Path,True) Else DrawOpenFileDialog;
+End;
+
+Procedure DrawMessageOverwrite;
+Var X,Y: Integer; Text: String;
+Begin
+ X:=(SCREEN_WIDTH-420) Div 2; Y:=(SCREEN_HEIGHT-140) Div 2;
+ DrawDialogBox(X,Y,420,140,'Remplacer le fichier existant ?');
+ SetColor(COLOR_MENU_TEXT);
+ Text:=FileSaveOverwritePath;
+ While (Text<>'') And (TextWidth(Text)>390) Do Delete(Text,1,1);
+ OutTextXY(X+15,Y+38,Text);
+ OutTextXY(X+15,Y+60,'Le contenu actuel sera remplace.');
+ DrawDialogButton(X+225,Y+100,80,22,'Oui',FileSaveOverwriteYes,True);
+ DrawDialogButton(X+320,Y+100,80,22,'Non',Not FileSaveOverwriteYes,True);
+End;
+
 Procedure CancelOpenFileDialog;
 Begin
+ FileSaveOverwritePending:=False;
+ FileSaveData:='';
  FileOpenVisible := False;
  DrawInterface;
 End;
 
 Procedure ConfirmOpenFileDialog;
-Var Path: TMailText; PreviousStatus: String[80];
+Var Path: TMailText; PreviousStatus: String[80]; I, Separator: Integer;
 Begin
  If FileOpenFocus = 1 Then
   Path := OpenFileFullPath(FileOpenEntries[FileOpenSelection].Name)
@@ -21142,7 +21289,21 @@ Begin
   DrawOpenFileDialog; Exit;
  End;
  If OpenFileIsDirectory(Path) Then OpenFileChangeDirectory(Path)
- Else Begin
+ Else If FileDialogSaveMode Then Begin
+  Separator:=0;
+  For I:=1 To Length(Path) Do If Path[I] In ['\','/',':'] Then Separator:=I;
+  If Pos('.',Copy(Path,Separator+1,Length(Path)))=0 Then Path:=Path+'.eml';
+  If Length(Path)>255 Then Begin
+   FileOpenError:='Erreur: nom de fichier trop long'; DrawOpenFileDialog; Exit;
+  End;
+  If MessageFileExists(Path) Then Begin
+   FileSaveOverwritePath:=Path;
+   FileSaveOverwritePending:=True;
+   FileSaveOverwriteYes:=False;
+   DrawOpenFileDialog;
+  End Else FinishMessageSave(Path,False);
+  Exit;
+ End Else Begin
   PreviousStatus := MailStatus;
   If LoadMessageFile(Path) Then Begin
    FileOpenVisible := False;
@@ -21170,7 +21331,8 @@ Begin
  X := (SCREEN_WIDTH - OPEN_DIALOG_WIDTH) Div 2;
  Y := (SCREEN_HEIGHT - OPEN_DIALOG_HEIGHT) Div 2;
  HideMouse;
- DrawDialogBox(X, Y, OPEN_DIALOG_WIDTH, OPEN_DIALOG_HEIGHT, 'Ouvrir un courriel');
+ If FileDialogSaveMode Then Text:='Enregistrer sous' Else Text:='Ouvrir un courriel';
+ DrawDialogBox(X, Y, OPEN_DIALOG_WIDTH, OPEN_DIALOG_HEIGHT, Text);
  SetColor(COLOR_MENU_TEXT);
  Text := FileOpenDirectory;
  While (Text <> '') And (TextWidth(Text) > OPEN_DIALOG_WIDTH-120) Do Delete(Text,1,1);
@@ -21221,14 +21383,28 @@ Begin
  OutTextXY(X+15,Y+316,Text);
  If FileOpenShowAll Then Text := '*.eml' Else Text := 'Tous fichiers';
  DrawDialogButton(X+15,Y+344,110,22,Text,FileOpenFocus=4,True);
- DrawDialogButton(X+OPEN_DIALOG_WIDTH-180,Y+344,75,22,'Ouvrir',FileOpenFocus=2,True);
+ If FileDialogSaveMode Then Text:='Enregistrer' Else Text:='Ouvrir';
+ DrawDialogButton(X+OPEN_DIALOG_WIDTH-205,Y+344,100,22,Text,FileOpenFocus=2,True);
  DrawDialogButton(X+OPEN_DIALOG_WIDTH-90,Y+344,75,22,'Annuler',FileOpenFocus=3,True);
+ If FileSaveOverwritePending Then DrawMessageOverwrite;
  ShowMouse;
 End;
 
 Procedure HandleOpenFileKey(Key: Char; Extended: Boolean);
 Begin
  If Not FileOpenVisible Then Exit;
+ If FileSaveOverwritePending Then Begin
+  If Not Extended Then Begin
+   Case Ord(Key) of
+    9: FileSaveOverwriteYes:=Not FileSaveOverwriteYes;
+    27: Begin AnswerMessageOverwrite(False); Exit; End;
+    13: Begin AnswerMessageOverwrite(FileSaveOverwriteYes); Exit; End;
+    79,111,89,121: Begin AnswerMessageOverwrite(True); Exit; End;
+    78,110: Begin AnswerMessageOverwrite(False); Exit; End;
+   End;
+  End;
+  DrawOpenFileDialog; Exit;
+ End;
  If FileOpenFocus=0 Then FileOpenError:='';
  If Extended Then Begin
   If FileOpenFocus = 1 Then Begin
@@ -21278,6 +21454,14 @@ Procedure HandleOpenFileClick(MX, MY: Integer);
 Var X, Y, Index: Integer; DoubleClick: Boolean;
 Begin
  If Not FileOpenVisible Then Exit;
+ If FileSaveOverwritePending Then Begin
+  X:=(SCREEN_WIDTH-420) Div 2; Y:=(SCREEN_HEIGHT-140) Div 2;
+  If (MY>=Y+100) And (MY<=Y+122) Then Begin
+   If (MX>=X+225) And (MX<=X+305) Then AnswerMessageOverwrite(True)
+   Else If (MX>=X+320) And (MX<=X+400) Then AnswerMessageOverwrite(False);
+  End;
+  Exit;
+ End;
  X := (SCREEN_WIDTH-OPEN_DIALOG_WIDTH) Div 2;
  Y := (SCREEN_HEIGHT-OPEN_DIALOG_HEIGHT) Div 2;
  If (MX<X) Or (MX>X+OPEN_DIALOG_WIDTH) Or (MY<Y) Or (MY>Y+OPEN_DIALOG_HEIGHT) Then Exit;
@@ -21285,7 +21469,7 @@ Begin
   If (MX>=X+OPEN_DIALOG_WIDTH-90) And (MX<=X+OPEN_DIALOG_WIDTH-15) Then Begin
    CancelOpenFileDialog; Exit;
   End;
-  If (MX>=X+OPEN_DIALOG_WIDTH-180) And (MX<=X+OPEN_DIALOG_WIDTH-105) Then Begin
+  If (MX>=X+OPEN_DIALOG_WIDTH-205) And (MX<=X+OPEN_DIALOG_WIDTH-105) Then Begin
    FileOpenFocus:=0; ConfirmOpenFileDialog; Exit;
   End;
   If (MX>=X+15) And (MX<=X+125) Then Begin
@@ -21315,10 +21499,11 @@ Begin
  DrawOpenFileDialog;
 End;
 
-Procedure OpenMessageFile;
+Function BeginMessageFileDialog(SaveMode: Boolean): Boolean;
 Var Err: Integer;
 Begin
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Then Exit;
+ BeginMessageFileDialog:=False;
+ If AccountDialogVisible Or FileOpenVisible Or (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
   GetDir(0,FileOpenDirectory);
@@ -21326,12 +21511,70 @@ Begin
   {$I+}
   If Err<>0 Then FileOpenDirectory:='.';
  End;
+ FileDialogSaveMode:=SaveMode; FileSaveOverwritePending:=False;
  FileOpenName:=''; FileOpenCursor:=0; FileOpenFocus:=0; FileOpenError:='';
  FileOpenVisible:=True;
  TooltipVisible:=False; ContextMenuVisible:=False;
  ActiveMenu:=-1; ActiveMenuItem:=-1; MenuBarActive:=False; DragState:=dsNone;
  LastClickTime:=0;
  ReadOpenFileDirectory;
+ BeginMessageFileDialog:=True;
+End;
+
+Procedure OpenMessageFile;
+Begin
+ If BeginMessageFileDialog(False) Then DrawOpenFileDialog;
+End;
+
+Function ComposerMessageSource: TMailText;
+Var A,I: Integer; Data: TMailText;
+Begin
+ SaveComposerFields;
+ A:=-1;
+ If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+ If A<0 Then For I:=0 To EmailAccountCount-1 Do If EmailAccounts[I].IsDefault Then A:=I;
+ Data:='';
+ If (A>=0) And (A<EmailAccountCount) Then
+  Data:='From: '+EmailAccounts[A].EmailAddress+#13#10;
+ Data:=Data+'To: '+Composer.ToField+#13#10;
+ If Composer.CcField<>'' Then Data:=Data+'Cc: '+Composer.CcField+#13#10;
+ If Composer.BccField<>'' Then Data:=Data+'Bcc: '+Composer.BccField+#13#10;
+ Data:=Data+'Subject: '+Composer.SubjectField+#13#10+
+  'MIME-Version: 1.0'#13#10'Content-Type: text/plain; charset=windows-1252'#13#10+
+  'Content-Transfer-Encoding: 8bit'#13#10#13#10;
+ For I:=0 To Composer.LineCount-1 Do Data:=Data+Composer.Lines[I].Text+#13#10;
+ ComposerMessageSource:=Data;
+End;
+
+Procedure SaveMessageAs;
+Var Subject: String; I: Integer; Data: TMailText;
+Begin
+ If AccountDialogVisible Or FileOpenVisible Then Exit;
+ If ComposerVisible Then Begin
+  If Composer.AttachmentCount>0 Then Begin
+   MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
+   DrawStatusBar; Exit;
+  End;
+  Data:=ComposerMessageSource;
+  Subject:=Composer.SubjectField;
+ End Else Begin
+  If (SelectedMessage<0) Or (SelectedMessage>=MessageCount) Then Begin
+   MailStatus:='Selectionnez un courriel avant Enregistrer sous'; DrawStatusBar; Exit;
+  End;
+  Data:=MessageSources[SelectedMessage];
+  Subject:=Messages[SelectedMessage].Subject;
+  If Data='' Then Begin
+   MailStatus:='Erreur: source complete du courriel indisponible'; DrawStatusBar; Exit;
+  End;
+ End;
+ If Not BeginMessageFileDialog(True) Then Exit;
+ FileSaveFromComposer:=ComposerVisible; FileSaveData:=Data;
+ For I:=1 To Length(Subject) Do
+  If (Subject[I]<#32) Or (Subject[I] In ['\','/',':','*','?','"','<','>','|']) Then Subject[I]:='_';
+ Subject:=MailTrim(Subject);
+ If Subject='' Then FileOpenName:='message.eml'
+ Else FileOpenName:='Message - '+Subject+'.eml';
+ FileOpenCursor:=Length(FileOpenName);
  DrawOpenFileDialog;
 End;
 
@@ -21351,6 +21594,7 @@ Begin
  If Not EmailAccounts[AccountIndex].IsActive Then Begin MailStatus:='Compte desactive'; Exit; End;
  MailStatus:='Connexion a '+EmailAccounts[AccountIndex].IncomingHost; DrawInterface;
  If Not OpenIncomingAccount(EmailAccounts[AccountIndex]) Then Begin MailStatus:=MailError; Exit; End;
+ For I:=0 To MAX_MESSAGES-1 Do PendingMessageSources[I]:='';
  Success:=True; Total:=0; Count:=0; Unread:=0;
  If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
   IMAPClient.CurrentMailbox.Exists:=0;
@@ -21380,6 +21624,7 @@ Begin
   End;
   If Success Then Begin
    MailParseMessage(MailRaw,ID,MailNewMessages[Count]);
+   PendingMessageSources[Count]:=MailRaw;
    If EmailAccounts[AccountIndex].IncomingType=istIMAP Then Begin
     MailNewMessages[Count].IsRead:=Pos('\Seen',MailFetchFlags)>0;
     MailNewMessages[Count].IsFlagged:=Pos('\Flagged',MailFetchFlags)>0;
@@ -21391,8 +21636,15 @@ Begin
  MailClose(IMAPWire); MailClose(POP3Wire);
  IMAPClient.Connected:=False; IMAPClient.State:=isDisconnected;
  POP3Client.Connected:=False; POP3Client.State:=psDisconnected;
- If Not Success Then Begin MailStatus:=MailError; Exit; End;
+ If Not Success Then Begin
+  For I:=0 To MAX_MESSAGES-1 Do PendingMessageSources[I]:='';
+  MailStatus:=MailError; Exit;
+ End;
  Move(MailNewMessages,Messages,SizeOf(Messages)); MessageCount:=Count;
+ For I:=0 To MAX_MESSAGES-1 Do Begin
+  MessageSources[I]:=PendingMessageSources[I];
+  PendingMessageSources[I]:='';
+ End;
  SelectedMessage:=-1; LastSelectedMessage:=-1; MessageScrollOffset:=0; PreviewScrollY:=0;
  If Count>0 Then Begin SelectedMessage:=0; Messages[0].IsSelected:=True; End;
  MailLoadedFolder:=SelectedFolder;
@@ -21403,7 +21655,11 @@ End;
 
 { Demarre avec une boite vide; seul le serveur fournit les messages. }
 Procedure InitializeMessageList;
+Var I: Integer;
 Begin
+ For I:=0 To MAX_MESSAGES-1 Do Begin
+  MessageSources[I]:=''; PendingMessageSources[I]:='';
+ End;
  MessageCount := 0;
  SelectedMessage := -1;
  LastSelectedMessage := -1;
@@ -21525,6 +21781,7 @@ Procedure SortMessageList;
 Var
  I, J: Integer;
  Temp: TMessage;
+ TempSource: TMailText;
 Begin
  If (SortColumn < 0) Or (SortColumn >= ColumnCount) Then Exit;
  If SortOrder = soNone Then Exit;
@@ -21536,6 +21793,13 @@ Begin
     Temp := Messages[J];
     Messages[J] := Messages[J + 1];
     Messages[J + 1] := Temp;
+    TempSource := MessageSources[J];
+    MessageSources[J] := MessageSources[J+1];
+    MessageSources[J+1] := TempSource;
+    If SelectedMessage=J Then SelectedMessage:=J+1
+    Else If SelectedMessage=J+1 Then SelectedMessage:=J;
+    If LastSelectedMessage=J Then LastSelectedMessage:=J+1
+    Else If LastSelectedMessage=J+1 Then LastSelectedMessage:=J;
    End;
   End;
  End;
@@ -23005,6 +23269,10 @@ Begin
     HandleOpenFileKey(Key,IsExtendedKey);
     Continue;
    End;
+   If Not IsExtendedKey And (Key=#19) Then Begin { Ctrl+S }
+    ExecuteMenuCommand(CMD_FILE_SAVEAS);
+    Continue;
+   End;
    If IsExtendedKey Then Begin
     ShortcutMenu := MenuShortcutFromScan(Key);
     If ShortcutMenu >= 0 Then Begin
@@ -23206,6 +23474,7 @@ Begin
  WriteLn(HelpOutput, 'Les chemins relatifs partent du repertoire courant.');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput, 'Ouvrir un courriel .eml : menu Fichier / Ouvrir ou Ctrl+O.');
+ WriteLn(HelpOutput, 'Enregistrer sous : menu Fichier / Enregistrer sous ou Ctrl+S.');
  WriteLn(HelpOutput, 'Configurer les comptes : menu Outils / Comptes.');
  WriteLn(HelpOutput, 'Recevoir les courriels : selectionner la boite du compte,');
  WriteLn(HelpOutput, 'puis cliquer sur Envoyer/Recevoir (IMAP ou POP3).');
