@@ -3220,6 +3220,10 @@ Var
  RuleNextID: Integer;                   { Prochain ID disponible }
  RulesWindowState: TRulesWindowState;   { Etat de la fenetre }
  RulesWindowX, RulesWindowY: Integer;   { Position de la fenetre }
+ RulesFocus, RulesTextCursor: Integer;
+ RulesError: String[70];
+ RulesDeletePending, RulesStopAfter: Boolean;
+ RulesBackup: Array[0..MAX_RULES-1] Of TFilterRule;
  RulesVisible: Boolean;                 { Visibilite de la fenetre }
  RulesScrollOffset: Integer;            { Decalage de defilement }
  RulesSelectedIndex: Integer;           { Regle selectionnee }
@@ -3828,6 +3832,8 @@ Procedure OpenMessageFile; Forward;
 Procedure SaveMessageAs; Forward;
 Procedure ShowSortDialog; Forward;
 Procedure ShowColumnsDialog; Forward;
+Procedure Rules_Show; Forward;
+Function MailTextBody(Const Raw: TMailText; Depth: Integer): TMailText; Forward;
 Procedure DrawColumnsDialog; Forward;
 Procedure DrawSortDialog; Forward;
 Procedure DrawOpenFileDialog; Forward;
@@ -4766,6 +4772,7 @@ Begin
  CloseDropdownMenu;
 
  Case CmdID Of
+  CMD_TOOLS_RULES: Rules_Show;
   CMD_VIEW_COLUMNS: ShowColumnsDialog;
   CMD_VIEW_SORTBY: ShowSortDialog;
   CMD_FILE_OPEN: OpenMessageFile;
@@ -12940,9 +12947,9 @@ Begin
  RuleCount := 0;
  RuleNextID := 1;
  RulesWindowState := rwsHidden;
- RulesWindowX := (640 - RULES_WINDOW_WIDTH) Div 2;
- RulesWindowY := (480 - RULES_WINDOW_HEIGHT) Div 2;
- RulesVisible := False;
+ RulesWindowX := (SCREEN_WIDTH - RULES_WINDOW_WIDTH) Div 2;
+ RulesWindowY := (SCREEN_HEIGHT - RULES_WINDOW_HEIGHT) Div 2;
+ RulesVisible := False; RulesFocus:=0; RulesError:=''; RulesDeletePending:=False;
  RulesScrollOffset := 0;
  RulesSelectedIndex := -1;
  EditingRuleIndex := -1;
@@ -13050,7 +13057,7 @@ End;
 Function Rules_EvaluateCondition(MsgIndex: Integer;
                                   Const Cond: TRuleCondition): Boolean;
 Var
- Body: String;
+ Body, Needle: TMailText;
  PriorityStr: String;
 Begin
  Rules_EvaluateCondition := False;
@@ -13075,8 +13082,10 @@ Begin
     Messages[MsgIndex].Subject, Cond.Value, Cond.CaseSensitive);
 
   rctBodyContains: Begin
-   Body := Rules_GetMessageBody(MsgIndex);
-   Rules_EvaluateCondition := Rules_StrContains(Body, Cond.Value, Cond.CaseSensitive);
+   Body:=MailTextBody(MessageSources[MsgIndex],0); Needle:=Cond.Value;
+   If MessageSources[MsgIndex]='' Then Body:=Rules_GetMessageBody(MsgIndex);
+   If Not Cond.CaseSensitive Then Begin Body:=MailUpper(Body); Needle:=MailUpper(Needle); End;
+   Rules_EvaluateCondition:=Pos(Needle,Body)>0;
   End;
 
   rctSizeGreaterThan:
@@ -13252,11 +13261,15 @@ End;
 
 { Applique toutes les regles a tous les messages }
 Procedure Rules_ApplyToAllMessages;
-Var
- I: Integer;
+Var I,Unread: Integer;
 Begin
- For I := 0 To MessageCount - 1 Do
-  Rules_ApplyToMessage(I, True);
+ Unread:=0;
+ For I:=0 To MessageCount-1 Do Begin
+  Rules_ApplyToMessage(I,True);
+  If Not Messages[I].IsRead Then Inc(Unread);
+ End;
+ If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then
+  Folders[SelectedFolder].UnreadCount:=Unread;
 End;
 
 { Ajoute une nouvelle regle }
@@ -13391,6 +13404,235 @@ Begin
  End;
 End;
 
+{ Fichier binaire versionne; chargement transactionnel et remplacement avec sauvegarde. }
+Function Rules_Path: String;
+Var Path: String; I: Integer;
+Begin
+ Path:=AccountFileName; I:=Length(Path);
+ While (I>0) And Not (Path[I] In ['.',Chr(92),'/']) Do Dec(I);
+ If (I>0) And (Path[I]='.') Then Delete(Path,I,255);
+ Rules_Path:=Path+'.RUL';
+End;
+
+Function Rules_Valid(Const R: TFilterRule): Boolean;
+Var I: Integer;
+Begin
+ Rules_Valid:=False;
+ If (R.ID<1) Or (Ord(R.Enabled)>1) Or (Ord(R.ApplyToIncoming)>1) Or
+    (Ord(R.ApplyToOutgoing)>1) Or (Length(R.Name)>40) Or (Length(R.Description)>80) Or
+    (R.ConditionCount<1) Or (R.ConditionCount>MAX_RULE_CONDITIONS) Or
+    (R.ActionCount<1) Or (R.ActionCount>MAX_RULE_ACTIONS) Or
+    (Ord(R.RuleOperator)>Ord(High(TRuleOperator))) Then Exit;
+ For I:=0 To R.ConditionCount-1 Do Begin
+  If (Length(R.Conditions[I].Value)>80) Or (Ord(R.Conditions[I].CaseSensitive)>1) Then Exit;
+  If Not (R.Conditions[I].ConditionType In [rctSenderContains,rctSenderEquals,
+    rctSubjectContains,rctSubjectStartsWith,rctBodyContains,rctSizeGreaterThan,
+    rctSizeLessThan,rctHasAttachment,rctPriorityEquals,rctToContains,rctCcContains]) Then Exit;
+ End;
+ For I:=0 To R.ActionCount-1 Do
+  If Not (R.Actions[I].ActionType In [ratMarkAsRead,ratMarkAsUnread,ratSetFlag,
+    ratClearFlag,ratSetPriority,ratStopProcessing]) Or
+    (Ord(R.Actions[I].PriorityValue)>Ord(High(TMessagePriority))) Then Exit;
+ Rules_Valid:=True;
+End;
+
+Function Rules_Save: Boolean;
+Var F: File; Path,Temp,Backup: String; Signature: String[12];
+ I,Err: Integer; Written: LongInt; Count,RecordSize: Word; HadFile: Boolean;
+ Procedure WritePart(Var Data; Size: Word);
+ Begin
+  If Err<>0 Then Exit;
+  {$I-}
+  BlockWrite(F,Data,Size,Written); Err:=IOResult;
+  {$I+}
+  If Written<>Size Then Err:=101;
+ End;
+Begin
+ Rules_Save:=False; RulesError:=''; Path:=Rules_Path; Temp:=Path+'.TMP'; Backup:=Path+'.BAK';
+ {$I-}
+ Assign(F,Temp); Reset(F,1); Err:=IOResult;
+ If Err=0 Then Begin Close(F); Err:=IOResult;
+  RulesError:='Fichier temporaire deja present.'; Exit; End;
+ If (Err<>2) And (Err<>3) Then Begin RulesError:='Fichier temporaire inaccessible.'; Exit; End;
+ Assign(F,Temp); Rewrite(F,1); Err:=IOResult;
+ If Err<>0 Then Begin RulesError:='Impossible de sauvegarder les regles.'; Exit; End;
+ FillChar(Signature,SizeOf(Signature),0);
+ Signature:='OE-RULES-1'; Count:=RuleCount; RecordSize:=SizeOf(TFilterRule);
+ WritePart(Signature,SizeOf(Signature)); WritePart(RecordSize,SizeOf(RecordSize));
+ WritePart(Count,SizeOf(Count));
+ For I:=0 To RuleCount-1 Do WritePart(FilterRules[I],SizeOf(TFilterRule));
+ Close(F); I:=IOResult; If Err=0 Then Err:=I;
+ If Err<>0 Then Begin Erase(F); I:=IOResult;
+  RulesError:='Erreur ecriture des regles.'; Exit; End;
+ Assign(F,Path); Reset(F,1); HadFile:=IOResult=0;
+ If HadFile Then Begin
+  Close(F); Err:=IOResult;
+  Assign(F,Backup); Erase(F); Err:=IOResult;
+  Assign(F,Path); Rename(F,Backup); Err:=IOResult;
+  If Err<>0 Then Begin Assign(F,Temp); Erase(F); I:=IOResult;
+   RulesError:='Impossible de remplacer les regles.'; Exit; End;
+ End;
+ Assign(F,Temp); Rename(F,Path); Err:=IOResult;
+ If Err<>0 Then Begin
+  If HadFile Then Begin Assign(F,Backup); Rename(F,Path); I:=IOResult; End;
+  RulesError:='Impossible de finaliser les regles.'; Exit;
+ End;
+ {$I+}
+ Rules_Save:=True;
+End;
+
+Procedure Rules_Load;
+Var F: File; Signature: String[12]; Count,RecordSize: Word;
+ I,Err: Integer; ReadCount,Expected: LongInt;
+ Procedure ReadPart(Var Data; Size: Word);
+ Begin
+  If Err<>0 Then Exit;
+  {$I-}
+  BlockRead(F,Data,Size,ReadCount); Err:=IOResult;
+  {$I+}
+  If ReadCount<>Size Then Err:=100;
+ End;
+Begin
+ RulesError:=''; Count:=0; RecordSize:=0; Signature:='';
+ {$I-}
+ Assign(F,Rules_Path); Reset(F,1); Err:=IOResult;
+ If Err=2 Then Exit;
+ If Err<>0 Then Begin RulesError:='Impossible de lire les regles.'; Exit; End;
+ ReadPart(Signature,SizeOf(Signature)); ReadPart(RecordSize,SizeOf(RecordSize)); ReadPart(Count,SizeOf(Count));
+ If (Err=0) And ((Signature<>'OE-RULES-1') Or (RecordSize<>SizeOf(TFilterRule)) Or
+    (Count>MAX_RULES)) Then Err:=100;
+ If Err=0 Then Begin
+  Expected:=SizeOf(Signature)+4+LongInt(Count)*RecordSize;
+  If FileSize(F)<>Expected Then Err:=100;
+ End;
+ For I:=0 To Count-1 Do Begin
+  If Err<>0 Then Break;
+  ReadPart(RulesBackup[I],SizeOf(TFilterRule));
+  If (Err=0) And Not Rules_Valid(RulesBackup[I]) Then Err:=100;
+ End;
+ Close(F); I:=IOResult; If Err=0 Then Err:=I;
+ {$I+}
+ If Err<>0 Then Begin RulesError:='Fichier de regles invalide ou incompatible.'; Exit; End;
+ RuleCount:=Count; RuleNextID:=1;
+ For I:=0 To RuleCount-1 Do Begin
+  FilterRules[I]:=RulesBackup[I]; FilterRules[I].Order:=I;
+  If FilterRules[I].ID>=RuleNextID Then RuleNextID:=FilterRules[I].ID+1;
+ End;
+End;
+
+Function Rules_Condition(Index: Integer): TRuleConditionType;
+Begin
+ Case Index Of
+  0: Rules_Condition:=rctSenderContains; 1: Rules_Condition:=rctSenderEquals;
+  2: Rules_Condition:=rctSubjectContains; 3: Rules_Condition:=rctSubjectStartsWith;
+  4: Rules_Condition:=rctBodyContains; 5: Rules_Condition:=rctSizeGreaterThan;
+  6: Rules_Condition:=rctSizeLessThan; 7: Rules_Condition:=rctHasAttachment;
+  8: Rules_Condition:=rctPriorityEquals; 9: Rules_Condition:=rctToContains;
+ Else Rules_Condition:=rctCcContains;
+ End;
+End;
+
+Function Rules_Action(Index: Integer): TRuleActionType;
+Begin
+ Case Index Of
+  0: Rules_Action:=ratMarkAsRead; 1: Rules_Action:=ratMarkAsUnread;
+  2: Rules_Action:=ratSetFlag; 3: Rules_Action:=ratClearFlag;
+  4: Rules_Action:=ratSetPriority;
+ Else Rules_Action:=ratStopProcessing;
+ End;
+End;
+
+Procedure Rules_BeginEdit(IsNew: Boolean);
+Begin
+ If IsNew Then Begin
+  If RuleCount>=MAX_RULES Then Begin RulesError:='Nombre maximal de regles atteint.'; Exit; End;
+  Rules_InitRule(EditingRule); EditingRuleIndex:=-1;
+  EditingRule.ConditionCount:=1; EditingRule.ActionCount:=1;
+  EditingRule.Conditions[0].ConditionType:=rctSubjectContains;
+  EditingRule.Actions[0].ActionType:=ratMarkAsRead;
+  RulesWindowState:=rwsNew;
+ End Else Begin
+  If (RulesSelectedIndex<0) Or (RulesSelectedIndex>=RuleCount) Then Exit;
+  If (FilterRules[RulesSelectedIndex].ConditionCount<>1) Or
+     (FilterRules[RulesSelectedIndex].ActionCount>2) Or
+     ((FilterRules[RulesSelectedIndex].ActionCount=2) And
+      (FilterRules[RulesSelectedIndex].Actions[1].ActionType<>ratStopProcessing)) Then Begin
+   RulesError:='Cette regle complexe ne peut pas etre editee ici.'; Exit;
+  End;
+  EditingRule:=FilterRules[RulesSelectedIndex]; EditingRuleIndex:=RulesSelectedIndex;
+  RulesWindowState:=rwsEdit;
+ End;
+ RulesStopAfter:=(EditingRule.ActionCount>1) And
+  (EditingRule.Actions[1].ActionType=ratStopProcessing);
+ RulesFocus:=0; RulesTextCursor:=Length(EditingRule.Name); RulesError:='';
+End;
+
+Procedure Rules_DrawEditor;
+Var X,Y,I: Integer; Text,LabelText: String;
+Begin
+ X:=RulesWindowX; Y:=RulesWindowY;
+ DrawDialogBox(X,Y,RULES_WINDOW_WIDTH,RULES_WINDOW_HEIGHT,'Regle de message');
+ For I:=0 To 6 Do Begin
+  Text:=''; LabelText:='';
+  Case I Of
+   0: Begin LabelText:='Nom :'; Text:=EditingRule.Name; End;
+   1: Begin LabelText:='Condition :'; Text:=Rules_GetConditionTypeName(EditingRule.Conditions[0].ConditionType); End;
+   2: Begin LabelText:='Valeur :'; Text:=EditingRule.Conditions[0].Value; End;
+   3: Begin LabelText:='Action :'; Text:=Rules_GetActionTypeName(EditingRule.Actions[0].ActionType); End;
+   4: Begin LabelText:='Priorite :'; Case EditingRule.Actions[0].PriorityValue Of
+    mpHigh: Text:='HIGH'; mpNormal: Text:='NORMAL'; mpLow: Text:='LOW'; End; End;
+   5: Begin LabelText:='Arreter ensuite :'; Text:='Non'; If RulesStopAfter Then Text:='Oui'; End;
+   6: Begin LabelText:='Active :'; Text:='Non'; If EditingRule.Enabled Then Text:='Oui'; End;
+  End;
+  SetColor(Black); OutTextXY(X+16,Y+40+I*36,LabelText);
+  FillRect(X+164,Y+34+I*36,X+500,Y+60+I*36,White);
+  SetColor(Black);
+  If ((I=0) Or (I=2)) And (RulesFocus=I) Then Begin
+   Text:=Copy(Text,1,RulesTextCursor)+'|'+Copy(Text,RulesTextCursor+1,255);
+   If RulesTextCursor>38 Then Delete(Text,1,RulesTextCursor-38);
+  End;
+  If RulesFocus=I Then Text:='> '+Text;
+  OutTextXY(X+168,Y+42+I*36,Copy(Text,1,40));
+ End;
+ SetColor(Black); OutTextXY(X+16,Y+300,'Fleches / Espace : choisir. Tab : champ suivant.');
+ OutTextXY(X+16,Y+322,RulesError);
+ DrawDialogButton(X+304,Y+356,90,28,'OK',RulesFocus=7,True);
+ DrawDialogButton(X+406,Y+356,98,28,'Annuler',RulesFocus=8,True);
+End;
+
+Procedure Rules_CommitEditor;
+Var Code,I,OldCount,OldNext: Integer; Value: LongInt; Old: TFilterRule;
+Begin
+ RulesError:='';
+ If MailTrim(EditingRule.Name)='' Then Begin RulesError:='Saisir un nom.'; Exit; End;
+ If EditingRule.Conditions[0].ConditionType<>rctHasAttachment Then
+  If MailTrim(EditingRule.Conditions[0].Value)='' Then Begin RulesError:='Saisir une valeur.'; Exit; End;
+ If EditingRule.Conditions[0].ConditionType In [rctSizeGreaterThan,rctSizeLessThan] Then Begin
+  Val(EditingRule.Conditions[0].Value,Value,Code);
+  If (Code<>0) Or (Value<0) Then Begin RulesError:='Taille : nombre positif en octets.'; Exit; End;
+  EditingRule.Conditions[0].NumericValue:=Value;
+ End;
+ If EditingRule.Conditions[0].ConditionType=rctPriorityEquals Then Begin
+  EditingRule.Conditions[0].Value:=Copy(MailUpper(MailTrim(EditingRule.Conditions[0].Value)),1,80);
+  If (EditingRule.Conditions[0].Value<>'HIGH') And (EditingRule.Conditions[0].Value<>'NORMAL') And
+     (EditingRule.Conditions[0].Value<>'LOW') Then Begin RulesError:='Priorite : HIGH, NORMAL ou LOW.'; Exit; End;
+ End;
+ EditingRule.ConditionCount:=1; EditingRule.ActionCount:=1;
+ If RulesStopAfter Then Begin EditingRule.ActionCount:=2;
+  EditingRule.Actions[1].ActionType:=ratStopProcessing; End;
+ OldCount:=RuleCount; OldNext:=RuleNextID;
+ If EditingRuleIndex<0 Then I:=Rules_AddRule(EditingRule)
+ Else Begin I:=EditingRuleIndex; Old:=FilterRules[I]; FilterRules[I]:=EditingRule; End;
+ If Not Rules_Save Then Begin
+  RuleCount:=OldCount; RuleNextID:=OldNext;
+  If EditingRuleIndex>=0 Then FilterRules[I]:=Old;
+  Exit;
+ End;
+ RulesSelectedIndex:=I;
+ If I>=RulesScrollOffset+RULES_VISIBLE Then RulesScrollOffset:=I-RULES_VISIBLE+1;
+ RulesWindowState:=rwsList; RulesFocus:=0;
+End;
+
 { Dessine la fenetre des regles }
 Procedure Rules_DrawWindow;
 Var
@@ -13400,6 +13642,12 @@ Var
  EnabledStr: String;
 Begin
  If Not RulesVisible Then Exit;
+ If RulesWindowState In [rwsNew,rwsEdit] Then Begin Rules_DrawEditor; Exit; End;
+ If RulesSelectedIndex<RulesScrollOffset Then RulesScrollOffset:=RulesSelectedIndex;
+ If RulesSelectedIndex>=RulesScrollOffset+RULES_VISIBLE Then
+  RulesScrollOffset:=RulesSelectedIndex-RULES_VISIBLE+1;
+ If RulesScrollOffset>RuleCount-RULES_VISIBLE Then RulesScrollOffset:=RuleCount-RULES_VISIBLE;
+ If RulesScrollOffset<0 Then RulesScrollOffset:=0;
 
  X := RulesWindowX;
  Y := RulesWindowY;
@@ -13542,186 +13790,191 @@ Begin
  SetColor(Black);
  Rectangle(X + W - 80, Y1, X + W - 10, Y1 + 28);
  OutTextXY(X + W - 62, Y1 + 9, 'Fermer');
+ DrawDialogButton(X+10,Y+30,90,22,'Nouveau',RulesFocus=1,RuleCount<MAX_RULES);
+ DrawDialogButton(X+110,Y+30,80,22,'Modifier',RulesFocus=2,RulesSelectedIndex>=0);
+ DrawDialogButton(X+200,Y+30,90,22,'Supprimer',RulesFocus=3,RulesSelectedIndex>=0);
+ DrawDialogButton(X+350,Y+30,80,22,'Monter',RulesFocus=4,RulesSelectedIndex>0);
+ DrawDialogButton(X+440,Y+30,70,22,'Descendre',RulesFocus=5,
+                  (RulesSelectedIndex>=0) And (RulesSelectedIndex<RuleCount-1));
+ DrawDialogButton(X+10,Y+H-40,170,28,'Appliquer maintenant',RulesFocus=6,True);
+ DrawDialogButton(X+W-80,Y+H-40,70,28,'Fermer',RulesFocus=7,True);
+ SetColor(Black); OutTextXY(X+12,Y+H-58,RulesError);
+ If RulesDeletePending Then Begin
+  FillRect(X+8,Y+H-60,X+W-8,Y+H-4,LightGray);
+  SetColor(Black); OutTextXY(X+12,Y+H-56,'Supprimer cette regle ?');
+  DrawDialogButton(X+10,Y+H-34,90,26,'Oui (O)',False,True);
+  DrawDialogButton(X+110,Y+H-34,110,26,'Non (N)',True,True);
+ End;
 End;
 
 { Affiche la fenetre des regles }
 Procedure Rules_Show;
 Begin
- RulesVisible := True;
- RulesWindowState := rwsList;
- RulesSelectedIndex := -1;
- RulesScrollOffset := 0;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or
+    ColumnsDialogVisible Or RulesVisible Then Exit;
+ RulesWindowX:=(SCREEN_WIDTH-RULES_WINDOW_WIDTH) Div 2;
+ RulesWindowY:=(SCREEN_HEIGHT-RULES_WINDOW_HEIGHT) Div 2;
+ RulesVisible:=True; RulesWindowState:=rwsList; RulesFocus:=0; RulesDeletePending:=False;
+ RulesSelectedIndex:=-1; If RuleCount>0 Then RulesSelectedIndex:=0;
+ RulesScrollOffset:=0; ContextMenuVisible:=False; DrawInterface;
 End;
 
-{ Cache la fenetre des regles }
 Procedure Rules_Hide;
+Begin RulesVisible:=False; RulesWindowState:=rwsHidden; DrawInterface; End;
+
+Procedure Rules_ListAction(Action: Integer);
+Var I,OldSelection,OldCount: Integer;
 Begin
- RulesVisible := False;
- RulesWindowState := rwsHidden;
+ If Action=1 Then Begin Rules_BeginEdit(True); Exit; End;
+ If Action=2 Then Begin Rules_BeginEdit(False); Exit; End;
+ If Action=3 Then Begin
+  RulesDeletePending:=(RulesSelectedIndex>=0) And (RulesSelectedIndex<RuleCount); Exit;
+ End;
+ If Action=6 Then Begin Rules_ApplyToAllMessages; RulesError:='Regles appliquees aux messages charges.'; Exit; End;
+ If Action=7 Then Begin Rules_Hide; Exit; End;
+ If (RulesSelectedIndex<0) Or (RulesSelectedIndex>=RuleCount) Then Exit;
+ OldSelection:=RulesSelectedIndex; OldCount:=RuleCount;
+ For I:=0 To RuleCount-1 Do RulesBackup[I]:=FilterRules[I];
+ Case Action Of
+  0: Rules_ToggleEnabled(RulesSelectedIndex);
+  4: If Rules_MoveUp(RulesSelectedIndex) Then Dec(RulesSelectedIndex);
+  5: If Rules_MoveDown(RulesSelectedIndex) Then Inc(RulesSelectedIndex);
+  8: Rules_DeleteRule(RulesSelectedIndex);
+ End;
+ If Not Rules_Save Then Begin
+  RuleCount:=OldCount; RulesSelectedIndex:=OldSelection;
+  For I:=0 To RuleCount-1 Do FilterRules[I]:=RulesBackup[I];
+ End;
 End;
 
-{ Gere un clic dans la fenetre des regles }
-Function Rules_HandleClick(MX, MY: Integer): Boolean;
-Var
- X, Y, W, H: Integer;
- I, Y1: Integer;
+Procedure Rules_Cycle(Delta: Integer);
+Var I,N: Integer;
 Begin
- Rules_HandleClick := False;
- If Not RulesVisible Then Exit;
-
- X := RulesWindowX;
- Y := RulesWindowY;
- W := RULES_WINDOW_WIDTH;
- H := RULES_WINDOW_HEIGHT;
-
- { Verifier si clic dans la fenetre }
- If (MX < X) Or (MX > X + W) Or (MY < Y) Or (MY > Y + H) Then Exit;
-
- Rules_HandleClick := True;
-
- { Bouton fermer }
- If (MX >= X + W - 20) And (MX <= X + W - 4) And (MY >= Y + 4) And (MY <= Y + 20) Then Begin
-  Rules_Hide;
-  Exit;
- End;
-
- Y1 := Y + 30;
-
- { Bouton Nouveau }
- If (MX >= X + 10) And (MX <= X + 100) And (MY >= Y1) And (MY <= Y1 + 22) Then Begin
-  Rules_InitRule(EditingRule);
-  EditingRule.Name := 'Nouvelle regle';
-  EditingRuleIndex := -1;
-  RulesWindowState := rwsNew;
-  Exit;
- End;
-
- { Bouton Modifier }
- If (MX >= X + 110) And (MX <= X + 190) And (MY >= Y1) And (MY <= Y1 + 22) Then Begin
-  If RulesSelectedIndex >= 0 Then Begin
-   EditingRule := FilterRules[RulesSelectedIndex];
-   EditingRuleIndex := RulesSelectedIndex;
-   RulesWindowState := rwsEdit;
+ Case RulesFocus Of
+  1: Begin
+   N:=0; For I:=0 To 10 Do If Rules_Condition(I)=EditingRule.Conditions[0].ConditionType Then N:=I;
+   EditingRule.Conditions[0].ConditionType:=Rules_Condition((N+Delta+11) Mod 11);
   End;
-  Exit;
- End;
-
- { Bouton Supprimer }
- If (MX >= X + 200) And (MX <= X + 290) And (MY >= Y1) And (MY <= Y1 + 22) Then Begin
-  If RulesSelectedIndex >= 0 Then
-   Rules_DeleteRule(RulesSelectedIndex);
-  Exit;
- End;
-
- { Bouton Monter }
- If (MX >= X + W - 170) And (MX <= X + W - 90) And (MY >= Y1) And (MY <= Y1 + 22) Then Begin
-  If RulesSelectedIndex > 0 Then Begin
-   Rules_MoveUp(RulesSelectedIndex);
-   Dec(RulesSelectedIndex);
+  3: Begin
+   N:=0; For I:=0 To 5 Do If Rules_Action(I)=EditingRule.Actions[0].ActionType Then N:=I;
+   EditingRule.Actions[0].ActionType:=Rules_Action((N+Delta+6) Mod 6);
   End;
-  Exit;
+  4: EditingRule.Actions[0].PriorityValue:=
+      TMessagePriority((Ord(EditingRule.Actions[0].PriorityValue)+Delta+3) Mod 3);
+  5: RulesStopAfter:=Not RulesStopAfter;
+  6: EditingRule.Enabled:=Not EditingRule.Enabled;
  End;
+End;
 
- { Bouton Descendre }
- If (MX >= X + W - 80) And (MX <= X + W - 10) And (MY >= Y1) And (MY <= Y1 + 22) Then Begin
-  If (RulesSelectedIndex >= 0) And (RulesSelectedIndex < RuleCount - 1) Then Begin
-   Rules_MoveDown(RulesSelectedIndex);
-   Inc(RulesSelectedIndex);
+Procedure Rules_HandleKey(Key: Char; Extended: Boolean);
+Var Text: String; Limit: Integer;
+Begin
+ If RulesDeletePending Then Begin
+  If Not Extended Then Case UpCase(Key) Of
+   'O': Begin Rules_ListAction(8); RulesDeletePending:=False; End;
+   'N',#27,#13: RulesDeletePending:=False;
   End;
-  Exit;
+ End Else If RulesWindowState In [rwsNew,rwsEdit] Then Begin
+  Text:=''; Limit:=80;
+  If RulesFocus=0 Then Begin Text:=EditingRule.Name; Limit:=40; End;
+  If RulesFocus=2 Then Text:=EditingRule.Conditions[0].Value;
+  If Extended Then Begin
+   If RulesFocus In [0,2] Then Case Key Of
+    #75: If RulesTextCursor>0 Then Dec(RulesTextCursor);
+    #77: If RulesTextCursor<Length(Text) Then Inc(RulesTextCursor);
+    #71: RulesTextCursor:=0; #79: RulesTextCursor:=Length(Text);
+    #83: Delete(Text,RulesTextCursor+1,1);
+   End Else If Key In [#75,#72] Then Rules_Cycle(-1)
+   Else If Key In [#77,#80] Then Rules_Cycle(1);
+   If Key=#15 Then Begin RulesFocus:=(RulesFocus+8) Mod 9; RulesTextCursor:=0; End;
+  End Else Case Key Of
+   #27: Begin RulesWindowState:=rwsList; RulesError:=''; RulesFocus:=0; End;
+   #9: Begin RulesFocus:=(RulesFocus+1) Mod 9; RulesTextCursor:=0; End;
+   #13: If RulesFocus=8 Then Begin RulesWindowState:=rwsList; RulesError:=''; RulesFocus:=0; End
+        Else Rules_CommitEditor;
+   #8: If (RulesFocus In [0,2]) And (RulesTextCursor>0) Then Begin
+    Delete(Text,RulesTextCursor,1); Dec(RulesTextCursor); End;
+   #32..#255: If RulesFocus In [0,2] Then Begin
+    If Length(Text)<Limit Then Begin Insert(Key,Text,RulesTextCursor+1); Inc(RulesTextCursor); End;
+   End Else If Key=' ' Then Rules_Cycle(1);
+  End;
+  { Ne pas reecrire un champ apres un changement de focus ou une validation. }
+  If RulesWindowState In [rwsNew,rwsEdit] Then Begin
+   If (RulesFocus=0) And Not ((Not Extended And (Key=#9)) Or (Extended And (Key=#15))) Then
+    EditingRule.Name:=Text;
+   If (RulesFocus=2) And Not ((Not Extended And (Key=#9)) Or (Extended And (Key=#15))) Then
+    EditingRule.Conditions[0].Value:=Text;
+  End;
+ End Else Begin
+  If Extended Then Case Key Of
+   #72: If RulesSelectedIndex>0 Then Dec(RulesSelectedIndex);
+   #80: If RulesSelectedIndex<RuleCount-1 Then Inc(RulesSelectedIndex);
+   #71: If RuleCount>0 Then RulesSelectedIndex:=0;
+   #79: RulesSelectedIndex:=RuleCount-1;
+   #73: Begin Dec(RulesSelectedIndex,RULES_VISIBLE); If RulesSelectedIndex<0 Then RulesSelectedIndex:=0; End;
+   #81: Begin Inc(RulesSelectedIndex,RULES_VISIBLE);
+    If RulesSelectedIndex>=RuleCount Then RulesSelectedIndex:=RuleCount-1; End;
+   #83: Rules_ListAction(3);
+   #15: RulesFocus:=(RulesFocus+7) Mod 8;
+  End Else Case Key Of
+   #27: Rules_Hide;
+   #9: RulesFocus:=(RulesFocus+1) Mod 8;
+   #13: If RulesFocus=0 Then Rules_BeginEdit(False) Else Rules_ListAction(RulesFocus);
+   ' ': Rules_ListAction(RulesFocus);
+   'n','N': Rules_BeginEdit(True);
+  End;
  End;
+ If RulesSelectedIndex<RulesScrollOffset Then RulesScrollOffset:=RulesSelectedIndex;
+ If RulesSelectedIndex>=RulesScrollOffset+RULES_VISIBLE Then
+  RulesScrollOffset:=RulesSelectedIndex-RULES_VISIBLE+1;
+ If RulesScrollOffset<0 Then RulesScrollOffset:=0;
+ DrawInterface;
+End;
 
- { Liste des regles }
- Y1 := Y + 80;
- For I := 0 To RULES_VISIBLE - 1 Do Begin
-  If I + RulesScrollOffset >= RuleCount Then Break;
-
-  If (MY >= Y1 + I * RULE_LINE_HEIGHT) And
-     (MY < Y1 + (I + 1) * RULE_LINE_HEIGHT) Then Begin
-
-   { Clic sur la case a cocher }
-   If (MX >= X + 15) And (MX <= X + 45) Then Begin
-    Rules_ToggleEnabled(I + RulesScrollOffset);
-   End
-   Else Begin
-    RulesSelectedIndex := I + RulesScrollOffset;
+Function Rules_HandleClick(MX,MY: Integer): Boolean;
+Var X,Y,I,Row: Integer;
+Begin
+ Rules_HandleClick:=True; X:=MX-RulesWindowX; Y:=MY-RulesWindowY;
+ If (X<0) Or (X>RULES_WINDOW_WIDTH) Or (Y<0) Or (Y>RULES_WINDOW_HEIGHT) Then Exit;
+ If RulesDeletePending Then Begin
+  If (Y>=366) And (Y<=392) Then Begin
+   If (X>=10) And (X<=100) Then Begin Rules_ListAction(8); RulesDeletePending:=False; End
+   Else If (X>=110) And (X<=220) Then RulesDeletePending:=False;
+  End; Exit;
+ End;
+ If RulesWindowState In [rwsNew,rwsEdit] Then Begin
+  If (X>=164) And (X<=500) And (Y>=34) And (Y<286) Then Begin
+   Row:=(Y-34) Div 36;
+   If Y<=60+Row*36 Then Begin
+    RulesFocus:=Row; RulesTextCursor:=0;
+    If Row=0 Then RulesTextCursor:=Length(EditingRule.Name)
+    Else If Row=2 Then RulesTextCursor:=Length(EditingRule.Conditions[0].Value)
+    Else Rules_Cycle(1);
    End;
-   Exit;
+  End Else If (Y>=356) And (Y<=384) Then Begin
+   If (X>=304) And (X<=394) Then Rules_CommitEditor
+   Else If (X>=406) And (X<=504) Then Begin
+    RulesWindowState:=rwsList; RulesError:=''; RulesFocus:=0; End;
   End;
- End;
-
- { Boutons du bas }
- Y1 := Y + H - 40;
-
- { Bouton Appliquer maintenant }
- If (MX >= X + 10) And (MX <= X + 180) And (MY >= Y1) And (MY <= Y1 + 28) Then Begin
-  Rules_ApplyToAllMessages;
   Exit;
  End;
-
- { Bouton Fermer }
- If (MX >= X + W - 80) And (MX <= X + W - 10) And (MY >= Y1) And (MY <= Y1 + 28) Then Begin
-  Rules_Hide;
-  Exit;
+ If (X>=500) And (X<=516) And (Y>=4) And (Y<=20) Then Begin Rules_Hide; Exit; End;
+ If (Y>=30) And (Y<=52) Then Begin
+  I:=-1;
+  If (X>=10) And (X<=100) Then I:=1
+  Else If (X>=110) And (X<=190) Then I:=2
+  Else If (X>=200) And (X<=290) Then I:=3
+  Else If (X>=350) And (X<=430) Then I:=4
+  Else If (X>=440) And (X<=510) Then I:=5;
+  If I>=0 Then Begin RulesFocus:=I; Rules_ListAction(I); End;
+ End Else If (Y>=80) And (Y<80+RULES_VISIBLE*RULE_LINE_HEIGHT) And (X>=10) And (X<=510) Then Begin
+  I:=RulesScrollOffset+(Y-80) Div RULE_LINE_HEIGHT;
+  If I<RuleCount Then Begin RulesSelectedIndex:=I; RulesFocus:=0;
+   If X<=45 Then Rules_ListAction(0); End;
+ End Else If (Y>=360) And (Y<=388) Then Begin
+  If (X>=10) And (X<=180) Then Rules_ListAction(6)
+  Else If (X>=440) And (X<=510) Then Rules_ListAction(7);
  End;
-End;
-
-{ Ajoute des regles de demonstration }
-Procedure Rules_AddDemoRules;
-Var
- R: TFilterRule;
-Begin
- { Regle 1: Marquer les newsletters comme lues }
- Rules_InitRule(R);
- R.Name := 'Newsletters';
- R.Description := 'Marque les newsletters comme lues';
- R.Enabled := True;
- R.ApplyToIncoming := True;
-
- R.Conditions[0].ConditionType := rctSubjectContains;
- R.Conditions[0].Value := 'newsletter';
- R.Conditions[0].CaseSensitive := False;
- R.ConditionCount := 1;
-
- R.Actions[0].ActionType := ratMarkAsRead;
- R.ActionCount := 1;
-
- Rules_AddRule(R);
-
- { Regle 2: Flaguer les messages importants }
- Rules_InitRule(R);
- R.Name := 'Messages importants';
- R.Description := 'Marque les messages urgents';
- R.Enabled := True;
- R.ApplyToIncoming := True;
-
- R.Conditions[0].ConditionType := rctSubjectContains;
- R.Conditions[0].Value := 'URGENT';
- R.Conditions[0].CaseSensitive := False;
- R.ConditionCount := 1;
-
- R.Actions[0].ActionType := ratSetFlag;
- R.Actions[1].ActionType := ratSetPriority;
- R.Actions[1].PriorityValue := mpHigh;
- R.ActionCount := 2;
-
- Rules_AddRule(R);
-
- { Regle 3: Gros fichiers }
- Rules_InitRule(R);
- R.Name := 'Gros messages';
- R.Description := 'Marque les gros messages';
- R.Enabled := True;
- R.ApplyToIncoming := True;
-
- R.Conditions[0].ConditionType := rctSizeGreaterThan;
- R.Conditions[0].NumericValue := 1000000; { 1 Mo }
- R.ConditionCount := 1;
-
- R.Actions[0].ActionType := ratSetFlag;
- R.ActionCount := 1;
-
- Rules_AddRule(R);
 End;
 
 { ============================================================================
@@ -21524,7 +21777,7 @@ Function BeginMessageFileDialog(SaveMode: Boolean): Boolean;
 Var Err: Integer;
 Begin
  BeginMessageFileDialog:=False;
- If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Or
     (ComposerVisible And Not SaveMode) Then Exit;
  If FileOpenDirectory='' Then Begin
   {$I-}
@@ -21571,7 +21824,7 @@ End;
 Procedure SaveMessageAs;
 Var Subject: String; I: Integer; Data: TMailText;
 Begin
- If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
+ If AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Then Exit;
  If ComposerVisible Then Begin
   If Composer.AttachmentCount>0 Then Begin
    MailStatus:='Enregistrement des pieces jointes du brouillon non implemente';
@@ -21667,6 +21920,9 @@ Begin
   MessageSources[I]:=PendingMessageSources[I];
   PendingMessageSources[I]:='';
  End;
+ Rules_ApplyToAllMessages;
+ Unread:=0;
+ For I:=0 To MessageCount-1 Do If Not Messages[I].IsRead Then Inc(Unread);
  SelectedMessage:=-1; LastSelectedMessage:=-1; MessageScrollOffset:=0; PreviewScrollY:=0;
  If Count>0 Then Begin SelectedMessage:=0; Messages[0].IsSelected:=True; End;
  MailLoadedFolder:=SelectedFolder;
@@ -21938,7 +22194,7 @@ Procedure ShowColumnsDialog;
 Var I: Integer;
 Begin
  If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or
-    SortDialogVisible Or ColumnsDialogVisible Then Exit;
+    SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Then Exit;
  For I:=0 To ColumnCount-1 Do ColumnsDraft[I]:=Columns[I];
  ColumnsDialogSelection:=0; ColumnsDialogFocus:=0; ColumnsDialogError:='';
  ColumnsDialogVisible:=True; ContextMenuVisible:=False; DrawInterface;
@@ -22069,7 +22325,7 @@ End;
 
 Procedure ShowSortDialog;
 Begin
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Then Exit;
  SortDialogCriterion:=Ord(ctDate);
  If (SortColumn>=0) And (SortColumn<ColumnCount) Then
   SortDialogCriterion:=Ord(Columns[SortColumn].ColType);
@@ -22908,6 +23164,7 @@ Begin
  If FileOpenVisible Then DrawOpenFileDialog;
  If SortDialogVisible Then DrawSortDialog;
  If ColumnsDialogVisible Then DrawColumnsDialog;
+ If RulesVisible Then Rules_DrawWindow;
  ShowMouse;
 End;
 
@@ -23285,7 +23542,7 @@ Procedure OpenMenuShortcut(MenuIndex: Integer);
 Var I: Integer;
 Begin
  If (MenuIndex < 0) Or (MenuIndex >= MenuCount) Then Exit;
- If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Then Exit;
+ If ComposerVisible Or AccountDialogVisible Or FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or RulesVisible Then Exit;
  TooltipVisible := False;
  ContextMenuVisible := False;
  MenuBarActive := True;
@@ -23395,7 +23652,12 @@ Begin
    GetMouseState(MouseX, MouseY, MouseBtn);
   {$ENDIF}
 
-  If ColumnsDialogVisible Then Begin
+  If RulesVisible Then Begin
+   If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then Begin
+    Rules_HandleClick(MouseX,MouseY); DrawInterface;
+   End;
+   LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
+  End Else If ColumnsDialogVisible Then Begin
    If (MouseBtn And MOUSE_LEFT <> 0) And (LastBtn And MOUSE_LEFT = 0) Then
     HandleColumnsDialogClick(MouseX,MouseY);
    LastMouseX:=MouseX; LastMouseY:=MouseY; LastBtn:=MouseBtn;
@@ -23606,6 +23868,9 @@ Begin
      Running := False;
      Break;
     End;
+   End;
+   If RulesVisible Then Begin
+    Rules_HandleKey(Key,IsExtendedKey); Continue;
    End;
    If ColumnsDialogVisible Then Begin
     HandleColumnsDialogKey(Key,IsExtendedKey);
@@ -23895,7 +24160,7 @@ BEGIN
 
  { Initialisation du systeme de regles (TODO 17) }
  Rules_Init;
- Rules_AddDemoRules;
+ Rules_Load;
 
  { Initialisation de la recherche avancee (TODO 18) }
  Search_Init;
