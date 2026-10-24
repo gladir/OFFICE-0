@@ -100,7 +100,7 @@ Const
  SCREEN_W      = 640;
  SCREEN_H      = 480;
  MENU_H        = 16;
- TOOL_H        = 24;
+ CLASSIC_TOOL_H = 24;
  STAT_H        = 14;
  TS_H          = 24;
  ROW_H         = 14;
@@ -404,6 +404,9 @@ Var
  MenuItemHover : Integer;
 
  Tools         : Array[1..32] Of TToolBtn;
+ RibbonMode,RibbonKeyboard,NeedRibbonRedraw: Boolean;
+ RibbonTab,RibbonFocus,RibbonHover,RibbonInk,TOOL_H: Integer;
+ CommandLineFile: String;
  ToolCount     : Integer;
  ToolHover     : Integer;
 
@@ -632,13 +635,27 @@ End;
 {                       ICONES VECTORIELLES                              }
 { ====================================================================== }
 
+Procedure IconSetColor(C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;SetColor(C);End;
+Procedure IconSetFillStyle(Style,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;SetFillStyle(Style,C);End;
+Procedure IconFillBox(X1,Y1,X2,Y2,C: Integer);
+Begin
+ If RibbonInk>=0 Then Begin C:=CLR_MENU_BG;If RibbonInk=CLR_WHITE Then C:=CLR_MENU_SEL_BG;End;
+ FillBox(X1,Y1,X2,Y2,C);
+End;
+Procedure IconHLine(X1,X2,Y,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;HLine(X1,X2,Y,C);End;
+Procedure IconVLine(X,Y1,Y2,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;VLine(X,Y1,Y2,C);End;
+
 Procedure IconNew(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 3, Y + 2, X + 13, Y + 17);
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 4, Y + 3, X + 12, Y + 16);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 10, Y + 2, X + 10, Y + 5);
  Line(X + 10, Y + 5, X + 13, Y + 5);
  Line(X + 5, Y + 8, X + 11, Y + 8);
@@ -648,43 +665,43 @@ End;
 
 Procedure IconOpen(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_BROWN);
+ IconSetFillStyle(1, CLR_BROWN);
  Bar(X + 2, Y + 6, X + 15, Y + 16);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 6, X + 15, Y + 16);
  Line(X + 2, Y + 6, X + 6, Y + 4);
  Line(X + 6, Y + 4, X + 9, Y + 4);
  Line(X + 9, Y + 4, X + 9, Y + 6);
- SetFillStyle(1, CLR_YELLOW);
+ IconSetFillStyle(1, CLR_YELLOW);
  Bar(X + 4, Y + 8, X + 14, Y + 15);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 4, Y + 8, X + 14, Y + 15);
 End;
 
 Procedure IconSave(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_BLUE);
+ IconSetFillStyle(1, CLR_BLUE);
  Bar(X + 2, Y + 2, X + 15, Y + 17);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 2, X + 15, Y + 17);
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 5, Y + 4, X + 13, Y + 9);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 5, Y + 4, X + 13, Y + 9);
  Line(X + 11, Y + 5, X + 11, Y + 8);
- SetFillStyle(1, CLR_LGRAY);
+ IconSetFillStyle(1, CLR_LGRAY);
  Bar(X + 4, Y + 11, X + 14, Y + 16);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 4, Y + 11, X + 14, Y + 16);
 End;
 
 Procedure IconPrint(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LGRAY);
+ IconSetFillStyle(1, CLR_LGRAY);
  Bar(X + 2, Y + 6, X + 15, Y + 13);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 6, X + 15, Y + 13);
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 4, Y + 2, X + 13, Y + 7);
  Rectangle(X + 4, Y + 2, X + 13, Y + 7);
  Bar(X + 4, Y + 11, X + 13, Y + 17);
@@ -693,7 +710,7 @@ End;
 
 Procedure IconCut(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 3, X + 9, Y + 10);
  Line(X + 15, Y + 3, X + 9, Y + 10);
  Line(X + 9, Y + 10, X + 6, Y + 16);
@@ -704,32 +721,32 @@ End;
 
 Procedure IconCopy(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 2, Y + 2, X + 10, Y + 13);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 2, X + 10, Y + 13);
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 6, Y + 6, X + 14, Y + 17);
  Rectangle(X + 6, Y + 6, X + 14, Y + 17);
 End;
 
 Procedure IconPaste(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_BROWN);
+ IconSetFillStyle(1, CLR_BROWN);
  Bar(X + 3, Y + 4, X + 14, Y + 17);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 3, Y + 4, X + 14, Y + 17);
- SetFillStyle(1, CLR_WHITE);
+ IconSetFillStyle(1, CLR_WHITE);
  Bar(X + 5, Y + 7, X + 12, Y + 16);
  Rectangle(X + 5, Y + 7, X + 12, Y + 16);
- SetFillStyle(1, CLR_LGRAY);
+ IconSetFillStyle(1, CLR_LGRAY);
  Bar(X + 6, Y + 2, X + 11, Y + 5);
  Rectangle(X + 6, Y + 2, X + 11, Y + 5);
 End;
 
 Procedure IconUndo(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Arc(X + 9, Y + 11, 0, 180, 6);
  Line(X + 3, Y + 11, X + 6, Y + 8);
  Line(X + 3, Y + 11, X + 6, Y + 14);
@@ -737,7 +754,7 @@ End;
 
 Procedure IconRedo(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Arc(X + 9, Y + 11, 0, 180, 6);
  Line(X + 15, Y + 11, X + 12, Y + 8);
  Line(X + 15, Y + 11, X + 12, Y + 14);
@@ -745,7 +762,7 @@ End;
 
 Procedure IconLink(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 6, X + 8, Y + 12);
  Rectangle(X + 9, Y + 6, X + 15, Y + 12);
 End;
@@ -753,68 +770,68 @@ End;
 Procedure IconUnlink(X, Y: Integer);
 Begin
  IconLink(X, Y);
- SetColor(CLR_RED);
+ IconSetColor(CLR_RED);
  Line(X + 2, Y + 17, X + 15, Y + 4);
 End;
 
 Procedure IconIndent(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 5, X + 14, Y + 5);
  Line(X + 6, Y + 9, X + 14, Y + 9);
  Line(X + 6, Y + 13, X + 14, Y + 13);
  Line(X + 2, Y + 17, X + 14, Y + 17);
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Line(X + 2, Y + 11, X + 5, Y + 9);
  Line(X + 2, Y + 11, X + 5, Y + 13);
 End;
 
 Procedure IconOutdent(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 5, X + 14, Y + 5);
  Line(X + 6, Y + 9, X + 14, Y + 9);
  Line(X + 6, Y + 13, X + 14, Y + 13);
  Line(X + 2, Y + 17, X + 14, Y + 17);
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Line(X + 8, Y + 11, X + 5, Y + 9);
  Line(X + 8, Y + 11, X + 5, Y + 13);
 End;
 
 Procedure IconInsTask(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LCYAN);
+ IconSetFillStyle(1, CLR_LCYAN);
  Bar(X + 2, Y + 5, X + 15, Y + 9);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 5, X + 15, Y + 9);
- SetColor(CLR_GREEN);
+ IconSetColor(CLR_GREEN);
  Line(X + 8, Y + 12, X + 8, Y + 18);
  Line(X + 5, Y + 15, X + 11, Y + 15);
 End;
 
 Procedure IconDelTask(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LCYAN);
+ IconSetFillStyle(1, CLR_LCYAN);
  Bar(X + 2, Y + 5, X + 15, Y + 9);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 5, X + 15, Y + 9);
- SetColor(CLR_RED);
+ IconSetColor(CLR_RED);
  Line(X + 4, Y + 13, X + 12, Y + 13);
  Line(X + 4, Y + 14, X + 12, Y + 14);
 End;
 
 Procedure IconInfo(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Circle(X + 9, Y + 10, 6);
- SetColor(CLR_WHITE);
+ IconSetColor(CLR_WHITE);
  Line(X + 9, Y + 7, X + 9, Y + 8);
  Line(X + 9, Y + 10, X + 9, Y + 14);
 End;
 
 Procedure IconGoto(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Line(X + 3, Y + 10, X + 13, Y + 10);
  Line(X + 13, Y + 10, X + 9, Y + 6);
  Line(X + 13, Y + 10, X + 9, Y + 14);
@@ -822,29 +839,29 @@ End;
 
 Procedure IconZoomIn(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Circle(X + 7, Y + 8, 4);
  Line(X + 10, Y + 11, X + 15, Y + 16);
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Line(X + 5, Y + 8, X + 9, Y + 8);
  Line(X + 7, Y + 6, X + 7, Y + 10);
 End;
 
 Procedure IconZoomOut(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Circle(X + 7, Y + 8, 4);
  Line(X + 10, Y + 11, X + 15, Y + 16);
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Line(X + 5, Y + 8, X + 9, Y + 8);
 End;
 
 Procedure IconGantt(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 4, X + 2, Y + 17);
  Line(X + 2, Y + 17, X + 15, Y + 17);
- SetFillStyle(1, CLR_BLUE);
+ IconSetFillStyle(1, CLR_BLUE);
  Bar(X + 4, Y + 6, X + 9, Y + 8);
  Bar(X + 7, Y + 10, X + 12, Y + 12);
  Bar(X + 10, Y + 14, X + 15, Y + 16);
@@ -852,7 +869,7 @@ End;
 
 Procedure IconNet(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 4, X + 6, Y + 9);
  Rectangle(X + 11, Y + 4, X + 15, Y + 9);
  Rectangle(X + 6, Y + 12, X + 12, Y + 17);
@@ -863,7 +880,7 @@ End;
 
 Procedure IconRes(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Circle(X + 9, Y + 6, 3);
  Line(X + 4, Y + 16, X + 9, Y + 9);
  Line(X + 9, Y + 9, X + 14, Y + 16);
@@ -872,9 +889,9 @@ End;
 
 Procedure IconHelp(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Circle(X + 9, Y + 10, 6);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  OutTextXY(X + 6, Y + 4, '?');
 End;
 
@@ -1769,6 +1786,7 @@ Begin
  AddMenuItem(MenuCount, 'Tutoriel',         '',  False, ACT_HELP_TUTOR);
  AddMenuItem(MenuCount, '-', '', True, 0);
  AddMenuItem(MenuCount, 'A propos...',      '',  False, ACT_HELP_ABOUT);
+ If RibbonMode Then Begin Menus[2].Caption:='Accu~e~il';Menus[9].Caption:='Aide';End;
 End;
 
 Function MenuCaptionWidth(Const S: String): Integer;
@@ -1816,7 +1834,7 @@ Begin
  FillBox(0, MenuY1, SCREEN_W - 1, MenuY2, CLR_MENU_BG);
  HLine(0, SCREEN_W - 1, MenuY2, CLR_WIN_LO);
  For I := 1 To MenuCount Do Begin
-  If I = MenuOpen Then Begin Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG; End
+  If (I = MenuOpen) Or (RibbonMode And (I=RibbonTab)) Then Begin Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG; End
   Else If I = MenuHover Then Begin Bg := CLR_DGRAY; Fg := CLR_WHITE; End
   Else Begin Bg := CLR_MENU_BG; Fg := CLR_MENU_FG; End;
   FillBox(Menus[I].X1, MenuY1 + 1, Menus[I].X2, MenuY2 - 1, Bg);
@@ -1866,6 +1884,7 @@ End;
 Procedure DrawDropDown;
 Var M, I, Y, Ih, Bg, Fg: Integer; S: String;
 Begin
+ If RibbonMode Then Exit;
  If MenuOpen = 0 Then Exit;
  M := MenuOpen;
  ComputeDropLayout(M);
@@ -1985,9 +2004,100 @@ Begin
  End;
 End;
 
+Function RibbonActionEnabled(A: Integer): Boolean;
+Begin
+ RibbonActionEnabled:=False;
+ Case A Of
+  ACT_NEW,ACT_OPEN,ACT_SAVE,ACT_SAVEAS,ACT_QUIT,ACT_HELP_ABOUT,ACT_INS_TASK,ACT_DELETE,ACT_INDENT,ACT_OUTDENT,
+  ACT_LINK,ACT_UNLINK,ACT_ZOOM_IN,ACT_ZOOM_OUT,ACT_ZOOM_FIT,ACT_SCROLL_TASK,ACT_VIEW_GANTT,ACT_VIEW_NET,
+  ACT_VIEW_RES,ACT_VIEW_USAGE,ACT_VIEW_CAL,ACT_PROJ_INFO,ACT_TASKINFO,ACT_RES_SHEET,ACT_TOOL_BASE,
+  ACT_TOOL_LEVEL,ACT_TOOL_TRACK,ACT_INS_PIC,ACT_PRINT,ACT_REPORTS,ACT_RPT_SUM,ACT_RPT_TASKS,ACT_RPT_CRIT,
+  ACT_RPT_RES,ACT_RPT_COST,ACT_RPT_MS,ACT_HELP_TOPIC,ACT_HELP_TUTOR:
+   RibbonActionEnabled:=True;
+ End;
+End;
+Function RibbonItemCount: Integer;
+Var I,N: Integer;
+Begin
+ N:=0;For I:=1 To Menus[RibbonTab].Count Do If Not Menus[RibbonTab].Items[I].IsSep Then Inc(N);
+ RibbonItemCount:=N;
+End;
+Function RibbonMenuItem(Index: Integer): Integer;
+Var I,N: Integer;
+Begin
+ N:=0;RibbonMenuItem:=0;
+ For I:=1 To Menus[RibbonTab].Count Do If Not Menus[RibbonTab].Items[I].IsSep Then Begin
+  Inc(N);If N=Index Then Begin RibbonMenuItem:=I;Exit;End;
+ End;
+End;
+Function RibbonEntryEnabled(Index: Integer): Boolean;
+Var Item: Integer;
+Begin
+ RibbonEntryEnabled:=False;Item:=RibbonMenuItem(Index);If Item=0 Then Exit;
+ RibbonEntryEnabled:=Menus[RibbonTab].Items[Item].Enabled And
+  RibbonActionEnabled(Menus[RibbonTab].Items[Item].Action);
+End;
+Procedure RibbonButtonBox(Index: Integer;Var X,Y,W,H: Integer);
+Var Columns: Integer;
+Begin
+ Columns:=(RibbonItemCount+2) Div 3;If Columns<3 Then Columns:=3;
+ W:=(SCREEN_W-16) Div Columns;H:=24;
+ X:=8+((Index-1) Div 3)*W;Y:=MENU_H+4+((Index-1) Mod 3)*H;
+End;
+Function RibbonHitAt(X,Y: LongInt): Integer;
+Var I,BX,BY,W,H: Integer;
+Begin
+ RibbonHitAt:=0;If Not RibbonMode Then Exit;
+ For I:=1 To RibbonItemCount Do Begin
+  RibbonButtonBox(I,BX,BY,W,H);
+  If (X>=BX) And (X<BX+W-4) And (Y>=BY) And (Y<BY+H-2) Then Begin RibbonHitAt:=I;Exit;End;
+ End;
+End;
+Function RibbonActionIcon(A: Integer): Integer;
+Var I,N: Integer;
+Begin
+ N:=ICO_INFO;
+ For I:=1 To ToolCount Do If Not Tools[I].IsSep And (Tools[I].Action=A) Then N:=Tools[I].Icon;
+ Case A Of
+  ACT_SAVEAS: N:=ICO_SAVE;ACT_INS_RES,ACT_TOOL_RES,ACT_RES_SHEET: N:=ICO_RES;
+  ACT_HELP_ABOUT,ACT_HELP_TUTOR: N:=ICO_HELP;
+ End;
+ RibbonActionIcon:=N;
+End;
+Function RibbonTitle: String;
+Var I: Integer;S: String;
+Begin
+ S:='';For I:=1 To Length(Menus[RibbonTab].Caption) Do
+  If Menus[RibbonTab].Caption[I]<>'~' Then S:=S+Menus[RibbonTab].Caption[I];
+ RibbonTitle:=S;
+End;
+Procedure DrawRibbon;
+Var I,Item,X,Y,W,H,Color: Integer;Caption: String;
+Begin
+ HideMouse;FillBox(0,ToolY1,SCREEN_W-1,ToolY2,CLR_MENU_BG);
+ For I:=1 To RibbonItemCount Do Begin
+  Item:=RibbonMenuItem(I);RibbonButtonBox(I,X,Y,W,H);Color:=CLR_BLACK;
+  If Not RibbonEntryEnabled(I) Then Color:=CLR_DGRAY
+  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Then Begin
+   FillBox(X,Y,X+W-5,Y+H-3,CLR_MENU_SEL_BG);Color:=CLR_WHITE;
+  End;
+  RibbonInk:=-1;If Color<>CLR_BLACK Then RibbonInk:=Color;
+  DrawIcon(RibbonActionIcon(Menus[RibbonTab].Items[Item].Action),X+4,Y+2);RibbonInk:=-1;
+  Caption:=Menus[RibbonTab].Items[Item].Caption;
+  If TextWidth(Caption)>W-34 Then Begin
+   While (Length(Caption)>0) And (TextWidth(Caption+'...')>W-34) Do Delete(Caption,Length(Caption),1);
+   Caption:=Caption+'...';
+  End;
+  SetColor(Color);OutTextXY(X+26,Y+7,Caption);
+ End;
+ HLine(4,SCREEN_W-5,ToolY2-14,CLR_WIN_LO);
+ SetColor(CLR_DGRAY);OutTextXY(8,ToolY2-10,RibbonTitle);ShowMouse;
+End;
+
 Procedure DrawToolbar;
 Var I: Integer;
 Begin
+ If RibbonMode Then Exit;
  HideMouse;
  FillBox(0, ToolY1, SCREEN_W - 1, ToolY2, CLR_TOOL_BG);
  HLine(0, SCREEN_W - 1, ToolY1, CLR_WIN_HI);
@@ -2012,6 +2122,7 @@ End;
 Function ToolAtXY(X, Y: Integer): Integer;
 Var I: Integer;
 Begin
+ If RibbonMode Then Begin ToolAtXY:=0;Exit;End;
  ToolAtXY := 0;
  If (Y < ToolY1) Or (Y > ToolY2) Then Exit;
  For I := 1 To ToolCount Do
@@ -3340,11 +3451,10 @@ Begin
  ShowMouse;
 End;
 
-Procedure HandleEditKey(K: Char);
-Var K2: Char;
+Procedure HandleEditKey(K,K2: Char);
 Begin
  If K = #0 Then Begin
-  K2 := ReadKey;
+
   Case K2 Of
    #75: If EditCaret > 0 Then Dec(EditCaret);
    #77: If EditCaret < Length(EditBuf) Then Inc(EditCaret);
@@ -6929,14 +7039,70 @@ Begin
  If GridScrollY < 0 Then GridScrollY := 0;
 End;
 
+Procedure ExecuteRibbonEntry(Index: Integer);
+Var A: Integer;
+Begin
+ If Not RibbonEntryEnabled(Index) Then Exit;
+ A:=Menus[RibbonTab].Items[RibbonMenuItem(Index)].Action;
+ RibbonKeyboard:=False;RibbonFocus:=0;MenuOpen:=0;NeedRibbonRedraw:=True;DoAction(A);
+End;
+Procedure RibbonMoveFocus(Direction: Integer);
+Var I: Integer;
+Begin
+ I:=RibbonFocus;If (I=0) And (Direction<0) Then I:=RibbonItemCount+1;
+ Repeat
+  Inc(I,Direction);If (I<1) Or (I>RibbonItemCount) Then Begin RibbonFocus:=0;Exit;End;
+  If RibbonEntryEnabled(I) Then Begin RibbonFocus:=I;Exit;End;
+ Until False;
+End;
+Function HandleRibbonKey(K,K2: Char): Boolean;
+Var Tab,Direction: Integer;
+Begin
+ HandleRibbonKey:=False;If Not RibbonMode Then Exit;Tab:=0;
+ If K=#0 Then Case K2 Of
+  #33: Tab:=1;#18: Tab:=2;#30: Tab:=3;#23: Tab:=4;#24: Tab:=5;
+  #20: Tab:=6;#25: Tab:=7;#49: Tab:=8;#35: Tab:=9;
+ End;
+ If Tab>0 Then Begin
+  If EditMode Then CommitEdit;If ResViewEdit Then RVCommitEdit;
+  RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonHover:=0;MenuOpen:=0;
+  NeedRibbonRedraw:=True;HandleRibbonKey:=True;Exit;
+ End;
+ If (K=#0) And (K2=#68) Then Begin
+  If EditMode Then CommitEdit;If ResViewEdit Then RVCommitEdit;
+  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;NeedRibbonRedraw:=True;HandleRibbonKey:=True;Exit;
+ End;
+ If Not RibbonKeyboard Then Exit;
+ HandleRibbonKey:=True;Direction:=0;
+ If K=#0 Then Case K2 Of
+  #75: Direction:=-1;#77: Direction:=1;
+  #72,#15: RibbonMoveFocus(-1);#80: RibbonMoveFocus(1);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End Else Case K Of
+  #9: RibbonMoveFocus(1);
+  #27: If RibbonFocus>0 Then RibbonFocus:=0 Else RibbonKeyboard:=False;
+  #13,' ': If RibbonFocus=0 Then RibbonMoveFocus(1) Else ExecuteRibbonEntry(RibbonFocus);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End;
+ If Direction<>0 Then Begin
+  If RibbonFocus=0 Then Begin
+   Inc(RibbonTab,Direction);If RibbonTab<1 Then RibbonTab:=MenuCount;
+   If RibbonTab>MenuCount Then RibbonTab:=1;RibbonHover:=0;
+  End Else RibbonMoveFocus(Direction);
+ End;
+ NeedRibbonRedraw:=True;
+End;
+
 Procedure HandleKey(K: Char);
 Var K2: Char;
 Begin
- If EditMode Then Begin HandleEditKey(K); Exit; End;
+ K2:=#0;If K=#0 Then K2:=ReadKey;
+ If HandleRibbonKey(K,K2) Then Exit;
+ If EditMode Then Begin HandleEditKey(K,K2); Exit; End;
  { --- Vues non Gantt : navigation specifique --- }
  If CurView <> VIEW_GANTT Then Begin
   If K = #0 Then Begin
-   K2 := ReadKey;
+
    Case CurView Of
     VIEW_NETWORK:
      Case K2 Of
@@ -7024,7 +7190,7 @@ Begin
   Exit;
  End;
  If K = #0 Then Begin
-  K2 := ReadKey;
+
   Case K2 Of
    #72: Begin If CurTaskIdx > 1 Then Dec(CurTaskIdx); EnsureCurVisible;
               NeedGridRedraw := True; NeedGanttRedraw := True; End;
@@ -7092,6 +7258,15 @@ Begin
    { laissez le clic passer pour resituer; toute interaction ailleurs commit }
   End;
   CommitEdit;
+ End;
+ If RibbonMode Then Begin
+  RibbonKeyboard:=False;RibbonFocus:=0;NeedRibbonRedraw:=True;
+  If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then Begin
+   M:=MenuAtX(Mouse.X);If M>0 Then Begin RibbonTab:=M;RibbonHover:=0;MenuOpen:=0;End;Exit;
+  End;
+  If (Mouse.Y>=ToolY1) And (Mouse.Y<=ToolY2) Then Begin
+   I:=RibbonHitAt(Mouse.X,Mouse.Y);If I>0 Then ExecuteRibbonEntry(I);Exit;
+  End;
  End;
  If (Mouse.Y >= MenuY1) And (Mouse.Y <= MenuY2) Then Begin
   M := MenuAtX(Mouse.X);
@@ -7171,6 +7346,12 @@ End;
 Procedure UpdateHovers;
 Var M, T, OldM, OldT, OldI: Integer;
 Begin
+ If RibbonMode Then Begin
+  M:=0;If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then M:=MenuAtX(Mouse.X);
+  T:=RibbonHitAt(Mouse.X,Mouse.Y);
+  If (MenuHover<>M) Or (RibbonHover<>T) Then NeedRibbonRedraw:=True;
+  MenuHover:=M;RibbonHover:=T;ToolHover:=0;Exit;
+ End;
  OldM := MenuHover; OldT := ToolHover; OldI := MenuItemHover;
  M := 0; T := 0;
  If (Mouse.Y >= MenuY1) And (Mouse.Y <= MenuY2) Then
@@ -7216,7 +7397,7 @@ Begin
  FillBox(0, 0, SCREEN_W - 1, SCREEN_H - 1, CLR_WIN_BG);
  ShowMouse;
  DrawMenuBar;
- DrawToolbar;
+ If RibbonMode Then DrawRibbon Else DrawToolbar;
  Case CurView Of
   VIEW_GANTT: Begin
    DrawGrid;
@@ -7237,6 +7418,7 @@ Begin
  If NeedFullRedraw Then Begin
   RedrawAll;
   NeedFullRedraw := False;
+  NeedRibbonRedraw:=False;
   NeedGridRedraw := False;
   NeedGanttRedraw := False;
   NeedMenuRedraw := False;
@@ -7244,6 +7426,7 @@ Begin
   NeedDropRedraw := False;
   Exit;
  End;
+ If NeedRibbonRedraw Then Begin DrawMenuBar;DrawRibbon;NeedRibbonRedraw:=False;End;
  If NeedMenuRedraw Then Begin DrawMenuBar; NeedMenuRedraw := False; End;
  Case CurView Of
   VIEW_GANTT: Begin
@@ -7373,8 +7556,58 @@ Begin
  ResViewEdit := False; ResViewBuf := ''; ResViewCaret := 0;
  CalMonth := 1; CalYear := 2025;
 End;
+Function CommandLineHelpRequested: Boolean;
+Var I,J: Integer;Arg: String;
+Begin
+ CommandLineHelpRequested:=False;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);For J:=1 To Length(Arg) Do Arg[J]:=UpCase(Arg[J]);
+  If (Arg='/?') Or (Arg='-H') Or (Arg='--HELP') Then Begin CommandLineHelpRequested:=True;Exit;End;
+ End;
+End;
+Procedure ShowCommandLineHelp;
+Var HelpOutput: Text;
+Begin
+ Assign(HelpOutput,'');Rewrite(HelpOutput);
+ WriteLn(HelpOutput,'PROJECT - Gestion graphique de projets en Pascal.');
+ WriteLn(HelpOutput,'Utilisation : PROJECT [/CLASSICMENU | /RUBANMENU] [fichier] [/?]');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'  /CLASSICMENU  Menus classiques, style Project 2003 (par defaut).');
+ WriteLn(HelpOutput,'  /RUBANMENU    Onglets avec icones, style Project 2007 et suivants.');
+ WriteLn(HelpOutput,'               La barre d''outils est masquee ; ses commandes figurent dans les onglets.');
+ WriteLn(HelpOutput,'  /?           Affiche cette aide et quitte sans ouvrir de fenetre.');
+ WriteLn(HelpOutput,'  -h, --help   Affichent egalement cette aide.');
+ WriteLn(HelpOutput,'  fichier      Projet .MPX, .XML, .CSV, .MPP, .MPT, .MPD ou .PPM a ouvrir.');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'Options insensibles a la casse ; le dernier mode specifie est utilise.');
+ WriteLn(HelpOutput,'Le fichier peut apparaitre avant ou apres les options.');
+ WriteLn(HelpOutput,'Exemple : PROJECT /RUBANMENU "C:\Documents\Mon projet.mpx"');
+ WriteLn(HelpOutput,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
+ WriteLn(HelpOutput,'Alt+F Fichier, Alt+E Accueil, Alt+A Affichage, Alt+I Insertion, Alt+O Format,');
+ WriteLn(HelpOutput,'Alt+T Outils, Alt+P Projet, Alt+N Fenetre, Alt+H Aide.');
+ Close(HelpOutput);
+End;
+Procedure ParseCommandLine;
+Var I,J: Integer;Arg,U: String;
+Begin
+ RibbonMode:=False;RibbonTab:=2;RibbonFocus:=0;RibbonHover:=0;RibbonKeyboard:=False;
+ RibbonInk:=-1;CommandLineFile:='';TOOL_H:=CLASSIC_TOOL_H;NeedRibbonRedraw:=False;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);U:=Arg;For J:=1 To Length(U) Do U[J]:=UpCase(U[J]);
+  If U='/CLASSICMENU' Then RibbonMode:=False
+  Else If U='/RUBANMENU' Then RibbonMode:=True
+  Else Begin
+   If CommandLineFile<>'' Then CommandLineFile:=CommandLineFile+' ';
+   CommandLineFile:=CommandLineFile+Arg;
+  End;
+ End;
+ If RibbonMode Then TOOL_H:=96;
+End;
+
 
 BEGIN
+ If CommandLineHelpRequested Then Begin ShowCommandLineHelp;Halt(0);End;
+ ParseCommandLine;
  InitializeGraphics;
  InitGlobals;
  InitColumns;
@@ -7383,6 +7616,10 @@ BEGIN
  InitTools;
  InitProject;
  SampleProject;
+ If CommandLineFile<>'' Then Begin
+  If LoadProjectByExt(CommandLineFile) Then StatusMsg:='Charge : '+CommandLineFile
+  Else MessageBox('Ouvrir','Impossible de charger : '+CommandLineFile);
+ End;
  GanttOriginDt := Project.StartDate - 3;
  If MouseDriverFound Then ShowMouse;
  MainLoop;

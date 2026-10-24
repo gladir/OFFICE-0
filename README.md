@@ -169,6 +169,28 @@ Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
 Les dix titres d'onglets sont abreges pour tenir dans les 640 pixels de largeur ;
 leurs raccourcis sont listes dans l'aide de la commande.
 
+<h2>Menus de Project</h2>
+
+```bat
+PROJECT /?
+PROJECT /CLASSICMENU
+PROJECT /RUBANMENU "C:\Documents\Mon projet.mpx"
+```
+
+Le menu classique est utilise par defaut. Les options sont insensibles a la
+casse ; le dernier mode specifie est utilise. Un fichier .MPX, .XML, .CSV,
+.MPP, .MPT, .MPD ou .PPM peut etre indique avant ou apres les options.
+/? (ou -h, --help) affiche l'aide en console et quitte sans ouvrir de fenetre.
+
+En mode ruban, la barre d'outils est masquee et toutes ses commandes figurent
+dans les onglets avec icones vectorielles et sans cadres permanents. Les
+commandes non implementees sont grisees. Les vues de travail s'adaptent a la
+hauteur du ruban. Le survol et le focus clavier du ruban ne redessinent pas
+la grille. Une saisie de cellule est validee avant l'ouverture d'un onglet.
+
+Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
+Les raccourcis des neuf onglets sont listes dans l'aide de la commande.
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
