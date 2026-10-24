@@ -146,6 +146,29 @@ grisees. Les sections, pages et zones de saisie s'adaptent a la hauteur du ruban
 Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
 Les libelles suivent la langue FR/EN choisie dans Outils.
 
+<h2>Menus de PowerPoint</h2>
+
+```bat
+POWERPNT /?
+POWERPNT /CLASSICMENU
+POWERPNT /RUBANMENU "C:\Documents\Ma presentation.pptx"
+```
+
+Le menu classique est utilise par defaut. Les options sont insensibles a la
+casse ; le dernier mode specifie est utilise. Le fichier .PPT ou .PPTX peut
+apparaitre avant ou apres les options. /? (ou -h, --help) affiche l'aide en
+console et quitte avant l'initialisation graphique et l'ecran de demarrage.
+
+En mode ruban, la barre d'outils est masquee et ses commandes sont integrees
+aux onglets avec icones vectorielles et sans cadres permanents. Accueil regroupe
+l'edition, la selection et la mise en forme. Insertion regroupe les outils de
+dessin. Les commandes non implementees sont grisees. Les vues, miniatures,
+regles et diapositives s'adaptent a la hauteur du ruban.
+
+Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
+Les dix titres d'onglets sont abreges pour tenir dans les 640 pixels de largeur ;
+leurs raccourcis sont listes dans l'aide de la commande.
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>

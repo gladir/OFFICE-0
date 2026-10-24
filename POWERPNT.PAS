@@ -88,7 +88,7 @@ Const
  SCREEN_W      = 640;
  SCREEN_H      = 480;
  MENU_H        = 16;
- TOOL_H        = 22;
+ CLASSIC_TOOL_H = 22;
  STATUS_H      = 16;
  PANEL_W       = 100;    { panneau des miniatures a gauche }
  RULER_H       = 14;
@@ -565,6 +565,10 @@ Var
 
  { Toolbar }
  Tools          : Array[1..40] Of TToolButton;
+ RibbonMode,RibbonKeyboard: Boolean;
+ RibbonTab,RibbonFocus,RibbonHover,RibbonInk: Integer;
+ TOOL_H: Integer;
+ CommandLineFile: String;
  ToolCount      : Integer;
  ToolHover      : Integer;
  ToolY1, ToolY2 : Integer;
@@ -944,6 +948,18 @@ Begin
  Menus[M].Items[C].Enabled  := True;
 End;
 
+Function RibbonCanonicalAction(A: Integer): Integer;
+Begin
+ RibbonCanonicalAction:=A;
+ Case A Of
+  ACT_TOOL_TEXT: RibbonCanonicalAction:=ACT_INS_TEXT;
+  ACT_TOOL_RECT: RibbonCanonicalAction:=ACT_INS_RECT;
+  ACT_TOOL_ELL: RibbonCanonicalAction:=ACT_INS_ELLIPSE;
+  ACT_TOOL_LINE: RibbonCanonicalAction:=ACT_INS_LINE;
+  ACT_TOOL_ARROW: RibbonCanonicalAction:=ACT_INS_ARROW;
+ End;
+End;
+
 Procedure InitMenus;
 Var I, X: Integer;
 Begin
@@ -1051,6 +1067,21 @@ Begin
  AddMenuItem(10,'',                          '',          True,  0);
  AddMenuItem(10,'A propos de PowerPnt...',   '',          False, ACT_HELP_ABOUT);
 
+ If RibbonMode Then Begin
+  Menus[1].Caption:='Fichier';Menus[2].Caption:='Accueil';Menus[3].Caption:='Affich.';
+  Menus[4].Caption:='Inserer';Menus[5].Caption:='Creer';Menus[6].Caption:='Transit.';
+  Menus[7].Caption:='Animat.';Menus[8].Caption:='Diapo';Menus[9].Caption:='Revis.';
+  Menus[10].Caption:='Aide';
+  AddMenuItem(2,'Selectionner','',False,ACT_TOOL_SELECT);
+  AddMenuItem(2,'Gras','Ctrl+B',False,ACT_FONT_BOLD);
+  AddMenuItem(2,'Italique','Ctrl+I',False,ACT_FONT_ITAL);
+  AddMenuItem(2,'Souligne','Ctrl+U',False,ACT_FONT_UND);
+  AddMenuItem(2,'Gauche','Ctrl+L',False,ACT_ALIGN_LEFT);
+  AddMenuItem(2,'Centrer','Ctrl+E',False,ACT_ALIGN_CENTER);
+  AddMenuItem(2,'Droite','Ctrl+R',False,ACT_ALIGN_RIGHT);
+  AddMenuItem(2,'Puces','',False,ACT_BULLET);
+  AddMenuItem(2,'Supprimer la diapositive','',False,ACT_DEL_SLIDE);
+ End;
  X := 4;
  For I := 1 To MenuCount Do Begin
   Menus[I].X1 := X;
@@ -1068,7 +1099,8 @@ Begin
  FillBox(0, MenuY1, SCREEN_W - 1, MenuY2, CLR_MENU_BG);
  HLine(0, SCREEN_W - 1, MenuY2, CLR_WIN_LO);
  For I := 1 To MenuCount Do Begin
-  If (I = MenuOpen) Or ((I = MenuHover) And (MenuOpen = 0)) Then Begin
+  If (I = MenuOpen) Or (RibbonMode And (I=RibbonTab)) Or
+     ((I = MenuHover) And (MenuOpen = 0)) Then Begin
    Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG;
    FillBox(Menus[I].X1, MenuY1 + 1, Menus[I].X2, MenuY2 - 1, Bg);
   End
@@ -1119,6 +1151,7 @@ End;
 Procedure DrawDropDown;
 Var M, I, Y, Ih, Bg, Fg: Integer; S: String;
 Begin
+ If RibbonMode Then Exit;
  If MenuOpen = 0 Then Exit;
  M := MenuOpen;
  ComputeDropLayout(M);
@@ -1203,78 +1236,92 @@ End;
 {                       ICONES VECTORIELLES 18x18                        }
 { ====================================================================== }
 
+Procedure IconSetColor(C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;SetColor(C);End;
+Procedure IconSetFillStyle(Style,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;SetFillStyle(Style,C);End;
+Procedure IconFillBox(X1,Y1,X2,Y2,C: Integer);
+Begin
+ If RibbonInk>=0 Then Begin C:=CLR_MENU_BG;If RibbonInk=CLR_WHITE Then C:=CLR_MENU_SEL_BG;End;
+ FillBox(X1,Y1,X2,Y2,C);
+End;
+Procedure IconHLine(X1,X2,Y,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;HLine(X1,X2,Y,C);End;
+Procedure IconVLine(X,Y1,Y2,C: Integer);
+Begin If RibbonInk>=0 Then C:=RibbonInk;VLine(X,Y1,Y2,C);End;
+
 Procedure IconNew(X, Y: Integer);
 Begin
- FillBox(X + 3, Y + 1, X + 12, Y + 16, CLR_WHITE);
- SetColor(CLR_BLACK);
+ IconFillBox(X + 3, Y + 1, X + 12, Y + 16, CLR_WHITE);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 3, Y + 1, X + 12, Y + 16);
  Line(X + 9, Y + 1, X + 12, Y + 4);
- HLine(X + 5, X + 10, Y + 7, CLR_DGRAY);
- HLine(X + 5, X + 10, Y + 9, CLR_DGRAY);
- HLine(X + 5, X + 10, Y + 11, CLR_DGRAY);
+ IconHLine(X + 5, X + 10, Y + 7, CLR_DGRAY);
+ IconHLine(X + 5, X + 10, Y + 9, CLR_DGRAY);
+ IconHLine(X + 5, X + 10, Y + 11, CLR_DGRAY);
 End;
 
 Procedure IconOpen(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
- FillBox(X + 1, Y + 5, X + 15, Y + 14, CLR_YELLOW);
+ IconSetColor(CLR_BLACK);
+ IconFillBox(X + 1, Y + 5, X + 15, Y + 14, CLR_YELLOW);
  Rectangle(X + 1, Y + 5, X + 15, Y + 14);
  Line(X + 1, Y + 5, X + 4, Y + 3);
  Line(X + 4, Y + 3, X + 8, Y + 3);
  Line(X + 8, Y + 3, X + 9, Y + 5);
- HLine(X + 2, X + 14, Y + 7, CLR_BROWN);
+ IconHLine(X + 2, X + 14, Y + 7, CLR_BROWN);
 End;
 
 Procedure IconSave(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 2, X + 15, Y + 15, CLR_BLUE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 15, Y + 15);
- FillBox(X + 5, Y + 2, X + 12, Y + 6, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 5, Y + 2, X + 12, Y + 6);
- FillBox(X + 9, Y + 3, X + 11, Y + 5, CLR_BLACK);
- FillBox(X + 4, Y + 9, X + 13, Y + 14, CLR_WHITE);
+ IconFillBox(X + 2, Y + 2, X + 15, Y + 15, CLR_BLUE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 15, Y + 15);
+ IconFillBox(X + 5, Y + 2, X + 12, Y + 6, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 5, Y + 2, X + 12, Y + 6);
+ IconFillBox(X + 9, Y + 3, X + 11, Y + 5, CLR_BLACK);
+ IconFillBox(X + 4, Y + 9, X + 13, Y + 14, CLR_WHITE);
 End;
 
 Procedure IconPrint(X, Y: Integer);
 Begin
- FillBox(X + 4, Y + 2, X + 13, Y + 6, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 4, Y + 2, X + 13, Y + 6);
- FillBox(X + 1, Y + 6, X + 16, Y + 12, CLR_LGRAY);
- SetColor(CLR_BLACK); Rectangle(X + 1, Y + 6, X + 16, Y + 12);
- FillBox(X + 4, Y + 12, X + 13, Y + 15, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 4, Y + 12, X + 13, Y + 15);
+ IconFillBox(X + 4, Y + 2, X + 13, Y + 6, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 4, Y + 2, X + 13, Y + 6);
+ IconFillBox(X + 1, Y + 6, X + 16, Y + 12, CLR_LGRAY);
+ IconSetColor(CLR_BLACK); Rectangle(X + 1, Y + 6, X + 16, Y + 12);
+ IconFillBox(X + 4, Y + 12, X + 13, Y + 15, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 4, Y + 12, X + 13, Y + 15);
  PutPixel(X + 13, Y + 8, CLR_GREEN);
 End;
 
 Procedure IconCut(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 3, Y + 3, X + 13, Y + 13);
  Line(X + 13, Y + 3, X + 3, Y + 13);
- SetColor(CLR_RED);
+ IconSetColor(CLR_RED);
  Circle(X + 4, Y + 14, 2);
  Circle(X + 12, Y + 14, 2);
 End;
 
 Procedure IconCopy(X, Y: Integer);
 Begin
- FillBox(X + 5, Y + 3, X + 13, Y + 14, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 5, Y + 3, X + 13, Y + 14);
- FillBox(X + 2, Y + 6, X + 10, Y + 16, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 6, X + 10, Y + 16);
+ IconFillBox(X + 5, Y + 3, X + 13, Y + 14, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 5, Y + 3, X + 13, Y + 14);
+ IconFillBox(X + 2, Y + 6, X + 10, Y + 16, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 6, X + 10, Y + 16);
 End;
 
 Procedure IconPaste(X, Y: Integer);
 Begin
- FillBox(X + 5, Y + 2, X + 12, Y + 4, CLR_BROWN);
- FillBox(X + 3, Y + 4, X + 14, Y + 15, CLR_YELLOW);
- SetColor(CLR_BLACK); Rectangle(X + 3, Y + 4, X + 14, Y + 15);
- FillBox(X + 5, Y + 7, X + 12, Y + 13, CLR_WHITE);
+ IconFillBox(X + 5, Y + 2, X + 12, Y + 4, CLR_BROWN);
+ IconFillBox(X + 3, Y + 4, X + 14, Y + 15, CLR_YELLOW);
+ IconSetColor(CLR_BLACK); Rectangle(X + 3, Y + 4, X + 14, Y + 15);
+ IconFillBox(X + 5, Y + 7, X + 12, Y + 13, CLR_WHITE);
 End;
 
 Procedure IconUndo(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Arc(X + 9, Y + 11, 30, 200, 6);
  Line(X + 3, Y + 11, X + 3, Y + 5);
  Line(X + 3, Y + 5, X + 7, Y + 5);
@@ -1284,7 +1331,7 @@ End;
 
 Procedure IconRedo(X, Y: Integer);
 Begin
- SetColor(CLR_BLUE);
+ IconSetColor(CLR_BLUE);
  Arc(X + 9, Y + 11, 0, 150, 6);
  Line(X + 15, Y + 11, X + 15, Y + 5);
  Line(X + 11, Y + 5, X + 15, Y + 5);
@@ -1294,30 +1341,30 @@ End;
 
 Procedure IconNewSlide(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 2, X + 14, Y + 12, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 14, Y + 12);
- HLine(X + 4, X + 12, Y + 5, CLR_BLUE);
- HLine(X + 4, X + 12, Y + 8, CLR_DGRAY);
- SetColor(CLR_GREEN);
+ IconFillBox(X + 2, Y + 2, X + 14, Y + 12, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 14, Y + 12);
+ IconHLine(X + 4, X + 12, Y + 5, CLR_BLUE);
+ IconHLine(X + 4, X + 12, Y + 8, CLR_DGRAY);
+ IconSetColor(CLR_GREEN);
  Line(X + 14, Y + 14, X + 14, Y + 17);
  Line(X + 12, Y + 16, X + 16, Y + 16);
 End;
 
 Procedure IconDelSlide(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 2, X + 14, Y + 12, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 14, Y + 12);
- HLine(X + 4, X + 12, Y + 5, CLR_BLUE);
- SetColor(CLR_RED);
+ IconFillBox(X + 2, Y + 2, X + 14, Y + 12, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 2, X + 14, Y + 12);
+ IconHLine(X + 4, X + 12, Y + 5, CLR_BLUE);
+ IconSetColor(CLR_RED);
  Line(X + 12, Y + 13, X + 16, Y + 17);
  Line(X + 16, Y + 13, X + 12, Y + 17);
 End;
 
 Procedure IconText(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Rectangle(X + 2, Y + 4, X + 15, Y + 15);
- SetColor(CLR_DGRAY);
+ IconSetColor(CLR_DGRAY);
  Line(X + 5, Y + 6, X + 12, Y + 6);
  Line(X + 8, Y + 6, X + 8, Y + 13);
  Line(X + 7, Y + 13, X + 9, Y + 13);
@@ -1325,26 +1372,26 @@ End;
 
 Procedure IconRect(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 4, X + 15, Y + 14, CLR_LCYAN);
- SetColor(CLR_BLUE); Rectangle(X + 2, Y + 4, X + 15, Y + 14);
+ IconFillBox(X + 2, Y + 4, X + 15, Y + 14, CLR_LCYAN);
+ IconSetColor(CLR_BLUE); Rectangle(X + 2, Y + 4, X + 15, Y + 14);
 End;
 
 Procedure IconEllipse(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LRED);
+ IconSetFillStyle(1, CLR_LRED);
  FillEllipse(X + 9, Y + 9, 6, 4);
- SetColor(CLR_RED); Ellipse(X + 9, Y + 9, 0, 360, 6, 4);
+ IconSetColor(CLR_RED); Ellipse(X + 9, Y + 9, 0, 360, 6, 4);
 End;
 
 Procedure IconLine(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK); Line(X + 2, Y + 14, X + 15, Y + 3);
+ IconSetColor(CLR_BLACK); Line(X + 2, Y + 14, X + 15, Y + 3);
  Line(X + 3, Y + 14, X + 15, Y + 4);
 End;
 
 Procedure IconArrow(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 9, X + 14, Y + 9);
  Line(X + 14, Y + 9, X + 11, Y + 6);
  Line(X + 14, Y + 9, X + 11, Y + 12);
@@ -1352,8 +1399,8 @@ End;
 
 Procedure IconTriangle(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LGREEN);
- SetColor(CLR_GREEN);
+ IconSetFillStyle(1, CLR_LGREEN);
+ IconSetColor(CLR_GREEN);
  Line(X + 8, Y + 3, X + 2, Y + 14);
  Line(X + 8, Y + 3, X + 14, Y + 14);
  Line(X + 2, Y + 14, X + 14, Y + 14);
@@ -1364,7 +1411,7 @@ Procedure IconStar(X, Y: Integer);
 Var Cx, Cy: Integer;
 Begin
  Cx := X + 9; Cy := Y + 9;
- SetColor(CLR_YELLOW);
+ IconSetColor(CLR_YELLOW);
  Line(Cx, Cy - 6, Cx - 5, Cy + 5);
  Line(Cx - 5, Cy + 5, Cx + 6, Cy - 2);
  Line(Cx + 6, Cy - 2, Cx - 6, Cy - 2);
@@ -1374,10 +1421,10 @@ End;
 
 Procedure IconImage(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 3, X + 15, Y + 14, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 3, X + 15, Y + 14);
- SetFillStyle(1, CLR_YELLOW); FillEllipse(X + 6, Y + 7, 2, 2);
- SetColor(CLR_GREEN);
+ IconFillBox(X + 2, Y + 3, X + 15, Y + 14, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 3, X + 15, Y + 14);
+ IconSetFillStyle(1, CLR_YELLOW); FillEllipse(X + 6, Y + 7, 2, 2);
+ IconSetColor(CLR_GREEN);
  Line(X + 3, Y + 13, X + 8, Y + 8);
  Line(X + 8, Y + 8, X + 12, Y + 11);
  Line(X + 12, Y + 11, X + 14, Y + 9);
@@ -1385,24 +1432,24 @@ End;
 
 Procedure IconTable(X, Y: Integer);
 Begin
- FillBox(X + 2, Y + 3, X + 15, Y + 15, CLR_WHITE);
- SetColor(CLR_BLACK); Rectangle(X + 2, Y + 3, X + 15, Y + 15);
- FillBox(X + 2, Y + 3, X + 15, Y + 6, CLR_LBLUE);
- HLine(X + 2, X + 15, Y + 9, CLR_DGRAY);
- HLine(X + 2, X + 15, Y + 12, CLR_DGRAY);
- VLine(X + 8, Y + 3, Y + 15, CLR_DGRAY);
+ IconFillBox(X + 2, Y + 3, X + 15, Y + 15, CLR_WHITE);
+ IconSetColor(CLR_BLACK); Rectangle(X + 2, Y + 3, X + 15, Y + 15);
+ IconFillBox(X + 2, Y + 3, X + 15, Y + 6, CLR_LBLUE);
+ IconHLine(X + 2, X + 15, Y + 9, CLR_DGRAY);
+ IconHLine(X + 2, X + 15, Y + 12, CLR_DGRAY);
+ IconVLine(X + 8, Y + 3, Y + 15, CLR_DGRAY);
 End;
 
 Procedure IconBold(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  OutTextXY(X + 6, Y + 4, 'B');
  OutTextXY(X + 7, Y + 4, 'B');
 End;
 
 Procedure IconItal(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  OutTextXY(X + 7, Y + 4, 'I');
  Line(X + 6, Y + 14, X + 9, Y + 14);
  Line(X + 5, Y + 4, X + 8, Y + 4);
@@ -1410,14 +1457,14 @@ End;
 
 Procedure IconUnd(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  OutTextXY(X + 6, Y + 3, 'U');
  Line(X + 4, Y + 14, X + 14, Y + 14);
 End;
 
 Procedure IconAlignL(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 4, X + 14, Y + 4);
  Line(X + 2, Y + 7, X + 10, Y + 7);
  Line(X + 2, Y + 10, X + 14, Y + 10);
@@ -1426,7 +1473,7 @@ End;
 
 Procedure IconAlignC(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 4, X + 14, Y + 4);
  Line(X + 4, Y + 7, X + 12, Y + 7);
  Line(X + 2, Y + 10, X + 14, Y + 10);
@@ -1435,7 +1482,7 @@ End;
 
 Procedure IconAlignR(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 2, Y + 4, X + 14, Y + 4);
  Line(X + 6, Y + 7, X + 14, Y + 7);
  Line(X + 2, Y + 10, X + 14, Y + 10);
@@ -1444,7 +1491,7 @@ End;
 
 Procedure IconBullet(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  PutPixel(X + 3, Y + 5, CLR_BLACK); PutPixel(X + 4, Y + 5, CLR_BLACK);
  PutPixel(X + 3, Y + 6, CLR_BLACK); PutPixel(X + 4, Y + 6, CLR_BLACK);
  Line(X + 6, Y + 5, X + 14, Y + 5);
@@ -1458,28 +1505,28 @@ End;
 
 Procedure IconFill(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LRED);
+ IconSetFillStyle(1, CLR_LRED);
  Bar(X + 3, Y + 4, X + 14, Y + 12);
- SetColor(CLR_BLACK); Rectangle(X + 3, Y + 4, X + 14, Y + 12);
- SetColor(CLR_RED);
+ IconSetColor(CLR_BLACK); Rectangle(X + 3, Y + 4, X + 14, Y + 12);
+ IconSetColor(CLR_RED);
  Line(X + 5, Y + 13, X + 12, Y + 13);
  Line(X + 6, Y + 14, X + 11, Y + 14);
 End;
 
 Procedure IconPen(X, Y: Integer);
 Begin
- SetColor(CLR_BROWN);
+ IconSetColor(CLR_BROWN);
  Line(X + 3, Y + 14, X + 14, Y + 3);
  Line(X + 4, Y + 14, X + 14, Y + 4);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 12, Y + 2, X + 15, Y + 5);
 End;
 
 Procedure IconSlideshow(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LGREEN);
+ IconSetFillStyle(1, CLR_LGREEN);
  Bar(X + 4, Y + 3, X + 5, Y + 14);
- SetColor(CLR_GREEN);
+ IconSetColor(CLR_GREEN);
  Line(X + 4, Y + 3, X + 15, Y + 9);
  Line(X + 4, Y + 14, X + 15, Y + 9);
  Line(X + 5, Y + 4, X + 14, Y + 9);
@@ -1488,15 +1535,15 @@ End;
 
 Procedure IconHelp(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_BLUE);
+ IconSetFillStyle(1, CLR_BLUE);
  FillEllipse(X + 8, Y + 9, 6, 6);
- SetColor(CLR_WHITE);
+ IconSetColor(CLR_WHITE);
  OutTextXY(X + 5, Y + 5, '?');
 End;
 
 Procedure IconSelect(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 4, Y + 3, X + 4, Y + 14);
  Line(X + 4, Y + 3, X + 12, Y + 11);
  Line(X + 4, Y + 14, X + 8, Y + 11);
@@ -1506,22 +1553,22 @@ End;
 
 Procedure IconFont(X, Y: Integer);
 Begin
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  OutTextXY(X + 4, Y + 3, 'A');
- SetColor(CLR_RED);
+ IconSetColor(CLR_RED);
  Line(X + 3, Y + 13, X + 14, Y + 13);
  Line(X + 3, Y + 14, X + 14, Y + 14);
 End;
 
 Procedure IconTrans(X, Y: Integer);
 Begin
- SetFillStyle(1, CLR_LCYAN);
+ IconSetFillStyle(1, CLR_LCYAN);
  Bar(X + 2, Y + 4, X + 7, Y + 13);
- SetColor(CLR_CYAN); Rectangle(X + 2, Y + 4, X + 7, Y + 13);
- SetFillStyle(1, CLR_LMAGENTA);
+ IconSetColor(CLR_CYAN); Rectangle(X + 2, Y + 4, X + 7, Y + 13);
+ IconSetFillStyle(1, CLR_LMAGENTA);
  Bar(X + 10, Y + 4, X + 15, Y + 13);
- SetColor(CLR_MAGENTA); Rectangle(X + 10, Y + 4, X + 15, Y + 13);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_MAGENTA); Rectangle(X + 10, Y + 4, X + 15, Y + 13);
+ IconSetColor(CLR_BLACK);
  Line(X + 7, Y + 9, X + 10, Y + 9);
  Line(X + 10, Y + 9, X + 8, Y + 7);
  Line(X + 10, Y + 9, X + 8, Y + 11);
@@ -1529,10 +1576,10 @@ End;
 
 Procedure IconAnim(X, Y: Integer);
 Begin
- SetColor(CLR_YELLOW);
- SetFillStyle(1, CLR_YELLOW);
+ IconSetColor(CLR_YELLOW);
+ IconSetFillStyle(1, CLR_YELLOW);
  FillEllipse(X + 6, Y + 9, 3, 3);
- SetColor(CLR_BLACK);
+ IconSetColor(CLR_BLACK);
  Line(X + 9, Y + 9, X + 15, Y + 5);
  Line(X + 9, Y + 9, X + 15, Y + 9);
  Line(X + 9, Y + 9, X + 15, Y + 13);
@@ -1668,9 +1715,100 @@ Begin
  End;
 End;
 
+Function RibbonActionEnabled(A: Integer): Boolean;
+Begin
+ RibbonActionEnabled:=False;
+ Case A Of
+  ACT_QUIT,ACT_NEW,ACT_OPEN,ACT_SAVE,ACT_SAVEAS,ACT_CLOSE,ACT_PRINT,ACT_EXPORT_PPTX,ACT_IMPORT_PPTX,
+  ACT_HELP_ABOUT,ACT_NEW_SLIDE,ACT_DUP_SLIDE,ACT_DEL_SLIDE,ACT_NEXT_SLIDE,ACT_PREV_SLIDE,ACT_FIRST_SLIDE,
+  ACT_LAST_SLIDE,ACT_VIEW_NORMAL,ACT_VIEW_OUTLINE,ACT_VIEW_SORTER,ACT_VIEW_NOTES,ACT_TOOL_SELECT,ACT_INS_RECT,
+  ACT_INS_ELLIPSE,ACT_INS_LINE,ACT_INS_ARROW,ACT_INS_TRIANGLE,ACT_INS_STAR,ACT_INS_CALLOUT,ACT_INS_TEXT,
+  ACT_FONT_BOLD,ACT_FONT_ITAL,ACT_FONT_UND,ACT_ALIGN_LEFT,ACT_ALIGN_CENTER,ACT_ALIGN_RIGHT,ACT_BULLET,
+  ACT_INDENT_INC,ACT_INDENT_DEC,ACT_FONT_SIZE_UP,ACT_FONT_SIZE_DN,ACT_COLOR_FILL,ACT_COLOR_LINE,
+  ACT_COLOR_TEXT,ACT_MOVE_UP,ACT_MOVE_DOWN,ACT_LAYOUT,ACT_BACKGROUND,ACT_THEME,ACT_VIEW_MASTER,ACT_INS_HEADER,
+  ACT_SLIDESHOW,ACT_SLIDESHOW_FROM,ACT_RUN_FROM_BEG,ACT_TRANS,ACT_INS_IMAGE,ACT_ANIM_ENTRY,ACT_ANIM_EXIT,
+  ACT_TIMING,ACT_DELETE,ACT_DUP,ACT_BRING_FRONT,ACT_SEND_BACK:
+   RibbonActionEnabled:=True;
+ End;
+End;
+Function RibbonItemCount: Integer;
+Var I,N: Integer;
+Begin
+ N:=0;For I:=1 To Menus[RibbonTab].Count Do If Not Menus[RibbonTab].Items[I].IsSep Then Inc(N);
+ RibbonItemCount:=N;
+End;
+Function RibbonMenuItem(Index: Integer): Integer;
+Var I,N: Integer;
+Begin
+ N:=0;RibbonMenuItem:=0;
+ For I:=1 To Menus[RibbonTab].Count Do If Not Menus[RibbonTab].Items[I].IsSep Then Begin
+  Inc(N);If N=Index Then Begin RibbonMenuItem:=I;Exit;End;
+ End;
+End;
+Function RibbonEntryEnabled(Index: Integer): Boolean;
+Var Item: Integer;
+Begin
+ RibbonEntryEnabled:=False;Item:=RibbonMenuItem(Index);If Item=0 Then Exit;
+ RibbonEntryEnabled:=Menus[RibbonTab].Items[Item].Enabled And
+  RibbonActionEnabled(Menus[RibbonTab].Items[Item].Action);
+End;
+Procedure RibbonButtonBox(Index: Integer;Var X,Y,W,H: Integer);
+Var Columns: Integer;
+Begin
+ Columns:=(RibbonItemCount+3) Div 4;If Columns<3 Then Columns:=3;
+ W:=(SCREEN_W-16) Div Columns;H:=24;
+ X:=8+((Index-1) Div 4)*W;Y:=MENU_H+4+((Index-1) Mod 4)*H;
+End;
+Function RibbonHitAt(X,Y: LongInt): Integer;
+Var I,BX,BY,W,H: Integer;
+Begin
+ RibbonHitAt:=0;If Not RibbonMode Then Exit;
+ For I:=1 To RibbonItemCount Do Begin
+  RibbonButtonBox(I,BX,BY,W,H);
+  If (X>=BX) And (X<BX+W-4) And (Y>=BY) And (Y<BY+H-2) Then Begin RibbonHitAt:=I;Exit;End;
+ End;
+End;
+Function RibbonActionIcon(A: Integer): Integer;
+Var I,N: Integer;
+Begin
+ N:=ICO_NEWSLIDE;A:=RibbonCanonicalAction(A);
+ For I:=1 To ToolCount Do If Not Tools[I].IsSep And
+  (RibbonCanonicalAction(Tools[I].Action)=A) Then N:=Tools[I].Icon;
+ Case A Of
+  ACT_SAVEAS,ACT_EXPORT_PPTX: N:=ICO_SAVE;ACT_IMPORT_PPTX: N:=ICO_OPEN;
+  ACT_VIEW_NORMAL,ACT_VIEW_OUTLINE,ACT_VIEW_SORTER,ACT_VIEW_NOTES,ACT_LAYOUT: N:=ICO_NEWSLIDE;
+  ACT_ANIM_EXIT: N:=ICO_ANIM;ACT_TIMING: N:=ICO_TRANS;
+  ACT_SLIDESHOW_FROM: N:=ICO_SLIDESHOW;ACT_HELP_ABOUT: N:=ICO_HELP;
+ End;
+ RibbonActionIcon:=N;
+End;
+Procedure DrawRibbon;
+Var I,Item,X,Y,W,H,Color: Integer;Caption: String;
+Begin
+ HideMouse;FillBox(0,ToolY1,SCREEN_W-1,ToolY2,CLR_MENU_BG);
+ For I:=1 To RibbonItemCount Do Begin
+  Item:=RibbonMenuItem(I);RibbonButtonBox(I,X,Y,W,H);Color:=CLR_BLACK;
+  If Not RibbonEntryEnabled(I) Then Color:=CLR_DGRAY
+  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Then Begin
+   FillBox(X,Y,X+W-5,Y+H-3,CLR_MENU_SEL_BG);Color:=CLR_WHITE;
+  End;
+  RibbonInk:=-1;If Color<>CLR_BLACK Then RibbonInk:=Color;
+  DrawIcon(RibbonActionIcon(Menus[RibbonTab].Items[Item].Action),X+4,Y+2);RibbonInk:=-1;
+  Caption:=Menus[RibbonTab].Items[Item].Caption;
+  If TextWidth(Caption)>W-34 Then Begin
+   While (Length(Caption)>0) And (TextWidth(Caption+'...')>W-34) Do Delete(Caption,Length(Caption),1);
+   Caption:=Caption+'...';
+  End;
+  SetColor(Color);OutTextXY(X+26,Y+7,Caption);
+ End;
+ HLine(4,SCREEN_W-5,ToolY2-14,CLR_WIN_LO);
+ SetColor(CLR_DGRAY);OutTextXY(8,ToolY2-10,Menus[RibbonTab].Caption);ShowMouse;
+End;
+
 Procedure DrawToolBar;
 Var I: Integer;
 Begin
+ If RibbonMode Then Exit;
  HideMouse;
  FillBox(0, ToolY1, SCREEN_W - 1, ToolY2, CLR_WIN_BG);
  HLine(0, SCREEN_W - 1, ToolY2, CLR_WIN_LO);
@@ -1695,6 +1833,7 @@ End;
 Function ToolAt(X, Y: LongInt): Integer;
 Var I: Integer;
 Begin
+ If RibbonMode Then Begin ToolAt:=0;Exit;End;
  ToolAt := 0;
  For I := 1 To ToolCount Do
   If (Not Tools[I].IsSep) And
@@ -3195,7 +3334,7 @@ Begin
   ShowMouse;
   DrawMenuBar;
   UpdateToolToggles;
-  DrawToolBar;
+  If RibbonMode Then DrawRibbon Else DrawToolBar;
   DrawRuler;
   DrawSlidePanel;
   DrawMainArea;
@@ -9795,9 +9934,70 @@ Begin
  End;
 End;
 
+Procedure ExecuteRibbonEntry(Index: Integer);
+Var A: Integer;
+Begin
+ If Not RibbonEntryEnabled(Index) Then Exit;
+ A:=Menus[RibbonTab].Items[RibbonMenuItem(Index)].Action;
+ RibbonKeyboard:=False;RibbonFocus:=0;MenuOpen:=0;NeedFullRedraw:=True;DoAction(A);
+End;
+Procedure RibbonMoveFocus(Direction: Integer);
+Var I: Integer;
+Begin
+ I:=RibbonFocus;If (I=0) And (Direction<0) Then I:=RibbonItemCount+1;
+ Repeat
+  Inc(I,Direction);If (I<1) Or (I>RibbonItemCount) Then Begin RibbonFocus:=0;Exit;End;
+  If RibbonEntryEnabled(I) Then Begin RibbonFocus:=I;Exit;End;
+ Until False;
+End;
+Function HandleRibbonKey(K,K2: Char): Boolean;
+Var Tab,Direction: Integer;
+Begin
+ HandleRibbonKey:=False;If Not RibbonMode Then Exit;Tab:=0;
+ If K=#0 Then Case K2 Of
+  #33: Tab:=1;#18: Tab:=2;#30: Tab:=3;#23: Tab:=4;#46: Tab:=5;
+  #20: Tab:=6;#50: Tab:=7;#32: Tab:=8;#19: Tab:=9;#35: Tab:=10;
+ End;
+ If Tab>0 Then Begin
+  RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonHover:=0;MenuOpen:=0;
+  NeedFullRedraw:=True;HandleRibbonKey:=True;Exit;
+ End;
+ If (K=#0) And (K2=#68) Then Begin
+  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;NeedFullRedraw:=True;HandleRibbonKey:=True;Exit;
+ End;
+ If Not RibbonKeyboard Then Exit;
+ HandleRibbonKey:=True;Direction:=0;
+ If K=#0 Then Case K2 Of
+  #75: Direction:=-1;#77: Direction:=1;
+  #72,#15: RibbonMoveFocus(-1);#80: RibbonMoveFocus(1);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End Else Case K Of
+  #9: RibbonMoveFocus(1);
+  #27: If RibbonFocus>0 Then RibbonFocus:=0 Else RibbonKeyboard:=False;
+  #13,' ': If RibbonFocus=0 Then RibbonMoveFocus(1) Else ExecuteRibbonEntry(RibbonFocus);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End;
+ If Direction<>0 Then Begin
+  If RibbonFocus=0 Then Begin
+   Inc(RibbonTab,Direction);If RibbonTab<1 Then RibbonTab:=MenuCount;
+   If RibbonTab>MenuCount Then RibbonTab:=1;RibbonHover:=0;
+  End Else RibbonMoveFocus(Direction);
+ End;
+ NeedFullRedraw:=True;
+End;
+
 Procedure HandleMouseClick;
 Var T, M: Integer; Idx: Integer;
 Begin
+ If RibbonMode Then Begin
+  RibbonKeyboard:=False;RibbonFocus:=0;NeedFullRedraw:=True;
+  If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then Begin
+   T:=MenuAtX(Mouse.X);If T>0 Then Begin RibbonTab:=T;RibbonHover:=0;MenuOpen:=0;End;Exit;
+  End;
+  If (Mouse.Y>=ToolY1) And (Mouse.Y<=ToolY2) Then Begin
+   T:=RibbonHitAt(Mouse.X,Mouse.Y);If T>0 Then ExecuteRibbonEntry(T);Exit;
+  End;
+ End;
  { Barre de menu }
  If InRect(Mouse.X, Mouse.Y, 0, MenuY1, SCREEN_W - 1, MenuY2) Then Begin
   HandleMenuBarClick; Exit;
@@ -9862,6 +10062,12 @@ End;
 Procedure UpdateHovers;
 Var T, M, NewItem: Integer;
 Begin
+ If RibbonMode Then Begin
+  M:=0;If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then M:=MenuAtX(Mouse.X);
+  T:=RibbonHitAt(Mouse.X,Mouse.Y);
+  If (MenuHover<>M) Or (RibbonHover<>T) Then NeedFullRedraw:=True;
+  MenuHover:=M;RibbonHover:=T;ToolHover:=0;Exit;
+ End;
  T := 0; M := 0;
  If InRect(Mouse.X, Mouse.Y, 0, MenuY1, SCREEN_W - 1, MenuY2) Then
   M := MenuAtX(Mouse.X);
@@ -9936,6 +10142,7 @@ End;
 Procedure HandleKey(K, K2: Char);
 Var NewSel, Tries, Act: Integer;
 Begin
+ If HandleRibbonKey(K,K2) Then Exit;
  { ----- MENU DEROULANT OUVERT : priorite absolue clavier ----- }
  If MenuOpen <> 0 Then Begin
   If K = #0 Then Begin
@@ -10242,10 +10449,60 @@ End;
 {                       PROGRAMME PRINCIPAL                              }
 { ====================================================================== }
 
+Function CommandLineHelpRequested: Boolean;
+Var I,J: Integer;Arg: String;
+Begin
+ CommandLineHelpRequested:=False;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);For J:=1 To Length(Arg) Do Arg[J]:=UpCase(Arg[J]);
+  If (Arg='/?') Or (Arg='-H') Or (Arg='--HELP') Then Begin CommandLineHelpRequested:=True;Exit;End;
+ End;
+End;
+Procedure ShowCommandLineHelp;
+Var HelpOutput: Text;
+Begin
+ Assign(HelpOutput,'');Rewrite(HelpOutput);
+ WriteLn(HelpOutput,'POWERPNT - Editeur graphique de presentations en Pascal.');
+ WriteLn(HelpOutput,'Utilisation : POWERPNT [/CLASSICMENU | /RUBANMENU] [presentation] [/?]');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'  /CLASSICMENU  Menus classiques, style PowerPoint 2003 (par defaut).');
+ WriteLn(HelpOutput,'  /RUBANMENU    Onglets avec icones, style PowerPoint 2007 et suivants.');
+ WriteLn(HelpOutput,'               La barre d''outils est masquee ; ses commandes figurent dans les onglets.');
+ WriteLn(HelpOutput,'  /?           Affiche cette aide et quitte sans ouvrir de fenetre.');
+ WriteLn(HelpOutput,'  -h, --help   Affichent egalement cette aide.');
+ WriteLn(HelpOutput,'  presentation Fichier .PPT ou .PPTX a ouvrir au demarrage.');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'Options insensibles a la casse ; le dernier mode specifie est utilise.');
+ WriteLn(HelpOutput,'Le fichier peut apparaitre avant ou apres les options.');
+ WriteLn(HelpOutput,'Exemple : POWERPNT /RUBANMENU "C:\Documents\Ma presentation.pptx"');
+ WriteLn(HelpOutput,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
+ WriteLn(HelpOutput,'Alt+F Fichier, Alt+E Accueil, Alt+A Affichage, Alt+I Insertion, Alt+C Creation,');
+ WriteLn(HelpOutput,'Alt+T Transitions, Alt+M Animations, Alt+D Diaporama, Alt+R Revision, Alt+H Aide.');
+ Close(HelpOutput);
+End;
+Procedure ParseCommandLine;
+Var I,J: Integer;Arg,U: String;
+Begin
+ RibbonMode:=False;RibbonTab:=2;RibbonFocus:=0;RibbonHover:=0;RibbonKeyboard:=False;
+ RibbonInk:=-1;CommandLineFile:='';TOOL_H:=CLASSIC_TOOL_H;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);U:=Arg;For J:=1 To Length(U) Do U[J]:=UpCase(U[J]);
+  If U='/CLASSICMENU' Then RibbonMode:=False
+  Else If U='/RUBANMENU' Then RibbonMode:=True
+  Else Begin
+   If CommandLineFile<>'' Then CommandLineFile:=CommandLineFile+' ';
+   CommandLineFile:=CommandLineFile+Arg;
+  End;
+ End;
+ If RibbonMode Then TOOL_H:=120;
+End;
+
 Var
  CmdFName: String;
 
 Begin
+ If CommandLineHelpRequested Then Begin ShowCommandLineHelp;Halt(0);End;
+ ParseCommandLine;
  InitializeGraphics;
  If Not MouseDriverFound Then Begin
   CloseGraph;
@@ -10257,8 +10514,8 @@ Begin
  InitMenus;
  InitTools;
  InitPresentation;
- If ParamCount >= 1 Then Begin
-  CmdFName := ParamStr(1);
+ If CommandLineFile<>'' Then Begin
+  CmdFName := CommandLineFile;
   { Phase 12 : vraie dispatche selon extension }
   If (Length(CmdFName) >= 5) And
      (PptxUpStr(Copy(CmdFName, Length(CmdFName) - 4, 5)) = '.PPTX') Then
