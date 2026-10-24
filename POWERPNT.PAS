@@ -9,7 +9,7 @@
 Program SR;
 
 Uses {$IFDEF FPC}
-      Crt,PtcGraph,PtcCrt,PtcMouse,Dos
+      Crt,PtcGraph,PtcCrt,PtcMouse,PtcWrapper,Dos
      {$ELSE}
       Crt,Graph,Dos
      {$ENDIF};
@@ -49,7 +49,7 @@ End;
   MouseDriverFound := Regs.AX = $FFFF;
  End;
 
- Procedure ShowMouse;
+ Procedure AppShowMouse;
  Var
   Regs: Registers;
  Begin
@@ -57,7 +57,7 @@ End;
   Intr($33, Regs);
  End;
 
- Procedure HideMouse;
+ Procedure AppHideMouse;
  Var
   Regs: Registers;
  Begin
@@ -575,6 +575,9 @@ Var
 
  { Etat global }
  TickCount      : LongInt;
+ PaintReady,PaintLocked,NeedChromeRedraw: Boolean;
+ TextCaretKnown,TextCaretDrawn: Boolean;
+ TextCaretX,TextCaretY,TextCaretHeight: Integer;
  NeedFullRedraw : Boolean;
  NeedSlideRedraw: Boolean;
  NeedPanelRedraw: Boolean;
@@ -688,6 +691,13 @@ End;
 {                       PRIMITIVES SOURIS                                }
 { ====================================================================== }
 
+{$IFDEF FPC}
+Procedure AppShowMouse;
+Begin If Not PaintLocked Then PtcMouse.ShowMouse;End;
+Procedure AppHideMouse;
+Begin If Not PaintLocked Then PtcMouse.HideMouse;End;
+{$ENDIF}
+
 Procedure UpdateMouse;
 Var Dt: LongInt;
 Begin
@@ -783,7 +793,7 @@ End;
 
 Procedure DlgFrame(X1, Y1, X2, Y2: Integer; Const Title: String);
 Begin
- HideMouse;
+ AppHideMouse;
  DropShadow(X1, Y1, X2, Y2);
  DrawRaised(X1, Y1, X2, Y2, CLR_DLG_BG, CLR_WIN_HI, CLR_WIN_LO);
  FillBox(X1 + 2, Y1 + 2, X2 - 2, Y1 + 15, CLR_DLG_TITLE_BG);
@@ -793,7 +803,7 @@ Begin
  SetColor(CLR_BLACK);
  Line(X2 - 13, Y1 + 6, X2 - 7, Y1 + 10);
  Line(X2 - 13, Y1 + 10, X2 - 7, Y1 + 6);
- ShowMouse;
+ AppShowMouse;
 End;
 
 Procedure DlgBtn(X1, Y1, X2, Y2: Integer; Const Caption: String;
@@ -842,11 +852,11 @@ Begin
  Bx1 := (X1 + X2) Div 2 - 35; By1 := Y2 - 32;
  Bx2 := Bx1 + 70;             By2 := Y2 - 12;
  DlgFrame(X1, Y1, X2, Y2, Title);
- HideMouse;
+ AppHideMouse;
  SetColor(CLR_BLACK);
  OutTextXY(X1 + 20, Y1 + 36, Msg);
  DlgBtn(Bx1, By1, Bx2, By2, 'OK', False, True);
- ShowMouse;
+ AppShowMouse;
  Repeat
   UpdateMouse;
   If KeyPressed Then Begin
@@ -874,12 +884,12 @@ Begin
  Nx1 := X2 - 150; Nx2 := Nx1 + 70;
  Sel := 1;
  DlgFrame(X1, Y1, X2, Y2, Title);
- HideMouse;
+ AppHideMouse;
  SetColor(CLR_BLACK);
  OutTextXY(X1 + 20, Y1 + 40, Msg);
  DlgBtn(Yx1, By1, Yx2, By2, 'Oui', False, Sel = 1);
  DlgBtn(Nx1, By1, Nx2, By2, 'Non', False, Sel = 2);
- ShowMouse;
+ AppShowMouse;
  Repeat
   UpdateMouse;
   If KeyPressed Then Begin
@@ -888,18 +898,18 @@ Begin
     K2 := ReadKey;
     If K2 = #75 Then Sel := 1;
     If K2 = #77 Then Sel := 2;
-    HideMouse;
+    AppHideMouse;
     DlgBtn(Yx1, By1, Yx2, By2, 'Oui', False, Sel = 1);
     DlgBtn(Nx1, By1, Nx2, By2, 'Non', False, Sel = 2);
-    ShowMouse;
+    AppShowMouse;
     Continue;
    End;
    If K = #9 Then Begin
     If Sel = 1 Then Sel := 2 Else Sel := 1;
-    HideMouse;
+    AppHideMouse;
     DlgBtn(Yx1, By1, Yx2, By2, 'Oui', False, Sel = 1);
     DlgBtn(Nx1, By1, Nx2, By2, 'Non', False, Sel = 2);
-    ShowMouse;
+    AppShowMouse;
     Continue;
    End;
    If K = #13 Then Begin
@@ -1095,7 +1105,7 @@ End;
 Procedure DrawMenuBar;
 Var I, Bg, Fg: Integer;
 Begin
- HideMouse;
+ AppHideMouse;
  FillBox(0, MenuY1, SCREEN_W - 1, MenuY2, CLR_MENU_BG);
  HLine(0, SCREEN_W - 1, MenuY2, CLR_WIN_LO);
  For I := 1 To MenuCount Do Begin
@@ -1108,7 +1118,7 @@ Begin
   SetColor(Fg);
   OutTextXY(Menus[I].X1 + 4, MenuY1 + 4, Menus[I].Caption);
  End;
- ShowMouse;
+ AppShowMouse;
 End;
 
 Function MenuAtX(X: LongInt): Integer;
@@ -1155,7 +1165,7 @@ Begin
  If MenuOpen = 0 Then Exit;
  M := MenuOpen;
  ComputeDropLayout(M);
- HideMouse;
+ AppHideMouse;
  DropShadow(DropX, DropY, DropX + DropW, DropY + DropH);
  DrawRaised(DropX, DropY, DropX + DropW, DropY + DropH,
             CLR_MENU_BG, CLR_WIN_HI, CLR_WIN_LO);
@@ -1178,7 +1188,7 @@ Begin
   End;
   Y := Y + Ih;
  End;
- ShowMouse;
+ AppShowMouse;
 End;
 
 { Phase 12 : repaint d'une seule rangee d'item dans le menu deroulant ouvert
@@ -1196,14 +1206,14 @@ Begin
  Ih := DropItemH(M, I);
  If I = MenuItemHover Then Begin Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG; End
  Else Begin Bg := CLR_MENU_BG; Fg := CLR_MENU_FG; End;
- HideMouse;
+ AppHideMouse;
  FillBox(DropX + 2, Y, DropX + DropW - 2, Y + Ih - 1, Bg);
  SetColor(Fg);
  OutTextXY(DropX + 8, Y + 2, Menus[M].Items[I].Caption);
  S := Menus[M].Items[I].Shortcut;
  If S <> '' Then
   OutTextXY(DropX + DropW - TextWidth(S) - 8, Y + 2, S);
- ShowMouse;
+ AppShowMouse;
 End;
 
 { Phase 12 : change l'item survole sans repeindre tout le dropdown. }
@@ -1785,7 +1795,7 @@ End;
 Procedure DrawRibbon;
 Var I,Item,X,Y,W,H,Color: Integer;Caption: String;
 Begin
- HideMouse;FillBox(0,ToolY1,SCREEN_W-1,ToolY2,CLR_MENU_BG);
+ AppHideMouse;FillBox(0,ToolY1,SCREEN_W-1,ToolY2,CLR_MENU_BG);
  For I:=1 To RibbonItemCount Do Begin
   Item:=RibbonMenuItem(I);RibbonButtonBox(I,X,Y,W,H);Color:=CLR_BLACK;
   If Not RibbonEntryEnabled(I) Then Color:=CLR_DGRAY
@@ -1802,14 +1812,14 @@ Begin
   SetColor(Color);OutTextXY(X+26,Y+7,Caption);
  End;
  HLine(4,SCREEN_W-5,ToolY2-14,CLR_WIN_LO);
- SetColor(CLR_DGRAY);OutTextXY(8,ToolY2-10,Menus[RibbonTab].Caption);ShowMouse;
+ SetColor(CLR_DGRAY);OutTextXY(8,ToolY2-10,Menus[RibbonTab].Caption);AppShowMouse;
 End;
 
 Procedure DrawToolBar;
 Var I: Integer;
 Begin
  If RibbonMode Then Exit;
- HideMouse;
+ AppHideMouse;
  FillBox(0, ToolY1, SCREEN_W - 1, ToolY2, CLR_WIN_BG);
  HLine(0, SCREEN_W - 1, ToolY2, CLR_WIN_LO);
  For I := 1 To ToolCount Do Begin
@@ -1827,7 +1837,7 @@ Begin
    DrawIcon(Tools[I].Icon, Tools[I].X1, Tools[I].Y1 + 1);
   End;
  End;
- ShowMouse;
+ AppShowMouse;
 End;
 
 Function ToolAt(X, Y: LongInt): Integer;
@@ -2595,6 +2605,41 @@ Begin
  End;
 End;
 
+{ La surface PTC est presentee par un autre thread. Garder le verrou pendant
+  un rendu complet evite d'afficher les etapes d'effacement et de dessin. }
+Procedure BeginPaint;
+{$IFDEF FPC}Var Pixels: Pointer;{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ If PaintReady Then Begin
+  AppHideMouse;Pixels:=PTCWrapperObject.Lock(0);PaintLocked:=True;
+ End;
+ {$ENDIF}
+End;
+Procedure EndPaint;
+Begin
+ {$IFDEF FPC}
+ If PaintReady Then Begin
+  PaintLocked:=False;PTCWrapperObject.Unlock;AppShowMouse;
+ End;
+ {$ENDIF}
+End;
+Procedure ToggleTextCaret;
+Begin
+ If Not TextCaretKnown Then Exit;
+ AppHideMouse;SetWriteMode(XORPut);SetColor(CLR_WHITE);
+ Line(TextCaretX,TextCaretY,TextCaretX,TextCaretY+TextCaretHeight);
+ SetWriteMode(NormalPut);AppShowMouse;
+ TextCaretDrawn:=Not TextCaretDrawn;
+End;
+Procedure BlinkTextCaret;
+Begin
+ If EditMode And TextCaretKnown And (MenuOpen=0) And Not RibbonKeyboard Then Begin
+  BlinkState:=Not BlinkState;
+  If TextCaretDrawn<>BlinkState Then Begin BeginPaint;ToggleTextCaret;EndPaint;End;
+ End;
+End;
+
 Procedure DrawShapeTextLines(P: PShape; X1, Y1, X2, Y2: Integer);
 Var I, Ty, Tx, LineH, TitleSz, Ind, CaretX: Integer; S: String;
     IsEditing: Boolean;
@@ -2632,13 +2677,14 @@ Begin
   { Texte en gras simule par re-trace decale d'un pixel }
   If P^.Bold Then OutTextXY(Tx + 1, Ty, S);
   { Caret clignotant en edition }
-  If IsEditing And BlinkState Then Begin
+  If IsEditing Then Begin
    If (EditCaret >= 0) And (EditCaret <= Length(S)) Then
     CaretX := Tx + TextWidth(Copy(S, 1, EditCaret))
    Else
     CaretX := Tx + TextWidth(S);
-   SetColor(CLR_BLACK);
-   Line(CaretX, Ty, CaretX, Ty + LineH - 2);
+   TextCaretX:=CaretX;TextCaretY:=Ty;TextCaretHeight:=LineH-2;
+   TextCaretKnown:=True;
+   If BlinkState Then ToggleTextCaret;
   End;
   SetTextStyle(DefaultFont, HorizDir, 1);
   Ty := Ty + LineH;
@@ -2906,7 +2952,7 @@ End;
 Procedure DrawSlidePanel;
 Var I, Y, Top, Bottom: Integer;
 Begin
- HideMouse;
+ AppHideMouse;
  Top    := MENU_H + TOOL_H;
  Bottom := SCREEN_H - STATUS_H;
  FillBox(0, Top, PANEL_W - 1, Bottom - 1, CLR_PANEL_BG);
@@ -2917,7 +2963,7 @@ Begin
    DrawSlideThumb(I, Y);
   Y := Y + THUMB_H_TOTAL;
  End;
- ShowMouse;
+ AppShowMouse;
 End;
 
 Function SlideAtPanelY(Y: LongInt): Integer;
@@ -3280,7 +3326,7 @@ End;
 
 Procedure DrawMainArea;
 Begin
- HideMouse;
+ AppHideMouse;
  Case CurView Of
   VIEW_OUTLINE: DrawOutlineView;
   VIEW_SORTER:  DrawSorterView;
@@ -3288,7 +3334,7 @@ Begin
  Else
   DrawNormalView;
  End;
- ShowMouse;
+ AppShowMouse;
 End;
 
 { ====================================================================== }
@@ -3298,7 +3344,7 @@ End;
 Procedure DrawStatusBar;
 Var Y, X: Integer; S: String;
 Begin
- HideMouse;
+ AppHideMouse;
  Y := SCREEN_H - STATUS_H;
  FillBox(0, Y, SCREEN_W - 1, SCREEN_H - 1, CLR_STATUS_BG);
  HLine(0, SCREEN_W - 1, Y, CLR_WIN_HI);
@@ -3319,19 +3365,20 @@ Begin
  X := SCREEN_W - 60;
  VLine(X - 2, Y + 2, SCREEN_H - 3, CLR_DGRAY);
  OutTextXY(X + 4, Y + 4, IntToStr(SlideScale) + '%');
- ShowMouse;
+ AppShowMouse;
 End;
 
 { ====================================================================== }
 {                       REDRAW                                           }
 { ====================================================================== }
 
-Procedure Redraw;
+Procedure RedrawWork;
 Begin
+ If NeedFullRedraw Or NeedSlideRedraw Then Begin
+  If TextCaretDrawn Then ToggleTextCaret;
+  TextCaretKnown:=False;
+ End;
  If NeedFullRedraw Then Begin
-  HideMouse;
-  FillBox(0, 0, SCREEN_W - 1, SCREEN_H - 1, CLR_WORK_BG);
-  ShowMouse;
   DrawMenuBar;
   UpdateToolToggles;
   If RibbonMode Then DrawRibbon Else DrawToolBar;
@@ -3341,14 +3388,29 @@ Begin
   DrawStatusBar;
   If MenuOpen <> 0 Then DrawDropDown;
   NeedFullRedraw  := False;
+  NeedChromeRedraw:=False;
   NeedSlideRedraw := False;
   NeedPanelRedraw := False;
   NeedStatRedraw  := False;
   Exit;
  End;
+ If NeedChromeRedraw Then Begin
+  DrawMenuBar;UpdateToolToggles;
+  If RibbonMode Then DrawRibbon Else DrawToolBar;
+  NeedChromeRedraw:=False;
+ End;
  If NeedSlideRedraw Then Begin DrawMainArea; NeedSlideRedraw := False; End;
  If NeedPanelRedraw Then Begin DrawSlidePanel; NeedPanelRedraw := False; End;
  If NeedStatRedraw  Then Begin DrawStatusBar;  NeedStatRedraw  := False; End;
+End;
+
+Procedure Redraw;
+Begin
+ If Not (NeedFullRedraw Or NeedSlideRedraw Or NeedPanelRedraw Or
+         NeedStatRedraw Or NeedChromeRedraw) Then Exit;
+ BeginPaint;
+ RedrawWork;
+ EndPaint;
 End;
 
 { ====================================================================== }
@@ -3471,7 +3533,7 @@ Var X1, Y1, X2, Y2: Integer; K: Char;
 Begin
  X1 := 130; Y1 := 110; X2 := 510; Y2 := 370;
  DlgFrame(X1, Y1, X2, Y2, 'A propos de Office-0 PowerPnt');
- HideMouse;
+ AppHideMouse;
  SetColor(CLR_BLACK);
  SetTextStyle(DefaultFont, HorizDir, 2);
  OutTextXY(X1 + 20, Y1 + 30, 'Office-0  PowerPnt');
@@ -3488,7 +3550,7 @@ Begin
  OutTextXY(X1 + 20, Y1 + 176,'F5 Diaporama  Ctrl+P Imprimer  Ctrl+E Exporter');
  OutTextXY(X1 + 20, Y1 + 192,'Ctrl+M Nouvelle slide  Ctrl+S Enregistrer');
  DlgBtn(X1 + 160, Y2 - 32, X1 + 220, Y2 - 12, 'OK', False, True);
- ShowMouse;
+ AppShowMouse;
  Repeat
   UpdateMouse;
   If KeyPressed Then Begin
@@ -3537,7 +3599,7 @@ Begin
  Bx1 := X1 + 80;  By1 := Y2 - 32; Bx2 := Bx1 + 80; By2 := Y2 - 12;
  Cx1 := X2 - 160; Cy1 := By1;     Cx2 := Cx1 + 80; Cy2 := By2;
  DlgFrame(X1, Y1, X2, Y2, Title);
- HideMouse;
+ AppHideMouse;
  SetColor(CLR_BLACK);
  OutTextXY(X1 + 20, Y1 + 36, Prompt);
  S := Value;
@@ -3545,12 +3607,12 @@ Begin
  DlgEdit(Ex1, Ey1, Ex2, Ey2, S, True, Caret);
  DlgBtn(Bx1, By1, Bx2, By2, 'OK',      False, True);
  DlgBtn(Cx1, Cy1, Cx2, Cy2, 'Annuler', False, False);
- ShowMouse;
+ AppShowMouse;
  Repeat
   UpdateMouse;
-  HideMouse;
+  AppHideMouse;
   DlgEdit(Ex1, Ey1, Ex2, Ey2, S, True, Caret);
-  ShowMouse;
+  AppShowMouse;
   If KeyPressed Then Begin
    K := ReadKey;
    If K = #0 Then Begin
@@ -3623,12 +3685,12 @@ Begin
  Top := 1;
  If Sel > Top + MaxView - 1 Then Top := Sel - MaxView + 1;
  DlgFrame(X1, Y1, X2, Y2, Title);
- HideMouse;
+ AppHideMouse;
  DlgBtn(Bx1, By1, Bx2, By2, 'OK',      False, True);
  DlgBtn(Cx1, Cy1, Cx2, Cy2, 'Annuler', False, False);
- ShowMouse;
+ AppShowMouse;
  Repeat
-  HideMouse;
+  AppHideMouse;
   FillBox(Lx1, Ly1, Lx2, Ly2, CLR_WHITE);
   SetColor(CLR_WIN_LO); Rectangle(Lx1, Ly1, Lx2, Ly2);
   For I := 0 To MaxView - 1 Do Begin
@@ -3640,7 +3702,7 @@ Begin
     SetColor(CLR_BLACK);
    OutTextXY(Lx1 + 4, Ly1 + 2 + I * ItemH, Lines[Top + I]);
   End;
-  ShowMouse;
+  AppShowMouse;
   UpdateMouse;
   If KeyPressed Then Begin
    K := ReadKey;
@@ -5083,7 +5145,7 @@ Var
 
  Procedure DrawNameEdit;
  Begin
-  HideMouse;
+  AppHideMouse;
   DlgEdit(NeX1, NeY1, NeX2, NeY2, NameBuf, Focus = 0, NameCaret);
   If Focus = 0 Then DrawFocusRect(NeX1 - 2, NeY1 - 2, NeX2 + 2, NeY2 + 2)
   Else Begin
@@ -5092,13 +5154,13 @@ Var
    FillBox(NeX1 - 2, NeY1 - 1, NeX1 - 1, NeY2 + 1, CLR_DLG_BG);
    FillBox(NeX2 + 1, NeY1 - 1, NeX2 + 2, NeY2 + 1, CLR_DLG_BG);
   End;
-  ShowMouse;
+  AppShowMouse;
  End;
 
  Procedure DrawFilterCombo;
  Var ArX1, ArY1, ArX2, ArY2: Integer;
  Begin
-  HideMouse;
+  AppHideMouse;
   FillBox(FcX1, FcY1, FcX2, FcY2, CLR_WHITE);
   SetColor(CLR_WIN_LO); Rectangle(FcX1, FcY1, FcX2, FcY2);
   SetColor(CLR_BLACK);
@@ -5121,7 +5183,7 @@ Var
    FillBox(FcX1 - 2, FcY1 - 1, FcX1 - 1, FcY2 + 1, CLR_DLG_BG);
    FillBox(FcX2 + 1, FcY1 - 1, FcX2 + 2, FcY2 + 1, CLR_DLG_BG);
   End;
-  ShowMouse;
+  AppShowMouse;
  End;
 
  Procedure DrawListBox(Lx1, Ly1, Lx2, Ly2: Integer;
@@ -5130,7 +5192,7 @@ Var
  Var II, Y, MaxR, Vis: Integer; S: String;
      Bg, Fg: Integer;
  Begin
-  HideMouse;
+  AppHideMouse;
   DrawSunken(Lx1, Ly1, Lx2, Ly2, CLR_WHITE, CLR_WIN_HI, CLR_WIN_LO);
   Vis := (Ly2 - Ly1 - 4) Div ROW_H;
   If Vis < 1 Then Vis := 1;
@@ -5158,7 +5220,7 @@ Var
    FillBox(Lx1 - 2, Ly1 - 1, Lx1 - 1, Ly2 + 1, CLR_DLG_BG);
    FillBox(Lx2 + 1, Ly1 - 1, Lx2 + 2, Ly2 + 1, CLR_DLG_BG);
   End;
-  ShowMouse;
+  AppShowMouse;
  End;
 
  Procedure DrawFilesBox;
@@ -5178,7 +5240,7 @@ Var
  Procedure DrawButtons;
  Var Ts: String;
  Begin
-  HideMouse;
+  AppHideMouse;
   DlgBtn(OkX1, OkY1, OkX2, OkY2, 'OK',      False, Focus = 4);
   DlgBtn(CnX1, CnY1, CnX2, CnY2, 'Annuler', False, Focus = 5);
   DlgBtn(UpX1, UpY1, UpX2, UpY2, 'Parent',  False, False);
@@ -5190,20 +5252,20 @@ Var
   While TextWidth(Ts) > (X2 - 14) - (X1 + 110) - 4 Do
    Ts := Copy(Ts, 1, Length(Ts) - 1);
   OutTextXY(X1 + 112, Y1 + 66, Ts);
-  ShowMouse;
+  AppShowMouse;
  End;
 
  Procedure DrawAll;
  Begin
   DlgFrame(X1, Y1, X2, Y2, Title);
-  HideMouse;
+  AppHideMouse;
   SetColor(CLR_BLACK);
   OutTextXY(X1 + 14, Y1 + 26, 'Nom du fichier :');
   OutTextXY(X1 + 14, Y1 + 46, 'Type de fichier :');
   OutTextXY(X1 + 14, Y1 + 66, 'Chercher dans :');
   OutTextXY(FlX1, FlY1 - 12, 'Fichiers :');
   OutTextXY(DlX1, DlY1 - 12, 'Dossiers et lecteurs :');
-  ShowMouse;
+  AppShowMouse;
   DrawNameEdit;
   DrawFilterCombo;
   DrawFilesBox;
@@ -5564,7 +5626,7 @@ Begin
 
  FullRefresh;
  DrawAll;
- ShowMouse;
+ AppShowMouse;
 
  Repeat
   UpdateMouse;
@@ -9462,9 +9524,9 @@ Begin
    If SY2 < SlideY1 Then SY2 := SlideY1;
    If SX2 > SlideX2 Then SX2 := SlideX2;
    If SY2 > SlideY2 Then SY2 := SlideY2;
-   HideMouse;
+   AppHideMouse;
    DrawRubberBand(SX1, SY1, SX2, SY2);
-   ShowMouse;
+   AppShowMouse;
   End;
  End;
 End;
@@ -9482,9 +9544,9 @@ Begin
    NeedPanelRedraw := True;
   End;
   3: Begin   { creation d'une forme par drag }
-   HideMouse;
+   AppHideMouse;
    EraseRubberBand;
-   ShowMouse;
+   AppShowMouse;
    Lx1 := ScreenToLogX(DragStartX);
    Ly1 := ScreenToLogY(DragStartY);
    Lx2 := ScreenToLogX(Mouse.X);
@@ -9499,9 +9561,9 @@ Begin
    NeedFullRedraw := True;
   End;
   4: Begin   { marquee selection - selectionne premiere forme dans le cadre }
-   HideMouse;
+   AppHideMouse;
    EraseRubberBand;
-   ShowMouse;
+   AppShowMouse;
    If CurSlide >= 1 Then Begin
     S := Pres.Slides[CurSlide];
     X1 := DragStartX; Y1 := DragStartY;
@@ -9939,7 +10001,7 @@ Var A: Integer;
 Begin
  If Not RibbonEntryEnabled(Index) Then Exit;
  A:=Menus[RibbonTab].Items[RibbonMenuItem(Index)].Action;
- RibbonKeyboard:=False;RibbonFocus:=0;MenuOpen:=0;NeedFullRedraw:=True;DoAction(A);
+ RibbonKeyboard:=False;RibbonFocus:=0;MenuOpen:=0;NeedChromeRedraw:=True;DoAction(A);
 End;
 Procedure RibbonMoveFocus(Direction: Integer);
 Var I: Integer;
@@ -9960,10 +10022,10 @@ Begin
  End;
  If Tab>0 Then Begin
   RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonHover:=0;MenuOpen:=0;
-  NeedFullRedraw:=True;HandleRibbonKey:=True;Exit;
+  NeedChromeRedraw:=True;HandleRibbonKey:=True;Exit;
  End;
  If (K=#0) And (K2=#68) Then Begin
-  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;NeedFullRedraw:=True;HandleRibbonKey:=True;Exit;
+  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;NeedChromeRedraw:=True;HandleRibbonKey:=True;Exit;
  End;
  If Not RibbonKeyboard Then Exit;
  HandleRibbonKey:=True;Direction:=0;
@@ -9983,14 +10045,14 @@ Begin
    If RibbonTab>MenuCount Then RibbonTab:=1;RibbonHover:=0;
   End Else RibbonMoveFocus(Direction);
  End;
- NeedFullRedraw:=True;
+ NeedChromeRedraw:=True;
 End;
 
 Procedure HandleMouseClick;
 Var T, M: Integer; Idx: Integer;
 Begin
  If RibbonMode Then Begin
-  RibbonKeyboard:=False;RibbonFocus:=0;NeedFullRedraw:=True;
+  RibbonKeyboard:=False;RibbonFocus:=0;NeedChromeRedraw:=True;
   If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then Begin
    T:=MenuAtX(Mouse.X);If T>0 Then Begin RibbonTab:=T;RibbonHover:=0;MenuOpen:=0;End;Exit;
   End;
@@ -10065,7 +10127,7 @@ Begin
  If RibbonMode Then Begin
   M:=0;If (Mouse.Y>=MenuY1) And (Mouse.Y<=MenuY2) Then M:=MenuAtX(Mouse.X);
   T:=RibbonHitAt(Mouse.X,Mouse.Y);
-  If (MenuHover<>M) Or (RibbonHover<>T) Then NeedFullRedraw:=True;
+  If (MenuHover<>M) Or (RibbonHover<>T) Then NeedChromeRedraw:=True;
   MenuHover:=M;RibbonHover:=T;ToolHover:=0;Exit;
  End;
  T := 0; M := 0;
@@ -10346,7 +10408,7 @@ Begin
   #27: Begin
    If MenuOpen <> 0 Then Begin MenuOpen := 0; NeedFullRedraw := True; End
    Else If DragMode <> 0 Then Begin
-    HideMouse; EraseRubberBand; ShowMouse;
+    AppHideMouse; EraseRubberBand; AppShowMouse;
     DragMode := 0; DragHandle := 0; NeedSlideRedraw := True;
     StatusMsg := 'Annule.'; NeedStatRedraw := True;
    End
@@ -10382,13 +10444,10 @@ Var K, K2: Char;
 Begin
  NeedFullRedraw := True;
  Redraw;
- ShowMouse;
+ AppShowMouse;
  Repeat
   Inc(TickCount);
-  If (TickCount Mod 8) = 0 Then Begin
-   BlinkState := Not BlinkState;
-   If EditMode Then NeedSlideRedraw := True;
-  End;
+  If (TickCount Mod 25) = 0 Then BlinkTextCaret;
   UpdateMouse;
   UpdateHovers;
   If LeftPressed Then HandleMouseClick;
@@ -10412,7 +10471,7 @@ End;
 Procedure ShowSplash;
 Var T0: LongInt; Done: Boolean; K: Char;
 Begin
- HideMouse;
+ AppHideMouse;
  FillBox(0, 0, SCREEN_W - 1, SCREEN_H - 1, CLR_RED);
  FillBox(80, 80, 559, 399, CLR_LGRAY);
  SetColor(CLR_BLACK); Rectangle(80, 80, 559, 399);
@@ -10431,7 +10490,7 @@ Begin
  OutTextXY(120, 272, 'Affichage : VGA 640 x 480 x 16');
  SetColor(CLR_BLACK);
  OutTextXY(120, 360, 'Appuyez sur une touche ou cliquez pour continuer...');
- ShowMouse;
+ AppShowMouse;
  T0 := TickCount;
  Done := False;
  Repeat
@@ -10504,6 +10563,7 @@ Begin
  If CommandLineHelpRequested Then Begin ShowCommandLineHelp;Halt(0);End;
  ParseCommandLine;
  InitializeGraphics;
+ PaintReady:=True;
  If Not MouseDriverFound Then Begin
   CloseGraph;
   WriteLn('Aucun pilote de souris detecte.');
@@ -10562,7 +10622,8 @@ Begin
  OutlineScroll := 0;
  OutlineSel    := 0;
  MainLoop;
- HideMouse;
+ AppHideMouse;
  FreePresentation;
+ PaintReady:=False;
  CloseGraph;
 End.
