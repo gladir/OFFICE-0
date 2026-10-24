@@ -191,6 +191,20 @@ la grille. Une saisie de cellule est validee avant l'ouverture d'un onglet.
 Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
 Les raccourcis des neuf onglets sont listes dans l'aide de la commande.
 
+<h2>VISIO : menus classiques et ruban</h2>
+
+<ul>
+<li><code>VISIO /CLASSICMENU [fichier.VSDX]</code> : menus classiques et barres d'outils (mode par defaut).</li>
+<li><code>VISIO /RUBANMENU [fichier.VSDX]</code> : onglets avec icones et commandes, sans les deux anciennes barres d'outils.</li>
+<li>Les neuf outils de dessin sont accessibles dans l'onglet Insertion ; Nouveau, Ouvrir, Enregistrer,
+Imprimer, Annuler et Retablir figurent dans Fichier et Edition.</li>
+<li><code>VISIO /?</code> : aide en ligne de commande ; <code>-h</code> et <code>--help</code> sont aussi acceptes.</li>
+<li>Les parametres sont insensibles a la casse ; le dernier mode indique est utilise.
+Les chemins contenant des espaces peuvent etre places entre guillemets.</li>
+<li>Navigation du ruban : souris, F10 ou raccourcis Alt des menus, fleches, Tab, Entree et Echap.
+Les commandes sans gestionnaire existant restent grisees.</li>
+</ul>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
