@@ -10570,7 +10570,6 @@ Begin
   Halt(1);
  End;
  SetTextStyle(DefaultFont, HorizDir, 1);
- ShowSplash;
  InitMenus;
  InitTools;
  InitPresentation;
