@@ -2170,7 +2170,6 @@ Begin
   Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Then Begin
    FillBox(X,Y,X+W-5,Y+H-3,CLR_HEADER_SEL);Color:=CLR_WIN_LIGHT;
   End;
-  DrawRaisedFrame(X,Y,X+W-5,Y+H-3);
   S:=RibbonCaption(MenuItemLabel(RibbonTab,Item));
   DrawRibbonCommandIcon(RibbonTab,Item,X+5,Y+2,Color);
   If Length(S)>20 Then S:=Copy(S,1,17)+'...';
@@ -2191,7 +2190,8 @@ Begin
  Line(0, Y + CLASSIC_TOOLBAR_H - 1, SCR_W - 1, Y + CLASSIC_TOOLBAR_H - 1);
  For I := 1 To TOOL_COUNT Do Begin
   X := ToolBoxX(I);
-  DrawRaisedFrame(X, Y + 2, X + TOOL_ICON_W - 1, Y + 2 + TOOL_ICON_H - 1);
+  If Not RibbonMode Then
+   DrawRaisedFrame(X, Y + 2, X + TOOL_ICON_W - 1, Y + 2 + TOOL_ICON_H - 1);
   If RibbonMode And RibbonKeyboard And (RibbonFocus=RibbonItemCount+I) Then
    FillBox(X+1,Y+3,X+TOOL_ICON_W-2,Y+TOOL_ICON_H,CLR_TOOL_HOT);
   If RibbonMode And (I=TI_SUM) Then TextAt(X+7,Y+7,CLR_WIN_DARK,'S')
