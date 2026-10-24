@@ -2993,6 +2993,7 @@ Begin
   SelAnchorR := R; SelAnchorC := C;
  End;
  EnsureVisible;
+ NeedFullRedraw := True;
 End;
 
 Procedure SetCursor(R, C: Integer);
