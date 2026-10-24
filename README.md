@@ -62,6 +62,69 @@ Par exemple, si vous voulez compiler WORD.PAS, vous devrez tapez la commande sui
 
 <pre><b>fpc</b> WORD.PAS</pre>
 
+<h2>Menus d'Excel</h2>
+
+```bat
+EXCEL /?
+EXCEL /CLASSICMENU
+EXCEL /RUBANMENU
+EXCEL /RUBANMENU "C:\Documents\Budget 2026.xlsx"
+```
+
+Le menu classique est utilise par defaut. Les parametres sont insensibles a la
+casse ; si les deux sont presents, le dernier est utilise. Le nom du classeur
+peut apparaitre avant ou apres les parametres.
+
+EXCEL /? affiche l'aide en console et quitte sans ouvrir de fenetre. Les formes
+-h et --help sont egalement acceptees.
+
+Le ruban reprend les commandes existantes avec des icones vectorielles dans des
+onglets et adapte la position
+de la barre de formule et de la grille. Les commandes non implementees sont
+grisees. Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et
+Echap. L'onglet Accueil reprend les commandes d'Edition (Alt+E).
+
+<h2>Menus de Word</h2>
+
+```bat
+WORD /?
+WORD /CLASSICMENU
+WORD /RUBANMENU "C:\Documents\Mon texte.docx"
+```
+
+Le mode classique est utilise par defaut. Les options sont insensibles a la
+casse ; le dernier mode specifie est utilise. Le document peut etre place avant
+ou apres les options. /? (ou -h, --help) affiche l'aide en console et quitte
+sans ouvrir de fenetre ni charger de document.
+
+Le ruban propose les commandes existantes dans des onglets avec icones
+vectorielles, sans cadres permanents autour des boutons. Les commandes encore
+non implementees sont grisees. Les deux barres d'outils classiques sont masquees ;
+leurs commandes sont integrees aux onglets (mise en forme dans Accueil). La regle
+et la zone de texte s'adaptent a l'espace libere.
+Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
+L'onglet Accueil reprend les commandes d'Edition (Alt+E).
+
+<h2>Menus d'Access</h2>
+
+```bat
+ACCESS /?
+ACCESS /CLASSICMENU
+ACCESS /RUBANMENU "C:\Documents\Ma base.mdb"
+```
+
+Le menu classique est utilise par defaut. Les options sont insensibles a la
+casse ; le dernier mode specifie est utilise. Le fichier .MDB ou .SQL peut
+apparaitre avant ou apres les options. /? (ou -h, --help) affiche l'aide en
+console et quitte avant l'initialisation graphique et l'ecran de demarrage.
+
+En mode ruban, la barre d'outils est masquee et toutes ses commandes figurent
+dans les onglets, avec icones vectorielles et sans cadres permanents autour des
+boutons. Les commandes non implementees sont grisees. La zone de travail
+s'adapte a la hauteur du ruban. La cle primaire et les commandes de champs sont
+disponibles dans Format. Navigation : souris, F10 ou Alt+lettre, fleches,
+Tab/Maj+Tab, Entree et Echap. Les raccourcis des onglets sont listes dans l'aide.
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
