@@ -354,6 +354,9 @@ Var
  TOOLBAR_WIDTH, WORK_AREA_TOP: Integer;
  RibbonMode, RibbonKeyboard: Boolean;
  AboutDialogVisible: Boolean;
+ TextEditShape, TextEditCursor, TextEditOldX2, TextEditOldY2: Integer;
+ TextEditOriginal: String[80];
+ TextEditSelectAll, TextEditWasModified, MainLoopScanRead: Boolean;
  RibbonTab, RibbonFocus, RibbonHover: Integer;
  RibbonScan: Char;
  CommandLineFile: String;
@@ -12704,6 +12707,7 @@ Begin
  { TODO: Passer en mode dessin de zone de texte }
  { TODO: Permettre de dessiner un rectangle pour la zone de texte }
  InsertMode := 2;
+ CurrentTool := ttText;
 End;
 
 { ProcÃ©dure InsertImage - InsÃ©rer une image }
@@ -14914,6 +14918,99 @@ Function GetMenuAtPosition(MouseX, MouseY: Integer): Integer; Forward;
 Function GetDropDownItemAtPosition(MenuIndex, MouseX, MouseY: Integer): Integer; Forward;
 
 { ProcÃ©dure pour gÃ©rer le clic gauche de la souris }
+{ Edition directe des objets texte. Les positions du curseur sont entre caracteres. }
+Procedure FinishTextEdit(Cancel:Boolean);
+Begin
+ If (TextEditShape>0) and (TextEditShape<=ShapeCount) Then Begin
+  If Cancel Then Begin
+   Shapes[TextEditShape].Text:=TextEditOriginal;
+   Shapes[TextEditShape].X2:=TextEditOldX2;
+   Shapes[TextEditShape].Y2:=TextEditOldY2;
+   DocumentModified:=TextEditWasModified;
+  End;
+ End;
+ TextEditShape:=0;TextEditSelectAll:=False;
+ StatusMessage:='';
+End;
+
+Procedure BeginTextEdit(Index,MouseX:Integer;SelectAll:Boolean);
+Begin
+ If (Index<1) or (Index>ShapeCount) Then Exit;
+ If Shapes[Index].ShapeType<>stText Then Exit;
+ If IsLayerLocked(Shapes[Index].LayerIndex) Then Exit;
+ If TextEditShape<>Index Then Begin
+  FinishTextEdit(False);SelectShape(Index);EndDrag;IsDrawing:=False;
+  TextEditShape:=Index;TextEditOriginal:=Shapes[Index].Text;
+  TextEditOldX2:=Shapes[Index].X2;TextEditOldY2:=Shapes[Index].Y2;
+  TextEditWasModified:=DocumentModified;
+ End;
+ TextEditCursor:=(MouseX-Shapes[Index].X1+4) div 8;
+ If TextEditCursor<0 Then TextEditCursor:=0;
+ If TextEditCursor>Length(Shapes[Index].Text) Then TextEditCursor:=Length(Shapes[Index].Text);
+ TextEditSelectAll:=SelectAll;
+ If Language=_English Then StatusMessage:='Text: Enter to finish, Esc to cancel'
+ Else StatusMessage:='Texte : Entree pour terminer, Echap pour annuler';
+End;
+
+Function HandleTextEditKey(Key,Scan:Char):Boolean;
+Var S:String[80];Before:String[80];
+Begin
+ HandleTextEditKey:=False;
+ If (TextEditShape<1) or (TextEditShape>ShapeCount) Then Exit;
+ HandleTextEditKey:=True;
+ S:=Shapes[TextEditShape].Text;Before:=S;
+ If Key=#0 Then Begin
+  Case Scan Of
+   #75:If TextEditCursor>0 Then Dec(TextEditCursor);
+   #77:If TextEditCursor<Length(S) Then Inc(TextEditCursor);
+   #71:TextEditCursor:=0;
+   #79:TextEditCursor:=Length(S);
+   #83:Begin
+    If TextEditSelectAll Then Begin S:='';TextEditCursor:=0;End
+    Else Delete(S,TextEditCursor+1,1);
+   End;
+   Else Begin FinishTextEdit(False);HandleTextEditKey:=False;Exit;End;
+  End;
+  TextEditSelectAll:=False;
+ End Else Case Key Of
+  #13,#9:Begin FinishTextEdit(False);Exit;End;
+  #27:Begin FinishTextEdit(True);Exit;End;
+  #1:TextEditSelectAll:=True;
+  #8:Begin
+   If TextEditSelectAll Then Begin S:='';TextEditCursor:=0;End
+   Else If TextEditCursor>0 Then Begin Delete(S,TextEditCursor,1);Dec(TextEditCursor);End;
+   TextEditSelectAll:=False;
+  End;
+  #32..#255:Begin
+   If TextEditSelectAll Then Begin S:='';TextEditCursor:=0;End;
+   If Length(S)<80 Then Begin Insert(Key,S,TextEditCursor+1);Inc(TextEditCursor);End;
+   TextEditSelectAll:=False;
+  End;
+  Else Begin FinishTextEdit(False);HandleTextEditKey:=False;Exit;End;
+ End;
+ If S<>Before Then Begin
+  Shapes[TextEditShape].Text:=S;
+  Shapes[TextEditShape].X2:=Shapes[TextEditShape].X1+Length(S)*8+8;
+  Shapes[TextEditShape].Y2:=Shapes[TextEditShape].Y1+12;
+  DocumentModified:=True;
+ End;
+End;
+
+Procedure DrawTextEditor;
+Var X,Y,W,CX:Integer;
+Begin
+ If (TextEditShape<1) or (TextEditShape>ShapeCount) Then Exit;
+ X:=Shapes[TextEditShape].X1;Y:=Shapes[TextEditShape].Y1;
+ W:=Length(Shapes[TextEditShape].Text)*8+8;
+ SetColor(Blue);Rectangle(X-2,Y-2,X+W,Y+12);
+ If TextEditSelectAll Then Begin
+  SetFillStyle(SolidFill,Blue);Bar(X,Y,X+W-8,Y+8);
+  SetColor(White);OutTextXY(X,Y,Shapes[TextEditShape].Text);
+ End Else Begin
+  CX:=X+TextEditCursor*8;Line(CX,Y,CX,Y+9);
+ End;
+End;
+
 Procedure ShowAboutDialog;
 Begin
  AboutDialogVisible:=True;
@@ -14976,6 +15073,13 @@ Var
  MenuIdx, ItemIdx: Integer;
  ShouldExit: Boolean;
 Begin
+ If (Y>WORK_AREA_TOP) and (CurrentTool in [ttSelection,ttText]) Then Begin
+  ShapeIndex:=GetShapeAtPosition(X,Y);
+  If (ShapeIndex>0) and (Shapes[ShapeIndex].ShapeType=stText) Then Begin
+   BeginTextEdit(ShapeIndex,X,False);Exit;
+  End;
+ End;
+ FinishTextEdit(False);
  If RibbonMode and (Y <= WORK_AREA_TOP) Then Begin
   RibbonKeyboard := False; RibbonFocus := 0;
   MenuIdx := GetMenuAtPosition(X,Y);
@@ -15097,9 +15201,10 @@ Begin
       Shapes[ShapeCount].Y1 := Y;
       Shapes[ShapeCount].X2 := X + 50;
       Shapes[ShapeCount].Y2 := Y + 12;
-      Shapes[ShapeCount].Text := 'Text';
+      Shapes[ShapeCount].Text := '';
       Shapes[ShapeCount].LineColor := CurrentLineColor;
       DocumentModified := True;
+      BeginTextEdit(ShapeCount,X,False);
      End;
     End;
    ttPolygon: Begin
@@ -15430,6 +15535,7 @@ Procedure HandleRightClick(X, Y: Integer);
 Var
  ShapeIndex: Integer;
 Begin
+ FinishTextEdit(False);
  { Masquer le menu contextuel s'il est dÃ©jÃ  visible }
  If ContextMenuVisible Then Begin
   HideContextMenu;
@@ -17641,6 +17747,7 @@ Begin
   SetColor(Black);
   OutTextXY(6, ScreenHeight - 12, StatusMessage);
  End;
+ DrawTextEditor;
  DrawAboutDialog;
 End;
 
@@ -17864,6 +17971,7 @@ BEGIN
   { Attendre une entrÃ©e clavier }
   If KeyPressed Then Begin
    MainLoopKey := ReadKey;
+   MainLoopScanRead:=False;
    If AboutDialogVisible Then Begin
     If MainLoopKey=#0 Then MainLoopKey:=ReadKey
     Else If (MainLoopKey=#13) or (MainLoopKey=#27) or (MainLoopKey=' ') Then
@@ -17872,7 +17980,18 @@ BEGIN
     Continue;
    End;
    RibbonScan:=#0;
-   If RibbonMode and (MainLoopKey=#0) Then RibbonScan:=ReadKey;
+   If (RibbonMode or (TextEditShape>0)) and (MainLoopKey=#0) Then Begin
+    RibbonScan:=ReadKey;MainLoopScanRead:=True;
+   End;
+   If TextEditShape>0 Then Begin
+    If HandleTextEditKey(MainLoopKey,RibbonScan) Then Begin
+     HideMouse;RefreshScreen;ShowMouse;Continue;
+    End;
+   End;
+   If (MainLoopKey=#0) and (RibbonScan=#60) and (SelectedShape>0) Then Begin
+    BeginTextEdit(SelectedShape,Shapes[SelectedShape].X2,False);
+    HideMouse;RefreshScreen;ShowMouse;Continue;
+   End;
    If HandleRibbonKey(MainLoopKey,RibbonScan) Then Begin RefreshScreen;Continue;End;
    { Si un menu deroulant est ouvert, intercepter Enter/Esc/fleches }
    If (MenuState = msDropDown) and (CurrentMenu > 0) Then Begin
@@ -17907,7 +18026,7 @@ BEGIN
      RefreshScreen;
     End
     Else If MainLoopKey = #0 Then Begin
-     If RibbonMode Then MainLoopKey := RibbonScan Else MainLoopKey := ReadKey;
+     If RibbonMode or MainLoopScanRead Then MainLoopKey := RibbonScan Else MainLoopKey := ReadKey;
      Case MainLoopKey of
       #72: Begin { fleche haut - element precedent (saute les separateurs) }
             If HoveredMenuItem <= 0 Then
@@ -17966,8 +18085,12 @@ BEGIN
      #25: Begin EditRedo;      RefreshScreen; End;  { Ctrl+Y }
      #26: Begin EditUndo;      RefreshScreen; End;  { Ctrl+Z }
      #0: Begin { Touches de fonction et combinaisons Alt/Shift }
-          If RibbonMode Then MainLoopKey := RibbonScan Else MainLoopKey := ReadKey;
+          If RibbonMode or MainLoopScanRead Then MainLoopKey := RibbonScan Else MainLoopKey := ReadKey;
           Case MainLoopKey of
+           #60: Begin
+                 If SelectedShape>0 Then BeginTextEdit(SelectedShape,Shapes[SelectedShape].X2,False);
+                 RefreshScreen;
+                End;
            #59: Begin { F1 - Aide }
                  CurrentMenu := 9;
                  MenuState := msDropDown;
