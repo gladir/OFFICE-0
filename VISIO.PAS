@@ -353,6 +353,7 @@ Type
 Var
  TOOLBAR_WIDTH, WORK_AREA_TOP: Integer;
  RibbonMode, RibbonKeyboard: Boolean;
+ AboutDialogVisible: Boolean;
  RibbonTab, RibbonFocus, RibbonHover: Integer;
  RibbonScan: Char;
  CommandLineFile: String;
@@ -14913,6 +14914,56 @@ Function GetMenuAtPosition(MouseX, MouseY: Integer): Integer; Forward;
 Function GetDropDownItemAtPosition(MenuIndex, MouseX, MouseY: Integer): Integer; Forward;
 
 { ProcÃ©dure pour gÃ©rer le clic gauche de la souris }
+Procedure ShowAboutDialog;
+Begin
+ AboutDialogVisible:=True;
+ MenuState:=msNone;CurrentMenu:=0;HoveredMenuItem:=0;
+ RibbonKeyboard:=False;RibbonFocus:=0;RibbonHover:=0;
+End;
+
+Procedure AboutDialogBox(Var X,Y,W,H:Integer);
+Begin
+ W:=420;H:=206;X:=(ScreenWidth-W) div 2;Y:=(ScreenHeight-H) div 2;
+End;
+
+Procedure DrawAboutDialog;
+Var X,Y,W,H:Integer;Title,Description:String;
+Begin
+ If Not AboutDialogVisible Then Exit;
+ AboutDialogBox(X,Y,W,H);
+ If Language=_English Then Begin
+  Title:='About Visio';Description:='Diagram editor written in Pascal';
+ End Else Begin
+  Title:='A propos de Visio';Description:='Editeur de diagrammes en Pascal';
+ End;
+ SetFillStyle(SolidFill,DarkGray);Bar(X+5,Y+5,X+W+5,Y+H+5);
+ SetFillStyle(SolidFill,LightGray);Bar(X,Y,X+W,Y+H);
+ SetColor(White);Rectangle(X,Y,X+W,Y+H);
+ SetFillStyle(SolidFill,Blue);Bar(X+2,Y+2,X+W-2,Y+23);
+ SetColor(White);OutTextXY(X+10,Y+9,Title);
+ SetFillStyle(SolidFill,Blue);Bar(X+20,Y+44,X+65,Y+89);
+ SetColor(White);OutTextXY(X+34,Y+62,'V');
+ SetColor(Black);OutTextXY(X+82,Y+49,'VISIO - OFFICE-0');
+ OutTextXY(X+82,Y+69,'Version 1.0');
+ OutTextXY(X+20,Y+107,Description);
+ OutTextXY(X+20,Y+127,'Sylvain Maltais - gladir.com');
+ SetFillStyle(SolidFill,LightGray);Bar(X+W div 2-40,Y+H-38,X+W div 2+40,Y+H-12);
+ SetColor(White);Line(X+W div 2-40,Y+H-38,X+W div 2+40,Y+H-38);
+ Line(X+W div 2-40,Y+H-38,X+W div 2-40,Y+H-12);
+ SetColor(Black);Line(X+W div 2-40,Y+H-12,X+W div 2+40,Y+H-12);
+ Line(X+W div 2+40,Y+H-38,X+W div 2+40,Y+H-12);
+ Rectangle(X+W div 2-36,Y+H-34,X+W div 2+36,Y+H-16);
+ OutTextXY(X+W div 2-8,Y+H-29,'OK');
+End;
+
+Procedure HandleAboutDialogClick(MX,MY:Integer);
+Var X,Y,W,H:Integer;
+Begin
+ AboutDialogBox(X,Y,W,H);
+ If (MX>=X+W div 2-40) and (MX<=X+W div 2+40) and
+    (MY>=Y+H-38) and (MY<=Y+H-12) Then AboutDialogVisible:=False;
+End;
+
 Procedure DrawRibbon; Forward;
 Function RibbonHitAt(X,Y:Integer):Integer; Forward;
 Procedure ExecuteRibbonEntry(Index:Integer); Forward;
@@ -14947,6 +14998,7 @@ Begin
     4: ExecuteInsertMenuAction(ItemIdx);
     5: ExecuteFormatMenuAction(ItemIdx);
     6: ExecuteShapeMenuAction(ItemIdx);
+    9: If ItemIdx=3 Then ShowAboutDialog;
     { Tools/Window/Help : pas de dispatcher implémenté }
    End;
    { Fermer le menu après l'action }
@@ -17446,7 +17498,8 @@ Begin
    If J=9 Then Begin SetColor(Blue);Rectangle(X+4,Y+5,X+22,Y+20);
     Line(X+4,Y+20,X+12,Y+12);Line(X+12,Y+12,X+22,Y+20);End;
   End;
-  If RibbonTab>6 Then SetColor(DarkGray) Else SetColor(Black);
+  If (RibbonTab>6) and Not ((RibbonTab=9) and (J=3)) Then SetColor(DarkGray)
+  Else SetColor(Black);
   OutTextXY(X+28,Y+10,Copy(Caption,1,(W-32) div 8));
  End;
  SetColor(DarkGray);Line(0,WORK_AREA_TOP,ScreenWidth,WORK_AREA_TOP);
@@ -17465,6 +17518,7 @@ Begin
   4: ExecuteInsertMenuAction(J);
   5: ExecuteFormatMenuAction(J);
   6: ExecuteShapeMenuAction(J);
+  9: If J=3 Then ShowAboutDialog;
  End;
  RibbonKeyboard:=False;RibbonFocus:=0;
 End;
@@ -17587,6 +17641,7 @@ Begin
   SetColor(Black);
   OutTextXY(6, ScreenHeight - 12, StatusMessage);
  End;
+ DrawAboutDialog;
 End;
 
 BEGIN
@@ -17653,7 +17708,7 @@ BEGIN
     GetMouseState(LastMouseX, LastMouseY, LastMouseButton);
    {$ENDIF}
 
-   If RibbonMode and Not PropertiesDialogVisible and Not LayerDialogVisible and
+   If RibbonMode and Not AboutDialogVisible and Not PropertiesDialogVisible and Not LayerDialogVisible and
       Not ContextMenuVisible and (DragMode=DRAG_MODE_NONE) and
       ((LastMouseX<>PrevMouseX) or (LastMouseY<>PrevMouseY)) Then Begin
     HoveredMenuOnBar:=RibbonHitAt(LastMouseX,LastMouseY);
@@ -17727,7 +17782,8 @@ BEGIN
    If (LastMouseButton and 1) = 1 Then Begin
     HideMouse;
     { Si la boÃ®te de dialogue des calques est visible, gÃ©rer le clic }
-    If LayerDialogVisible Then Begin
+    If AboutDialogVisible Then HandleAboutDialogClick(LastMouseX,LastMouseY)
+    Else If LayerDialogVisible Then Begin
      HandleLayerDialogClick(LastMouseX, LastMouseY);
     End
     { Si la boÃ®te de dialogue des propriÃ©tÃ©s est visible, gÃ©rer le clic }
@@ -17789,7 +17845,7 @@ BEGIN
    End;
 
    { DÃ©tecter un clic droit (bouton 2) }
-   If (LastMouseButton and 2) = 2 Then Begin
+   If ((LastMouseButton and 2) = 2) and Not AboutDialogVisible Then Begin
     HideMouse;
     HandleRightClick(LastMouseX, LastMouseY);
     RefreshScreen;
@@ -17808,6 +17864,13 @@ BEGIN
   { Attendre une entrÃ©e clavier }
   If KeyPressed Then Begin
    MainLoopKey := ReadKey;
+   If AboutDialogVisible Then Begin
+    If MainLoopKey=#0 Then MainLoopKey:=ReadKey
+    Else If (MainLoopKey=#13) or (MainLoopKey=#27) or (MainLoopKey=' ') Then
+     AboutDialogVisible:=False;
+    HideMouse;RefreshScreen;ShowMouse;
+    Continue;
+   End;
    RibbonScan:=#0;
    If RibbonMode and (MainLoopKey=#0) Then RibbonScan:=ReadKey;
    If HandleRibbonKey(MainLoopKey,RibbonScan) Then Begin RefreshScreen;Continue;End;
@@ -17828,6 +17891,7 @@ BEGIN
        4: ExecuteInsertMenuAction(HoveredMenuItem);
        5: ExecuteFormatMenuAction(HoveredMenuItem);
        6: ExecuteShapeMenuAction(HoveredMenuItem);
+       9: If HoveredMenuItem=3 Then ShowAboutDialog;
       End;
       MenuState := msNone;
       CurrentMenu := 0;
