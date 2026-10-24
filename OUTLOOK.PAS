@@ -1938,6 +1938,7 @@ Type
   CcField: String[250];        { Copie carbone }
   BccField: String[250];       { Copie carbone invisible }
   SubjectField: String[80];    { Objet }
+  AccountIndex: Integer;      { -1: compte du dossier ou compte par defaut }
 
   { Corps du message }
   Lines: Array[0..499] of TEditorLine; { Lignes de texte (max 500) }
@@ -9274,6 +9275,7 @@ Begin
  Composer.CcField := '';
  Composer.BccField := '';
  Composer.SubjectField := '';
+ Composer.AccountIndex := -1;
  Composer.LineCount := 1;
  Composer.CursorX := 0;
  Composer.CursorY := 0;
@@ -9763,8 +9765,8 @@ Procedure SendMessageWork;
 Var A, I: Integer; Body: TMailText; OK: Boolean;
 Begin
  SaveComposerFields;
- MailError:=''; A:=-1;
- If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+ MailError:=''; A:=Composer.AccountIndex;
+ If (A<0) And (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
  If A<0 Then For I:=0 To EmailAccountCount-1 Do
   If EmailAccounts[I].IsDefault Then A:=I;
  If A<0 Then Begin MailStatus:='Configurez un compte avant envoi'; DrawStatusBar; Exit; End;
@@ -22522,8 +22524,8 @@ Function ComposerMessageSource: TMailText;
 Var A,I: Integer; Data: TMailText;
 Begin
  SaveComposerFields;
- A:=-1;
- If (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+ A:=Composer.AccountIndex;
+ If (A<0) And (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
  If A<0 Then For I:=0 To EmailAccountCount-1 Do If EmailAccounts[I].IsDefault Then A:=I;
  Data:='';
  If (A>=0) And (A<EmailAccountCount) Then
@@ -24405,6 +24407,1769 @@ Begin
 End;
 
 { Boucle principale de gestion des événements }
+
+{ Moteur VBScript integre, sans unite supplementaire. }
+
+Const
+ VBS_MaxArguments=128;
+ VBS_VersionText='5.812';
+ VBS_ValueEmpty=0;VBS_ValueString=1;VBS_ValueNumber=2;VBS_ValueDate=3;
+ VBS_ValueArray=4;VBS_ValueError=5;VBS_ValueNull=6;VBS_ValueObject=7;
+ VBS_FunctionList:Array[0..66]of String[24]=(
+  'ABS','ARRAY','ASC','ATN','CBOOL','CBYTE','CDATE','CDBL','CHR','CINT',
+  'CLNG','COS','CSNG','CSTR','CVERR','DATE','DATESERIAL','DATEVALUE','DAY',
+  'EXP','FIX','HEX','HOUR','INPUTBOX','INSTR','INT','ISARRAY','ISDATE',
+  'ISEMPTY','ISERROR','ISNULL','ISNUMERIC','ISOBJECT','LBOUND','LCASE',
+  'LEFT','LEN','LOG','LTRIM','MID','MINUTE','MONTH','MSGBOX','NOW','OCT',
+  'RIGHT','RND','RTRIM','SECOND','SGN','SIN','SQR','STR','STRCOMP','STRING',
+  'TAN','TIME','TIMESERIAL','TIMEVALUE','TRIM','UBOUND','UCASE','VAL','VARTYPE',
+  'WEEKDAY','WSCRIPT.ARGUMENTS','YEAR');
+
+Type
+ VBS_PScriptLine=^VBS_TScriptLine;
+ VBS_TScriptLine=Record
+  Number:LongInt;
+  Text:TMailText;
+  Previous,Next:VBS_PScriptLine;
+ End;
+ VBS_PVariable=^VBS_TVariable;
+ VBS_TVariable=Record
+  Name:String[63];
+  Value:TMailText;
+  ValueKind:Byte;
+  Next:VBS_PVariable;
+ End;
+ VBS_PCallBinding=^VBS_TCallBinding;
+ VBS_TCallBinding=Record
+  Name:String[63];
+  ActualName:String[63];
+  Existed:Boolean;
+  CopyBack:Boolean;
+  OldValue:TMailText;
+  OldKind:Byte;
+  Next:VBS_PCallBinding;
+ End;
+ VBS_TValue=Record
+  Text:TMailText;
+  Number:Real;
+  IsNumber:Boolean;
+  ValueKind:Byte;
+ End;
+
+Var
+ VBS_FirstScriptLine,VBS_LastScriptLine:VBS_PScriptLine;
+ VBS_LineCount,VBS_CurrentLine:LongInt;
+ VBS_Variables:VBS_PVariable;
+ VBS_ScriptArguments:Array[0..VBS_MaxArguments-1]of TMailText;
+ VBS_ScriptArgumentCount:Integer;
+ VBS_ScriptName:TMailText;
+ VBS_TimeLimit:LongInt;
+ VBS_StartHour,VBS_StartMinute,VBS_StartSecond,VBS_StartHundredth:Word;
+ VBS_ExprText:TMailText;
+ VBS_ExprPos:Integer;
+ VBS_Terminated,VBS_ExitDoRequested,VBS_ExitForRequested,VBS_ExitSubRequested,VBS_ExitFunctionRequested:Boolean;
+ VBS_OnErrorResumeNext:Boolean;
+ VBS_ExitCode:Integer;
+ VBS_ArrayCounter:LongInt;
+
+
+Var
+ CommandLineScript: TMailText;
+ VBSSteps,VBSDepth: LongInt;
+ VBSDiagnostic: TMailText;
+ VBSStarted,VBSExplicit: Boolean;
+
+Procedure VBSOutput(S:TMailText);
+Begin
+ VBSDiagnostic:=S; MailStatus:='VBScript: '+S;
+End;
+Function VBSHostStatement(S:TMailText):Boolean;Forward;
+Function VBSHostValue(Name:TMailText;Var V:VBS_TValue):Boolean;Forward;
+Procedure VBS_ScriptError(MessageText:TMailText;StopScript:Boolean);Forward;
+Function VBS_Upper(S:TMailText):TMailText;
+Var I:Integer;
+Begin For I:=1To Length(S)Do If S[I]in['a'..'z']Then S[I]:=Chr(Ord(S[I])-32);VBS_Upper:=S;End;
+
+Function VBS_FunctionIndex(Name:TMailText):Byte;
+Var FirstIndex,LastIndex,MiddleIndex:Integer;
+Begin
+ Name:=VBS_Upper(Name);VBS_FunctionIndex:=255;
+ FirstIndex:=Low(VBS_FunctionList);LastIndex:=High(VBS_FunctionList);
+ While FirstIndex<=LastIndex Do Begin
+  MiddleIndex:=(FirstIndex+LastIndex)div 2;
+  If Name=VBS_FunctionList[MiddleIndex]Then Begin VBS_FunctionIndex:=MiddleIndex;Exit;End;
+  If Name<VBS_FunctionList[MiddleIndex]Then LastIndex:=MiddleIndex-1
+  Else FirstIndex:=MiddleIndex+1;
+ End;
+End;
+
+Function VBS_Trim(S:TMailText):TMailText;
+Begin
+ While(Length(S)>0)and(S[1]in[' ',#9])Do Delete(S,1,1);
+ While(Length(S)>0)and(S[Length(S)]in[' ',#9,#13,#10])Do Delete(S,Length(S),1);
+ VBS_Trim:=S;
+End;
+
+Function VBS_StartsWith(S,Prefix:TMailText):Boolean;
+Begin VBS_StartsWith:=Copy(VBS_Upper(VBS_Trim(S)),1,Length(Prefix))=VBS_Upper(Prefix);End;
+
+Procedure VBS_AddScriptLine(S:TMailText);
+Var Line:VBS_PScriptLine;
+Begin
+ New(Line);Inc(VBS_LineCount);Line^.Number:=VBS_LineCount;Line^.Text:=S;
+ Line^.Previous:=VBS_LastScriptLine;Line^.Next:=Nil;
+ If VBS_LastScriptLine<>Nil Then VBS_LastScriptLine^.Next:=Line
+ Else VBS_FirstScriptLine:=Line;
+ VBS_LastScriptLine:=Line;
+End;
+
+Function VBS_ScriptLineText(LineNumber:LongInt):TMailText;
+Var Line:VBS_PScriptLine;
+Begin
+ If(LineNumber<1)or(LineNumber>VBS_LineCount)Then Begin VBS_ScriptLineText:='';Exit;End;
+ If LineNumber<=(VBS_LineCount div 2)Then Begin
+  Line:=VBS_FirstScriptLine;While(Line<>Nil)and(Line^.Number<LineNumber)Do Line:=Line^.Next;
+ End Else Begin
+  Line:=VBS_LastScriptLine;While(Line<>Nil)and(Line^.Number>LineNumber)Do Line:=Line^.Previous;
+ End;
+ If Line=Nil Then VBS_ScriptLineText:=''Else VBS_ScriptLineText:=Line^.Text;
+End;
+
+Procedure VBS_MakeText(S:TMailText;Var V:VBS_TValue);
+Var Code:Integer;N:Real;
+Begin
+ V.Text:=S;Val(S,N,Code);V.IsNumber:=Code=0;
+ If V.IsNumber Then Begin V.Number:=N;V.ValueKind:=VBS_ValueNumber;End
+ Else Begin V.Number:=0;If S=''Then V.ValueKind:=VBS_ValueEmpty Else V.ValueKind:=VBS_ValueString;End;
+End;
+
+Procedure VBS_MakeNumber(N:Real;Var V:VBS_TValue);
+Var S:TMailText;
+Begin
+ If Frac(N)=0Then Str(Trunc(N),S)Else Str(N:0:8,S);
+ V.Text:=VBS_Trim(S);V.Number:=N;V.IsNumber:=True;V.ValueKind:=VBS_ValueNumber;
+End;
+
+Procedure VBS_MakeSingleNumber(N:Real;Var V:VBS_TValue);
+Var Scale,ScaledValue:Real;
+Begin
+ If N=0Then Begin VBS_MakeNumber(0,V);Exit;End;
+ Scale:=1;ScaledValue:=Abs(N);
+ While ScaledValue>=10Do Begin ScaledValue:=ScaledValue/10;Scale:=Scale*10;End;
+ While ScaledValue<1Do Begin ScaledValue:=ScaledValue*10;Scale:=Scale/10;End;
+ ScaledValue:=Round(ScaledValue*1000000)/1000000;
+ If N<0Then ScaledValue:=-ScaledValue;
+ VBS_MakeNumber(ScaledValue*Scale,V);
+End;
+
+Function VBS_LeapYear(Year:Integer):Boolean;
+Begin VBS_LeapYear:=(Year mod 4=0)and((Year mod 100<>0)or(Year mod 400=0));End;
+
+Function VBS_MonthDays(Year,Month:Integer):Integer;
+Const Days:Array[1..12]of Byte=(31,28,31,30,31,30,31,31,30,31,30,31);
+Begin
+ If(Month=2)and VBS_LeapYear(Year)Then VBS_MonthDays:=29 Else VBS_MonthDays:=Days[Month];
+End;
+
+Procedure VBS_MakeDateValue(Year,Month,Day:Integer;Var V:VBS_TValue);
+Var SYear,SMonth,SDay:TMailText;
+Begin
+ If(Year>=0)and(Year<=29)Then Inc(Year,2000)
+ Else If(Year>=30)and(Year<=99)Then Inc(Year,1900);
+ While Month<1 Do Begin Dec(Year);Inc(Month,12);End;
+ While Month>12 Do Begin Inc(Year);Dec(Month,12);End;
+ While Day<1 Do Begin Dec(Month);If Month<1Then Begin Month:=12;Dec(Year);End;
+  Inc(Day,VBS_MonthDays(Year,Month));End;
+ While Day>VBS_MonthDays(Year,Month)Do Begin Dec(Day,VBS_MonthDays(Year,Month));Inc(Month);
+  If Month>12Then Begin Month:=1;Inc(Year);End;End;
+ Str(Year,SYear);Str(Month,SMonth);Str(Day,SDay);
+ If Length(SMonth)<2Then SMonth:='0'+SMonth;If Length(SDay)<2Then SDay:='0'+SDay;
+ VBS_MakeText(SDay+'/'+SMonth+'/'+VBS_Trim(SYear),V);V.ValueKind:=VBS_ValueDate;
+End;
+
+Procedure VBS_ParseDateValue(SourceText:TMailText;Var V:VBS_TValue);
+Var FirstPart,SecondPart,ThirdPart:TMailText;P,Code,Year,Month,Day:Integer;
+Begin
+ SourceText:=VBS_Trim(SourceText);P:=Pos(' ',SourceText);
+ If P>0Then SourceText:=Copy(SourceText,1,P-1);
+ FirstPart:='';SecondPart:='';ThirdPart:='';
+ P:=Pos('/',SourceText);If P=0Then P:=Pos('-',SourceText);
+ If P=0Then Begin VBS_MakeText('',V);Exit;End;
+ FirstPart:=Copy(SourceText,1,P-1);Delete(SourceText,1,P);
+ P:=Pos('/',SourceText);If P=0Then P:=Pos('-',SourceText);
+ If P=0Then Begin VBS_MakeText('',V);Exit;End;
+ SecondPart:=Copy(SourceText,1,P-1);ThirdPart:=Copy(SourceText,P+1,32767);
+ If Length(VBS_Trim(FirstPart))=4Then Begin
+  Val(FirstPart,Year,Code);If Code<>0Then Begin VBS_MakeText('',V);Exit;End;
+  Val(SecondPart,Month,Code);If Code<>0Then Begin VBS_MakeText('',V);Exit;End;
+  Val(ThirdPart,Day,Code);
+ End Else Begin
+  Val(FirstPart,Day,Code);If Code<>0Then Begin VBS_MakeText('',V);Exit;End;
+  Val(SecondPart,Month,Code);If Code<>0Then Begin VBS_MakeText('',V);Exit;End;
+  Val(ThirdPart,Year,Code);
+ End;
+ If Code<>0Then VBS_MakeText('',V)Else VBS_MakeDateValue(Year,Month,Day,V);
+End;
+
+Procedure VBS_DateDayValue(SourceText:TMailText;Var V:VBS_TValue);
+Var DateValue:VBS_TValue;Day,Code:Integer;
+Begin
+ VBS_ParseDateValue(SourceText,DateValue);
+ If DateValue.Text=''Then Begin VBS_MakeText('',V);Exit;End;
+ Val(Copy(DateValue.Text,1,2),Day,Code);
+ If Code=0Then VBS_MakeNumber(Day,V)Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_DateHourValue(SourceText:TMailText;Var V:VBS_TValue);
+Var P,HourValue,Code:Integer;TimeText:TMailText;
+Begin
+ SourceText:=VBS_Trim(SourceText);P:=Pos(' ',SourceText);
+ If P>0Then TimeText:=VBS_Trim(Copy(SourceText,P+1,32767))Else TimeText:=SourceText;
+ P:=Pos(':',TimeText);If P=0Then Begin VBS_MakeNumber(0,V);Exit;End;
+ Val(Copy(TimeText,1,P-1),HourValue,Code);
+ If(Code=0)and(HourValue>=0)and(HourValue<=23)Then VBS_MakeNumber(HourValue,V)
+ Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_DateMinuteValue(SourceText:TMailText;Var V:VBS_TValue);
+Var P,P2,MinuteValue,Code:Integer;TimeText:TMailText;
+Begin
+ SourceText:=VBS_Trim(SourceText);P:=Pos(' ',SourceText);
+ If P>0Then TimeText:=VBS_Trim(Copy(SourceText,P+1,32767))Else TimeText:=SourceText;
+ P:=Pos(':',TimeText);If P=0Then Begin VBS_MakeNumber(0,V);Exit;End;
+ Delete(TimeText,1,P);P2:=Pos(':',TimeText);
+ If P2>0Then TimeText:=Copy(TimeText,1,P2-1);
+ Val(VBS_Trim(TimeText),MinuteValue,Code);
+ If(Code=0)and(MinuteValue>=0)and(MinuteValue<=59)Then VBS_MakeNumber(MinuteValue,V)
+ Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_DateSecondValue(SourceText:TMailText;Var V:VBS_TValue);
+Var P,SecondValue,Code:Integer;TimeText:TMailText;
+Begin
+ SourceText:=VBS_Trim(SourceText);P:=Pos(' ',SourceText);
+ If P>0Then TimeText:=VBS_Trim(Copy(SourceText,P+1,32767))Else TimeText:=SourceText;
+ P:=Pos(':',TimeText);If P=0Then Begin VBS_MakeNumber(0,V);Exit;End;
+ Delete(TimeText,1,P);P:=Pos(':',TimeText);
+ If P=0Then Begin VBS_MakeNumber(0,V);Exit;End;Delete(TimeText,1,P);
+ P:=1;While(P<=Length(TimeText))and(TimeText[P]in['0'..'9'])Do Inc(P);
+ Val(Copy(TimeText,1,P-1),SecondValue,Code);
+ If(Code=0)and(SecondValue>=0)and(SecondValue<=59)Then VBS_MakeNumber(SecondValue,V)
+ Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_DateMonthValue(SourceText:TMailText;Var V:VBS_TValue);
+Var DateValue:VBS_TValue;MonthValue,Code:Integer;
+Begin
+ VBS_ParseDateValue(SourceText,DateValue);
+ If DateValue.Text=''Then Begin VBS_MakeText('',V);Exit;End;
+ Val(Copy(DateValue.Text,4,2),MonthValue,Code);
+ If Code=0Then VBS_MakeNumber(MonthValue,V)Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_NowValue(Var V:VBS_TValue);
+Var Year,Month,Day,DayOfWeek,HourValue,MinuteValue,Second,Hundredth:Word;
+ DatePart,HourText,MinuteText,SecondText:TMailText;DateValue:VBS_TValue;
+Begin
+ GetDate(Year,Month,Day,DayOfWeek);GetTime(HourValue,MinuteValue,Second,Hundredth);
+ VBS_MakeDateValue(Year,Month,Day,DateValue);Str(HourValue,HourText);
+ Str(MinuteValue,MinuteText);Str(Second,SecondText);
+ If Length(HourText)<2Then HourText:='0'+HourText;
+ If Length(MinuteText)<2Then MinuteText:='0'+MinuteText;
+ If Length(SecondText)<2Then SecondText:='0'+SecondText;
+ DatePart:=DateValue.Text+' '+HourText+':'+MinuteText+':'+SecondText;
+ VBS_MakeText(DatePart,V);V.ValueKind:=VBS_ValueDate;
+End;
+
+Procedure VBS_HexValue(NumberValue:LongInt;Var V:VBS_TValue);
+Const Digits:Array[0..15] of Char='0123456789ABCDEF';
+Var ResultText:TMailText;Digit,Count:Integer;Negative:Boolean;
+Begin
+ ResultText:='';Negative:=NumberValue<0;Count:=0;
+ Repeat
+  Digit:=NumberValue and 15;ResultText:=Digits[Digit]+ResultText;
+  NumberValue:=NumberValue shr 4;Inc(Count);
+ Until((Not Negative)and(NumberValue=0))or(Negative and(Count=8));
+ VBS_MakeText(ResultText,V);
+End;
+
+Procedure VBS_OctValue(NumberValue:LongInt;Var V:VBS_TValue);
+Const Digits:Array[0..7]of Char='01234567';
+Var ResultText:TMailText;Digit,Count:Integer;Negative:Boolean;
+Begin
+ ResultText:='';Negative:=NumberValue<0;Count:=0;
+ Repeat
+  Digit:=NumberValue and 7;ResultText:=Digits[Digit]+ResultText;
+  NumberValue:=NumberValue shr 3;Inc(Count);
+ Until((Not Negative)and(NumberValue=0))or(Negative and(Count=11));
+ VBS_MakeText(ResultText,V);
+End;
+
+Procedure VBS_StrValue(NumberValue:Real;Var V:VBS_TValue);
+Var Number:VBS_TValue;
+Begin
+ VBS_MakeNumber(NumberValue,Number);
+ If NumberValue>=0Then VBS_MakeText(' '+Number.Text,V)Else VBS_MakeText(Number.Text,V);
+End;
+
+Procedure VBS_MakeTimeValue(HourValue,MinuteValue,SecondValue:LongInt;Var V:VBS_TValue);
+Var TotalSeconds:LongInt;HourText,MinuteText,SecondText:TMailText;
+Begin
+ TotalSeconds:=HourValue*3600+MinuteValue*60+SecondValue;
+ TotalSeconds:=TotalSeconds mod 86400;If TotalSeconds<0Then Inc(TotalSeconds,86400);
+ HourValue:=TotalSeconds div 3600;MinuteValue:=(TotalSeconds mod 3600)div 60;
+ SecondValue:=TotalSeconds mod 60;Str(HourValue,HourText);Str(MinuteValue,MinuteText);
+ Str(SecondValue,SecondText);If Length(HourText)<2Then HourText:='0'+HourText;
+ If Length(MinuteText)<2Then MinuteText:='0'+MinuteText;
+ If Length(SecondText)<2Then SecondText:='0'+SecondText;
+ VBS_MakeText(HourText+':'+MinuteText+':'+SecondText,V);V.ValueKind:=VBS_ValueDate;
+End;
+
+Procedure VBS_CurrentTimeValue(Var V:VBS_TValue);
+Var HourValue,MinuteValue,SecondValue,Hundredth:Word;
+Begin GetTime(HourValue,MinuteValue,SecondValue,Hundredth);
+ VBS_MakeTimeValue(HourValue,MinuteValue,SecondValue,V);End;
+
+Procedure VBS_ParseTimeValue(SourceText:TMailText;Var V:VBS_TValue);
+Var P,Code,HourValue,MinuteValue,SecondValue:Integer;UpperText,Part:TMailText;
+ IsPM,IsAM:Boolean;
+Begin
+ SourceText:=VBS_Trim(SourceText);P:=Pos(' ',SourceText);
+ If(P>0)and(Pos(':',Copy(SourceText,P+1,32767))>0)Then SourceText:=VBS_Trim(Copy(SourceText,P+1,32767));
+ UpperText:=VBS_Upper(SourceText);IsPM:=Pos('PM',UpperText)>0;IsAM:=Pos('AM',UpperText)>0;
+ P:=Pos(':',SourceText);If P=0Then Begin VBS_MakeText('',V);Exit;End;
+ Part:=Copy(SourceText,1,P-1);Val(VBS_Trim(Part),HourValue,Code);
+ If Code<>0Then Begin VBS_MakeText('',V);Exit;End;Delete(SourceText,1,P);
+ P:=Pos(':',SourceText);
+ If P>0Then Begin Part:=Copy(SourceText,1,P-1);Delete(SourceText,1,P);End
+ Else Begin Part:=SourceText;SourceText:='0';End;
+ Val(VBS_Trim(Part),MinuteValue,Code);If Code<>0Then Begin VBS_MakeText('',V);Exit;End;
+ P:=1;While(P<=Length(SourceText))and(SourceText[P]in['0'..'9'])Do Inc(P);
+ If P=1Then SecondValue:=0 Else Begin Val(Copy(SourceText,1,P-1),SecondValue,Code);
+  If Code<>0Then Begin VBS_MakeText('',V);Exit;End;End;
+ If IsPM and(HourValue<12)Then Inc(HourValue,12);
+ If IsAM and(HourValue=12)Then HourValue:=0;
+ If(HourValue<0)or(HourValue>23)or(MinuteValue<0)or(MinuteValue>59)or
+   (SecondValue<0)or(SecondValue>59)Then VBS_MakeText('',V)
+ Else VBS_MakeTimeValue(HourValue,MinuteValue,SecondValue,V);
+End;
+
+Procedure VBS_StrCompValue(A,B,C:VBS_TValue;ArgumentCount:Integer;Var V:VBS_TValue);
+Var LeftText,RightText:TMailText;
+Begin
+ If(A.ValueKind=VBS_ValueNull)or(B.ValueKind=VBS_ValueNull)Then Begin VBS_MakeText('',V);V.ValueKind:=VBS_ValueNull;
+  Exit;End;
+ LeftText:=A.Text;RightText:=B.Text;
+ If(ArgumentCount>=3)and(Trunc(C.Number)=1)Then Begin LeftText:=VBS_Upper(LeftText);RightText:=VBS_Upper(RightText);End;
+ If LeftText<RightText Then VBS_MakeNumber(-1,V)Else If LeftText>RightText Then VBS_MakeNumber(1,V)Else VBS_MakeNumber(0,V);
+End;
+
+Procedure VBS_StringValue(Count:Integer;CharacterValue:VBS_TValue;Var V:VBS_TValue);
+Var ResultText:TMailText;Character:Char;
+Begin
+ If Count<0Then Begin VBS_MakeText('',V);Exit;End;If Count>255Then Count:=255;
+ If CharacterValue.IsNumber Then Character:=Chr(Trunc(CharacterValue.Number)and 255)
+ Else If CharacterValue.Text=''Then Character:=#0Else Character:=CharacterValue.Text[1];
+ ResultText:='';While Length(ResultText)<Count Do ResultText:=ResultText+Character;
+ VBS_MakeText(ResultText,V);V.ValueKind:=VBS_ValueString;
+End;
+
+Procedure VBS_MsgBoxValue(MessageText:TMailText;StyleValue:Integer;TitleText:TMailText;Var V:VBS_TValue);
+Begin VBSOutput('MsgBox non interactif: '+TitleText+' '+MessageText);VBS_MakeNumber(1,V);End;
+Procedure VBS_InputBoxValue(PromptText,TitleText,DefaultText:TMailText;Var V:VBS_TValue);
+Begin VBS_ScriptError('InputBox non supporte dans cet hote.',True);VBS_MakeText('',V);End;
+
+Procedure VBS_InStrValue(A,B,C,D:VBS_TValue;ArgumentCount:Integer;Var V:VBS_TValue);
+Var StartPosition,FoundPosition:Integer;SourceText,SearchText:TMailText;
+Begin
+ If ArgumentCount<3Then Begin StartPosition:=1;SourceText:=A.Text;SearchText:=B.Text;End
+ Else Begin StartPosition:=Trunc(A.Number);SourceText:=B.Text;SearchText:=C.Text;End;
+ If StartPosition<1Then StartPosition:=1;
+ If(ArgumentCount>=4)and(Trunc(D.Number)=1)Then Begin
+  SourceText:=VBS_Upper(SourceText);SearchText:=VBS_Upper(SearchText);
+ End;
+ If SearchText=''Then FoundPosition:=StartPosition
+ Else FoundPosition:=Pos(SearchText,Copy(SourceText,StartPosition,32767));
+ If FoundPosition>0Then Inc(FoundPosition,StartPosition-1);
+ VBS_MakeNumber(FoundPosition,V);
+End;
+
+Procedure VBS_BooleanValue(State:Boolean;Var V:VBS_TValue);
+Begin
+ If State Then Begin VBS_MakeText('True',V);V.Number:=-1;End
+ Else Begin VBS_MakeText('False',V);V.Number:=0;End;
+End;
+
+Procedure VBS_IsDateValue(A:VBS_TValue;Var V:VBS_TValue);
+Var Converted:VBS_TValue;
+Begin
+ If A.ValueKind=VBS_ValueDate Then VBS_BooleanValue(True,V)
+ Else Begin VBS_ParseDateValue(A.Text,Converted);VBS_BooleanValue(Converted.Text<>'',V);End;
+End;
+
+Function VBS_Truth(V:VBS_TValue):Boolean;
+Begin VBS_Truth:=Not((V.Text='')or(V.Text='0')or(VBS_Upper(V.Text)='FALSE'));End;
+
+Function VBS_FindVariable(Name:TMailText):VBS_PVariable;
+Var P:VBS_PVariable;
+Begin
+ Name:=VBS_Upper(VBS_Trim(Name));P:=VBS_Variables;
+ While P<>Nil Do Begin If P^.Name=Name Then Begin VBS_FindVariable:=P;Exit;End;P:=P^.Next;End;
+ VBS_FindVariable:=Nil;
+End;
+
+Procedure VBS_SetVariable(Name,Value:TMailText);
+Var P:VBS_PVariable;V:VBS_TValue;
+Begin
+ Name:=VBS_Upper(VBS_Trim(Name));If Name=''Then Exit;P:=VBS_FindVariable(Name);
+ If P=Nil Then Begin New(P);P^.Name:=Name;P^.Next:=VBS_Variables;VBS_Variables:=P;End;
+ VBS_MakeText(Value,V);P^.Value:=Value;P^.ValueKind:=V.ValueKind;
+ If Copy(Value,1,8)='@VBARRAY'Then P^.ValueKind:=VBS_ValueArray;
+ If Copy(Value,1,6)='Error 'Then P^.ValueKind:=VBS_ValueError;
+End;
+
+Procedure VBS_SetVariableValue(Name:TMailText;V:VBS_TValue);
+Var P:VBS_PVariable;
+Begin
+ Name:=VBS_Upper(VBS_Trim(Name));If Name=''Then Exit;P:=VBS_FindVariable(Name);
+ If P=Nil Then Begin New(P);P^.Name:=Name;P^.Next:=VBS_Variables;VBS_Variables:=P;End;
+ P^.Value:=V.Text;P^.ValueKind:=V.ValueKind;
+End;
+
+Procedure VBS_GetVariable(Name:TMailText;Var V:VBS_TValue);
+Var P:VBS_PVariable;
+Begin
+ If VBSHostValue(Name,V) Then Exit;
+ P:=VBS_FindVariable(Name);If P=Nil Then Begin
+  VBS_MakeText('',V);
+  If VBSExplicit Then VBS_ScriptError('Variable non declaree: '+Name,True);
+ End Else Begin
+ VBS_MakeText(P^.Value,V);V.ValueKind:=P^.ValueKind;
+ End;
+End;
+
+Procedure VBS_RemoveVariable(Name:TMailText);
+Var P,Previous:VBS_PVariable;
+Begin
+ Name:=VBS_Upper(VBS_Trim(Name));P:=VBS_Variables;Previous:=Nil;
+ While P<>Nil Do Begin
+  If P^.Name=Name Then Begin
+   If Previous=Nil Then VBS_Variables:=P^.Next Else Previous^.Next:=P^.Next;
+   Dispose(P);Exit;
+  End;
+  Previous:=P;P:=P^.Next;
+ End;
+End;
+
+Procedure VBS_RemoveVariablesWithPrefix(Prefix:TMailText);
+Var P,Previous,NextVariable:VBS_PVariable;
+Begin
+ Prefix:=VBS_Upper(Prefix);P:=VBS_Variables;Previous:=Nil;
+ While P<>Nil Do Begin
+  NextVariable:=P^.Next;
+  If Copy(P^.Name,1,Length(Prefix))=Prefix Then Begin
+   If Previous=Nil Then VBS_Variables:=NextVariable Else Previous^.Next:=NextVariable;
+   Dispose(P);
+  End Else Previous:=P;
+  P:=NextVariable;
+ End;
+End;
+
+Procedure VBS_EraseVariable(Name:TMailText);
+Var VariableEntry:VBS_PVariable;Reference,CountText,DynamicText:TMailText;Stored:VBS_TValue;
+Begin
+ Name:=VBS_Trim(Name);VariableEntry:=VBS_FindVariable(Name);
+ If VariableEntry=Nil Then Exit;
+ If VariableEntry^.ValueKind=VBS_ValueArray Then Begin
+  Reference:=VariableEntry^.Value;VBS_GetVariable(Reference+'.COUNT',Stored);CountText:=Stored.Text;
+  VBS_GetVariable(Reference+'.DYNAMIC',Stored);DynamicText:=Stored.Text;
+  VBS_RemoveVariablesWithPrefix(Reference+'.');
+  If DynamicText<>'1'Then Begin
+   VBS_SetVariable(Reference+'.COUNT',CountText);VBS_SetVariable(Reference+'.DYNAMIC','0');Exit;
+  End;
+ End;
+ VBS_RemoveVariable(Name);
+End;
+
+Procedure VBS_UBoundValue(A,B:VBS_TValue;ArgumentCount:Integer;Var V:VBS_TValue);
+Var CountValue:VBS_TValue;
+Begin
+ If(A.ValueKind<>VBS_ValueArray)and(Copy(A.Text,1,8)<>'@VBARRAY')Then Begin VBS_MakeText('',V);Exit;End;
+ If(ArgumentCount>1)and(Trunc(B.Number)<>1)Then Begin VBS_MakeText('',V);Exit;End;
+ VBS_GetVariable(A.Text+'.COUNT',CountValue);VBS_MakeNumber(Trunc(CountValue.Number)-1,V);
+End;
+
+Procedure VBS_ValValue(SourceText:TMailText;Var V:VBS_TValue);
+Var NumberText,UpperText:TMailText;Position,Code,Base,Digit:Integer;
+ NumberValue:Real;IntegerValue:LongInt;HasDigit:Boolean;
+Begin
+ SourceText:=VBS_Trim(SourceText);UpperText:=VBS_Upper(SourceText);
+ If(Copy(UpperText,1,2)='&H')or(Copy(UpperText,1,2)='&O')Then Begin
+  If UpperText[2]='H'Then Base:=16 Else Base:=8;
+  Position:=3;IntegerValue:=0;HasDigit:=False;
+  While Position<=Length(UpperText)Do Begin
+   If UpperText[Position]in['0'..'9']Then Digit:=Ord(UpperText[Position])-Ord('0')
+   Else If UpperText[Position]in['A'..'F']Then Digit:=Ord(UpperText[Position])-Ord('A')+10
+   Else Break;
+   If Digit>=Base Then Break;
+   IntegerValue:=IntegerValue*Base+Digit;HasDigit:=True;Inc(Position);
+  End;
+  If HasDigit Then VBS_MakeNumber(IntegerValue,V)Else VBS_MakeNumber(0,V);Exit;
+ End;
+ NumberText:='';Position:=1;HasDigit:=False;
+ If(Position<=Length(SourceText))and(SourceText[Position]in['+','-'])Then Begin
+  NumberText:=SourceText[Position];Inc(Position);End;
+ While(Position<=Length(SourceText))and(SourceText[Position]in['0'..'9'])Do Begin
+  NumberText:=NumberText+SourceText[Position];Inc(Position);HasDigit:=True;End;
+ If(Position<=Length(SourceText))and(SourceText[Position]='.')Then Begin
+  NumberText:=NumberText+'.';Inc(Position);
+  While(Position<=Length(SourceText))and(SourceText[Position]in['0'..'9'])Do Begin
+   NumberText:=NumberText+SourceText[Position];Inc(Position);HasDigit:=True;End;
+ End;
+ If HasDigit and(Position<=Length(SourceText))and(SourceText[Position]in['E','e'])Then Begin
+  NumberText:=NumberText+'E';Inc(Position);
+  If(Position<=Length(SourceText))and(SourceText[Position]in['+','-'])Then Begin
+   NumberText:=NumberText+SourceText[Position];Inc(Position);End;
+  While(Position<=Length(SourceText))and(SourceText[Position]in['0'..'9'])Do Begin
+   NumberText:=NumberText+SourceText[Position];Inc(Position);End;
+ End;
+ If Not HasDigit Then VBS_MakeNumber(0,V)Else Begin
+  Val(NumberText,NumberValue,Code);If Code=0Then VBS_MakeNumber(NumberValue,V)Else VBS_MakeNumber(0,V);
+ End;
+End;
+
+Procedure VBS_VarTypeValue(A:VBS_TValue;Var V:VBS_TValue);
+Var TypeNumber:Integer;
+Begin
+ Case A.ValueKind of
+  VBS_ValueEmpty:TypeNumber:=0;
+  VBS_ValueString:TypeNumber:=8;
+  VBS_ValueNumber:TypeNumber:=5;
+  VBS_ValueDate:TypeNumber:=7;
+  VBS_ValueArray:TypeNumber:=8204; { vbArray + vbVariant }
+  VBS_ValueError:TypeNumber:=10;
+  VBS_ValueNull:TypeNumber:=1;
+  VBS_ValueObject:TypeNumber:=9;
+ Else TypeNumber:=12;
+ End;
+ VBS_MakeNumber(TypeNumber,V);
+End;
+
+Procedure VBS_DateParts(SourceText:TMailText;Var VBS_YearValue,MonthValue,DayValue:Integer;
+ Var Valid:Boolean);
+Var Converted:VBS_TValue;Code:Integer;
+Begin
+ VBS_ParseDateValue(SourceText,Converted);Valid:=Converted.Text<>'';
+ If Not Valid Then Exit;
+ Val(Copy(Converted.Text,1,2),DayValue,Code);If Code<>0Then Valid:=False;
+ Val(Copy(Converted.Text,4,2),MonthValue,Code);If Code<>0Then Valid:=False;
+ Val(Copy(Converted.Text,7,4),VBS_YearValue,Code);If Code<>0Then Valid:=False;
+End;
+
+Procedure VBS_WeekdayValue(A,B:VBS_TValue;ArgumentCount:Integer;Var V:VBS_TValue);
+Var VBS_YearValue,MonthValue,DayValue,FirstDay,H,ResultDay:Integer;Valid:Boolean;
+Begin
+ VBS_DateParts(A.Text,VBS_YearValue,MonthValue,DayValue,Valid);
+ If Not Valid Then Begin VBS_MakeText('',V);Exit;End;
+ If ArgumentCount>1Then FirstDay:=Trunc(B.Number)Else FirstDay:=1;
+ If FirstDay=0Then FirstDay:=1;
+ If(FirstDay<1)or(FirstDay>7)Then Begin VBS_MakeText('',V);Exit;End;
+ If MonthValue<3Then Begin Inc(MonthValue,12);Dec(VBS_YearValue);End;
+ H:=(DayValue+(13*(MonthValue+1))div 5+VBS_YearValue+(VBS_YearValue div 4)-
+     (VBS_YearValue div 100)+(VBS_YearValue div 400))mod 7;
+ ResultDay:=((H+6)mod 7)+1;
+ ResultDay:=((ResultDay-FirstDay+7)mod 7)+1;VBS_MakeNumber(ResultDay,V);
+End;
+
+Procedure VBS_YearValue(SourceText:TMailText;Var V:VBS_TValue);
+Var YearNumber,MonthNumber,DayNumber:Integer;Valid:Boolean;
+Begin
+ VBS_DateParts(SourceText,YearNumber,MonthNumber,DayNumber,Valid);
+ If Valid Then VBS_MakeNumber(YearNumber,V)Else VBS_MakeText('',V);
+End;
+
+Procedure VBS_SkipSpace;
+Begin While(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]in[' ',#9])Do Inc(VBS_ExprPos);End;
+
+Function VBS_ReadWord:TMailText;
+Var S:TMailText;
+Begin
+ VBS_SkipSpace;S:='';
+ While(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]in['A'..'Z','a'..'z','0'..'9','_','.'])Do Begin
+  S:=S+VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);
+ End;
+ VBS_ReadWord:=S;
+End;
+
+Procedure VBS_ParseExpression(Var V:VBS_TValue);Forward;
+Procedure VBS_CallUserFunction(FunctionName:TMailText;A,B,C,D:VBS_TValue;
+ ArgumentCount:Integer;Var V:VBS_TValue);Forward;
+
+Function VBS_UserFunctionExists(FunctionName:TMailText):Boolean;
+Var I,P:Integer;Declaration,DeclarationName:TMailText;
+Begin
+ VBS_UserFunctionExists:=False;
+ For I:=1To VBS_LineCount Do Begin
+  Declaration:=VBS_Trim(VBS_ScriptLineText(I));
+  If VBS_StartsWith(Declaration,'PUBLIC FUNCTION ')Then Delete(Declaration,1,7)
+  Else If VBS_StartsWith(Declaration,'PRIVATE FUNCTION ')Then Delete(Declaration,1,8);
+  If VBS_StartsWith(Declaration,'FUNCTION ')Then Begin
+   Delete(Declaration,1,9);P:=Pos('(',Declaration);
+   If P=0Then P:=Pos(' ',Declaration);
+   If P=0Then DeclarationName:=VBS_Trim(Declaration)
+   Else DeclarationName:=VBS_Trim(Copy(Declaration,1,P-1));
+   If VBS_Upper(DeclarationName)=VBS_Upper(FunctionName)Then Begin VBS_UserFunctionExists:=True;Exit;End;
+  End;
+ End;
+End;
+
+Procedure VBS_ParsePrimary(Var V:VBS_TValue);
+Var Q:Char;S,Name,U,ArrayReference,IndexText:TMailText;N:Real;
+ Code,I,ElementIndex,ArgumentCount:Integer;FunctionByte:Byte;A,B,C,D:VBS_TValue;VariableEntry:VBS_PVariable;
+ DateYear,DateMonth,DateDay,DateDayOfWeek:Word;
+Begin
+ VBS_SkipSpace;If VBS_ExprPos>Length(VBS_ExprText)Then Begin VBS_MakeText('',V);Exit;End;
+ If VBS_ExprText[VBS_ExprPos]in['"','''']Then Begin
+  Q:=VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);S:='';
+  While VBS_ExprPos<=Length(VBS_ExprText)Do Begin
+   If VBS_ExprText[VBS_ExprPos]=Q Then Begin
+    If(VBS_ExprPos<Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos+1]=Q)Then Begin S:=S+Q;Inc(VBS_ExprPos,2);End
+    Else Begin Inc(VBS_ExprPos);Break;End;
+   End Else Begin S:=S+VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);End;
+  End;
+  VBS_MakeText(S,V);V.ValueKind:=VBS_ValueString;Exit;
+ End;
+ If VBS_ExprText[VBS_ExprPos]='('Then Begin Inc(VBS_ExprPos);VBS_ParseExpression(V);VBS_SkipSpace;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=')')Then Inc(VBS_ExprPos);Exit;End;
+ If VBS_ExprText[VBS_ExprPos]in['0'..'9']Then Begin
+  S:='';While(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]in['0'..'9','.'])Do Begin
+  S:=S+VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);End;
+  Val(S,N,Code);If Code=0Then VBS_MakeNumber(N,V)Else VBS_MakeText(S,V);Exit;
+ End;
+ Name:=VBS_ReadWord;U:=VBS_Upper(Name);
+ If U='TRUE'Then Begin VBS_MakeNumber(-1,V);Exit;End;
+ If U='FALSE'Then Begin VBS_MakeNumber(0,V);Exit;End;
+ If U='EMPTY'Then Begin VBS_MakeText('',V);Exit;End;
+ If U='NULL'Then Begin VBS_MakeText('',V);V.ValueKind:=VBS_ValueNull;Exit;End;
+ If U='NOTHING'Then Begin VBS_MakeText('',V);V.ValueKind:=VBS_ValueObject;Exit;End;
+ VBS_SkipSpace;
+ FunctionByte:=VBS_FunctionIndex(U);
+ If((FunctionByte=15)or(FunctionByte=43)or(FunctionByte=56))and
+   ((VBS_ExprPos>Length(VBS_ExprText))or(VBS_ExprText[VBS_ExprPos]<>'('))Then Begin
+  If FunctionByte=15Then Begin GetDate(DateYear,DateMonth,DateDay,DateDayOfWeek);
+   VBS_MakeDateValue(DateYear,DateMonth,DateDay,V);End
+  Else If FunctionByte=43Then VBS_NowValue(V)Else VBS_CurrentTimeValue(V);Exit;
+ End;
+ If(FunctionByte=255)and VBS_UserFunctionExists(Name)and
+   ((VBS_ExprPos>Length(VBS_ExprText))or(VBS_ExprText[VBS_ExprPos]<>'('))Then Begin
+  VBS_MakeText('',A);VBS_MakeText('',B);VBS_MakeText('',C);VBS_MakeText('',D);
+  VBS_CallUserFunction(Name,A,B,C,D,0,V);Exit;
+ End;
+ VariableEntry:=VBS_FindVariable(Name);
+ If(VariableEntry<>Nil)and(Copy(VariableEntry^.Value,1,8)='@VBARRAY')and
+   (VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]='(')Then Begin
+  Inc(VBS_ExprPos);VBS_ParseExpression(A);VBS_SkipSpace;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=')')Then Inc(VBS_ExprPos);
+  Str(Trunc(A.Number),IndexText);
+  VBS_GetVariable(VariableEntry^.Value+'.'+VBS_Trim(IndexText),V);Exit;
+ End;
+ If(U='ARRAY')and(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]='(')Then Begin
+  Inc(VBS_ArrayCounter);Str(VBS_ArrayCounter,IndexText);
+  ArrayReference:='@VBARRAY'+VBS_Trim(IndexText);ElementIndex:=0;Inc(VBS_ExprPos);VBS_SkipSpace;
+  While(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]<>')')Do Begin
+   VBS_ParseExpression(A);Str(ElementIndex,IndexText);
+   VBS_SetVariable(ArrayReference+'.'+VBS_Trim(IndexText),A.Text);Inc(ElementIndex);VBS_SkipSpace;
+   If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=',')Then Begin Inc(VBS_ExprPos);VBS_SkipSpace;End
+   Else Break;
+  End;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=')')Then Inc(VBS_ExprPos);
+  Str(ElementIndex,IndexText);VBS_SetVariable(ArrayReference+'.COUNT',VBS_Trim(IndexText));
+  VBS_MakeText(ArrayReference,V);V.ValueKind:=VBS_ValueArray;Exit;
+ End;
+ If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]='(')Then Begin
+  Inc(VBS_ExprPos);VBS_SkipSpace;ArgumentCount:=0;
+  VBS_MakeText('',A);VBS_MakeText('',B);VBS_MakeText('',C);VBS_MakeText('',D);
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]<>')')Then Begin
+   VBS_ParseExpression(A);Inc(ArgumentCount);VBS_SkipSpace;
+  End;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=',')Then Begin
+   Inc(VBS_ExprPos);
+   VBS_ParseExpression(B);Inc(ArgumentCount);
+   VBS_SkipSpace;
+  End;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=',')Then Begin
+   Inc(VBS_ExprPos);VBS_ParseExpression(C);
+   Inc(ArgumentCount);
+   VBS_SkipSpace;
+  End;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=',')Then Begin
+   Inc(VBS_ExprPos);
+   VBS_ParseExpression(D);
+   Inc(ArgumentCount);
+   VBS_SkipSpace;
+  End;
+  If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]=')')Then Inc(VBS_ExprPos);
+  If(FunctionByte=255)and VBS_UserFunctionExists(Name)Then Begin
+   VBS_CallUserFunction(Name,A,B,C,D,ArgumentCount,V);Exit;
+  End;
+  Case FunctionByte of
+   0:VBS_MakeNumber(Abs(A.Number),V);                         { ABS }
+   1:VBS_MakeText('',V);                                      { ARRAY: analyse variadique ci-dessus }
+   2:Begin If A.Text=''Then VBS_MakeNumber(0,V)
+      Else VBS_MakeNumber(Ord(A.Text[1]),V);End;              { ASC }
+   3:VBS_MakeNumber(ArcTan(A.Number),V);                      { ATN }
+   4:If VBS_Truth(A)Then VBS_MakeText('True',V)Else VBS_MakeText('False',V); { CBOOL }
+   5:Begin                                                { CBYTE }
+      N:=Round(A.Number);
+      If(N<0)or(N>255)Then VBS_MakeText('',V)Else VBS_MakeNumber(N,V);
+     End;
+   6:If A.IsNumber Then VBS_MakeText(A.Text,V)Else VBS_ParseDateValue(A.Text,V); { CDATE }
+   7:VBS_MakeNumber(A.Number,V);                              { CDBL }
+   8:VBS_MakeText(Chr(Trunc(A.Number)and 255),V);             { CHR }
+   9:VBS_MakeNumber(Round(A.Number),V);                       { CINT }
+   10:VBS_MakeNumber(Trunc(A.Number),V);                      { CLNG }
+   11:VBS_MakeNumber(Cos(A.Number),V);                        { COS }
+   12:VBS_MakeSingleNumber(A.Number,V);                       { CSNG }
+   13:Begin VBS_MakeText(A.Text,V);V.ValueKind:=VBS_ValueString;End; { CSTR }
+   14:Begin VBS_MakeText('Error '+A.Text,V);V.Number:=A.Number;V.ValueKind:=VBS_ValueError;End; { CVERR }
+   15:Begin GetDate(DateYear,DateMonth,DateDay,DateDayOfWeek);
+      VBS_MakeDateValue(DateYear,DateMonth,DateDay,V);End;    { DATE }
+   16:VBS_MakeDateValue(Trunc(A.Number),Trunc(B.Number),Trunc(C.Number),V); { DATESERIAL }
+   17:VBS_ParseDateValue(A.Text,V);                           { DATEVALUE }
+   18:VBS_DateDayValue(A.Text,V);                             { DAY }
+   19:VBS_MakeNumber(Exp(A.Number),V);                        { EXP }
+   20:VBS_MakeNumber(Trunc(A.Number),V);                      { FIX }
+   21:VBS_HexValue(Trunc(A.Number),V);                        { HEX }
+   22:VBS_DateHourValue(A.Text,V);                            { HOUR }
+   23:VBS_InputBoxValue(A.Text,B.Text,C.Text,V);              { INPUTBOX }
+   24:VBS_InStrValue(A,B,C,D,ArgumentCount,V);                { INSTR }
+   25:VBS_MakeNumber(Trunc(A.Number),V);                      { INT }
+   26:VBS_BooleanValue((A.ValueKind=VBS_ValueArray)or(Copy(A.Text,1,8)='@VBARRAY'),V); { ISARRAY }
+   27:VBS_IsDateValue(A,V);                                   { ISDATE }
+   28:VBS_BooleanValue(A.ValueKind=VBS_ValueEmpty,V);              { ISEMPTY }
+   29:VBS_BooleanValue(A.ValueKind=VBS_ValueError,V);              { ISERROR }
+   30:VBS_BooleanValue(A.ValueKind=VBS_ValueNull,V);               { ISNULL }
+   31:VBS_BooleanValue(A.IsNumber,V);                          { ISNUMERIC }
+   32:VBS_BooleanValue(A.ValueKind=VBS_ValueObject,V);             { ISOBJECT }
+   33:If((A.ValueKind=VBS_ValueArray)or(Copy(A.Text,1,8)='@VBARRAY'))and
+        ((ArgumentCount<2)or(Trunc(B.Number)=1))Then
+       VBS_MakeNumber(0,V)Else VBS_MakeText('',V);                { LBOUND }
+   34:Begin                                               { LCASE }
+      S:=A.Text;
+      For I:=1To Length(S)Do If S[I]in['A'..'Z']Then S[I]:=Chr(Ord(S[I])+32);
+      VBS_MakeText(S,V);
+     End;
+   35:VBS_MakeText(Copy(A.Text,1,Trunc(B.Number)),V);         { LEFT }
+   36:VBS_MakeNumber(Length(A.Text),V);                       { LEN }
+   37:If A.Number>0Then VBS_MakeNumber(Ln(A.Number),V)Else VBS_MakeText('',V); { LOG }
+   38:Begin S:=A.Text;While(Length(S)>0)and(S[1]=' ')Do Delete(S,1,1);
+      VBS_MakeText(S,V);End;                                  { LTRIM }
+   39:Begin                                               { MID }
+      I:=Trunc(B.Number);If I<1Then VBS_MakeText('',V)
+      Else If ArgumentCount<3Then VBS_MakeText(Copy(A.Text,I,32767),V)
+      Else If C.Number<0Then VBS_MakeText('',V)
+      Else VBS_MakeText(Copy(A.Text,I,Trunc(C.Number)),V);
+     End;
+   40:VBS_DateMinuteValue(A.Text,V);                          { MINUTE }
+   41:VBS_DateMonthValue(A.Text,V);                           { MONTH }
+   42:VBS_MsgBoxValue(A.Text,Trunc(B.Number),C.Text,V);       { MSGBOX }
+   43:VBS_NowValue(V);                                        { NOW }
+   44:VBS_OctValue(Trunc(A.Number),V);                        { OCT }
+   45:VBS_MakeText(Copy(A.Text,Length(A.Text)-Trunc(B.Number)+1,32767),V); { RIGHT }
+   46:VBS_MakeNumber(Random,V);                               { RND }
+   47:Begin                                               { RTRIM }
+      If A.ValueKind=VBS_ValueNull Then V:=A Else Begin S:=A.Text;
+       While(Length(S)>0)and(S[Length(S)]=' ')Do Delete(S,Length(S),1);
+       VBS_MakeText(S,V);End;
+     End;
+   48:VBS_DateSecondValue(A.Text,V);                          { SECOND }
+   49:If A.Number<0Then VBS_MakeNumber(-1,V)
+      Else If A.Number>0Then VBS_MakeNumber(1,V)Else VBS_MakeNumber(0,V); { SGN }
+   50:VBS_MakeNumber(Sin(A.Number),V);                        { SIN }
+   51:If A.Number<0Then VBS_MakeText('',V)Else VBS_MakeNumber(Sqrt(A.Number),V); { SQR }
+   52:VBS_StrValue(A.Number,V);                               { STR }
+   53:VBS_StrCompValue(A,B,C,ArgumentCount,V);                { STRCOMP }
+   54:VBS_StringValue(Trunc(A.Number),B,V);                   { STRING }
+   55:If Cos(A.Number)=0Then VBS_MakeText('',V)Else VBS_MakeNumber(Sin(A.Number)/Cos(A.Number),V); { TAN }
+   56:VBS_CurrentTimeValue(V);                                { TIME }
+   57:VBS_MakeTimeValue(Trunc(A.Number),Trunc(B.Number),Trunc(C.Number),V); { TIMESERIAL }
+   58:VBS_ParseTimeValue(A.Text,V);                           { TIMEVALUE }
+   59:VBS_MakeText(VBS_Trim(A.Text),V);                           { TRIM }
+   60:VBS_UBoundValue(A,B,ArgumentCount,V);                   { UBOUND }
+   61:VBS_MakeText(VBS_Upper(A.Text),V);                          { UCASE }
+   62:VBS_ValValue(A.Text,V);                                 { VAL }
+   63:VBS_VarTypeValue(A,V);                                 { VARTYPE }
+   64:VBS_WeekdayValue(A,B,ArgumentCount,V);                  { WEEKDAY }
+   65:If(Trunc(A.Number)>=0)and(Trunc(A.Number)<VBS_ScriptArgumentCount)Then
+       VBS_MakeText(VBS_ScriptArguments[Trunc(A.Number)],V)
+      Else VBS_MakeText('',V);                               { WSCRIPT.ARGUMENTS }
+   66:VBS_YearValue(A.Text,V);                               { YEAR }
+   Else Begin VBS_MakeText('',V);VBS_ScriptError('Fonction inconnue: '+Name,True);End;
+  End;
+  Exit;
+ End;
+ If U='WSCRIPT.ARGUMENTS.COUNT'Then VBS_MakeNumber(VBS_ScriptArgumentCount,V)
+ Else If U='WSCRIPT.SCRIPTNAME'Then VBS_MakeText(VBS_ScriptName,V)
+ Else If U='WSCRIPT.FULLNAME'Then VBS_MakeText(ParamStr(0),V)
+ Else VBS_GetVariable(Name,V);
+End;
+
+Procedure VBS_ParseUnary(Var V:VBS_TValue);
+Begin
+ VBS_SkipSpace;
+ If Copy(VBS_Upper(Copy(VBS_ExprText,VBS_ExprPos,4)),1,4)='NOT 'Then Begin
+  Inc(VBS_ExprPos,4);VBS_ParseUnary(V);
+  If VBS_Truth(V)Then VBS_MakeNumber(0,V)
+             Else VBS_MakeNumber(-1,V);
+ End
+  Else
+ If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]='-')Then Begin
+  Inc(VBS_ExprPos);
+  VBS_ParseUnary(V);
+  VBS_MakeNumber(-V.Number,V);
+ End
+  Else
+ VBS_ParsePrimary(V);
+End;
+
+Procedure VBS_ParseMul(Var V:VBS_TValue);
+Var R:VBS_TValue;Op:TMailText;
+Begin
+ VBS_ParseUnary(V);
+ While True Do Begin VBS_SkipSpace;Op:='';
+  If Copy(VBS_Upper(Copy(VBS_ExprText,VBS_ExprPos,4)),1,4)=' MOD'Then Begin Op:='MOD';Inc(VBS_ExprPos,4);End
+  Else If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]in['*','/','\'])Then Begin
+  Op:=VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);End;
+  If Op=''Then Exit;VBS_ParseUnary(R);
+  If Op='*'Then VBS_MakeNumber(V.Number*R.Number,V)
+  Else If Op='/'Then Begin If R.Number=0Then VBS_MakeText('',V)Else VBS_MakeNumber(V.Number/R.Number,V);End
+  Else If Op='\'Then Begin If Trunc(R.Number)=0Then VBS_MakeText('',V)Else VBS_MakeNumber(Trunc(V.Number)div
+  Trunc(R.Number),V);End
+  Else If Trunc(R.Number)=0Then VBS_MakeText('',V)Else VBS_MakeNumber(Trunc(V.Number)mod Trunc(R.Number),V);
+ End;
+End;
+
+Procedure VBS_ParseAdd(Var V:VBS_TValue);
+Var R:VBS_TValue;Op:Char;
+Begin
+ VBS_ParseMul(V);
+ While True Do Begin VBS_SkipSpace;
+  If(VBS_ExprPos>Length(VBS_ExprText))or Not(VBS_ExprText[VBS_ExprPos]in['+','-','&'])Then Exit;
+  Op:=VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);VBS_ParseMul(R);
+  If Op='&'Then VBS_MakeText(V.Text+R.Text,V)
+  Else If Op='+'Then Begin If V.IsNumber and R.IsNumber Then VBS_MakeNumber(V.Number+R.Number,V)Else
+  VBS_MakeText(V.Text+R.Text,V);End
+  Else VBS_MakeNumber(V.Number-R.Number,V);
+ End;
+End;
+
+Procedure VBS_ParseExpression(Var V:VBS_TValue);
+Var R:VBS_TValue;Op:TMailText;Result:Boolean;
+Begin
+ VBS_ParseAdd(V);VBS_SkipSpace;Op:='';
+ If Copy(VBS_ExprText,VBS_ExprPos,2)='<>'Then Begin Op:='<>';Inc(VBS_ExprPos,2);End
+ Else If Copy(VBS_ExprText,VBS_ExprPos,2)='<='Then Begin Op:='<=';Inc(VBS_ExprPos,2);End
+ Else If Copy(VBS_ExprText,VBS_ExprPos,2)='>='Then Begin Op:='>=';Inc(VBS_ExprPos,2);End
+ Else If(VBS_ExprPos<=Length(VBS_ExprText))and(VBS_ExprText[VBS_ExprPos]in['=','<','>'])Then Begin
+  Op:=VBS_ExprText[VBS_ExprPos];Inc(VBS_ExprPos);End;
+ If Op<>''Then Begin VBS_ParseAdd(R);
+  If V.IsNumber and R.IsNumber Then Begin
+   If Op='='Then Result:=V.Number=R.Number Else If Op='<>'Then Result:=V.Number<>R.Number
+   Else If Op='<'Then Result:=V.Number<R.Number Else If Op='>'Then Result:=V.Number>R.Number
+   Else If Op='<='Then Result:=V.Number<=R.Number Else Result:=V.Number>=R.Number;
+  End Else Begin
+   If Op='='Then Result:=VBS_Upper(V.Text)=VBS_Upper(R.Text)Else If Op='<>'Then Result:=VBS_Upper(V.Text)<>VBS_Upper(R.Text)
+   Else If Op='<'Then Result:=VBS_Upper(V.Text)<VBS_Upper(R.Text)Else If Op='>'Then
+  Result:=VBS_Upper(V.Text)>VBS_Upper(R.Text)
+   Else If Op='<='Then Result:=VBS_Upper(V.Text)<=VBS_Upper(R.Text)Else Result:=VBS_Upper(V.Text)>=VBS_Upper(R.Text);
+  End;
+  If Result Then VBS_MakeNumber(-1,V)Else VBS_MakeNumber(0,V);
+ End;
+End;
+
+Procedure VBS_Evaluate(S:TMailText;Var V:VBS_TValue);
+Begin VBS_ExprText:=VBS_Trim(S);VBS_ExprPos:=1;VBS_ParseExpression(V);End;
+
+Function VBS_FindAssignment(S:TMailText):Integer;
+Var I:Integer;Q:Char;
+Begin
+ Q:=#0;For I:=1To Length(S)Do Begin
+  If Q<>#0Then Begin If S[I]=Q Then Q:=#0;End Else If S[I]in['"','''']Then Q:=S[I]
+  Else If(S[I]='=')and((I=1)or Not(S[I-1]in['<','>']))Then Begin VBS_FindAssignment:=I;Exit;End;
+ End;VBS_FindAssignment:=0;
+End;
+
+Procedure VBS_CheckTimeout;
+Var H,M,S,HS:Word;Elapsed:LongInt;
+Begin
+ Inc(VBSSteps);
+ If VBSSteps>10000 Then Begin
+  VBS_OnErrorResumeNext:=False;VBS_ScriptError('Limite de 10000 instructions atteinte.',True);Exit;
+ End;
+ If VBS_TimeLimit<=0Then Exit;GetTime(H,M,S,HS);
+ Elapsed:=(LongInt(H)*3600+LongInt(M)*60+S)-(LongInt(VBS_StartHour)*3600+LongInt(VBS_StartMinute)*60+VBS_StartSecond);
+ If Elapsed<0Then Inc(Elapsed,86400);
+ If Elapsed>=VBS_TimeLimit Then Begin VBSOutput('CSCRIPT: Delai d''execution depasse.');VBS_Terminated:=True;
+  VBS_ExitCode:=1;End;
+End;
+
+Function VBS_FindBlock(StartLine:LongInt;OpenWord,CloseWord:TMailText):LongInt;
+Var I:LongInt;Depth:Integer;S:TMailText;
+Begin
+ Depth:=1;For I:=StartLine+1To VBS_LineCount Do Begin S:=VBS_Upper(VBS_Trim(VBS_ScriptLineText(I)));
+  If VBS_StartsWith(S,OpenWord)Then Inc(Depth);If VBS_StartsWith(S,CloseWord)Then Dec(Depth);
+  If Depth=0Then Begin VBS_FindBlock:=I;Exit;End;
+ End;VBS_FindBlock:=VBS_LineCount;
+End;
+
+Function VBS_FindElseLine(StartLine,EndLine:LongInt):LongInt;
+Var I:LongInt;Depth:Integer;S:TMailText;
+Begin
+ Depth:=0;VBS_FindElseLine:=0;
+ For I:=StartLine+1To EndLine-1Do Begin
+  S:=VBS_Upper(VBS_Trim(VBS_ScriptLineText(I)));
+  If VBS_StartsWith(S,'IF ')and(Pos(' THEN',S)>0)and
+    (VBS_Trim(Copy(S,Pos(' THEN',S)+5,32767))='')Then Inc(Depth)
+  Else If S='END IF'Then Begin If Depth>0Then Dec(Depth);End
+  Else If(Depth=0)and((S='ELSE')or VBS_StartsWith(S,'ELSEIF '))Then Begin
+   VBS_FindElseLine:=I;Exit;
+  End;
+ End;
+End;
+
+Function VBS_FindLoopEnd(StartLine:LongInt):LongInt;
+Var I:LongInt;Depth:Integer;S:TMailText;
+Begin
+ Depth:=1;
+ For I:=StartLine+1To VBS_LineCount Do Begin
+  S:=VBS_Upper(VBS_Trim(VBS_ScriptLineText(I)));
+  If(S='DO')or VBS_StartsWith(S,'DO WHILE ')or VBS_StartsWith(S,'DO UNTIL ')Then Inc(Depth)
+  Else If VBS_StartsWith(S,'LOOP')Then Dec(Depth);
+  If Depth=0Then Begin VBS_FindLoopEnd:=I;Exit;End;
+ End;
+ VBS_FindLoopEnd:=VBS_LineCount;
+End;
+
+Function VBS_KeywordOutsideQuotes(Source,Keyword:TMailText):Integer;
+Var I:Integer;Quote:Char;
+Begin
+ VBS_KeywordOutsideQuotes:=0;Quote:=#0;I:=1;
+ While I<=Length(Source)-Length(Keyword)+1Do Begin
+  If Quote<>#0Then Begin
+   If Source[I]=Quote Then Begin
+    If(I<Length(Source))and(Source[I+1]=Quote)Then Inc(I)Else Quote:=#0;
+   End;
+  End Else If Source[I]in['''','"']Then Quote:=Source[I]
+  Else If VBS_Upper(Copy(Source,I,Length(Keyword)))=VBS_Upper(Keyword)Then Begin
+   VBS_KeywordOutsideQuotes:=I;Exit;
+  End;
+  Inc(I);
+ End;
+End;
+
+Procedure VBS_ExecuteRange(FirstLine,LastLine:LongInt);Forward;
+Procedure VBS_CallSub(CallText:TMailText);Forward;
+Function VBS_ListItem(Var Source:TMailText):TMailText;Forward;
+Function VBS_SimpleIdentifier(Source:TMailText):Boolean;Forward;
+Procedure VBS_ExecuteStatementList(Source:TMailText);Forward;
+
+Procedure VBS_ScriptError(MessageText:TMailText;StopScript:Boolean);
+Begin
+ If VBS_OnErrorResumeNext Then Exit;
+ VBSOutput('Erreur VBScript: '+MessageText);
+ VBS_ExitCode:=1;VBS_Terminated:=True;
+End;
+
+Procedure VBS_DeclareVariable(Declaration:TMailText);
+Var Name,Bounds,Reference,NumberText:TMailText;P:Integer;UpperBound:VBS_TValue;ArrayValue:VBS_TValue;
+ IsDynamic:Boolean;
+Begin
+ Declaration:=VBS_Trim(Declaration);P:=Pos('(',Declaration);
+ If P=0Then Begin VBS_SetVariable(Declaration,'');Exit;End;
+ Name:=VBS_Trim(Copy(Declaration,1,P-1));Bounds:=Copy(Declaration,P+1,32767);
+ If(Length(Bounds)>0)and(Bounds[Length(Bounds)]=')')Then Delete(Bounds,Length(Bounds),1);
+ Inc(VBS_ArrayCounter);Str(VBS_ArrayCounter,NumberText);Reference:='@VBARRAY'+VBS_Trim(NumberText);
+ IsDynamic:=VBS_Trim(Bounds)='';
+ If IsDynamic Then VBS_MakeNumber(0,UpperBound)Else VBS_Evaluate(Bounds,UpperBound);
+ If UpperBound.Number<0Then VBS_MakeNumber(0,UpperBound);
+ If IsDynamic Then NumberText:='0'Else Str(Trunc(UpperBound.Number)+1,NumberText);
+ VBS_SetVariable(Reference+'.COUNT',VBS_Trim(NumberText));
+ If IsDynamic Then VBS_SetVariable(Reference+'.DYNAMIC','1')Else VBS_SetVariable(Reference+'.DYNAMIC','0');
+ VBS_MakeText(Reference,ArrayValue);ArrayValue.ValueKind:=VBS_ValueArray;VBS_SetVariableValue(Name,ArrayValue);
+End;
+
+Procedure VBS_RemoveArrayElementsFrom(Reference:TMailText;FirstRemoved:LongInt);
+Var P,Previous,NextVariable:VBS_PVariable;Suffix:TMailText;ElementNumber:LongInt;Code:Integer;
+ Removed:Boolean;
+Begin
+ Reference:=VBS_Upper(Reference)+'.';P:=VBS_Variables;Previous:=Nil;
+ While P<>Nil Do Begin
+  NextVariable:=P^.Next;Removed:=False;
+  If Copy(P^.Name,1,Length(Reference))=Reference Then Begin
+   Suffix:=Copy(P^.Name,Length(Reference)+1,32767);Val(Suffix,ElementNumber,Code);
+   If(Code=0)and(ElementNumber>=FirstRemoved)Then Begin
+    If Previous=Nil Then VBS_Variables:=NextVariable Else Previous^.Next:=NextVariable;
+    Dispose(P);Removed:=True;
+   End;
+  End;
+  If Not Removed Then Previous:=P;P:=NextVariable;
+ End;
+End;
+
+Procedure VBS_ResizeArray(Declaration:TMailText;PreserveValues:Boolean);
+Var Name,Bounds,Reference,NumberText:TMailText;P:Integer;UpperBound,Stored,ArrayValue:VBS_TValue;
+ VariableEntry:VBS_PVariable;NewCount:LongInt;
+Begin
+ Declaration:=VBS_Trim(Declaration);P:=Pos('(',Declaration);
+ If(P=0)or(Declaration[Length(Declaration)]<>')')Then Begin
+  VBS_ScriptError('REDIM exige une borne de tableau.',True);Exit;
+ End;
+ Name:=VBS_Trim(Copy(Declaration,1,P-1));Bounds:=Copy(Declaration,P+1,Length(Declaration)-P-1);
+ If Pos(',',Bounds)>0Then Begin VBS_ScriptError('REDIM multidimensionnel non supporte.',True);Exit;End;
+ VBS_Evaluate(Bounds,UpperBound);
+ If(Not UpperBound.IsNumber)or(UpperBound.Number<0)Then Begin
+  VBS_ScriptError('borne REDIM invalide.',True);Exit;
+ End;
+ NewCount:=Trunc(UpperBound.Number)+1;VariableEntry:=VBS_FindVariable(Name);
+ If(VariableEntry<>Nil)and(VariableEntry^.ValueKind=VBS_ValueArray)Then Begin
+  Reference:=VariableEntry^.Value;VBS_GetVariable(Reference+'.DYNAMIC',Stored);
+  If Stored.Text<>'1'Then Begin VBS_ScriptError('REDIM exige un tableau dynamique.',True);Exit;End;
+ End Else Begin
+  If PreserveValues Then Begin VBS_ScriptError('REDIM PRESERVE exige un tableau existant.',True);Exit;End;
+  Inc(VBS_ArrayCounter);Str(VBS_ArrayCounter,NumberText);Reference:='@VBARRAY'+VBS_Trim(NumberText);
+ End;
+ If PreserveValues Then VBS_RemoveArrayElementsFrom(Reference,NewCount)
+ Else VBS_RemoveVariablesWithPrefix(Reference+'.');
+ Str(NewCount,NumberText);VBS_SetVariable(Reference+'.COUNT',VBS_Trim(NumberText));
+ VBS_SetVariable(Reference+'.DYNAMIC','1');VBS_MakeText(Reference,ArrayValue);
+ ArrayValue.ValueKind:=VBS_ValueArray;VBS_SetVariableValue(Name,ArrayValue);
+End;
+
+Procedure VBS_DeclareStaticVariable(Declaration:TMailText);
+Var Name:TMailText;P:Integer;
+Begin
+ Declaration:=VBS_Trim(Declaration);P:=Pos('(',Declaration);
+ If P=0Then Name:=Declaration Else Name:=VBS_Trim(Copy(Declaration,1,P-1));
+ If VBS_FindVariable(Name)=Nil Then VBS_DeclareVariable(Declaration);
+End;
+
+Function VBS_UserSubExists(CallText:TMailText):Boolean;
+Var I,P:Integer;CallName,Declaration,DeclarationName:TMailText;
+Begin
+ CallText:=VBS_Trim(CallText);P:=Pos('(',CallText);If P=0Then P:=Pos(' ',CallText);
+ If P=0Then CallName:=CallText Else CallName:=Copy(CallText,1,P-1);
+ VBS_UserSubExists:=False;
+ For I:=1To VBS_LineCount Do Begin
+  Declaration:=VBS_Trim(VBS_ScriptLineText(I));
+  If VBS_StartsWith(Declaration,'PUBLIC SUB ')Then Delete(Declaration,1,7)
+  Else If VBS_StartsWith(Declaration,'PRIVATE SUB ')Then Delete(Declaration,1,8);
+  If VBS_StartsWith(Declaration,'SUB ')Then Begin
+   Delete(Declaration,1,4);P:=Pos('(',Declaration);If P=0Then P:=Pos(' ',Declaration);
+   If P=0Then DeclarationName:=VBS_Trim(Declaration)
+   Else DeclarationName:=VBS_Trim(Copy(Declaration,1,P-1));
+   If VBS_Upper(DeclarationName)=VBS_Upper(CallName)Then Begin VBS_UserSubExists:=True;Exit;End;
+  End;
+ End;
+End;
+
+Procedure VBS_AlignStringAssignment(StatementText:TMailText;AlignRight:Boolean);
+Var Name,SourceText,ResultText:TMailText;P,TargetLength:Integer;Value,OldValue:VBS_TValue;
+Begin
+ P:=VBS_FindAssignment(StatementText);
+ If P=0Then Begin
+  If AlignRight Then VBS_ScriptError('RSET exige une affectation.',True)
+  Else VBS_ScriptError('LSET exige une affectation.',True);Exit;
+ End;
+ Name:=VBS_Trim(Copy(StatementText,1,P-1));SourceText:=Copy(StatementText,P+1,32767);
+ VBS_Evaluate(SourceText,Value);VBS_GetVariable(Name,OldValue);TargetLength:=Length(OldValue.Text);
+ If TargetLength=0Then TargetLength:=Length(Value.Text);
+ If Length(Value.Text)>TargetLength Then ResultText:=Copy(Value.Text,1,TargetLength)
+ Else Begin ResultText:=Value.Text;
+  If AlignRight Then While Length(ResultText)<TargetLength Do ResultText:=' '+ResultText
+  Else While Length(ResultText)<TargetLength Do ResultText:=ResultText+' ';
+ End;
+ VBS_MakeText(ResultText,Value);Value.ValueKind:=VBS_ValueString;VBS_SetVariableValue(Name,Value);
+End;
+
+Procedure VBS_ExecuteStatement(S:TMailText);
+Var U,Name,RightSide,BaseName,IndexText:TMailText;P,I:Integer;
+ V,IndexValue:VBS_TValue;ArrayVariable:VBS_PVariable;WasLet,WasSet:Boolean;
+Begin
+ If VBS_Upper(VBS_Trim(S))='OPTION EXPLICIT' Then Begin VBSExplicit:=True;Exit;End;
+ If VBSHostStatement(S) Then Exit;
+ S:=VBS_Trim(S);If(S='')or(S[1]='''')or(VBS_Upper(S)='REM')or VBS_StartsWith(S,'REM ')Then Exit;
+ U:=VBS_Upper(S);WasLet:=False;WasSet:=False;
+ If VBS_StartsWith(S,'DIM ')Then Begin
+  Delete(S,1,4);Repeat Name:=VBS_ListItem(S);VBS_DeclareVariable(Name);Until S='';Exit;End;
+ If VBS_StartsWith(S,'PRIVATE ')Then Begin
+  Delete(S,1,8);Repeat Name:=VBS_ListItem(S);VBS_DeclareVariable(Name);Until S='';Exit;End;
+ If VBS_StartsWith(S,'PUBLIC ')Then Begin
+  Delete(S,1,7);Repeat Name:=VBS_ListItem(S);VBS_DeclareVariable(Name);Until S='';Exit;End;
+ If VBS_StartsWith(S,'STATIC ')Then Begin
+  Delete(S,1,7);Repeat Name:=VBS_ListItem(S);VBS_DeclareStaticVariable(Name);Until S='';Exit;End;
+ If VBS_StartsWith(S,'ERASE ')Then Begin
+  Delete(S,1,6);Repeat Name:=VBS_ListItem(S);VBS_EraseVariable(Name);Until S='';Exit;End;
+ If VBS_StartsWith(S,'REDIM ')Then Begin
+  Delete(S,1,6);WasLet:=False;
+  If VBS_StartsWith(S,'PRESERVE ')Then Begin Delete(S,1,9);WasLet:=True;End;
+  Repeat Name:=VBS_ListItem(S);VBS_ResizeArray(Name,WasLet);Until(S='')or VBS_Terminated;Exit;
+ End;
+ If U='ON ERROR RESUME NEXT'Then Begin VBS_OnErrorResumeNext:=True;Exit;End;
+ If(U='ON ERROR GOTO 0')or(U='ON ERROR GO TO 0')Then Begin VBS_OnErrorResumeNext:=False;Exit;End;
+ If VBS_StartsWith(U,'ON ERROR ')Then Begin VBS_ScriptError('forme ON ERROR non supportee: '+S,False);Exit;End;
+ If VBS_StartsWith(S,'LSET ')Then Begin
+  Delete(S,1,5);VBS_AlignStringAssignment(S,False);Exit;
+ End;
+ If VBS_StartsWith(S,'RSET ')Then Begin Delete(S,1,5);VBS_AlignStringAssignment(S,True);Exit;End;
+ If U='EXIT DO'Then Begin VBS_ExitDoRequested:=True;Exit;End;
+ If U='EXIT FOR'Then Begin VBS_ExitForRequested:=True;Exit;End;
+ If U='EXIT SUB'Then Begin VBS_ExitSubRequested:=True;Exit;End;
+ If U='EXIT FUNCTION'Then Begin VBS_ExitFunctionRequested:=True;Exit;End;
+ If VBS_StartsWith(S,'CALL ')Then Begin VBS_CallSub(VBS_Trim(Copy(S,6,32767)));Exit;End;
+ If VBS_StartsWith(S,'WScript.Echo')Then Delete(S,1,Length('WScript.Echo'))
+ Else If VBS_StartsWith(S,'Echo ')Then Delete(S,1,5)
+ Else If VBS_StartsWith(S,'WScript.Quit')Then Begin
+  Delete(S,1,Length('WScript.Quit'));
+  VBS_Evaluate(S,V);VBS_ExitCode:=Trunc(V.Number);
+  VBS_Terminated:=True;
+  Exit;
+ End
+  Else
+ If VBS_StartsWith(S,'MSGBOX')Then Begin
+  If(Length(S)>6)and(S[7]='(')Then VBS_Evaluate(S,V)
+  Else VBS_Evaluate('MsgBox('+VBS_Trim(Copy(S,7,32767))+')',V);
+  Exit;
+ End
+  Else
+ If VBS_StartsWith(S,'Randomize')Then Begin
+  RightSide:=VBS_Trim(Copy(S,10,32767));
+  If RightSide=''Then Randomize Else Begin VBS_Evaluate(RightSide,V);RandSeed:=Trunc(V.Number);End;
+  Exit;
+ End
+ Else
+ Begin
+  If VBS_StartsWith(S,'SET ')Then Begin Delete(S,1,4);WasSet:=True;End;
+  If VBS_StartsWith(S,'LET ')Then Begin Delete(S,1,4);WasLet:=True;End;
+  P:=VBS_FindAssignment(S);If P>0Then Begin
+   Name:=VBS_Trim(Copy(S,1,P-1));
+   If VBSExplicit And (Pos('(',Name)=0) And (VBS_FindVariable(Name)=Nil) Then Begin
+    VBS_ScriptError('Variable non declaree: '+Name,True);Exit;
+   End;
+   RightSide:=Copy(S,P+1,32767);
+   VBS_Evaluate(RightSide,V);
+   I:=Pos('(',Name);
+   If(I>0)and(Name[Length(Name)]=')')Then Begin
+    BaseName:=VBS_Trim(Copy(Name,1,I-1));ArrayVariable:=VBS_FindVariable(BaseName);
+    If(ArrayVariable<>Nil)and(ArrayVariable^.ValueKind=VBS_ValueArray)Then Begin
+     VBS_Evaluate(Copy(Name,I+1,Length(Name)-I-1),IndexValue);Str(Trunc(IndexValue.Number),IndexText);
+     VBS_SetVariableValue(ArrayVariable^.Value+'.'+VBS_Trim(IndexText),V);
+    End Else VBS_SetVariableValue(Name,V);
+   End Else VBS_SetVariableValue(Name,V);
+   Exit;
+  End;
+  If WasLet Then Begin
+   VBS_ScriptError('LET exige une affectation.',True);Exit;
+  End;
+  If WasSet Then Begin VBS_ScriptError('SET exige une affectation.',True);Exit;End;
+  If VBS_UserSubExists(S)Then Begin VBS_CallSub(S);Exit;End;
+  VBS_ScriptError('instruction non reconnue: '+S,False);
+  Exit;
+ End;
+ { La branche Echo arrive ici. }
+ I:=1;While I<=Length(S)Do Begin P:=Pos(',',Copy(S,I,32767));
+  If P=0Then Begin VBS_Evaluate(Copy(S,I,32767),V);VBSOutput(V.Text);I:=Length(S)+1;End
+  Else Begin VBS_Evaluate(Copy(S,I,P-1),V);VBSOutput(V.Text+' ');Inc(I,P);End;
+ End;
+End;
+
+Procedure VBS_ExecuteStatementList(Source:TMailText);
+Var I,StartPosition:Integer;Quote:Char;StatementText:TMailText;
+Begin
+ I:=1;StartPosition:=1;Quote:=#0;
+ While I<=Length(Source)Do Begin
+  If Quote<>#0Then Begin
+   If Source[I]=Quote Then Begin
+    If(I<Length(Source))and(Source[I+1]=Quote)Then Inc(I)Else Quote:=#0;
+   End;
+  End Else If Source[I]in['''','"']Then Quote:=Source[I]
+  Else If Source[I]=':'Then Begin
+   StatementText:=VBS_Trim(Copy(Source,StartPosition,I-StartPosition));
+   If StatementText<>''Then VBS_ExecuteStatement(StatementText);StartPosition:=I+1;
+   If VBS_Terminated or VBS_ExitDoRequested or VBS_ExitForRequested or VBS_ExitSubRequested or
+     VBS_ExitFunctionRequested Then Exit;
+  End;
+  Inc(I);
+ End;
+ StatementText:=VBS_Trim(Copy(Source,StartPosition,32767));
+ If StatementText<>''Then VBS_ExecuteStatement(StatementText);
+End;
+
+Procedure VBS_ExecuteRangeWork(FirstLine,LastLine:LongInt);
+Var S,U,Condition,Name,Rest:TMailText;P,ThenPos,ElsePos:Integer;
+ EndLine,BodyStart,I,ElseLine,ElementIndex,ElementCount:LongInt;
+ V,StartValue,EndValue,StepValue,Counter,Collection,CountValue:VBS_TValue;
+ LoopAgain,UntilMode:Boolean;IndexText,NextName:TMailText;
+Begin
+ I:=FirstLine;
+ While(I<=LastLine)and Not VBS_Terminated and Not VBS_ExitDoRequested and
+   Not VBS_ExitForRequested and Not VBS_ExitSubRequested and Not VBS_ExitFunctionRequested Do Begin
+  VBS_CheckTimeout;If VBS_Terminated Then Exit;VBS_CurrentLine:=I;S:=VBS_Trim(VBS_ScriptLineText(I));U:=VBS_Upper(S);
+  If VBS_StartsWith(S,'ELSEIF ')Then Begin S:='IF '+VBS_Trim(Copy(S,8,32767));U:=VBS_Upper(S);End;
+  If VBS_StartsWith(S,'SUB ')or VBS_StartsWith(S,'PUBLIC SUB ')or
+    VBS_StartsWith(S,'PRIVATE SUB ')Then Begin
+   While(I<=LastLine)and(VBS_Upper(VBS_Trim(VBS_ScriptLineText(I)))<>'END SUB')Do Inc(I);
+  End
+  Else If VBS_StartsWith(S,'FUNCTION ')or VBS_StartsWith(S,'PUBLIC FUNCTION ')or
+    VBS_StartsWith(S,'PRIVATE FUNCTION ')Then Begin
+   While(I<=LastLine)and(VBS_Upper(VBS_Trim(VBS_ScriptLineText(I)))<>'END FUNCTION')Do Inc(I);
+  End
+  Else If U='END SUB'Then Exit
+  Else If U='END FUNCTION'Then Exit
+  Else If VBS_StartsWith(S,'IF ')Then Begin
+   ThenPos:=Pos(' THEN',U);If ThenPos>0Then Begin Condition:=Copy(S,4,ThenPos-4);VBS_Evaluate(Condition,V);
+    Rest:=VBS_Trim(Copy(S,ThenPos+5,32767));
+    If Rest<>''Then Begin ElsePos:=VBS_KeywordOutsideQuotes(Rest,' ELSE ');
+     If VBS_Truth(V)Then Begin
+      If ElsePos>0Then VBS_ExecuteStatementList(Copy(Rest,1,ElsePos-1))Else VBS_ExecuteStatementList(Rest);End
+     Else If ElsePos>0Then VBS_ExecuteStatementList(Copy(Rest,ElsePos+6,32767));
+    End Else Begin EndLine:=VBS_FindBlock(I,'IF ','END IF');BodyStart:=I+1;
+     ElseLine:=VBS_FindElseLine(I,EndLine);
+     If VBS_Truth(V)Then Begin If ElseLine=0Then VBS_ExecuteRange(BodyStart,EndLine-1)Else
+  VBS_ExecuteRange(BodyStart,ElseLine-1);End
+     Else If ElseLine>0Then Begin
+      If VBS_StartsWith(VBS_Trim(VBS_ScriptLineText(ElseLine)),'ELSEIF ')Then VBS_ExecuteRange(ElseLine,EndLine-1)
+      Else VBS_ExecuteRange(ElseLine+1,EndLine-1);
+     End;I:=EndLine;
+    End;
+   End;
+  End Else If VBS_StartsWith(S,'FOR EACH ')Then Begin
+   Rest:=VBS_Trim(Copy(S,10,32767));P:=Pos(' IN ',VBS_Upper(Rest));
+   If P=0Then Begin VBSOutput('Erreur VBScript: FOR EACH sans IN.');VBS_ExitCode:=1;Exit;End;
+   Name:=VBS_Trim(Copy(Rest,1,P-1));VBS_Evaluate(Copy(Rest,P+4,32767),Collection);
+   EndLine:=VBS_FindBlock(I,'FOR ','NEXT');ElementCount:=0;
+   If(Collection.ValueKind=VBS_ValueArray)or(Copy(Collection.Text,1,8)='@VBARRAY')Then Begin
+    VBS_GetVariable(Collection.Text+'.COUNT',CountValue);ElementCount:=Trunc(CountValue.Number);
+   End;
+   For ElementIndex:=0To ElementCount-1Do Begin
+    Str(ElementIndex,IndexText);VBS_GetVariable(Collection.Text+'.'+VBS_Trim(IndexText),V);
+    VBS_SetVariableValue(Name,V);VBS_ExecuteRange(I+1,EndLine-1);
+    If VBS_ExitForRequested Then Begin VBS_ExitForRequested:=False;Break;End;
+    If VBS_Terminated or VBS_ExitSubRequested or VBS_ExitFunctionRequested or VBS_ExitDoRequested Then Break;
+   End;
+   I:=EndLine;
+  End Else If VBS_StartsWith(S,'FOR ')Then Begin
+   Rest:=VBS_Trim(Copy(S,5,32767));P:=VBS_FindAssignment(Rest);
+   If P=0Then Begin VBSOutput('Erreur VBScript: FOR sans signe =.');VBS_ExitCode:=1;VBS_Terminated:=True;Exit;End;
+   Name:=VBS_Trim(Copy(Rest,1,P-1));Delete(Rest,1,P);
+   If Not VBS_SimpleIdentifier(Name)Then Begin VBSOutput('Erreur VBScript: compteur FOR invalide.');
+    VBS_ExitCode:=1;VBS_Terminated:=True;Exit;End;
+   ThenPos:=Pos(' TO ',VBS_Upper(Rest));
+   If ThenPos=0Then Begin VBSOutput('Erreur VBScript: FOR sans TO.');VBS_ExitCode:=1;VBS_Terminated:=True;Exit;End;
+   VBS_Evaluate(Copy(Rest,1,ThenPos-1),StartValue);Delete(Rest,1,ThenPos+3);
+   ElsePos:=Pos(' STEP ',VBS_Upper(Rest));If ElsePos>0Then Begin
+    VBS_Evaluate(Copy(Rest,1,ElsePos-1),EndValue);
+    VBS_Evaluate(Copy(Rest,ElsePos+6,32767),StepValue);
+   End
+    Else
+   Begin
+    VBS_Evaluate(Rest,EndValue);
+    VBS_MakeNumber(1,StepValue);
+   End;
+   If Not StartValue.IsNumber or Not EndValue.IsNumber or Not StepValue.IsNumber Then Begin
+    VBSOutput('Erreur VBScript: bornes FOR non numeriques.');VBS_ExitCode:=1;VBS_Terminated:=True;Exit;End;
+   If StepValue.Number=0Then Begin VBSOutput('Erreur VBScript: STEP ne peut pas etre nul.');
+    VBS_ExitCode:=1;VBS_Terminated:=True;Exit;End;
+   EndLine:=VBS_FindBlock(I,'FOR ','NEXT');
+   NextName:=VBS_Trim(Copy(VBS_Trim(VBS_ScriptLineText(EndLine)),5,32767));
+   If(NextName<>'')and(VBS_Upper(NextName)<>VBS_Upper(Name))Then Begin
+    VBSOutput('Erreur VBScript: NEXT '+NextName+' ne correspond pas a FOR '+Name+'.');
+    VBS_ExitCode:=1;VBS_Terminated:=True;Exit;
+   End;
+   Counter:=StartValue;
+   While(((StepValue.Number>=0)and(Counter.Number<=EndValue.Number))or((StepValue.Number<0)and
+        (Counter.Number>=EndValue.Number)))and Not VBS_Terminated and Not VBS_ExitSubRequested and
+        Not VBS_ExitDoRequested and Not VBS_ExitFunctionRequested Do Begin
+    VBS_SetVariableValue(Name,Counter);
+    VBS_ExecuteRange(I+1,EndLine-1);
+    If VBS_ExitForRequested Then Begin VBS_ExitForRequested:=False;Break;End;
+    VBS_MakeNumber(Counter.Number+StepValue.Number,Counter);
+   End;
+   I:=EndLine;
+  End
+   Else
+  If(U='DO')or VBS_StartsWith(U,'DO WHILE ')or VBS_StartsWith(U,'DO UNTIL ')Then Begin
+   EndLine:=VBS_FindLoopEnd(I);Condition:='';UntilMode:=False;
+   If VBS_StartsWith(U,'DO WHILE ')Then Condition:=VBS_Trim(Copy(S,10,32767))
+   Else If VBS_StartsWith(U,'DO UNTIL ')Then Begin Condition:=VBS_Trim(Copy(S,10,32767));UntilMode:=True;End;
+   Repeat
+    LoopAgain:=True;
+    If Condition<>''Then Begin VBS_Evaluate(Condition,V);
+     If UntilMode Then LoopAgain:=Not VBS_Truth(V)Else LoopAgain:=VBS_Truth(V);End;
+    If LoopAgain Then VBS_ExecuteRange(I+1,EndLine-1);
+    If VBS_ExitDoRequested Then Begin VBS_ExitDoRequested:=False;LoopAgain:=False;End;
+    If LoopAgain and Not VBS_Terminated and(Condition='')Then Begin
+     Rest:=VBS_Trim(VBS_ScriptLineText(EndLine));
+     If VBS_StartsWith(Rest,'LOOP WHILE ')Then Begin VBS_Evaluate(VBS_Trim(Copy(Rest,12,32767)),V);
+  LoopAgain:=VBS_Truth(V);End
+     Else If VBS_StartsWith(Rest,'LOOP UNTIL ')Then Begin VBS_Evaluate(VBS_Trim(Copy(Rest,12,32767)),V);LoopAgain:=Not
+  VBS_Truth(V);End;
+    End;
+    VBS_CheckTimeout;
+   Until(Not LoopAgain)or VBS_Terminated or VBS_ExitSubRequested or VBS_ExitFunctionRequested or VBS_ExitForRequested;
+   I:=EndLine;
+  End Else
+  If VBS_StartsWith(S,'WHILE ')Then Begin
+   EndLine:=VBS_FindBlock(I,'WHILE ','WEND');
+   Condition:=Copy(S,7,32767);VBS_Evaluate(Condition,V);
+   While VBS_Truth(V)and Not VBS_Terminated and Not VBS_ExitSubRequested and
+     Not VBS_ExitForRequested and Not VBS_ExitDoRequested and Not VBS_ExitFunctionRequested Do Begin
+    VBS_ExecuteRange(I+1,EndLine-1);
+    VBS_Evaluate(Condition,V);VBS_CheckTimeout;
+   End;
+   I:=EndLine;
+  End
+   Else
+  If VBS_StartsWith(U,'NEXT')Then Begin VBS_ScriptError('NEXT sans FOR correspondant.',False);Exit;End
+  Else If(U='ELSE')or(U='END IF')or(U='WEND')or VBS_StartsWith(U,'LOOP')Then Exit
+  Else If(U='REM')or VBS_StartsWith(U,'REM ')or((Length(S)>0)and(S[1]=''''))Then VBS_ExecuteStatement(S)
+  Else VBS_ExecuteStatementList(S);
+  Inc(I);
+ End;
+End;
+
+Procedure VBS_ExecuteRange(FirstLine,LastLine:LongInt);
+Begin
+ Inc(VBSDepth);
+ If VBSDepth>32 Then Begin
+  VBS_OnErrorResumeNext:=False;VBS_ScriptError('Recursion trop profonde.',True);
+ End
+ Else VBS_ExecuteRangeWork(FirstLine,LastLine);
+ Dec(VBSDepth);
+End;
+
+Function VBS_ListItem(Var Source:TMailText):TMailText;
+Var I,Depth:Integer;Quote:Char;InQuote:Boolean;
+Begin
+ I:=1;Depth:=0;Quote:=#0;InQuote:=False;
+ While I<=Length(Source)Do Begin
+  If InQuote Then Begin
+   If Source[I]=Quote Then Begin
+    If(I<Length(Source))and(Source[I+1]=Quote)Then Inc(I)Else InQuote:=False;
+   End;
+  End Else If Source[I]in['''','"']Then Begin InQuote:=True;Quote:=Source[I];End
+  Else If Source[I]='('Then Inc(Depth)
+  Else If Source[I]=')'Then Begin If Depth>0Then Dec(Depth);End
+  Else If(Source[I]=',')and(Depth=0)Then Begin
+   VBS_ListItem:=VBS_Trim(Copy(Source,1,I-1));Delete(Source,1,I);Exit;
+  End;
+  Inc(I);
+ End;
+ VBS_ListItem:=VBS_Trim(Source);Source:='';
+End;
+
+Function VBS_SimpleIdentifier(Source:TMailText):Boolean;
+Var I:Integer;
+Begin
+ Source:=VBS_Trim(Source);VBS_SimpleIdentifier:=False;If Source=''Then Exit;
+ If Not(Source[1]in['A'..'Z','a'..'z','_'])Then Exit;
+ For I:=2To Length(Source)Do If Not(Source[I]in['A'..'Z','a'..'z','0'..'9','_'])Then Exit;
+ VBS_SimpleIdentifier:=True;
+End;
+
+Procedure VBS_CallSub(CallText:TMailText);
+Var CallName,ArgumentText,Declaration,DeclarationName,ParameterText:TMailText;
+ ParameterName,ArgumentExpression,UpperDeclaration:TMailText;
+ I,P,NameEnd:Integer;StartLine,EndLine:LongInt;Binding,NextBinding:VBS_PCallBinding;
+ Existing:VBS_PVariable;ArgumentValue,CopyValue:VBS_TValue;ByReference:Boolean;
+Begin
+ CallText:=VBS_Trim(CallText);P:=Pos('(',CallText);
+ If P>0Then Begin
+  CallName:=VBS_Trim(Copy(CallText,1,P-1));ArgumentText:=Copy(CallText,P+1,32767);
+  If(Length(ArgumentText)>0)and(ArgumentText[Length(ArgumentText)]=')')Then
+   Delete(ArgumentText,Length(ArgumentText),1);
+ End Else Begin
+  P:=Pos(' ',CallText);
+  If P>0Then Begin CallName:=Copy(CallText,1,P-1);ArgumentText:=VBS_Trim(Copy(CallText,P+1,32767));End
+  Else Begin CallName:=CallText;ArgumentText:='';End;
+ End;
+ StartLine:=0;EndLine:=0;ParameterText:='';
+ For I:=1To VBS_LineCount Do Begin
+  Declaration:=VBS_Trim(VBS_ScriptLineText(I));UpperDeclaration:=VBS_Upper(Declaration);
+  If VBS_StartsWith(Declaration,'PUBLIC SUB ')Then Delete(Declaration,1,7)
+  Else If VBS_StartsWith(Declaration,'PRIVATE SUB ')Then Delete(Declaration,1,8);
+  If VBS_StartsWith(Declaration,'SUB ')Then Begin
+   Delete(Declaration,1,4);P:=Pos('(',Declaration);NameEnd:=Pos(' ',Declaration);
+   If(P=0)or((NameEnd>0)and(NameEnd<P))Then P:=NameEnd;
+   If P=0Then DeclarationName:=VBS_Trim(Declaration)
+   Else DeclarationName:=VBS_Trim(Copy(Declaration,1,P-1));
+   If VBS_Upper(DeclarationName)=VBS_Upper(CallName)Then Begin
+    StartLine:=I;P:=Pos('(',Declaration);
+    If P>0Then Begin ParameterText:=Copy(Declaration,P+1,32767);
+     If(Length(ParameterText)>0)and(ParameterText[Length(ParameterText)]=')')Then
+      Delete(ParameterText,Length(ParameterText),1);End;
+    Break;
+   End;
+  End;
+ End;
+ If StartLine=0Then Begin
+  VBSOutput('Erreur VBScript: procedure introuvable: '+CallName);
+  VBS_ExitCode:=1;Exit;
+ End;
+ EndLine:=StartLine+1;
+ While(EndLine<=VBS_LineCount)and(VBS_Upper(VBS_Trim(VBS_ScriptLineText(EndLine)))<>'END SUB')Do Inc(EndLine);
+ Binding:=Nil;
+ While ParameterText<>''Do Begin
+  ParameterName:=VBS_ListItem(ParameterText);ByReference:=True;
+  If VBS_StartsWith(ParameterName,'BYVAL ')Then Begin Delete(ParameterName,1,6);ByReference:=False;End
+  Else If VBS_StartsWith(ParameterName,'BYREF ')Then Delete(ParameterName,1,6);
+  P:=Pos(' ',ParameterName);If P>0Then ParameterName:=Copy(ParameterName,1,P-1);
+  ArgumentExpression:=VBS_ListItem(ArgumentText);VBS_Evaluate(ArgumentExpression,ArgumentValue);
+  New(NextBinding);NextBinding^.Name:=VBS_Upper(ParameterName);
+  NextBinding^.ActualName:=VBS_Upper(VBS_Trim(ArgumentExpression));
+  NextBinding^.CopyBack:=ByReference and VBS_SimpleIdentifier(ArgumentExpression);
+  Existing:=VBS_FindVariable(ParameterName);NextBinding^.Existed:=Existing<>Nil;
+  If Existing<>Nil Then Begin NextBinding^.OldValue:=Existing^.Value;
+   NextBinding^.OldKind:=Existing^.ValueKind;End
+  Else Begin NextBinding^.OldValue:='';NextBinding^.OldKind:=VBS_ValueEmpty;End;
+  NextBinding^.Next:=Binding;Binding:=NextBinding;VBS_SetVariableValue(ParameterName,ArgumentValue);
+ End;
+ VBS_ExecuteRange(StartLine+1,EndLine-1);VBS_ExitSubRequested:=False;
+ NextBinding:=Binding;
+ While NextBinding<>Nil Do Begin
+  If NextBinding^.CopyBack Then Begin VBS_GetVariable(NextBinding^.Name,CopyValue);
+   VBS_SetVariableValue(NextBinding^.ActualName,CopyValue);End;
+  NextBinding:=NextBinding^.Next;
+ End;
+ While Binding<>Nil Do Begin
+  NextBinding:=Binding^.Next;
+  If Binding^.Existed Then Begin VBS_MakeText(Binding^.OldValue,CopyValue);
+   CopyValue.ValueKind:=Binding^.OldKind;VBS_SetVariableValue(Binding^.Name,CopyValue);End
+  Else VBS_RemoveVariable(Binding^.Name);
+  Dispose(Binding);Binding:=NextBinding;
+ End;
+End;
+
+Procedure VBS_FunctionArgument(Index:Integer;A,B,C,D:VBS_TValue;Var V:VBS_TValue);
+Begin
+ Case Index of
+  0:V:=A;
+  1:V:=B;
+  2:V:=C;
+  3:V:=D;
+ Else VBS_MakeText('',V);
+ End;
+End;
+
+Procedure VBS_SaveFunctionBinding(Name:TMailText;Value:VBS_TValue;Var Bindings:VBS_PCallBinding);
+Var Binding:VBS_PCallBinding;Existing:VBS_PVariable;
+Begin
+ New(Binding);Binding^.Name:=VBS_Upper(VBS_Trim(Name));Binding^.ActualName:='';
+ Binding^.CopyBack:=False;Existing:=VBS_FindVariable(Name);Binding^.Existed:=Existing<>Nil;
+ If Existing<>Nil Then Begin Binding^.OldValue:=Existing^.Value;
+  Binding^.OldKind:=Existing^.ValueKind;End
+ Else Begin Binding^.OldValue:='';Binding^.OldKind:=VBS_ValueEmpty;End;
+ Binding^.Next:=Bindings;Bindings:=Binding;VBS_SetVariableValue(Name,Value);
+End;
+
+Procedure VBS_RestoreFunctionBindings(Var Bindings:VBS_PCallBinding);
+Var Binding:VBS_PCallBinding;OldValue:VBS_TValue;
+Begin
+ While Bindings<>Nil Do Begin Binding:=Bindings^.Next;
+  If Bindings^.Existed Then Begin VBS_MakeText(Bindings^.OldValue,OldValue);
+   OldValue.ValueKind:=Bindings^.OldKind;VBS_SetVariableValue(Bindings^.Name,OldValue);End
+  Else VBS_RemoveVariable(Bindings^.Name);
+  Dispose(Bindings);Bindings:=Binding;
+ End;
+End;
+
+Procedure VBS_CallUserFunction(FunctionName:TMailText;A,B,C,D:VBS_TValue;
+ ArgumentCount:Integer;Var V:VBS_TValue);
+Var I,P,ParameterIndex:Integer;StartLine,EndLine:LongInt;
+ Declaration,DeclarationName,ParameterText,ParameterName:TMailText;
+ SavedExpression:TMailText;SavedPosition:Integer;
+ Bindings:VBS_PCallBinding;ArgumentValue,EmptyValue:VBS_TValue;
+Begin
+ SavedExpression:=VBS_ExprText;SavedPosition:=VBS_ExprPos;
+ StartLine:=0;EndLine:=0;ParameterText:='';
+ For I:=1To VBS_LineCount Do Begin
+  Declaration:=VBS_Trim(VBS_ScriptLineText(I));
+  If VBS_StartsWith(Declaration,'PUBLIC FUNCTION ')Then Delete(Declaration,1,7)
+  Else If VBS_StartsWith(Declaration,'PRIVATE FUNCTION ')Then Delete(Declaration,1,8);
+  If VBS_StartsWith(Declaration,'FUNCTION ')Then Begin
+   Delete(Declaration,1,9);P:=Pos('(',Declaration);
+   If P=0Then DeclarationName:=VBS_Trim(Declaration)
+   Else DeclarationName:=VBS_Trim(Copy(Declaration,1,P-1));
+   If VBS_Upper(DeclarationName)=VBS_Upper(FunctionName)Then Begin
+    StartLine:=I;
+    If P>0Then Begin ParameterText:=Copy(Declaration,P+1,32767);
+     If(Length(ParameterText)>0)and(ParameterText[Length(ParameterText)]=')')Then
+      Delete(ParameterText,Length(ParameterText),1);End;
+    Break;
+   End;
+  End;
+ End;
+ If StartLine=0Then Begin VBS_MakeText('',V);VBS_ExprText:=SavedExpression;VBS_ExprPos:=SavedPosition;Exit;End;
+ EndLine:=StartLine+1;
+ While(EndLine<=VBS_LineCount)and(VBS_Upper(VBS_Trim(VBS_ScriptLineText(EndLine)))<>'END FUNCTION')Do Inc(EndLine);
+ Bindings:=Nil;VBS_MakeText('',EmptyValue);VBS_SaveFunctionBinding(FunctionName,EmptyValue,Bindings);
+ ParameterIndex:=0;
+ While ParameterText<>''Do Begin
+  ParameterName:=VBS_ListItem(ParameterText);
+  If VBS_StartsWith(ParameterName,'BYVAL ')Then Delete(ParameterName,1,6)
+  Else If VBS_StartsWith(ParameterName,'BYREF ')Then Delete(ParameterName,1,6);
+  P:=Pos(' ',ParameterName);If P>0Then ParameterName:=Copy(ParameterName,1,P-1);
+  If ParameterIndex<ArgumentCount Then VBS_FunctionArgument(ParameterIndex,A,B,C,D,ArgumentValue)
+  Else VBS_MakeText('',ArgumentValue);
+  VBS_SaveFunctionBinding(ParameterName,ArgumentValue,Bindings);Inc(ParameterIndex);
+ End;
+ VBS_ExecuteRange(StartLine+1,EndLine-1);VBS_ExitFunctionRequested:=False;
+ VBS_GetVariable(FunctionName,V);VBS_RestoreFunctionBindings(Bindings);
+ VBS_ExprText:=SavedExpression;VBS_ExprPos:=SavedPosition;
+End;
+
+
+{ Hote Outlook du moteur Pascal inspire de DEV-COOLS/CSCRIPT.PAS.
+  Un seul message composeur est disponible. Aucun envoi implicite. }
+Function VBSName(S:TMailText):TMailText;
+Begin
+ S:=VBS_Upper(VBS_Trim(S));
+ While (Length(S)>0) And (S[Length(S)]='.') Do Delete(S,Length(S),1);
+ VBSName:=S;
+End;
+
+Function VBSModalOpen:Boolean;
+Begin
+ VBSModalOpen:=ComposerVisible Or AccountDialogVisible Or PrefsVisible Or RulesVisible Or
+  FileOpenVisible Or SortDialogVisible Or ColumnsDialogVisible Or AboutVisible Or EventDialogVisible;
+End;
+
+Procedure VBSSetProperty(Name,Value:TMailText);
+Var I,P:LongInt; Rest,Part:TMailText;
+Begin
+ If Not ComposerVisible Then Begin VBS_ScriptError('Aucun nouveau message ouvert.',True);Exit;End;
+ SaveComposerFields;
+ Name:=VBSName(Name);
+ If ((Name='SUBJECT') And (Length(Value)>80)) Or
+    (((Name='TO') Or (Name='CC') Or (Name='BCC')) And (Length(Value)>250)) Then Begin
+  VBS_ScriptError('Champ du message trop long: '+Name,True);Exit;
+ End;
+ If Name='SUBJECT' Then Composer.SubjectField:=Value
+ Else If Name='TO' Then Composer.ToField:=Value
+ Else If Name='CC' Then Composer.CcField:=Value
+ Else If Name='BCC' Then Composer.BccField:=Value
+ Else If (Name='FROM') Or (Name='SENDER') Or (Name='SOURCE') Then Begin
+  I:=0;
+  While (I<EmailAccountCount) And (VBS_Upper(EmailAccounts[I].EmailAddress)<>VBS_Upper(Value)) Do Inc(I);
+  If I=EmailAccountCount Then Begin VBS_ScriptError('Compte expediteur inconnu: '+Value,True);Exit;End;
+  Composer.AccountIndex:=I;
+ End Else If Name='BODY' Then Begin
+  Composer.LineCount:=0; Rest:=Value;
+  Repeat
+   P:=Pos(#10,Rest); If P=0 Then P:=Length(Rest)+1;
+   Part:=Copy(Rest,1,P-1);Delete(Rest,1,P);
+   If (Length(Part)>0) And (Part[Length(Part)]=#13) Then Delete(Part,Length(Part),1);
+   Repeat
+    I:=Composer.LineCount;
+    If I>=500 Then Begin VBS_ScriptError('Corps du message trop long.',True);Exit;End;
+    Composer.Lines[I].Text:=Copy(Part,1,250); Delete(Part,1,250);
+    Inc(Composer.LineCount);
+   Until Part='';
+  Until Rest='';
+ End Else Begin VBS_ScriptError('Propriete de message inconnue: '+Name,True);Exit;End;
+ Composer.Modified:=True; InitComposerFields;
+End;
+
+Function VBSHostValue(Name:TMailText;Var V:VBS_TValue):Boolean;
+Var P,I,A:Integer;Obj:VBS_PVariable;Value:TMailText;
+Begin
+ VBSHostValue:=False;P:=Pos('.',Name);If P=0 Then Exit;
+ Obj:=VBS_FindVariable(Copy(Name,1,P-1));
+ If (Obj=Nil) Or (Obj^.Value<>'@MESSAGE') Then Exit;
+ VBSHostValue:=True;Name:=VBSName(Copy(Name,P+1,32767));Value:='';
+ If Not ComposerVisible Then Begin VBS_ScriptError('Aucun message ouvert.',True);VBS_MakeText('',V);Exit;End;
+ SaveComposerFields;
+ If Name='SUBJECT' Then Value:=Composer.SubjectField
+ Else If Name='TO' Then Value:=Composer.ToField
+ Else If Name='CC' Then Value:=Composer.CcField
+ Else If Name='BCC' Then Value:=Composer.BccField
+ Else If Name='BODY' Then Begin
+  For I:=0 To Composer.LineCount-1 Do Begin
+   If I>0 Then Value:=Value+#13#10;
+   Value:=Value+Composer.Lines[I].Text;
+  End;
+ End Else If (Name='FROM') Or (Name='SOURCE') Or (Name='SENDER') Then Begin
+  A:=Composer.AccountIndex;
+  If (A<0) And (SelectedFolder>=0) And (SelectedFolder<FolderCount) Then A:=MailFolderAccount[SelectedFolder];
+  If A<0 Then For I:=0 To EmailAccountCount-1 Do If EmailAccounts[I].IsDefault Then A:=I;
+  If (A>=0) And (A<EmailAccountCount) Then Value:=EmailAccounts[A].EmailAddress;
+ End Else VBS_ScriptError('Propriete de message inconnue: '+Name,True);
+ VBS_MakeText(Value,V);V.ValueKind:=VBS_ValueString;
+End;
+
+Function VBSHostStatement(S:TMailText):Boolean;
+Var U,Name,RightSide,Target,Method,Args,Base:TMailText; P,Q,I,J,Cmd:Integer; V:VBS_TValue;
+ Obj:VBS_PVariable;
+Begin
+ VBSHostStatement:=False;S:=VBS_Trim(S);U:=VBS_Upper(S);
+ If (S='') Or (S[1]='''') Or (U='REM') Or VBS_StartsWith(U,'REM ') Then Exit;
+ If VBS_StartsWith(S,'CALL ') Then Begin Delete(S,1,5); S:=VBS_Trim(S); U:=VBS_Upper(S);End;
+ If VBS_StartsWith(S,'SET ') Then Begin
+  Delete(S,1,4);P:=VBS_FindAssignment(S);If P=0 Then Exit;
+  Name:=VBS_Trim(Copy(S,1,P-1));
+  If VBSExplicit And (VBS_FindVariable(Name)=Nil) Then Begin
+   VBSHostStatement:=True;VBS_ScriptError('Variable non declaree: '+Name,True);Exit;
+  End;
+  RightSide:=VBS_Trim(Copy(S,P+1,32767));U:=VBS_Upper(RightSide);
+  If (U='OUTLOOK') Or (U='APPLICATION') Or (Pos('CREATEOBJECT(',U)=1) Then Begin
+   If Pos('CREATEOBJECT(',U)=1 Then Begin
+    Args:=Copy(RightSide,14,Length(RightSide)-14);VBS_Evaluate(Args,V);
+    If VBS_Upper(V.Text)<>'OUTLOOK.APPLICATION' Then Begin
+     VBSHostStatement:=True;VBS_ScriptError('CreateObject accepte Outlook.Application uniquement.',True);Exit;
+    End;
+   End;
+   VBS_MakeText('@OUTLOOK',V);V.ValueKind:=VBS_ValueObject;
+   VBS_SetVariableValue(Name,V);VBSHostStatement:=True;Exit;
+  End;
+  P:=Pos('.',U);
+  If P>0 Then Begin
+   Base:=VBS_Trim(Copy(RightSide,1,P-1));Obj:=VBS_FindVariable(Base);
+   If (VBS_Upper(Base)='OUTLOOK') Or (VBS_Upper(Base)='APPLICATION') Or
+      ((Obj<>Nil) And (Obj^.Value='@OUTLOOK')) Then Begin
+    If Copy(U,P+1,11)='CREATEITEM(' Then Begin
+     VBSHostStatement:=True;Args:=Copy(RightSide,P+12,Length(RightSide)-P-12);VBS_Evaluate(Args,V);
+     If Not V.IsNumber Or (V.Number<>0) Then Begin VBS_ScriptError('CreateItem accepte 0 (courriel).',True);Exit;End;
+     If VBSModalOpen Then Begin VBS_ScriptError('Fermez le dialogue actif avant CreateItem.',True);Exit;End;
+     ActiveMenu:=-1;OpenNewMessage;VBS_MakeText('@MESSAGE',V);V.ValueKind:=VBS_ValueObject;
+     VBS_SetVariableValue(Name,V);Exit;
+    End;
+   End;
+  End;
+  Exit;
+ End;
+ P:=Pos('.',S);If P=0 Then Exit;
+ Target:=VBS_Upper(VBS_Trim(Copy(S,1,P-1)));
+ If Not VBS_SimpleIdentifier(Target) Then Exit;
+ If Target='WSCRIPT' Then Exit;
+ Obj:=VBS_FindVariable(Target);
+ If (Target='OUTLOOK') Or (Target='APPLICATION') Then Target:='@OUTLOOK'
+ Else If Obj<>Nil Then Target:=Obj^.Value;
+ If (Target<>'@OUTLOOK') And (Target<>'@MESSAGE') Then Begin
+  Q:=VBS_FindAssignment(S);
+  If (Q=0) Or (P<Q) Then Begin
+   VBSHostStatement:=True;VBS_ScriptError('Objet inconnu: '+Target,True);
+  End;
+  Exit;
+ End;
+ VBSHostStatement:=True;Method:=VBS_Trim(Copy(S,P+1,32767));
+ P:=VBS_FindAssignment(Method);
+ If (Target='@MESSAGE') And (P>0) Then Begin
+  Name:=VBS_Trim(Copy(Method,1,P-1));VBS_Evaluate(Copy(Method,P+1,32767),V);
+  If Not VBS_Terminated Then VBSSetProperty(Name,V.Text);Exit;
+ End;
+ P:=1;While (P<=Length(Method)) And Not (Method[P] In [' ',#9,'(']) Do Inc(P);
+ Args:=VBS_Trim(Copy(Method,P,32767));Method:=VBSName(Copy(Method,1,P-1));
+ If (Length(Args)>0) And (Args[1]='(') Then Begin
+  If Args[Length(Args)]<>')' Then Begin VBS_ScriptError('Parenthese fermante manquante.',True);Exit;End;
+  Args:=Copy(Args,2,Length(Args)-2);
+ End;
+ If Target='@MESSAGE' Then Begin
+  If (Method='DISPLAY') And (Args='') Then Begin DrawInterface;Exit;End;
+  VBS_ScriptError('Methode de message inconnue: '+Method,True);Exit;
+ End;
+ If Method='NEWMESSAGE' Then Begin
+  If VBSModalOpen Then Begin VBS_ScriptError('Un dialogue est deja ouvert.',True);Exit;End;
+  ActiveMenu:=-1;OpenNewMessage;
+  I:=0;While Args<>'' Do Begin
+   Name:=VBS_ListItem(Args);VBS_Evaluate(Name,V);
+   Case I Of 0:Name:='SUBJECT';1:Name:='FROM';2:Name:='TO';3:Name:='BODY';
+    Else Begin VBS_ScriptError('NewMessage: quatre arguments maximum.',True);Exit;End;
+   End;
+   If (I<>1) Or (V.Text<>'') Then VBSSetProperty(Name,V.Text);
+   If VBS_Terminated Then Exit;Inc(I);
+  End;
+  Exit;
+ End;
+ If VBSModalOpen Then Begin VBS_ScriptError('Un dialogue est deja ouvert.',True);Exit;End;
+ VBS_Evaluate(Args,V);If VBS_Terminated Then Exit;Name:=VBSName(V.Text);
+ If Method='OPENMENU' Then Begin
+  If Name='AIDE' Then Name:='?';
+  For I:=0 To 5 Do If VBSName(Menus[I].Title)=Name Then Begin OpenMenuShortcut(I);Exit;End;
+  VBS_ScriptError('Menu inconnu: '+V.Text,True);Exit;
+ End;
+ If (Method='SHOWDIALOG') Or (Method='EXECUTECOMMAND') Then Begin
+  Cmd:=-1;
+  For I:=0 To 5 Do For J:=0 To Menus[I].ItemCount-1 Do
+   If Not Menus[I].Items[J].Separator And (VBSName(Menus[I].Items[J].Caption)=Name) Then
+    Cmd:=Menus[I].Items[J].ItemID;
+  If Cmd<0 Then Begin VBS_ScriptError('Commande inconnue: '+V.Text,True);Exit;End;
+  ExecuteMenuCommand(Cmd);Exit;
+ End;
+ VBS_ScriptError('Methode Outlook inconnue: '+Method,True);
+End;
+
+Function VBSWithoutComment(S:TMailText):TMailText;
+Var I:Integer;Quoted:Boolean;
+Begin
+ I:=1;Quoted:=False;
+ While I<=Length(S) Do Begin
+  If S[I]='"' Then Begin
+   If Quoted And (I<Length(S)) And (S[I+1]='"') Then Inc(I)
+   Else Quoted:=Not Quoted;
+  End Else If (S[I]='''') And Not Quoted Then Begin
+   S:=Copy(S,1,I-1);Break;
+  End;
+  Inc(I);
+ End;
+ VBSWithoutComment:=S;
+End;
+
+Procedure RunStartupScript;
+Var F:Text; S:TMailText; Err:Integer; Line:VBS_PScriptLine; Entry:VBS_PVariable; N:TMailText;
+Begin
+ If VBSStarted Or (CommandLineScript='') Then Exit;
+ VBSStarted:=True;VBS_Terminated:=False;VBS_ExitCode:=0;VBSDiagnostic:='';VBS_CurrentLine:=0;
+ VBS_LineCount:=0;VBS_ArrayCounter:=0;VBSSteps:=0;VBSDepth:=0;
+ VBS_FirstScriptLine:=Nil;VBS_LastScriptLine:=Nil;VBS_Variables:=Nil;
+ VBS_OnErrorResumeNext:=False;VBS_TimeLimit:=5;VBSExplicit:=False;
+ VBS_ExitDoRequested:=False;VBS_ExitForRequested:=False;
+ VBS_ExitSubRequested:=False;VBS_ExitFunctionRequested:=False;
+ VBS_ScriptName:=CommandLineScript;VBS_ScriptArgumentCount:=0;
+ For Err:=0 To VBS_MaxArguments-1 Do VBS_ScriptArguments[Err]:='';
+ {$I-}Assign(F,CommandLineScript);Reset(F);{$I+}Err:=IOResult;
+ If Err<>0 Then VBS_ScriptError('Impossible de lire '+CommandLineScript,True)
+ Else Begin
+  While Not Eof(F) And Not VBS_Terminated Do Begin
+   {$I-}ReadLn(F,S);{$I+}Err:=IOResult;
+   If Err<>0 Then VBS_ScriptError('Erreur de lecture du script.',True)
+   Else If Length(S)>255 Then Begin
+    VBS_CurrentLine:=VBS_LineCount+1;VBS_ScriptError('Ligne de script superieure a 255 caracteres.',True);
+   End Else Begin
+    If (VBS_LineCount=0) And (Copy(S,1,3)=#$EF#$BB#$BF) Then Delete(S,1,3);
+    VBS_AddScriptLine(VBSWithoutComment(S));
+   End;
+   If VBS_LineCount>10000 Then VBS_ScriptError('Script trop volumineux.',True);
+  End;
+  {$I-}Close(F);{$I+}Err:=IOResult;
+ End;
+ If Not VBS_Terminated Then Begin
+  VBS_SetVariable('vbCrLf',#13#10);VBS_SetVariable('vbCr',#13);VBS_SetVariable('vbLf',#10);
+  VBS_SetVariable('vbTab',#9);VBS_SetVariable('olMailItem','0');
+  GetTime(VBS_StartHour,VBS_StartMinute,VBS_StartSecond,VBS_StartHundredth);
+  VBS_ExecuteRange(1,VBS_LineCount);
+ End;
+ If VBS_ExitCode<>0 Then Begin
+  If VBSDiagnostic='' Then Begin Str(VBS_ExitCode,N);VBSDiagnostic:='Code de sortie '+N;End;
+  Str(VBS_CurrentLine,N);MailStatus:='VBScript ligne '+N+': '+VBSDiagnostic;
+ End Else If VBSDiagnostic='' Then MailStatus:='VBScript execute: '+CommandLineScript;
+ While VBS_FirstScriptLine<>Nil Do Begin
+  Line:=VBS_FirstScriptLine^.Next;Dispose(VBS_FirstScriptLine);VBS_FirstScriptLine:=Line;
+ End;
+ VBS_LastScriptLine:=Nil;
+ While VBS_Variables<>Nil Do Begin Entry:=VBS_Variables^.Next;Dispose(VBS_Variables);VBS_Variables:=Entry;End;
+ DrawInterface;
+End;
+
+{ Boucle principale de gestion des evenements }
 Procedure MainEventLoop;
 Var
  LastBtn: Integer;
@@ -24432,6 +26197,7 @@ Begin
  LastMouseY := 0;
  HoveredFolder := -1;
  ContextMenuVisible := False;
+ RunStartupScript;
 
  While Running Do Begin
   If ApplicationQuitRequested Then Begin
@@ -24882,6 +26648,7 @@ Var
 Begin
  ParseAccountsOption := False;
  CommandLineAccountsFile := '';
+ CommandLineScript:=''; VBSStarted:=False;
  MaxScreen := False; RibbonMode:=False; RibbonTab:=4;
  RibbonKeyboardActive:=False; RibbonFocus:=-1; RibbonHover:=-1; RibbonPressed:=-1;
  I := 1;
@@ -24890,6 +26657,15 @@ Begin
   UpperArgument := MailUpper(Argument);
   If (UpperArgument='/CLASSICMENU') Or (UpperArgument='/RUBANMENU') Then Begin
    RibbonMode:=UpperArgument='/RUBANMENU'; Inc(I); Continue;
+  End;
+  If Copy(UpperArgument,1,10)='/VBSCRIPT:' Then Begin
+   FileName:=Copy(Argument,11,Length(Argument));
+   If (FileName='') Or (Length(Argument)=255) Then Begin
+    Assign(ErrorOutput,'');Rewrite(ErrorOutput);
+    WriteLn(ErrorOutput,'Erreur: /VBSCRIPT exige un chemin .vbs valide de moins de 245 caracteres.');
+    Close(ErrorOutput);Exit;
+   End;
+   CommandLineScript:=FileName;Inc(I);Continue;
   End;
   If UpperArgument = '-MAXSCREEN' Then Begin
    MaxScreen := True;
@@ -24934,20 +26710,25 @@ Begin
  Rewrite(HelpOutput);
  WriteLn(HelpOutput, 'OUTLOOK - Cette commande permet de lancer le client de messagerie graphique.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput, 'Utilisation : OUTLOOK [/CLASSICMENU | /RUBANMENU] [-maxscreen]');
- WriteLn(HelpOutput, '                     [/ACCOUNTS:<fichier>] [/? | -h | --help]');
+ WriteLn(HelpOutput, 'Syntaxe : OUTLOOK [/CLASSICMENU | /RUBANMENU] [-maxscreen]');
+ WriteLn(HelpOutput, '                  [/ACCOUNTS:<fichier>] [/VBSCRIPT:<fichier>] [/? | -h | --help]');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput, '  Sans option          Lance l''application graphique en 640x480.');
- WriteLn(HelpOutput, '  /CLASSICMENU         Menus classiques (par defaut).');
- WriteLn(HelpOutput, '  /RUBANMENU           Onglets et commandes en ruban.');
- WriteLn(HelpOutput, '  Si les deux sont specifies, le dernier parametre est utilise.');
- WriteLn(HelpOutput, '  Ruban : Alt+lettre ou F10, Tab/fleches, Entree et Echap.');
+ WriteLn(HelpOutput, '  -h, --help           Affichent egalement cette aide.');
  WriteLn(HelpOutput, '  -maxscreen           Utilise la resolution maximale disponible.');
  WriteLn(HelpOutput, '  /?                   Affiche cette aide et quitte.');
- WriteLn(HelpOutput, '  -h, --help           Affichent egalement cette aide.');
  WriteLn(HelpOutput, '  /ACCOUNTS:<fichier>  Utilise ce fichier pour lire et sauvegarder les comptes.');
  WriteLn(HelpOutput, '  /ACCOUNTS <fichier> et --accounts <fichier> sont aussi acceptes.');
- WriteLn(HelpOutput, '  La forme --accounts=<fichier> est egalement acceptee.');
+ WriteLn(HelpOutput, '      La forme --accounts=<fichier> est egalement acceptee.');
+ WriteLn(HelpOutput, '  /CLASSICMENU         Menus classiques (par defaut).');
+ WriteLn(HelpOutput, '  /RUBANMENU           Onglets et commandes en ruban.');
+ WriteLn(HelpOutput, '      Si les deux sont specifies, le dernier parametre est utilise.');
+ WriteLn(HelpOutput, '      Ruban : Alt+lettre ou F10, Tab/fleches, Enter et Esc.');
+ WriteLn(HelpOutput, '  /VBSCRIPT:<fichier>  Execute un script VBScript Pascal au demarrage.');
+ WriteLn(HelpOutput, '     Exemple : OUTLOOK /VBSCRIPT:"C:\Scripts\Nouveau message.vbs"');
+ WriteLn(HelpOutput, '     Script : Outlook.OpenMenu "Outils" ou Outlook.ShowDialog "Options"');
+ WriteLn(HelpOutput, '     Set mail = Outlook.CreateItem(0) : To, Subject, Body, From puis mail.Display');
+ WriteLn(HelpOutput, '     Sous-ensemble VBScript : aucun moteur COM, aucun envoi implicite.');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput, 'Exemple : OUTLOOK /ACCOUNTS:"C:\Courriel\Mes comptes.ACC"');
  WriteLn(HelpOutput, 'Les chemins relatifs partent du repertoire courant.');
