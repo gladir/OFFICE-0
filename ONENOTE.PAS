@@ -111,12 +111,12 @@ Const
  MENU_Y0            = 0;
  MENU_Y1            = MENU_Y0 + MENU_H - 1;          { 15 }
  TOOL_Y0            = MENU_H;                        { 16 }
- TOOL_Y1            = TOOL_Y0 + TOOL_H - 1;          { 43 }
- SECTION_Y0         = TOOL_Y1 + 1;                   { 44 }
- SECTION_Y1         = SECTION_Y0 + SECTION_H - 1;    { 65 }
+ CLASSIC_TOOL_Y1            = TOOL_Y0 + TOOL_H - 1;          { 43 }
+ CLASSIC_SECTION_Y0         = CLASSIC_TOOL_Y1 + 1;                   { 44 }
+ CLASSIC_SECTION_Y1         = CLASSIC_SECTION_Y0 + SECTION_H - 1;    { 65 }
  STATUS_Y0          = SCR_H - STATUS_H;              { 460 }
  STATUS_Y1          = SCR_H - 1;                     { 479 }
- CONTENT_Y0         = SECTION_Y1 + 1;                { 66 }
+ CLASSIC_CONTENT_Y0         = CLASSIC_SECTION_Y1 + 1;                { 66 }
  CONTENT_Y1         = STATUS_Y0 - 1;                 { 459 }
 
  { Disposition horizontale }
@@ -187,8 +187,8 @@ Const
  { Phase 2 : geometrie de la zone de notes }
  NOTE_LEFT_MARGIN   = 24;          { marge interne du contenu }
  NOTE_LINE_H        = 14;          { hauteur d'une ligne paragraphe }
- NOTE_TITLE_Y       = CONTENT_Y0 + 12;
- NOTE_PARA_Y0       = CONTENT_Y0 + 56;
+ CLASSIC_NOTE_TITLE_Y = CLASSIC_CONTENT_Y0 + 12;
+ CLASSIC_NOTE_PARA_Y0 = CLASSIC_CONTENT_Y0 + 56;
  NOTE_CHAR_W        = 8;           { largeur fixe du font 8x8 }
  NOTE_CURSOR_H      = 12;
 
@@ -338,6 +338,9 @@ Var
  LastParaIdx        : Integer;
 
  { Etat menu deroulant }
+ RibbonMode,RibbonKeyboard: Boolean;
+ RibbonTab,RibbonFocus,RibbonHover: Integer;
+ TOOL_Y1,SECTION_Y0,SECTION_Y1,CONTENT_Y0,NOTE_TITLE_Y,NOTE_PARA_Y0: Integer;
  CurrentMenu        : Integer;     { 0 = aucun, 1..MENU_COUNT }
  MenuState          : Integer;
  HoveredMenuItem    : Integer;
@@ -585,6 +588,7 @@ Begin
  MenuNamesEN[6] := 'Tools';
  MenuNamesEN[7] := 'Help';
 
+ If RibbonMode Then Begin MenuNamesFR[2]:='Accueil';MenuNamesEN[2]:='Home';End;
  X := 8;
  For I := 1 To MENU_COUNT Do Begin
   MenuPositions[I] := X;
@@ -609,7 +613,7 @@ Function GetMenuItemCount(MI: Integer): Integer;
 Begin
  Case MI Of
   1: GetMenuItemCount := 14;   { Fichier }
-  2: GetMenuItemCount := 10;   { Edition }
+  2: If RibbonMode Then GetMenuItemCount:=14 Else GetMenuItemCount := 10;   { Edition }
   3: GetMenuItemCount := 9;    { Insertion }
   4: GetMenuItemCount := 10;   { Format }
   5: GetMenuItemCount := 8;    { Affichage }
@@ -661,6 +665,10 @@ Begin
        7:  Begin Label_ := L('Supprimer',   'Delete');         Sc := 'Suppr';  End;
        9:  Begin Label_ := L('Rechercher...','Find...');       Sc := 'Ctrl+F'; End;
        10: Begin Label_ := L('Remplacer...','Replace...');     Sc := 'Ctrl+H'; End;
+       11: Begin Label_:=L('Gras','Bold');Sc:='Ctrl+B';End;
+       12: Begin Label_:=L('Italique','Italic');Sc:='Ctrl+I';End;
+       13: Begin Label_:=L('Souligne','Underline');Sc:='Ctrl+U';End;
+       14: Begin Label_:=L('Puce','Bullet');Sc:='Ctrl+.';End;
       End;
      End;
   3: Begin { Insertion / Insert }
@@ -921,6 +929,7 @@ Function FindIconAtPosition(X, Y: LongInt): Integer;
 Var I, XX: Integer;
 Begin
  FindIconAtPosition := 0;
+ If RibbonMode Then Exit;
  If (Y < TOOL_Y0) Or (Y > TOOL_Y1) Then Exit;
  For I := 1 To TB_ICON_COUNT Do Begin
   XX := IconX(I);
@@ -966,7 +975,7 @@ Begin
  For I := 1 To MENU_COUNT Do Begin
   TX := MenuPositions[I];
   TW := Length(MenuName(I)) * 8;
-  If (I = CurrentMenu) And (MenuState = MS_DROPDOWN) Then Begin
+  If ((I = CurrentMenu) And (MenuState = MS_DROPDOWN)) Or (RibbonMode And (I=RibbonTab)) Then Begin
    FillRect(TX - 4, MENU_Y0 + 1, TX + TW + 4, MENU_Y1 - 1, CLR_MENU_HL_BG);
    DrawTextAt(TX, MENU_Y0 + 4, CLR_MENU_HL_FG, MenuName(I));
   End
@@ -1023,9 +1032,116 @@ Begin
  End;
 End;
 
+Procedure RibbonSource(MI,II: Integer;Var SourceMenu,SourceItem: Integer);
+Begin
+ SourceMenu:=MI;SourceItem:=II;
+ If (MI=2) And (II>=11) Then Begin
+  SourceMenu:=4;SourceItem:=II-10;If II=14 Then SourceItem:=5;
+ End;
+End;
+Function RibbonItemCount: Integer;
+Var I,N: Integer;
+Begin
+ N:=0;For I:=1 To GetMenuItemCount(RibbonTab) Do If Not IsMenuSeparator(RibbonTab,I) Then Inc(N);
+ RibbonItemCount:=N;
+End;
+Function RibbonMenuItem(Index: Integer): Integer;
+Var I,N: Integer;
+Begin
+ N:=0;RibbonMenuItem:=0;
+ For I:=1 To GetMenuItemCount(RibbonTab) Do If Not IsMenuSeparator(RibbonTab,I) Then Begin
+  Inc(N);If N=Index Then Begin RibbonMenuItem:=I;Exit;End;
+ End;
+End;
+Function RibbonEntryEnabled(Index: Integer): Boolean;
+Var M,I,Item: Integer;
+Begin
+ RibbonEntryEnabled:=False;Item:=RibbonMenuItem(Index);If Item=0 Then Exit;
+ RibbonSource(RibbonTab,Item,M,I);
+ Case M Of
+  1: RibbonEntryEnabled:=Not (I In [3,12]);
+  2: RibbonEntryEnabled:=I In [9,10];
+  3: RibbonEntryEnabled:=I<>8;
+  4: RibbonEntryEnabled:=Not (I In [6,10]);
+  5: RibbonEntryEnabled:=I In [1,2];
+  6: RibbonEntryEnabled:=I In [2,4];
+  7: RibbonEntryEnabled:=True;
+ End;
+End;
+Procedure RibbonButtonBox(Index: Integer;Var X,Y,W,H: Integer);
+Var Columns: Integer;
+Begin
+ Columns:=(RibbonItemCount+2) Div 3;If Columns<3 Then Columns:=3;
+ W:=(SCR_W-16) Div Columns;H:=24;X:=8+((Index-1) Div 3)*W;
+ Y:=MENU_H+4+((Index-1) Mod 3)*H;
+End;
+Function RibbonHitAt(X,Y: LongInt): Integer;
+Var I,BX,BY,W,H: Integer;
+Begin
+ RibbonHitAt:=0;If Not RibbonMode Then Exit;
+ For I:=1 To RibbonItemCount Do Begin
+  RibbonButtonBox(I,BX,BY,W,H);
+  If (X>=BX) And (X<BX+W-4) And (Y>=BY) And (Y<BY+H-2) Then Begin RibbonHitAt:=I;Exit;End;
+ End;
+End;
+Function RibbonIcon(MI,II: Integer): Integer;
+Var M,I,N: Integer;
+Begin
+ RibbonSource(MI,II,M,I);N:=0;
+ Case M Of
+  1: Case I Of 1:N:=ICN_NEW;2,8:N:=ICN_OPEN;5,6,9,10:N:=ICN_SAVE;12:N:=ICN_PRINT;End;
+  2: Case I Of 1:N:=ICN_UNDO;2:N:=ICN_REDO;4:N:=ICN_CUT;5:N:=ICN_COPY;6:N:=ICN_PASTE;End;
+  3: Case I Of 1,2,3:N:=ICN_NEW;5:N:=ICN_IMAGE;9:N:=ICN_BULLET;End;
+  4: Case I Of 1:N:=ICN_BOLD;2:N:=ICN_ITALIC;3:N:=ICN_UNDER;5,6:N:=ICN_BULLET;End;
+ End;
+ RibbonIcon:=N;
+End;
+Procedure DrawRibbonGlyph(MI,II,X,Y,C: Integer);
+Var N,M,I,J: Integer;
+Begin
+ N:=RibbonIcon(MI,II);
+ If N<>0 Then DrawIconByIndex(N,X,Y,C)
+ Else Begin
+  RibbonSource(MI,II,M,I);SetColor(C);
+  If (M=2) Or ((M=6) And (I=2)) Then Begin Circle(X+8,Y+8,5);Line(X+12,Y+12,X+19,Y+19);End
+  Else If (M=1) And (I=14) Then Begin
+   Rectangle(X+3,Y+2,X+12,Y+19);Line(X+8,Y+10,X+20,Y+10);
+   Line(X+16,Y+6,X+20,Y+10);Line(X+16,Y+14,X+20,Y+10);
+  End Else If (M=3) And (I=6) Then Begin
+   Rectangle(X+2,Y+3,X+19,Y+18);
+   For J:=1 To 2 Do Begin Line(X+2+J*5,Y+3,X+2+J*5,Y+18);Line(X+2,Y+3+J*5,X+19,Y+3+J*5);End;
+  End Else If M=7 Then Begin Circle(X+11,Y+11,8);OutTextXY(X+8,Y+7,'i');End
+  Else Begin
+   Rectangle(X+3,Y+2,X+18,Y+19);
+   Line(X+6,Y+7,X+15,Y+7);Line(X+6,Y+11,X+15,Y+11);Line(X+6,Y+15,X+15,Y+15);
+  End;
+ End;
+End;
+Procedure DrawRibbon;
+Var I,Item,X,Y,W,H,C: Integer;Caption,Sc: String;
+Begin
+ FillRect(0,TOOL_Y0,SCR_W-1,TOOL_Y1,CLR_TOOL_BG);
+ For I:=1 To RibbonItemCount Do Begin
+  Item:=RibbonMenuItem(I);RibbonButtonBox(I,X,Y,W,H);C:=Black;
+  If Not RibbonEntryEnabled(I) Then C:=DarkGray
+  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Then Begin
+   FillRect(X,Y,X+W-5,Y+H-3,CLR_MENU_HL_BG);C:=White;
+  End;
+  DrawRibbonGlyph(RibbonTab,Item,X+2,Y,C);GetMenuItem(RibbonTab,Item,Caption,Sc);
+  If TextWidth(Caption)>W-34 Then Begin
+   While (Length(Caption)>0) And (TextWidth(Caption+'...')>W-34) Do Delete(Caption,Length(Caption),1);
+   Caption:=Caption+'...';
+  End;
+  DrawTextAt(X+27,Y+7,C,Caption);
+ End;
+ SetColor(DarkGray);Line(4,TOOL_Y1-14,SCR_W-5,TOOL_Y1-14);
+ DrawTextAt(8,TOOL_Y1-10,DarkGray,MenuName(RibbonTab));
+End;
+
 Procedure DrawToolbar;
 Var I, X: Integer; BgC: Integer;
 Begin
+ If RibbonMode Then Exit;
  FillRect(0, TOOL_Y0, SCR_W - 1, TOOL_Y1, CLR_TOOL_BG);
  SetColor(DarkGray);
  Line(0, TOOL_Y1, SCR_W - 1, TOOL_Y1);
@@ -1428,12 +1544,12 @@ Procedure RefreshScreen;
 Begin
  HideMouse;
  DrawMenuBar;
- DrawToolbar;
+ If RibbonMode Then DrawRibbon Else DrawToolbar;
  DrawSectionTabs;
  DrawNoteArea;
  DrawPageList;
  DrawStatusBar;
- If (MenuState = MS_DROPDOWN) And (CurrentMenu > 0) Then
+ If Not RibbonMode And (MenuState = MS_DROPDOWN) And (CurrentMenu > 0) Then
   DrawDropDownMenu(CurrentMenu);
  ShowMouse;
 End;
@@ -4040,9 +4156,56 @@ Begin
 End;
 
 Procedure HelpAbout;
+Const W=440;H=240;
+Var X,Y,BX,BY,CX,CY: Integer;MX,MY,Buttons,LastButtons: LongInt;
+ K: Char;Done,Pressed,ClosePressed,InsideOK,InsideClose: Boolean;
 Begin
- SetStatus(L('Clone OneNote en Pascal - (c) 2026',
-             'OneNote clone in Pascal - (c) 2026'));
+ X:=(SCR_W-W) Div 2;Y:=(SCR_H-H) Div 2;
+ BX:=X+(W-88) Div 2;BY:=Y+H-38;CX:=X+W-23;CY:=Y+5;
+ HideMouse;
+ FillRect(X+5,Y+5,X+W+5,Y+H+5,DarkGray);
+ FillRect(X,Y,X+W,Y+H,LightGray);FrameRect3D(X,Y,X+W,Y+H,White,Black);
+ FillRect(X+3,Y+3,X+W-3,Y+24,Blue);
+ DrawTextAt(X+10,Y+9,White,L('A propos de OneNote','About OneNote'));
+ FrameRect3D(CX,CY,CX+17,CY+16,White,DarkGray);
+ DrawTextAt(CX+5,CY+4,White,'X');
+ FillRect(X+20,Y+45,X+72,Y+107,Magenta);
+ FrameRect3D(X+20,Y+45,X+72,Y+107,LightMagenta,DarkGray);
+ DrawTextAt(X+42,Y+72,White,'N');
+ DrawTextAt(X+92,Y+45,Black,'OneNote');
+ DrawTextAt(X+92,Y+66,Black,'Version 1.00');
+ DrawTextAt(X+92,Y+87,Black,L('Clone graphique en Pascal','Graphical clone in Pascal'));
+ DrawTextAt(X+20,Y+125,Black,L('Auteur : Sylvain Maltais','Author: Sylvain Maltais'));
+ DrawTextAt(X+20,Y+145,Black,'Copyright (c) 2026 Sylvain Maltais');
+ DrawTextAt(X+20,Y+165,Blue,'www.gladir.com/office-0');
+ FillRect(BX,BY,BX+88,BY+24,LightGray);FrameRect3D(BX,BY,BX+88,BY+24,White,Black);
+ FrameRect(BX+3,BY+3,BX+85,BY+21,DarkGray);DrawTextAt(BX+36,BY+8,Black,'OK');
+ ShowMouse;
+ Done:=False;Pressed:=False;ClosePressed:=False;
+ { Ignorer le clic qui a ouvert le dialogue. }
+ GetMouseState(MX,MY,LastButtons);
+ Repeat
+  If KeyPressed Then Begin
+   K:=ReadKey;
+   If (K=#0) Or (K=#224) Then K:=ReadKey
+   Else If (K=#13) Or (K=#27) Or (K=' ') Then Done:=True;
+  End;
+  GetMouseState(MX,MY,Buttons);
+  InsideOK:=(MX>=BX) And (MX<=BX+88) And (MY>=BY) And (MY<=BY+24);
+  InsideClose:=(MX>=CX) And (MX<=CX+17) And (MY>=CY) And (MY<=CY+16);
+  If ((Buttons And MB_LEFT)<>0) And ((LastButtons And MB_LEFT)=0) Then Begin
+   Pressed:=InsideOK;ClosePressed:=InsideClose;
+  End;
+  If ((Buttons And MB_LEFT)=0) And ((LastButtons And MB_LEFT)<>0) Then Begin
+   If (Pressed And InsideOK) Or (ClosePressed And InsideClose) Then Done:=True;
+   Pressed:=False;ClosePressed:=False;
+  End;
+  LastButtons:=Buttons;
+  If Not Done Then Delay(15);
+ Until Done;
+ Repeat GetMouseState(MX,MY,Buttons);If (Buttons And MB_LEFT)<>0 Then Delay(15);
+ Until (Buttons And MB_LEFT)=0;
+ RefreshScreen;
 End;
 
 { ============================================================ }
@@ -4223,9 +4386,70 @@ Procedure DragExtra(Idx: Integer; StartX, StartY: LongInt); Forward;
 { Phase 12 : forward decl pour le pen tool (utilise par HandleLeftClick). }
 Procedure PenStrokeAt(Sx, Sy: LongInt); Forward;
 
+Procedure ExecuteRibbonEntry(Index: Integer);
+Var M,I: Integer;
+Begin
+ If Not RibbonEntryEnabled(Index) Then Exit;
+ RibbonSource(RibbonTab,RibbonMenuItem(Index),M,I);RibbonKeyboard:=False;RibbonFocus:=0;
+ MenuState:=MS_NONE;CurrentMenu:=0;
+ If DispatchMenu(M,I) Then LoopDone:=True;
+ RefreshScreen;
+End;
+Procedure RibbonMoveFocus(Direction: Integer);
+Var I: Integer;
+Begin
+ I:=RibbonFocus;If (I=0) And (Direction<0) Then I:=RibbonItemCount+1;
+ Repeat
+  Inc(I,Direction);If (I<1) Or (I>RibbonItemCount) Then Begin RibbonFocus:=0;Exit;End;
+  If RibbonEntryEnabled(I) Then Begin RibbonFocus:=I;Exit;End;
+ Until False;
+End;
+Function HandleRibbonKey(K,K2: Char): Boolean;
+Var Tab,Direction: Integer;
+Begin
+ HandleRibbonKey:=False;If Not RibbonMode Then Exit;Tab:=0;
+ If K=#0 Then Case K2 Of
+  #33:Tab:=1;#18:Tab:=2;#23:Tab:=3;#50:Tab:=4;#30:Tab:=5;#24:Tab:=6;#35:Tab:=7;
+ End;
+ If Tab>0 Then Begin
+  RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonHover:=0;
+  CurrentMenu:=0;MenuState:=MS_NONE;RefreshScreen;HandleRibbonKey:=True;Exit;
+ End;
+ If (K=#0) And (K2=#68) Then Begin
+  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;RefreshScreen;HandleRibbonKey:=True;Exit;
+ End;
+ If Not RibbonKeyboard Then Exit;
+ HandleRibbonKey:=True;Direction:=0;
+ If K=#0 Then Case K2 Of
+  #75:Direction:=-1;#77:Direction:=1;
+  #72,#15:RibbonMoveFocus(-1);#80:RibbonMoveFocus(1);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End Else Case K Of
+  #9:RibbonMoveFocus(1);
+  #27:If RibbonFocus>0 Then RibbonFocus:=0 Else RibbonKeyboard:=False;
+  #13,' ':If RibbonFocus=0 Then RibbonMoveFocus(1) Else ExecuteRibbonEntry(RibbonFocus);
+  Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
+ End;
+ If Direction<>0 Then Begin
+  If RibbonFocus=0 Then Begin
+   Inc(RibbonTab,Direction);If RibbonTab<1 Then RibbonTab:=MENU_COUNT;
+   If RibbonTab>MENU_COUNT Then RibbonTab:=1;RibbonHover:=0;
+  End Else RibbonMoveFocus(Direction);
+ End;
+ RefreshScreen;
+End;
+
 Procedure HandleLeftClick(X, Y: LongInt);
 Var MI, II, IcIdx, SecIdx, PgIdx, EIdx: Integer; Exit_: Boolean;
 Begin
+ If RibbonMode Then Begin
+  RibbonKeyboard:=False;RibbonFocus:=0;
+  MI:=GetMenuAtPosition(X,Y);
+  If MI>0 Then Begin RibbonTab:=MI;RibbonHover:=0;RefreshScreen;Exit;End;
+  If (Y>=TOOL_Y0) And (Y<=TOOL_Y1) Then Begin
+   II:=RibbonHitAt(X,Y);If II>0 Then ExecuteRibbonEntry(II);Exit;
+  End;
+ End;
  { 1) Si un menu deroulant est ouvert, gerer le clic dedans }
  If (MenuState = MS_DROPDOWN) And (CurrentMenu > 0) Then Begin
   II := GetDropDownItemAtPosition(CurrentMenu, X, Y);
@@ -4896,6 +5120,10 @@ End;
 
 Procedure OpenMenu(MI: Integer);
 Begin
+ If RibbonMode Then Begin
+  RibbonTab:=MI;RibbonKeyboard:=True;RibbonFocus:=0;RibbonHover:=0;
+  CurrentMenu:=0;MenuState:=MS_NONE;RefreshScreen;Exit;
+ End;
  CurrentMenu := MI; MenuState := MS_DROPDOWN; HoveredMenuItem := 1;
  { Sauter le 1er separateur eventuel }
  While IsMenuSeparator(MI, HoveredMenuItem) And
@@ -4906,6 +5134,8 @@ End;
 Procedure HandleKey(K: Char);
 Var K2: Char; Cnt: Integer; Exit_: Boolean;
 Begin
+ K2:=#0;If K=#0 Then K2:=ReadKey;
+ If HandleRibbonKey(K,K2) Then Exit;
  If (MenuState = MS_DROPDOWN) And (CurrentMenu > 0) Then Begin
   Cnt := GetMenuItemCount(CurrentMenu);
   If K = #13 Then Begin
@@ -4923,7 +5153,7 @@ Begin
    RefreshScreen; Exit;
   End;
   If K = #0 Then Begin
-   K2 := ReadKey;
+
    Case K2 Of
     #72: Begin { fleche haut }
           If HoveredMenuItem <= 0 Then HoveredMenuItem := Cnt + 1;
@@ -4987,7 +5217,7 @@ Begin
   #21: Begin FormatUnder; RefreshScreen; End; { Ctrl+U }
   #13: Begin InsertPage; RefreshScreen; End; { Enter (hors edition) }
   #0 : Begin
-        K2 := ReadKey;
+
         { Phase 2 : si en edition, les fleches/Home/End/Suppr controlent le caret }
         If (EditMode <> EM_NONE) And HandleEditExtKey(K2) Then Begin
          CursorVisible := True; BlinkCounter := 0;
@@ -5064,6 +5294,10 @@ Begin
  If Not MouseDriverFound Then Exit;
  GetMouseState(MsX, MsY, MsBtn);
 
+ If RibbonMode Then Begin
+  IcNow:=RibbonHitAt(MsX,MsY);
+  If IcNow<>RibbonHover Then Begin RibbonHover:=IcNow;RefreshScreen;End;
+ End;
  { Survol toolbar }
  IcNow := FindIconAtPosition(MsX, MsY);
  If IcNow <> ToolHover Then Begin
@@ -5120,16 +5354,56 @@ Begin
  SecColors[8] := LightGray;
 End;
 
+Function CommandLineHelpRequested: Boolean;
+Var I,J: Integer;Arg: String;
+Begin
+ CommandLineHelpRequested:=False;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);For J:=1 To Length(Arg) Do Arg[J]:=UpCase(Arg[J]);
+  If (Arg='/?') Or (Arg='-H') Or (Arg='--HELP') Then Begin CommandLineHelpRequested:=True;Exit;End;
+ End;
+End;
+Procedure ShowCommandLineHelp;
+Var HelpOutput: Text;
+Begin
+ Assign(HelpOutput,'');Rewrite(HelpOutput);
+ WriteLn(HelpOutput,'ONENOTE - Bloc-notes graphique en Pascal.');
+ WriteLn(HelpOutput,'Utilisation : ONENOTE [/CLASSICMENU | /RUBANMENU] [fichier.ONE | fichier.ONEPKG] [/?]');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'  /CLASSICMENU  Menus classiques, style OneNote 2003 (par defaut).');
+ WriteLn(HelpOutput,'  /RUBANMENU    Onglets avec icones, style OneNote 2007 et suivants.');
+ WriteLn(HelpOutput,'               La barre d''outils est masquee ; ses commandes figurent dans les onglets.');
+ WriteLn(HelpOutput,'  /?           Affiche cette aide et quitte sans ouvrir de fenetre.');
+ WriteLn(HelpOutput,'  -h, --help   Affichent egalement cette aide.');
+ WriteLn(HelpOutput);
+ WriteLn(HelpOutput,'Options insensibles a la casse ; le dernier mode specifie est utilise.');
+ WriteLn(HelpOutput,'Le fichier peut apparaitre avant ou apres les options.');
+ WriteLn(HelpOutput,'Exemple : ONENOTE /RUBANMENU "C:\Notes\Mes notes.one"');
+ WriteLn(HelpOutput,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
+ WriteLn(HelpOutput,'Alt+F Fichier, Alt+E Accueil, Alt+I Insertion, Alt+M Format,');
+ WriteLn(HelpOutput,'Alt+A Affichage, Alt+O Outils, Alt+H Aide.');
+ Close(HelpOutput);
+End;
+Procedure ParseCommandLine;
+Var I,J: Integer;Arg,U: String;
+Begin
+ ParamFileArg:='';RibbonMode:=False;RibbonTab:=2;RibbonFocus:=0;RibbonHover:=0;RibbonKeyboard:=False;
+ For I:=1 To ParamCount Do Begin
+  Arg:=ParamStr(I);U:=Arg;For J:=1 To Length(U) Do U[J]:=UpCase(U[J]);
+  If U='/CLASSICMENU' Then RibbonMode:=False
+  Else If U='/RUBANMENU' Then RibbonMode:=True
+  Else Begin If ParamFileArg<>'' Then ParamFileArg:=ParamFileArg+' ';ParamFileArg:=ParamFileArg+Arg;End;
+ End;
+ TOOL_Y1:=CLASSIC_TOOL_Y1;If RibbonMode Then TOOL_Y1:=MENU_H+96-1;
+ SECTION_Y0:=TOOL_Y1+1;SECTION_Y1:=SECTION_Y0+SECTION_H-1;CONTENT_Y0:=SECTION_Y1+1;
+ NOTE_TITLE_Y:=CONTENT_Y0+(CLASSIC_NOTE_TITLE_Y-CLASSIC_CONTENT_Y0);
+ NOTE_PARA_Y0:=CONTENT_Y0+(CLASSIC_NOTE_PARA_Y0-CLASSIC_CONTENT_Y0);
+End;
+
 BEGIN
  Language := LangFR;
- ParamFileArg := '';
- If (ParamStr(1) = '/?') Or (ParamStr(1) = '--help') Or (ParamStr(1) = '-h') Then Begin
-  WriteLn('ONENOTE : Clone OneNote en Pascal (Phase 1 - charpente UI)');
-  WriteLn;
-  WriteLn('Syntaxe : ONENOTE [fichier.ONE | fichier.ONEPKG]');
-  Halt;
- End;
- If ParamCount >= 1 Then ParamFileArg := ParamStr(1);
+ If CommandLineHelpRequested Then Begin ShowCommandLineHelp;Halt(0);End;
+ ParseCommandLine;
 
  InitSecColors;
  InitializeGraphics;

@@ -125,6 +125,27 @@ s'adapte a la hauteur du ruban. La cle primaire et les commandes de champs sont
 disponibles dans Format. Navigation : souris, F10 ou Alt+lettre, fleches,
 Tab/Maj+Tab, Entree et Echap. Les raccourcis des onglets sont listes dans l'aide.
 
+<h2>Menus de OneNote</h2>
+
+```bat
+ONENOTE /?
+ONENOTE /CLASSICMENU
+ONENOTE /RUBANMENU
+ONENOTE /RUBANMENU "C:\Notes\Mes notes.one"
+```
+
+Le mode classique est utilise par defaut. Les options sont insensibles a la
+casse ; le dernier mode specifie est utilise. Le parametre de fichier existant
+(.ONE ou .ONEPKG) peut apparaitre avant ou apres les options. /? (ou -h, --help)
+affiche l'aide en console et quitte sans ouvrir de fenetre.
+
+En mode ruban, la barre d'outils est masquee et ses commandes sont integrees
+aux onglets avec icones vectorielles, sans cadres permanents. Accueil reprend
+l'edition et la mise en forme courante. Les commandes non implementees sont
+grisees. Les sections, pages et zones de saisie s'adaptent a la hauteur du ruban.
+Navigation : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.
+Les libelles suivent la langue FR/EN choisie dans Outils.
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
