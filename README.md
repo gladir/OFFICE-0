@@ -195,8 +195,8 @@ Les raccourcis des neuf onglets sont listes dans l'aide de la commande.
 
 <ul>
 <li><code>VISIO /CLASSICMENU [fichier.VSDX]</code> : menus classiques et barres d'outils (mode par defaut).</li>
-<li><code>VISIO /RUBANMENU [fichier.VSDX]</code> : onglets avec icones et commandes, sans les deux anciennes barres d'outils.</li>
-<li>Les neuf outils de dessin sont accessibles dans l'onglet Insertion ; Nouveau, Ouvrir, Enregistrer,
+<li><code>VISIO /RUBANMENU [fichier.VSDX]</code> : onglets avec icones et commandes, avec la barre d'outils verticale ; la barre horizontale est integree au ruban.</li>
+<li>Les neuf outils de dessin restent accessibles dans la barre verticale dans les deux modes ; Nouveau, Ouvrir, Enregistrer,
 Imprimer, Annuler et Retablir figurent dans Fichier et Edition.</li>
 <li><code>VISIO /?</code> : aide en ligne de commande ; <code>-h</code> et <code>--help</code> sont aussi acceptes.</li>
 <li>Les parametres sont insensibles a la casse ; le dernier mode indique est utilise.

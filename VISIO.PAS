@@ -69,7 +69,7 @@ Const
 
  { Constantes pour la barre d'outils (verticale, a gauche) }
  TOOLBAR_COUNT = 9;
- TOOLBAR_TOP = 43;        { Juste en dessous de la barre d'icones }
+ CLASSIC_TOOLBAR_TOP = 43;        { Juste en dessous de la barre d'icones }
  CLASSIC_TOOLBAR_WIDTH = 28;      { Largeur de la barre d'outils verticale }
  TOOLBAR_HEIGHT = 26;     { Conserve pour compatibilite (hauteur d'un bouton) }
  TOOLBAR_BUTTON_SIZE = 24; { Taille d'un bouton }
@@ -351,7 +351,7 @@ Type
  End;
 
 Var
- TOOLBAR_WIDTH, WORK_AREA_TOP: Integer;
+ TOOLBAR_TOP, TOOLBAR_WIDTH, WORK_AREA_TOP: Integer;
  RibbonMode, RibbonKeyboard: Boolean;
  AboutDialogVisible: Boolean;
  TextEditShape, TextEditCursor, TextEditOldX2, TextEditOldY2: Integer;
@@ -13835,7 +13835,6 @@ Var
  I: Integer;
  ToolIndex: Integer;
 Begin
- If RibbonMode Then Exit;
  { Dessiner le fond de la barre d'outils (colonne verticale a gauche) }
  SetFillStyle(SolidFill, TOOLBAR_COLOR);
  Bar(0, TOOLBAR_TOP, TOOLBAR_WIDTH, ScreenHeight);
@@ -13856,7 +13855,6 @@ Function GetToolAtPosition(MouseX, MouseY: Integer): Integer;
 Var
  I, X, Y: Integer;
 Begin
- If RibbonMode Then Begin GetToolAtPosition := 0; Exit; End;
  GetToolAtPosition := 0;
 
  If (MouseX < 0) or (MouseX > TOOLBAR_WIDTH) or (MouseY < TOOLBAR_TOP) Then Exit;
@@ -14586,6 +14584,8 @@ Begin
  GetResizeHandle := RESIZE_HANDLE_NONE;
 
  If (ShapeIndex < 1) or (ShapeIndex > ShapeCount) Then Exit;
+ If Not IsLayerVisible(Shapes[ShapeIndex].LayerIndex) or
+    IsLayerLocked(Shapes[ShapeIndex].LayerIndex) Then Exit;
  If Not Shapes[ShapeIndex].Selected Then Exit;
 
  X1 := Shapes[ShapeIndex].X1;
@@ -14702,6 +14702,8 @@ End;
 Procedure StartDrag(ShapeIndex: Integer; X, Y: Integer; Handle: Integer);
 Begin
  If (ShapeIndex < 1) or (ShapeIndex > ShapeCount) Then Exit;
+ If Not IsLayerVisible(Shapes[ShapeIndex].LayerIndex) or
+    IsLayerLocked(Shapes[ShapeIndex].LayerIndex) Then Exit;
 
  DragStartX := X;
  DragStartY := Y;
@@ -15351,7 +15353,12 @@ Begin
 
  { Ajouter la forme si elle a une taille minimale }
  If (Abs(X - DrawStartX) > 5) or (Abs(Y - DrawStartY) > 5) Then Begin
-  AddShape(ShapeType, DrawStartX, DrawStartY, X, Y);
+  If ShapeCount<MAX_SHAPES Then Begin
+   AddShape(ShapeType, DrawStartX, DrawStartY, X, Y);
+   { Donner immediatement le focus et les poignees a la nouvelle forme. }
+   SelectShape(ShapeCount);
+   CurrentTool:=ttSelection;
+  End;
  End;
 End;
 
@@ -17553,7 +17560,6 @@ Var I,N:Integer;
 Begin
  N:=0;For I:=1 To GetMenuItemCount(RibbonTab) Do
   If Not IsMenuSeparator(RibbonTab,I) Then Inc(N);
- If RibbonTab=4 Then Inc(N,TOOLBAR_COUNT);
  RibbonItemCount:=N;
 End;
 
@@ -17593,16 +17599,6 @@ Begin
     SetColor(Blue);Rectangle(X+5,Y+6,X+19,Y+19);
     Line(X+8,Y+10,X+16,Y+10);Line(X+8,Y+14,X+16,Y+14);
    End;
-  End Else Begin
-   J:=I-6;Caption:=ToolNames[J];DrawToolIcon(X,Y+1,J);
-   If CurrentTool=TToolType(J-1) Then Begin
-    SetColor(Blue);Line(X+26,Y+21,X+W-6,Y+21);
-   End;
-   If J=7 Then Begin SetColor(Blue);Line(X+5,Y+18,X+12,Y+5);
-    Line(X+12,Y+5,X+21,Y+18);Line(X+21,Y+18,X+5,Y+18);End;
-   If J=8 Then Begin SetColor(Blue);Arc(X+12,Y+13,0,180,8);End;
-   If J=9 Then Begin SetColor(Blue);Rectangle(X+4,Y+5,X+22,Y+20);
-    Line(X+4,Y+20,X+12,Y+12);Line(X+12,Y+12,X+22,Y+20);End;
   End;
   If (RibbonTab>6) and Not ((RibbonTab=9) and (J=3)) Then SetColor(DarkGray)
   Else SetColor(Black);
@@ -17616,8 +17612,8 @@ Var J:Integer;
 Begin
  If (Index<1) or (Index>RibbonItemCount) Then Exit;
  J:=RibbonMenuItem(Index);
- If J=0 Then SelectTool(Index-6)
- Else Case RibbonTab Of
+ If J=0 Then Exit;
+ Case RibbonTab Of
   1: If ExecuteFileMenuAction(J) Then Halt;
   2: ExecuteEditMenuAction(J);
   3: ExecuteViewMenuAction(J);
@@ -17697,7 +17693,8 @@ Begin
   End;
  End;
  TOOLBAR_WIDTH:=CLASSIC_TOOLBAR_WIDTH;WORK_AREA_TOP:=CLASSIC_WORK_AREA_TOP;
- If RibbonMode Then Begin TOOLBAR_WIDTH:=0;WORK_AREA_TOP:=MENU_HEIGHT+120;End;
+ If RibbonMode Then WORK_AREA_TOP:=MENU_HEIGHT+120;
+ TOOLBAR_TOP:=WORK_AREA_TOP;
 End;
 
 Procedure RefreshScreen;
