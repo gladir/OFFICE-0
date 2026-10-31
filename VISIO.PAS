@@ -1,6 +1,7 @@
 { @author: Sylvain Maltais (support@gladir.com)
   @created: 2026
   @version: 1.00
+  @website(https://www.gladir.com/clonedraw)
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Free Pascal 3.2
   @description: Clone de l'application Visio de Microsoft
@@ -360,6 +361,7 @@ Var
  RibbonTab, RibbonFocus, RibbonHover: Integer;
  RibbonScan: Char;
  CommandLineFile: String;
+ MaxScreen: Boolean;
  Language:(_French,_English,_Germany,_Italian,_Spain,_Albanian,_Portuguese,_Swedish,_Danish,_Japanese);
  TmpLanguage:String;
 
@@ -422,21 +424,57 @@ Var
  CurrentStencil: Integer;        { Stencil actuellement sÃ©lectionnÃ© }
  NextMasterID: LongInt;          { Prochain ID de master disponible }
 
+{ Mode graphique : VGA 640 x 480, ou, avec -maxscreen sous Free Pascal, la
+  resolution maximale du pilote D8bit (sans effet sous Turbo Pascal). }
+Procedure SelectScreenDriverMode(WantMaxScreen: Boolean;
+ Var Driver, Mode: Integer);
+{$IFDEF FPC}
+Var LoMode, HiMode: SmallInt;
+{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ Driver:=VGA;
+ Mode:=VGAHi;
+ If WantMaxScreen Then Begin
+  Driver:=D8bit;
+  GetModeRange(Driver,LoMode,HiMode);
+  If HiMode>=LoMode Then Mode:=HiMode
+  Else Begin Driver:=VGA; Mode:=VGAHi; End;
+ End;
+ {$ELSE}
+ Driver:=Detect;
+ Mode:=VGAHi;
+ {$ENDIF}
+End;
+
+{ Les seize couleurs de l'interface restent identiques dans le pilote D8bit. }
+Procedure InitializeScreenPalette;
+{$IFDEF FPC}
+Const
+ RGB: Array[0..15, 0..2] of Byte = (
+  (0,0,0), (0,0,170), (0,170,0), (0,170,170),
+  (170,0,0), (170,0,170), (170,85,0), (170,170,170),
+  (85,85,85), (85,85,255), (85,255,85), (85,255,255),
+  (255,85,85), (255,85,255), (255,255,85), (255,255,255));
+Var I: Integer;
+{$ENDIF}
+Begin
+ {$IFDEF FPC}
+ If GetMaxColor > 15 Then
+  For I := 0 To 15 Do SetRGBPalette(I, RGB[I,0], RGB[I,1], RGB[I,2]);
+ {$ENDIF}
+End;
+
 Procedure InitializeGraphics;
 Var
  Driver, Mode: Integer;
  ErrCode: Integer;
 Begin
- {$IFDEF FPC}
-  Driver:=VGA;
-  Mode:=VGAHi;
- {$ELSE}
-  Driver:=Detect;
-  Mode:=VGAHi;
- {$ENDIF}
+ SelectScreenDriverMode(MaxScreen,Driver,Mode);
  InitGraph(Driver,Mode,'');
  ErrCode:=GraphResult;
  If ErrCode=grOk Then Begin
+  InitializeScreenPalette;
   SetColor(White);
   SetLineStyle(0,0,1);
  End
@@ -17669,8 +17707,11 @@ Procedure ShowCommandLineHelp;
 Var OutputFile:Text;
 Begin
  Assign(OutputFile,'');Rewrite(OutputFile);
- WriteLn(OutputFile,'VISIO - Editeur de diagrammes');
- WriteLn(OutputFile,'Syntaxe : VISIO [/CLASSICMENU | /RUBANMENU] [fichier.VSDX]');
+ WriteLn(OutputFile,'VISIO - Cette commande permet lancer l''editeur de diagrammes.');
+ WriteLn;
+ WriteLn(OutputFile,'Syntaxe : VISIO [/CLASSICMENU | /RUBANMENU] [-maxscreen] [fichier.VSDX]');
+ WriteLn;
+ WriteLn(OutputFile,'  -maxscreen           Utilise la resolution maximale disponible.');
  WriteLn(OutputFile,' /CLASSICMENU  Menus classiques (par defaut).');
  WriteLn(OutputFile,' /RUBANMENU    Ruban avec commandes et outils de dessin integres.');
  WriteLn(OutputFile,' /?            Afficher cette aide (-h et --help aussi).');
@@ -17682,11 +17723,13 @@ Procedure ParseCommandLine;
 Var I:Integer;S:String;
 Begin
  RibbonMode:=False;RibbonTab:=2;RibbonHover:=0;RibbonFocus:=0;RibbonKeyboard:=False;
+ MaxScreen:=False;
  CommandLineFile:='';
  For I:=1 To ParamCount Do Begin
   S:=StrToUpper(ParamStr(I));
   If S='/CLASSICMENU' Then RibbonMode:=False
   Else If S='/RUBANMENU' Then RibbonMode:=True
+  Else If (S='-MAXSCREEN') Or (S='/MAXSCREEN') Then MaxScreen:=True
   Else Begin
    If CommandLineFile<>'' Then CommandLineFile:=CommandLineFile+' ';
    CommandLineFile:=CommandLineFile+ParamStr(I);
