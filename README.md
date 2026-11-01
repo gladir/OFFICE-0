@@ -25,6 +25,10 @@ Aperçu du clone de Outlook :
 
 <img width="639" height="481" alt="image" src="https://github.com/user-attachments/assets/0b6d7013-6a94-4398-8410-9d22c5aa0d53" />
 
+Aperçu du clone de PowerPoint :
+
+<img width="638" height="481" alt="image" src="https://github.com/user-attachments/assets/52a715e5-36cc-46d8-a4ea-346f7db61546" />
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
