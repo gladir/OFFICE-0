@@ -1,6 +1,10 @@
 # OFFICE-0
 Liste de commandes écrit en Pascal (Turbo Pascal et/ou Free Pascal) pour le bureau
 
+Aperçu de 1-2-3 :
+
+<img width="726" height="463" alt="image" src="https://github.com/user-attachments/assets/44a7ccda-5787-4814-ac00-b31c3d2256b3" />
+
 Aperçu du clone d'Access :
 
 <img width="638" height="475" alt="image" src="https://github.com/user-attachments/assets/975ff2d1-e9ec-4966-b614-393b2c3a2f1d" />
