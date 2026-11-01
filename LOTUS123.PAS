@@ -249,7 +249,7 @@ Type
 
  { Entree du menu : libelle, commande, sous-menu }
  TMI = Record
-  L : String[26];
+  L : String[40];
   C : Integer;
   S : Integer;
  End;
@@ -349,6 +349,7 @@ Var
  OffX, OffY  : Integer;      { decalage de dessin (graphique incorpore) }
 
  FindText    : String;
+ French      : Boolean;
 
 { ====================================================================== }
 {                  INITIALISATION GRAPHIQUE ET SOURIS                    }
@@ -934,6 +935,357 @@ Begin
  FormatValue:=S;
 End;
 
+{ ====================================================================== }
+{                  LANGUE : FRANCAIS (defaut) / ANGLAIS                  }
+{ ====================================================================== }
+
+{ Choisit entre l'anglais et le francais }
+Function Tx(Const En,Fr: String): String;
+Begin
+ If French Then Tx:=Fr Else Tx:=En;
+End;
+
+{ Traduit un texte anglais en francais (identite si LANGUAGE=EN ou inconnu) }
+Function Tr(Const S: String): String;
+Begin
+ Tr:=S;
+ If Not French Then Exit;
+ If S='&File' Then Begin Tr:='&Fichier'; Exit; End;
+ If S='&Edit' Then Begin Tr:='&Edition'; Exit; End;
+ If S='&Worksheet' Then Begin Tr:='Fe&uille'; Exit; End;
+ If S='&Range' Then Begin Tr:='&Plage'; Exit; End;
+ If S='&Graph' Then Begin Tr:='&Graphique'; Exit; End;
+ If S='&Data' Then Begin Tr:='&Donnees'; Exit; End;
+ If S='&Style' Then Begin Tr:='&Style'; Exit; End;
+ If S='&Tools' Then Begin Tr:='&Outils'; Exit; End;
+ If S='Wi&ndow' Then Begin Tr:='Fene&tre'; Exit; End;
+ If S='&Help' Then Begin Tr:='&Aide'; Exit; End;
+ If S='&Chart' Then Begin Tr:='&Graphique'; Exit; End;
+ If S='&Draw' Then Begin Tr:='&Dessin'; Exit; End;
+ If S='&Layout' Then Begin Tr:='&Mise en page'; Exit; End;
+ If S='Re&arrange' Then Begin Tr:='&Reorganiser'; Exit; End;
+ If S='&New...|Ctrl+N' Then Begin Tr:='&Nouveau...|Ctrl+N'; Exit; End;
+ If S='&Open...|Ctrl+O' Then Begin Tr:='&Ouvrir...|Ctrl+O'; Exit; End;
+ If S='&Close' Then Begin Tr:='&Fermer'; Exit; End;
+ If S='&Save|Ctrl+S' Then Begin Tr:='&Enregistrer|Ctrl+S'; Exit; End;
+ If S='Save &As...' Then Begin Tr:='Enregistrer &sous...'; Exit; End;
+ If S='&Print...|Ctrl+P' Then Begin Tr:='&Imprimer...|Ctrl+P'; Exit; End;
+ If S='E&xit|Alt+F4' Then Begin Tr:='&Quitter|Alt+F4'; Exit; End;
+ If S='&Undo|Ctrl+Z' Then Begin Tr:='&Annuler|Ctrl+Z'; Exit; End;
+ If S='Cu&t|Ctrl+X' Then Begin Tr:='Co&uper|Ctrl+X'; Exit; End;
+ If S='&Copy|Ctrl+C' Then Begin Tr:='&Copier|Ctrl+C'; Exit; End;
+ If S='&Paste|Ctrl+V' Then Begin Tr:='C&oller|Ctrl+V'; Exit; End;
+ If S='Paste &Special...' Then Begin Tr:='Collage &special...'; Exit; End;
+ If S='Cl&ear|Del' Then Begin Tr:='E&ffacer|Suppr'; Exit; End;
+ If S='Clear A&ll' Then Begin Tr:='Effacer &tout'; Exit; End;
+ If S='&Find...' Then Begin Tr:='&Rechercher...'; Exit; End;
+ If S='&Go To...|F5' Then Begin Tr:='A&ller a...|F5'; Exit; End;
+ If S='&Insert' Then Begin Tr:='&Inserer'; Exit; End;
+ If S='&Delete' Then Begin Tr:='&Supprimer'; Exit; End;
+ If S='Column &Width...' Then Begin Tr:='Largeur de &colonne...'; Exit; End;
+ If S='Set Row &Height...' Then Begin Tr:='&Hauteur de ligne...'; Exit; End;
+ If S='&Hide...' Then Begin Tr:='Mas&quer...'; Exit; End;
+ If S='&Titles...' Then Begin Tr:='&Titres...'; Exit; End;
+ If S='Global &Settings' Then Begin Tr:='&Parametres globaux'; Exit; End;
+ If S='&Number Format' Then Begin Tr:='&Format numerique'; Exit; End;
+ If S='&Decimal Places...' Then Begin Tr:='&Decimales...'; Exit; End;
+ If S='&Name' Then Begin Tr:='No&m'; Exit; End;
+ If S='&Transpose...' Then Begin Tr:='&Transposer...'; Exit; End;
+ If S='&Justify' Then Begin Tr:='&Justifier'; Exit; End;
+ If S='&Protect' Then Begin Tr:='&Proteger'; Exit; End;
+ If S='&Unprotect' Then Begin Tr:='D&eproteger'; Exit; End;
+ If S='&New...' Then Begin Tr:='&Nouveau...'; Exit; End;
+ If S='&View...' Then Begin Tr:='&Voir...'; Exit; End;
+ If S='&Add to Sheet...' Then Begin Tr:='&Ajouter a la feuille...'; Exit; End;
+ If S='&Import...' Then Begin Tr:='&Importer...'; Exit; End;
+ If S='&Size...' Then Begin Tr:='&Taille...'; Exit; End;
+ If S='&Refresh' Then Begin Tr:='&Reactualiser'; Exit; End;
+ If S='&Go To...' Then Begin Tr:='A&ller a...'; Exit; End;
+ If S='&Fill...' Then Begin Tr:='&Remplir...'; Exit; End;
+ If S='&Sort...' Then Begin Tr:='&Trier...'; Exit; End;
+ If S='&Query...' Then Begin Tr:='Re&quete...'; Exit; End;
+ If S='&Table' Then Begin Tr:='Tabl&e'; Exit; End;
+ If S='&Distribution' Then Begin Tr:='&Distribution'; Exit; End;
+ If S='&Matrix' Then Begin Tr:='&Matrice'; Exit; End;
+ If S='&Regression' Then Begin Tr:='Re&gression'; Exit; End;
+ If S='&Parse...' Then Begin Tr:='A&nalyser...'; Exit; End;
+ If S='Font && Attributes' Then Begin Tr:='&Police et attributs'; Exit; End;
+ If S='Lines && Color' Then Begin Tr:='&Lignes et couleurs'; Exit; End;
+ If S='&Alignment' Then Begin Tr:='&Alignement'; Exit; End;
+ If S='&Row Height...' Then Begin Tr:='&Hauteur de ligne...'; Exit; End;
+ If S='Named &Style...' Then Begin Tr:='Style &nomme...'; Exit; End;
+ If S='&Spell Check...' Then Begin Tr:='&Orthographe...'; Exit; End;
+ If S='&Recalculate|F9' Then Begin Tr:='&Recalculer|F9'; Exit; End;
+ If S='Smart&Icons' Then Begin Tr:='&Icones'; Exit; End;
+ If S='&Macro' Then Begin Tr:='&Macro'; Exit; End;
+ If S='&User Setup...' Then Begin Tr:='&Preferences...'; Exit; End;
+ If S='&Next Sheet|Ctrl+PgUp' Then Begin Tr:='Feuille &suivante|Ctrl+PgUp'; Exit; End;
+ If S='&Previous Sheet|Ctrl+PgDn' Then Begin Tr:='Feuille &precedente|Ctrl+PgDn'; Exit; End;
+ If S='&Gridlines' Then Begin Tr:='&Quadrillage'; Exit; End;
+ If S='&Headings' Then Begin Tr:='&En-tetes'; Exit; End;
+ If S='&Help Topics|F1' Then Begin Tr:='&Aide sur 1-2-3|F1'; Exit; End;
+ If S='&About 1-2-3...' Then Begin Tr:='A &propos de 1-2-3...'; Exit; End;
+ If S='&Row' Then Begin Tr:='&Ligne'; Exit; End;
+ If S='&Column' Then Begin Tr:='&Colonne'; Exit; End;
+ If S='&Sheet' Then Begin Tr:='&Feuille'; Exit; End;
+ If S='Default Column &Width...' Then Begin Tr:='&Largeur de colonne par defaut...'; Exit; End;
+ If S='&Automatic Recalc' Then Begin Tr:='&Recalcul automatique'; Exit; End;
+ If S='&General' Then Begin Tr:='&General'; Exit; End;
+ If S='&Fixed' Then Begin Tr:='&Fixe'; Exit; End;
+ If S='&Scientific' Then Begin Tr:='&Scientifique'; Exit; End;
+ If S='&Currency' Then Begin Tr:='&Monetaire'; Exit; End;
+ If S='Co&mma (,)' Then Begin Tr:='&Virgule (,)'; Exit; End;
+ If S='&Percent' Then Begin Tr:='&Pourcentage'; Exit; End;
+ If S='+/-  &Bars' Then Begin Tr:='+/-  &Barres'; Exit; End;
+ If S='Date D-MMM-YY' Then Begin Tr:='Date JJ-MMM-AA'; Exit; End;
+ If S='Date DD-MMM' Then Begin Tr:='Date JJ-MMM'; Exit; End;
+ If S='Date MMM-YY' Then Begin Tr:='Date MMM-AA'; Exit; End;
+ If S='Date MM/DD/YY' Then Begin Tr:='Date MM/JJ/AA'; Exit; End;
+ If S='&Time HH:MM AM/PM' Then Begin Tr:='He&ure HH:MM AM/PM'; Exit; End;
+ If S='T&ext (formulas)' Then Begin Tr:='T&exte (formules)'; Exit; End;
+ If S='&Hidden' Then Begin Tr:='&Cache'; Exit; End;
+ If S='&Create...' Then Begin Tr:='&Creer...'; Exit; End;
+ If S='&Reset (delete all)' Then Begin Tr:='&Tout supprimer'; Exit; End;
+ If S='&Use...' Then Begin Tr:='&Utiliser...'; Exit; End;
+ If S='&Bold|Ctrl+B' Then Begin Tr:='&Gras|Ctrl+B'; Exit; End;
+ If S='&Italic|Ctrl+I' Then Begin Tr:='&Italique|Ctrl+I'; Exit; End;
+ If S='&Underline|Ctrl+U' Then Begin Tr:='&Souligne|Ctrl+U'; Exit; End;
+ If S='&Normal' Then Begin Tr:='&Normal'; Exit; End;
+ If S='&Text Color...' Then Begin Tr:='Couleur du &texte...'; Exit; End;
+ If S='&Background Color...' Then Begin Tr:='Couleur de &fond...'; Exit; End;
+ If S='&Border...' Then Begin Tr:='&Bordure...'; Exit; End;
+ If S='&Left' Then Begin Tr:='Ga&uche'; Exit; End;
+ If S='&Center' Then Begin Tr:='&Centre'; Exit; End;
+ If S='&Right' Then Begin Tr:='&Droite'; Exit; End;
+ If S='&Undo' Then Begin Tr:='&Annuler'; Exit; End;
+ If S='Cu&t' Then Begin Tr:='Co&uper'; Exit; End;
+ If S='&Copy' Then Begin Tr:='&Copier'; Exit; End;
+ If S='&Paste' Then Begin Tr:='C&oller'; Exit; End;
+ If S='Cl&ear Object|Del' Then Begin Tr:='E&ffacer objet|Suppr'; Exit; End;
+ If S='Clear &All Objects' Then Begin Tr:='Effacer &tous les objets'; Exit; End;
+ If S='&Print...' Then Begin Tr:='&Imprimer...'; Exit; End;
+ If S='&Type' Then Begin Tr:='&Type'; Exit; End;
+ If S='&3D View' Then Begin Tr:='Vue &3D'; Exit; End;
+ If S='&Ranges...' Then Begin Tr:='&Plages...'; Exit; End;
+ If S='&Headings...' Then Begin Tr:='T&itres...'; Exit; End;
+ If S='Legend &Text...' Then Begin Tr:='Texte de &legende...'; Exit; End;
+ If S='&Axis Scale...' Then Begin Tr:='&Echelle des axes...'; Exit; End;
+ If S='&Name...' Then Begin Tr:='&Nom...'; Exit; End;
+ If S='&Select' Then Begin Tr:='&Selection'; Exit; End;
+ If S='&Line' Then Begin Tr:='&Ligne'; Exit; End;
+ If S='&Arrow' Then Begin Tr:='&Fleche'; Exit; End;
+ If S='&Rectangle' Then Begin Tr:='&Rectangle'; Exit; End;
+ If S='&Ellipse' Then Begin Tr:='&Ellipse'; Exit; End;
+ If S='&Text...' Then Begin Tr:='&Texte...'; Exit; End;
+ If S='&Legend' Then Begin Tr:='&Legende'; Exit; End;
+ If S='&Frame' Then Begin Tr:='&Cadre'; Exit; End;
+ If S='&Grid' Then Begin Tr:='&Quadrillage'; Exit; End;
+ If S='&Markers' Then Begin Tr:='&Marqueurs'; Exit; End;
+ If S='&Flip Series Order' Then Begin Tr:='&Inverser lordre des series'; Exit; End;
+ If S='3D Depth &Larger' Then Begin Tr:='Profondeur 3D &plus grande'; Exit; End;
+ If S='3D Depth &Smaller' Then Begin Tr:='Profondeur 3D plus p&etite'; Exit; End;
+ If S='&Series Colors' Then Begin Tr:='&Couleurs des series'; Exit; End;
+ If S='&Refresh Data' Then Begin Tr:='&Actualiser les donnees'; Exit; End;
+ If S='Return to &Worksheet' Then Begin Tr:='&Retour a la feuille'; Exit; End;
+ If S='&Bar' Then Begin Tr:='&Barres'; Exit; End;
+ If S='&Stacked Bar' Then Begin Tr:='Barres &empilees'; Exit; End;
+ If S='&Horizontal Bar' Then Begin Tr:='Barres &horizontales'; Exit; End;
+ If S='&Area' Then Begin Tr:='&Aires'; Exit; End;
+ If S='&Pie' Then Begin Tr:='&Secteurs'; Exit; End;
+ If S='&XY' Then Begin Tr:='&XY'; Exit; End;
+ If S='&None' Then Begin Tr:='&Aucun'; Exit; End;
+ If S='&Horizontal' Then Begin Tr:='&Horizontal'; Exit; End;
+ If S='&Vertical' Then Begin Tr:='&Vertical'; Exit; End;
+ If S='&Both' Then Begin Tr:='&Les deux'; Exit; End;
+ If S='Series &1...' Then Begin Tr:='Serie &1...'; Exit; End;
+ If S='Series &2...' Then Begin Tr:='Serie &2...'; Exit; End;
+ If S='Series &3...' Then Begin Tr:='Serie &3...'; Exit; End;
+ If S='Series &4...' Then Begin Tr:='Serie &4...'; Exit; End;
+ If S='Series &5...' Then Begin Tr:='Serie &5...'; Exit; End;
+ If S='Series &6...' Then Begin Tr:='Serie &6...'; Exit; End;
+ If S='Create a new worksheet file' Then Begin Tr:='Cree un nouveau fichier de feuille de calcul'; Exit; End;
+ If S='Open an existing file' Then Begin Tr:='Ouvre un fichier existant'; Exit; End;
+ If S='Save the current file' Then Begin Tr:='Enregistre le fichier courant'; Exit; End;
+ If S='Save the current file under a new name' Then Begin Tr:='Enregistre le fichier courant sous un nouveau nom'; Exit; End;
+ If S='Print the worksheet to a text file' Then Begin Tr:='Imprime la feuille dans un fichier texte'; Exit; End;
+ If S='Exit 1-2-3' Then Begin Tr:='Quitte 1-2-3'; Exit; End;
+ If S='Undo the last change' Then Begin Tr:='Annule la derniere modification'; Exit; End;
+ If S='Move the selected range to the clipboard' Then Begin Tr:='Deplace la plage selectionnee vers le presse-papiers'; Exit; End;
+ If S='Copy the selected range to the clipboard' Then Begin Tr:='Copie la plage selectionnee dans le presse-papiers'; Exit; End;
+ If S='Paste the clipboard contents at the cell pointer' Then Begin Tr:='Colle le contenu du presse-papiers a la cellule courante'; Exit; End;
+ If S='Erase the contents of the selected range' Then Begin Tr:='Efface le contenu de la plage selectionnee'; Exit; End;
+ If S='Erase contents and styles of the selected range' Then Begin Tr:='Efface le contenu et les styles de la plage selectionnee'; Exit; End;
+ If S='Find text in the worksheet' Then Begin Tr:='Recherche du texte dans la feuille'; Exit; End;
+ If S='Move the cell pointer to a cell address or range name' Then Begin Tr:='Deplace le curseur vers une adresse ou un nom de plage'; Exit; End;
+ If S='Insert rows above the selected range' Then Begin Tr:='Insere des lignes au-dessus de la plage selectionnee'; Exit; End;
+ If S='Insert columns left of the selected range' Then Begin Tr:='Insere des colonnes a gauche de la plage selectionnee'; Exit; End;
+ If S='Delete the rows of the selected range' Then Begin Tr:='Supprime les lignes de la plage selectionnee'; Exit; End;
+ If S='Delete the columns of the selected range' Then Begin Tr:='Supprime les colonnes de la plage selectionnee'; Exit; End;
+ If S='Change the width of the selected columns' Then Begin Tr:='Modifie la largeur des colonnes selectionnees'; Exit; End;
+ If S='Change the height of the selected rows' Then Begin Tr:='Modifie la hauteur des lignes selectionnees'; Exit; End;
+ If S='Set the default column width' Then Begin Tr:='Definit la largeur de colonne par defaut'; Exit; End;
+ If S='Recalculate formulas automatically' Then Begin Tr:='Recalcule les formules automatiquement'; Exit; End;
+ If S='Show or hide the worksheet gridlines' Then Begin Tr:='Affiche ou masque le quadrillage de la feuille'; Exit; End;
+ If S='Show or hide the row and column headings' Then Begin Tr:='Affiche ou masque les en-tetes de lignes et colonnes'; Exit; End;
+ If S='Set the number of decimal places' Then Begin Tr:='Definit le nombre de decimales'; Exit; End;
+ If S='Assign a name to the selected range' Then Begin Tr:='Attribue un nom a la plage selectionnee'; Exit; End;
+ If S='Delete a range name' Then Begin Tr:='Supprime un nom de plage'; Exit; End;
+ If S='Delete all range names' Then Begin Tr:='Supprime tous les noms de plages'; Exit; End;
+ If S='Copy the range, swapping rows and columns' Then Begin Tr:='Copie la plage en echangeant lignes et colonnes'; Exit; End;
+ If S='Create and name a graph based on data in the current worksheet' Then Begin Tr:='Cree et nomme un graphique a partir des donnees de la feuille courante'; Exit; End;
+ If S='Display a named graph' Then Begin Tr:='Affiche un graphique nomme'; Exit; End;
+ If S='Place a named graph in the worksheet' Then Begin Tr:='Place un graphique nomme dans la feuille'; Exit; End;
+ If S='Make a named graph current' Then Begin Tr:='Rend un graphique nomme courant'; Exit; End;
+ If S='Name the current graph' Then Begin Tr:='Nomme le graphique courant'; Exit; End;
+ If S='Delete a named graph' Then Begin Tr:='Supprime un graphique nomme'; Exit; End;
+ If S='Redraw graphs with the latest worksheet data' Then Begin Tr:='Redessine les graphiques avec les donnees a jour'; Exit; End;
+ If S='Move to a graph placed in the worksheet' Then Begin Tr:='Se deplace vers un graphique place dans la feuille'; Exit; End;
+ If S='Fill the selected range with a series of numbers' Then Begin Tr:='Remplit la plage selectionnee avec une serie de nombres'; Exit; End;
+ If S='Sort the selected range' Then Begin Tr:='Trie la plage selectionnee'; Exit; End;
+ If S='Make the selected text bold' Then Begin Tr:='Met le texte selectionne en gras'; Exit; End;
+ If S='Make the selected text italic' Then Begin Tr:='Met le texte selectionne en italique'; Exit; End;
+ If S='Underline the selected text' Then Begin Tr:='Souligne le texte selectionne'; Exit; End;
+ If S='Remove all text attributes' Then Begin Tr:='Supprime tous les attributs de texte'; Exit; End;
+ If S='Change the text color of the selected range' Then Begin Tr:='Change la couleur du texte de la plage selectionnee'; Exit; End;
+ If S='Change the background color of the selected range' Then Begin Tr:='Change la couleur de fond de la plage selectionnee'; Exit; End;
+ If S='Use the default alignment' Then Begin Tr:='Utilise lalignement par defaut'; Exit; End;
+ If S='Align contents to the left' Then Begin Tr:='Aligne le contenu a gauche'; Exit; End;
+ If S='Center the contents' Then Begin Tr:='Centre le contenu'; Exit; End;
+ If S='Align contents to the right' Then Begin Tr:='Aligne le contenu a droite'; Exit; End;
+ If S='Recalculate all formulas' Then Begin Tr:='Recalcule toutes les formules'; Exit; End;
+ If S='Show or hide the SmartIcons palette' Then Begin Tr:='Affiche ou masque la palette dicones'; Exit; End;
+ If S='Move to the next worksheet' Then Begin Tr:='Passe a la feuille suivante'; Exit; End;
+ If S='Move to the previous worksheet' Then Begin Tr:='Passe a la feuille precedente'; Exit; End;
+ If S='Display help on using 1-2-3' Then Begin Tr:='Affiche laide sur 1-2-3'; Exit; End;
+ If S='Display program information' Then Begin Tr:='Affiche les informations sur le programme'; Exit; End;
+ If S='Sum the cells above or to the left' Then Begin Tr:='Additionne les cellules au-dessus ou a gauche'; Exit; End;
+ If S='Create a chart from the selected range' Then Begin Tr:='Cree un graphique a partir de la plage selectionnee'; Exit; End;
+ If S='Return to the worksheet' Then Begin Tr:='Retourne a la feuille de calcul'; Exit; End;
+ If S='Remove the last drawn object' Then Begin Tr:='Supprime le dernier objet dessine'; Exit; End;
+ If S='Delete the last drawn object' Then Begin Tr:='Supprime le dernier objet dessine'; Exit; End;
+ If S='Delete all drawn objects' Then Begin Tr:='Supprime tous les objets dessines'; Exit; End;
+ If S='Switch between 2D and 3D display' Then Begin Tr:='Bascule entre laffichage 2D et 3D'; Exit; End;
+ If S='Specify the worksheet ranges the graph uses' Then Begin Tr:='Indique les plages de la feuille utilisees par le graphique'; Exit; End;
+ If S='Enter the titles of the graph' Then Begin Tr:='Saisit les titres du graphique'; Exit; End;
+ If S='Show or hide the legend' Then Begin Tr:='Affiche ou masque la legende'; Exit; End;
+ If S='Enter the legend text for each data series' Then Begin Tr:='Saisit le texte de la legende de chaque serie'; Exit; End;
+ If S='Show or hide the frame around the graph' Then Begin Tr:='Affiche ou masque le cadre du graphique'; Exit; End;
+ If S='Set the scale of the Y axis' Then Begin Tr:='Definit lechelle de laxe Y'; Exit; End;
+ If S='Show or hide markers on line graphs' Then Begin Tr:='Affiche ou masque les marqueurs des graphiques en ligne'; Exit; End;
+ If S='Reverse the order of the data series' Then Begin Tr:='Inverse lordre des series de donnees'; Exit; End;
+ If S='Change the background color of the graph' Then Begin Tr:='Change la couleur de fond du graphique'; Exit; End;
+ If S='Redraw the graph with current data' Then Begin Tr:='Redessine le graphique avec les donnees courantes'; Exit; End;
+ If S='Choose a drawing tool for the graph' Then Begin Tr:='Choisit un outil de dessin pour le graphique'; Exit; End;
+ If S='Set the number format of the selected range' Then Begin Tr:='Definit le format numerique de la plage selectionnee'; Exit; End;
+ If S='Change the type of the graph' Then Begin Tr:='Change le type du graphique'; Exit; End;
+ If S='READY' Then Begin Tr:='PRET'; Exit; End;
+ If S='LABEL' Then Begin Tr:='ETIQ'; Exit; End;
+ If S='VALUE' Then Begin Tr:='VALEUR'; Exit; End;
+ If S='ERROR' Then Begin Tr:='ERREUR'; Exit; End;
+ If S='Over' Then Begin Tr:='Ecras'; Exit; End;
+ If S='Calc' Then Begin Tr:='Calc'; Exit; End;
+ If S='End' Then Begin Tr:='Fin'; Exit; End;
+ If S='Saved' Then Begin Tr:='Enregistre'; Exit; End;
+ If S='Invalid formula' Then Begin Tr:='Formule invalide'; Exit; End;
+ If S='Untitled' Then Begin Tr:='Sans titre'; Exit; End;
+ If S='(No data to graph)' Then Begin Tr:='(Aucune donnee a representer)'; Exit; End;
+ If S='OK' Then Begin Tr:='OK'; Exit; End;
+ If S='Cancel' Then Begin Tr:='Annuler'; Exit; End;
+ If S='Yes' Then Begin Tr:='Oui'; Exit; End;
+ If S='No' Then Begin Tr:='Non'; Exit; End;
+ If S='Default' Then Begin Tr:='Defaut'; Exit; End;
+ If S='Open File' Then Begin Tr:='Ouvrir un fichier'; Exit; End;
+ If S='Save As' Then Begin Tr:='Enregistrer sous'; Exit; End;
+ If S='About 1-2-3' Then Begin Tr:='A propos de 1-2-3'; Exit; End;
+ If S='Sort' Then Begin Tr:='Trier'; Exit; End;
+ If S='Data Fill' Then Begin Tr:='Remplissage de donnees'; Exit; End;
+ If S='1-2-3 Help' Then Begin Tr:='Aide de 1-2-3'; Exit; End;
+ If S='Chart Ranges' Then Begin Tr:='Plages du graphique'; Exit; End;
+ If S='Chart Headings' Then Begin Tr:='Titres du graphique'; Exit; End;
+ If S='Legend Text' Then Begin Tr:='Texte de la legende'; Exit; End;
+ If S='Axis Scale (blank = automatic)' Then Begin Tr:='Echelle des axes (vide = automatique)'; Exit; End;
+ If S='Go To' Then Begin Tr:='Aller a'; Exit; End;
+ If S='Find' Then Begin Tr:='Rechercher'; Exit; End;
+ If S='SUM' Then Begin Tr:='SOMME'; Exit; End;
+ If S='Graph' Then Begin Tr:='Graphique'; Exit; End;
+ If S='Print' Then Begin Tr:='Imprimer'; Exit; End;
+ If S='Range Name Create' Then Begin Tr:='Creer un nom de plage'; Exit; End;
+ If S='Range Name' Then Begin Tr:='Nom de plage'; Exit; End;
+ If S='Delete Range Name' Then Begin Tr:='Supprimer un nom de plage'; Exit; End;
+ If S='Transpose' Then Begin Tr:='Transposer'; Exit; End;
+ If S='Column Width' Then Begin Tr:='Largeur de colonne'; Exit; End;
+ If S='Row Height' Then Begin Tr:='Hauteur de ligne'; Exit; End;
+ If S='Default Column Width' Then Begin Tr:='Largeur de colonne par defaut'; Exit; End;
+ If S='Text Color' Then Begin Tr:='Couleur du texte'; Exit; End;
+ If S='Background Color' Then Begin Tr:='Couleur de fond'; Exit; End;
+ If S='Decimal Places' Then Begin Tr:='Decimales'; Exit; End;
+ If S='Graph New' Then Begin Tr:='Nouveau graphique'; Exit; End;
+ If S='Graph View' Then Begin Tr:='Afficher un graphique'; Exit; End;
+ If S='Graph Name Use' Then Begin Tr:='Utiliser un graphique'; Exit; End;
+ If S='Add Graph to Sheet' Then Begin Tr:='Ajouter un graphique a la feuille'; Exit; End;
+ If S='Graph Name' Then Begin Tr:='Nom du graphique'; Exit; End;
+ If S='Graph Name Create' Then Begin Tr:='Nommer le graphique'; Exit; End;
+ If S='Graph Name Delete' Then Begin Tr:='Supprimer un graphique'; Exit; End;
+ If S='Graph Go To' Then Begin Tr:='Aller au graphique'; Exit; End;
+ If S='Draw' Then Begin Tr:='Dessin'; Exit; End;
+ If S='Draw Text' Then Begin Tr:='Texte du dessin'; Exit; End;
+ If S='Save' Then Begin Tr:='Enregistrer'; Exit; End;
+ If S='Cut' Then Begin Tr:='Couper'; Exit; End;
+ If S='Copy' Then Begin Tr:='Copier'; Exit; End;
+ If S='File name:' Then Begin Tr:='Nom du fichier :'; Exit; End;
+ If S='Types: *.WKC (1-2-3 clone)  *.WK1' Then Begin Tr:='Types : *.WKC (clone 1-2-3)  *.WK1'; Exit; End;
+ If S='Spreadsheet for Windows' Then Begin Tr:='Tableur pour Windows'; Exit; End;
+ If S='Clone' Then Begin Tr:='Clone'; Exit; End;
+ If S='Clone of the Lotus 1-2-3 spreadsheet' Then Begin Tr:='Clone du tableur Lotus 1-2-3'; Exit; End;
+ If S='Target: Turbo Pascal 7 / Free Pascal' Then Begin Tr:='Cible : Turbo Pascal 7 / Free Pascal'; Exit; End;
+ If S='8 sheets, 256 columns, 8192 rows' Then Begin Tr:='8 feuilles, 256 colonnes, 8192 lignes'; Exit; End;
+ If S='There are no named graphs.' Then Begin Tr:='Il ny a aucun graphique nomme.'; Exit; End;
+ If S='Invalid cell or range address.' Then Begin Tr:='Adresse de cellule ou de plage invalide.'; Exit; End;
+ If S='Find text:' Then Begin Tr:='Texte a rechercher :'; Exit; End;
+ If S='Text not found.' Then Begin Tr:='Texte introuvable.'; Exit; End;
+ If S='No numbers found above or to the left.' Then Begin Tr:='Aucun nombre trouve au-dessus ou a gauche.'; Exit; End;
+ If S='Select the range to sort first.' Then Begin Tr:='Selectionnez dabord la plage a trier.'; Exit; End;
+ If S='Sort key column:' Then Begin Tr:='Colonne cle du tri :'; Exit; End;
+ If S='Order (A/D):' Then Begin Tr:='Ordre (C/D) :'; Exit; End;
+ If S='The key column must be inside the selected range.' Then Begin Tr:='La colonne cle doit etre dans la plage selectionnee.'; Exit; End;
+ If S='Start:' Then Begin Tr:='Debut :'; Exit; End;
+ If S='Step:' Then Begin Tr:='Pas :'; Exit; End;
+ If S='Stop:' Then Begin Tr:='Fin :'; Exit; End;
+ If S='Please enter numbers.' Then Begin Tr:='Veuillez saisir des nombres.'; Exit; End;
+ If S='Too many graphs placed in the worksheet.' Then Begin Tr:='Trop de graphiques places dans la feuille.'; Exit; End;
+ If S='Too many named graphs.' Then Begin Tr:='Trop de graphiques nommes.'; Exit; End;
+ If S='X range:' Then Begin Tr:='Plage X :'; Exit; End;
+ If S='One of the ranges is invalid.' Then Begin Tr:='Une des plages est invalide.'; Exit; End;
+ If S='Title:' Then Begin Tr:='Titre :'; Exit; End;
+ If S='Subtitle:' Then Begin Tr:='Sous-titre :'; Exit; End;
+ If S='X axis title:' Then Begin Tr:='Titre de laxe X :'; Exit; End;
+ If S='Y axis title:' Then Begin Tr:='Titre de laxe Y :'; Exit; End;
+ If S='Y minimum:' Then Begin Tr:='Minimum Y :'; Exit; End;
+ If S='Y maximum:' Then Begin Tr:='Maximum Y :'; Exit; End;
+ If S='Enter two numbers with maximum > minimum.' Then Begin Tr:='Saisissez deux nombres avec maximum > minimum.'; Exit; End;
+ If S='Save changes to the current file?' Then Begin Tr:='Enregistrer les modifications du fichier courant ?'; Exit; End;
+ If S='Print the range to this text file:' Then Begin Tr:='Imprimer la plage dans ce fichier texte :'; Exit; End;
+ If S='Name for the selected range:' Then Begin Tr:='Nom de la plage selectionnee :'; Exit; End;
+ If S='Invalid name.' Then Begin Tr:='Nom invalide.'; Exit; End;
+ If S='Too many names.' Then Begin Tr:='Trop de noms.'; Exit; End;
+ If S='There are no range names.' Then Begin Tr:='Il ny a aucun nom de plage.'; Exit; End;
+ If S='Copy the range transposed to (top-left cell):' Then Begin Tr:='Copier la plage transposee vers (cellule en haut a gauche) :'; Exit; End;
+ If S='Invalid cell address.' Then Begin Tr:='Adresse de cellule invalide.'; Exit; End;
+ If S='The range is too large for the clipboard.' Then Begin Tr:='La plage est trop grande pour le presse-papiers.'; Exit; End;
+ If S='Enter a cell address or range name:' Then Begin Tr:='Saisissez une adresse de cellule ou un nom de plage :'; Exit; End;
+ If S='Name for the new graph:' Then Begin Tr:='Nom du nouveau graphique :'; Exit; End;
+ If S='That name is empty or already used.' Then Begin Tr:='Ce nom est vide ou deja utilise.'; Exit; End;
+ If S='There is no current graph.' Then Begin Tr:='Il ny a pas de graphique courant.'; Exit; End;
+ If S='Name for the current graph:' Then Begin Tr:='Nom du graphique courant :'; Exit; End;
+ If S='No graph is placed in the worksheet.' Then Begin Tr:='Aucun graphique nest place dans la feuille.'; Exit; End;
+ If S='Too many objects on this graph.' Then Begin Tr:='Trop dobjets sur ce graphique.'; Exit; End;
+ If S='Text to place on the graph:' Then Begin Tr:='Texte a placer sur le graphique :'; Exit; End;
+ If S='Width (characters, 1-240):' Then Begin Tr:='Largeur (caracteres, 1-240) :'; Exit; End;
+ If S='Height (pixels, 10-120):' Then Begin Tr:='Hauteur (pixels, 10-120) :'; Exit; End;
+ If S='Number of decimal places (0-15):' Then Begin Tr:='Nombre de decimales (0-15) :'; Exit; End;
+ If S='(not a 1-2-3 clone or WK1 file)' Then Begin Tr:='(ce nest pas un fichier clone 1-2-3 ni WK1)'; Exit; End;
+ If S='&Worksheet window' Then Begin Tr:='&Fenetre de la feuille'; Exit; End;
+End;
 { ====================================================================== }
 {                  NOMS DE PLAGES ET VALEURS                             }
 { ====================================================================== }
@@ -2630,12 +2982,13 @@ Begin
  RaisedFrame(X1,Y1,X2,Y2);
  RaisedFrame(X1+1,Y1+1,X2-1,Y2-1);
  FillBox(X1+3,Y1+3,X2-3,Y1+19,CL_BLUE);
- BoldAt(X1+8,Y1+7,CL_WHITE,Title);
+ BoldAt(X1+8,Y1+7,CL_WHITE,Tr(Title));
 End;
 
-Procedure DrawButton(X1,Y1,X2,Y2: Integer; Const Cap: String; Default: Boolean);
-Var Tx: Integer;
+Procedure DrawButton(X1,Y1,X2,Y2: Integer; Const Cap0: String; Default: Boolean);
+Var Tx: Integer; Cap: String;
 Begin
+ Cap:=Tr(Cap0);
  FillBox(X1,Y1,X2,Y2,CL_BG);
  If Default Then Rect(X1-1,Y1-1,X2+1,Y2+1,CL_BLACK);
  RaisedFrame(X1,Y1,X2,Y2);
@@ -3167,7 +3520,7 @@ Const
   (L:'&Refresh Data';C:CM_GT_REFRESH;S:0),
   (L:'Return to &Worksheet';C:CM_GW_CLOSE;S:0));
  G_WINDOW: Array[1..1] Of TMI = (
-  (L:'&Worksheet';C:CM_GW_CLOSE;S:0));
+  (L:'&Worksheet window';C:CM_GW_CLOSE;S:0));
  S_CTYPE: Array[1..7] Of TMI = (
   (L:'&Line';C:CM_GT_BASE+CH_LINE;S:0),
   (L:'&Bar';C:CM_GT_BASE+CH_BAR;S:0),
@@ -3211,41 +3564,49 @@ Begin
  End;
 End;
 
-Function MenuItem(M,I: Integer): TMI;
+Function MenuItemEn(M,I: Integer): TMI;
 Begin
  Case M Of
-  MN_FILE: MenuItem:=M_FILE[I];
-  MN_EDIT: MenuItem:=M_EDIT[I];
-  MN_WS: MenuItem:=M_WS[I];
-  MN_RANGE: MenuItem:=M_RANGE[I];
-  MN_GRAPH: MenuItem:=M_GRAPH[I];
-  MN_DATA: MenuItem:=M_DATA[I];
-  MN_STYLE: MenuItem:=M_STYLE[I];
-  MN_TOOLS: MenuItem:=M_TOOLS[I];
-  MN_WINDOW: MenuItem:=M_WINDOW[I];
-  MN_HELP,MG_HELP: MenuItem:=M_HELP[I];
-  SM_INS: MenuItem:=M_INS[I];
-  SM_DEL: MenuItem:=M_DEL[I];
-  SM_GLOBAL: MenuItem:=M_GLOBAL[I];
-  SM_NUMFMT: MenuItem:=M_NUMFMT[I];
-  SM_NAME: MenuItem:=M_NAME[I];
-  SM_GNAME: MenuItem:=M_GNAME[I];
-  SM_FONT: MenuItem:=M_FONT[I];
-  SM_LINES: MenuItem:=M_LINES[I];
-  SM_ALIGN: MenuItem:=M_ALIGN[I];
-  MG_FILE: MenuItem:=G_FILE[I];
-  MG_EDIT: MenuItem:=G_EDIT[I];
-  MG_CHART: MenuItem:=G_CHART[I];
-  MG_DRAW: MenuItem:=G_DRAW[I];
-  MG_LAYOUT: MenuItem:=G_LAYOUT[I];
-  MG_REARR: MenuItem:=G_REARR[I];
-  MG_STYLE: MenuItem:=G_STYLE[I];
-  MG_TOOLS: MenuItem:=G_TOOLS[I];
-  MG_WINDOW: MenuItem:=G_WINDOW[I];
-  SM_CTYPE: MenuItem:=S_CTYPE[I];
-  SM_CGRID: MenuItem:=S_CGRID[I];
-  SM_SERCOL: MenuItem:=S_SERCOL[I];
+  MN_FILE: MenuItemEn:=M_FILE[I];
+  MN_EDIT: MenuItemEn:=M_EDIT[I];
+  MN_WS: MenuItemEn:=M_WS[I];
+  MN_RANGE: MenuItemEn:=M_RANGE[I];
+  MN_GRAPH: MenuItemEn:=M_GRAPH[I];
+  MN_DATA: MenuItemEn:=M_DATA[I];
+  MN_STYLE: MenuItemEn:=M_STYLE[I];
+  MN_TOOLS: MenuItemEn:=M_TOOLS[I];
+  MN_WINDOW: MenuItemEn:=M_WINDOW[I];
+  MN_HELP,MG_HELP: MenuItemEn:=M_HELP[I];
+  SM_INS: MenuItemEn:=M_INS[I];
+  SM_DEL: MenuItemEn:=M_DEL[I];
+  SM_GLOBAL: MenuItemEn:=M_GLOBAL[I];
+  SM_NUMFMT: MenuItemEn:=M_NUMFMT[I];
+  SM_NAME: MenuItemEn:=M_NAME[I];
+  SM_GNAME: MenuItemEn:=M_GNAME[I];
+  SM_FONT: MenuItemEn:=M_FONT[I];
+  SM_LINES: MenuItemEn:=M_LINES[I];
+  SM_ALIGN: MenuItemEn:=M_ALIGN[I];
+  MG_FILE: MenuItemEn:=G_FILE[I];
+  MG_EDIT: MenuItemEn:=G_EDIT[I];
+  MG_CHART: MenuItemEn:=G_CHART[I];
+  MG_DRAW: MenuItemEn:=G_DRAW[I];
+  MG_LAYOUT: MenuItemEn:=G_LAYOUT[I];
+  MG_REARR: MenuItemEn:=G_REARR[I];
+  MG_STYLE: MenuItemEn:=G_STYLE[I];
+  MG_TOOLS: MenuItemEn:=G_TOOLS[I];
+  MG_WINDOW: MenuItemEn:=G_WINDOW[I];
+  SM_CTYPE: MenuItemEn:=S_CTYPE[I];
+  SM_CGRID: MenuItemEn:=S_CGRID[I];
+  SM_SERCOL: MenuItemEn:=S_SERCOL[I];
  End;
+End;
+
+Function MenuItem(M,I: Integer): TMI;
+Var It: TMI;
+Begin
+ It:=MenuItemEn(M,I);
+ It.L:=Copy(Tr(It.L),1,40);
+ MenuItem:=It;
 End;
 
 { ====================================================================== }
@@ -3417,7 +3778,7 @@ End;
 
 Function BarLabel(B: Integer): String;
 Begin
- If AppMode=0 Then BarLabel:=BAR_SHEET[B] Else BarLabel:=BAR_GRAPH[B];
+ If AppMode=0 Then BarLabel:=Tr(BAR_SHEET[B]) Else BarLabel:=Tr(BAR_GRAPH[B]);
 End;
 
 { Largeur en pixels du libelle visible (sans & ni raccourci) }
@@ -3442,11 +3803,23 @@ Begin
  If P=0 Then ShortW:=0 Else ShortW:=(Length(S)-P)*8;
 End;
 
+Function BarGap: Integer;
+Var I,T,G: Integer;
+Begin
+ T:=0;
+ For I:=1 To 10 Do T:=T+LabelW(BarLabel(I));
+ G:=(SCR_W-40-26-T) Div 10;
+ If G>16 Then G:=16;
+ If G<6 Then G:=6;
+ BarGap:=G;
+End;
+
 Function BarX(B: Integer): Integer;
-Var I,X: Integer;
+Var I,X,G: Integer;
 Begin
  X:=26;
- For I:=1 To B-1 Do X:=X+LabelW(BarLabel(I))+16;
+ G:=BarGap;
+ For I:=1 To B-1 Do X:=X+LabelW(BarLabel(I))+G;
  BarX:=X;
 End;
 
@@ -3499,6 +3872,15 @@ Begin
   If (MY>=T) And (MY<T+ItemH(It)) Then Begin PopupItemAt:=I; Exit; End;
   T:=T+ItemH(It);
  End;
+End;
+
+Function AltLetter(K2: Char): Char;
+Const Scan: String = 'QWERTYUIOP'; Scan2: String = 'ASDFGHJKL'; Scan3: String = 'ZXCVBNM';
+Begin
+ AltLetter:=#0;
+ If (K2>=#16) And (K2<=#25) Then AltLetter:=Scan[Ord(K2)-15]
+ Else If (K2>=#30) And (K2<=#38) Then AltLetter:=Scan2[Ord(K2)-29]
+ Else If (K2>=#44) And (K2<=#50) Then AltLetter:=Scan3[Ord(K2)-43];
 End;
 
 Function ItemEnabled(Const It: TMI): Boolean;
@@ -3624,6 +4006,16 @@ Begin
  End;
 End;
 
+Function BarFromAlt(K2: Char): Integer;
+Var L: Char; B: Integer;
+Begin
+ BarFromAlt:=0;
+ L:=AltLetter(K2);
+ If L=#0 Then Exit;
+ For B:=1 To 10 Do
+  If ItemHot(BarLabel(B))=L Then Begin BarFromAlt:=B; Exit; End;
+End;
+
 Function CurrentHiCmd: Integer;
 Begin
  CurrentHiCmd:=0;
@@ -3643,7 +4035,7 @@ Procedure ExecCmd(Cmd: Integer); Forward;
 Function DocTitle: String;
 Var S: String; I: Integer;
 Begin
- If FileName='' Then S:='Untitled'
+ If FileName='' Then S:=Tr('Untitled')
  Else Begin
   S:=FileName;
   For I:=Length(S) DownTo 1 Do
@@ -3679,12 +4071,12 @@ Begin
  Cmd:=CurrentHiCmd;
  Desc:='';
  If Cmd<>0 Then Desc:=CmdDesc(Cmd);
- If Desc<>'' Then BoldAt(26,5,CL_WHITE,Desc)
+ If Desc<>'' Then BoldAt(26,5,CL_WHITE,Tr(Desc))
  Else Begin
-  T:='1-2-3 for Windows - ['+DocTitle;
+  T:=Tx('1-2-3 for Windows - [','1-2-3 pour Windows - [')+DocTitle;
   If AppMode=1 Then Begin
-   If CurCh<>Nil Then T:='1-2-3 for Windows - [Untitled '+CurCh^.Name+']'
-                 Else T:='1-2-3 for Windows - [Untitled GRAPH]';
+   If CurCh<>Nil Then T:=Tx('1-2-3 for Windows - [','1-2-3 pour Windows - [')+Tr('Untitled')+' '+CurCh^.Name+']'
+                 Else T:=Tx('1-2-3 for Windows - [','1-2-3 pour Windows - [')+Tr('Untitled')+' GRAPH]';
   End Else T:=T+']';
   BoldAt((SCR_W-8*Length(T)) Div 2,5,CL_WHITE,T);
  End;
@@ -3765,7 +4157,7 @@ Begin
  { indicateur de mode }
  FillBox(SCR_W-84,EDIT_Y+2,SCR_W-4,EDIT_Y+EDIT_H-3,CL_BG);
  SunkenFrame(SCR_W-84,EDIT_Y+2,SCR_W-4,EDIT_Y+EDIT_H-3);
- S:=ModeName;
+ S:=Tr(ModeName);
  If MenuActive Then BoldAt(SCR_W-84+(80-8*Length(S)) Div 2,EDIT_Y+6,CL_BLACK,S)
  Else TextAt(SCR_W-84+(80-8*Length(S)) Div 2,EDIT_Y+6,CL_BLACK,S);
 End;
@@ -4209,14 +4601,14 @@ Begin
  SunkenFrame(326,STAT_Y+2,382,SCR_H-2);
  SunkenFrame(384,STAT_Y+2,440,SCR_H-2);
  SunkenFrame(442,STAT_Y+2,640-2,SCR_H-2);
- TextAt(6,STAT_Y+5,CL_BLACK,Copy(StatusMsg,1,18));
+ TextAt(6,STAT_Y+5,CL_BLACK,Copy(Tr(StatusMsg),1,18));
  S:='';
  If CircFound And (AppMode=0) Then S:='CIRC'
- Else If EndMode Then S:='End';
+ Else If EndMode Then S:=Tr('End');
  TextAt(156,STAT_Y+5,CL_BLACK,S);
- If InsertMode Then TextAt(214,STAT_Y+5,CL_BLACK,'Over');
+ If InsertMode Then TextAt(214,STAT_Y+5,CL_BLACK,Tr('Over'));
  TextAt(272,STAT_Y+5,CL_BLACK,'Num');
- If Not AutoCalc Then TextAt(330,STAT_Y+5,CL_BLACK,'Calc');
+ If Not AutoCalc Then TextAt(330,STAT_Y+5,CL_BLACK,Tr('Calc'));
  TextAt(446,STAT_Y+5,CL_BLACK,ClockText);
 End;
 
@@ -4923,7 +5315,7 @@ Begin
  For K:=1 To NSER Do If ChD^.Used[K] Then Begin Inc(GSN); GOrd[GSN]:=K; End;
  GN:=ChD^.N;
  If (GSN=0) Or (GN=0) Then Begin
-  T:='(No data to graph)';
+  T:=Tr('(No data to graph)');
   cText((X1+X2-8*Length(T)) Div 2,(Y1+Y2) Div 2-4,CL_BLACK,T);
   Exit;
  End;
@@ -5119,8 +5511,8 @@ Begin
  T:=Msg; N:=0; MaxW:=0;
  While (T<>'') And (N<8) Do Begin
   P:=Pos('|',T);
-  If P=0 Then Begin Lines[N]:=Copy(T,1,70); T:=''; End
-  Else Begin Lines[N]:=Copy(Copy(T,1,P-1),1,70); Delete(T,1,P); End;
+  If P=0 Then Begin Lines[N]:=Copy(Tr(T),1,70); T:=''; End
+  Else Begin Lines[N]:=Copy(Tr(Copy(T,1,P-1)),1,70); Delete(T,1,P); End;
   If Length(Lines[N])>MaxW Then MaxW:=Length(Lines[N]);
   Inc(N);
  End;
@@ -5152,7 +5544,7 @@ Begin
  DrawAll;
  HideMouse;
  DlgFrame(X1,Y1,X2,Y2,Title);
- TextAt(X1+24,Y1+38,CL_BLACK,Msg);
+ TextAt(X1+24,Y1+38,CL_BLACK,Tr(Msg));
  Bx:=(X1+X2) Div 2-110;
  DrawButton(Bx,Y2-38,Bx+64,Y2-16,'Yes',True);
  DrawButton(Bx+78,Y2-38,Bx+142,Y2-16,'No',False);
@@ -5162,7 +5554,7 @@ Begin
  While Not Done Do Begin
   If WaitInput(K1,K2) Then Begin
    Case UpCase(K1) Of
-    'Y',#13: Begin Res:=1; Done:=True; End;
+    'Y','O',#13: Begin Res:=1; Done:=True; End;
     'N': Begin Res:=2; Done:=True; End;
     #27: Begin Res:=0; Done:=True; End;
    End;
@@ -5187,7 +5579,7 @@ Begin
   DrawAll;
   HideMouse;
   DlgFrame(X1,Y1,X2,Y2,Title);
-  TextAt(X1+16,Y1+34,CL_BLACK,Prompt);
+  TextAt(X1+16,Y1+34,CL_BLACK,Tr(Prompt));
   DrawEditBox(X1+16,Y1+52,X2-16,Y1+72,T,Pos,True);
   DrawButton(X2-176,Y2-34,X2-104,Y2-12,'OK',True);
   DrawButton(X2-92,Y2-34,X2-20,Y2-12,'Cancel',False);
@@ -5224,7 +5616,7 @@ Begin
   HideMouse;
   DlgFrame(X1,Y1,X2,Y2,Title);
   For I:=1 To N Do Begin
-   TextAt(X1+16,Y1+38+(I-1)*28,CL_BLACK,FormLbl[I]);
+   TextAt(X1+16,Y1+38+(I-1)*28,CL_BLACK,Tr(FormLbl[I]));
    DrawEditBox(X1+24+LW*8,Y1+32+(I-1)*28,X2-16,Y1+52+(I-1)*28,FormVal[I],Pp[I],I=Cur);
   End;
   DrawButton(X2-176,Y2-34,X2-104,Y2-12,'OK',True);
@@ -5418,7 +5810,7 @@ Begin
   DrawAll;
   HideMouse;
   DlgFrame(X1,Y1,X2,Y2,Title);
-  TextAt(X1+14,Y1+30,CL_BLACK,'File name:');
+  TextAt(X1+14,Y1+30,CL_BLACK,Tr('File name:'));
   DrawEditBox(X1+100,Y1+26,X2-14,Y1+44,Cur,Pos,True);
   TextAt(X1+14,Y1+50,CL_DKGRAY,Copy(Dir,1,44));
   FillBox(X1+14,Y1+64,X2-14,Y1+68+Vis*14,CL_WHITE);
@@ -5432,7 +5824,7 @@ Begin
     TextAt(X1+20,Y1+69+I*14,CL_WHITE,T);
    End Else TextAt(X1+20,Y1+69+I*14,CL_BLACK,T);
   End;
-  TextAt(X1+14,Y2-60,CL_DKGRAY,'Types: *.WKC (1-2-3 clone)  *.WK1');
+  TextAt(X1+14,Y2-60,CL_DKGRAY,Tr('Types: *.WKC (1-2-3 clone)  *.WK1'));
   DrawButton(X2-176,Y2-34,X2-104,Y2-12,'OK',True);
   DrawButton(X2-92,Y2-34,X2-20,Y2-12,'Cancel',False);
   ShowMouse;
@@ -5502,14 +5894,14 @@ Begin
  FillBox(X1+14,Y1+32,X2-14,Y1+72,14);
  Rect(X1+14,Y1+32,X2-14,Y1+72,CL_BLACK);
  FillBox(X1+22,Y1+40,X1+98,Y1+64,CL_BLACK);
- BoldAt(X1+30,Y1+48,CL_WHITE,'Clone');
+ BoldAt(X1+30,Y1+48,CL_WHITE,Tr('Clone'));
  BoldAt(X1+112,Y1+44,CL_BLACK,'1-2-3');
- TextAt(X1+112,Y1+58,CL_BLACK,'Spreadsheet for Windows');
- TextAt(X1+16,Y1+84,CL_BLACK,'Clone of the Lotus 1-2-3 spreadsheet');
+ TextAt(X1+112,Y1+58,CL_BLACK,Tr('Spreadsheet for Windows'));
+ TextAt(X1+16,Y1+84,CL_BLACK,Tr('Clone of the Lotus 1-2-3 spreadsheet'));
  TextAt(X1+16,Y1+100,CL_BLACK,'(c) 2026 Sylvain Maltais - Gladir.com');
  TextAt(X1+16,Y1+116,CL_BLACK,'https://www.gladir.com/office-0');
- TextAt(X1+16,Y1+140,CL_BLACK,'Target: Turbo Pascal 7 / Free Pascal');
- TextAt(X1+16,Y1+156,CL_BLACK,'8 sheets, 256 columns, 8192 rows');
+ TextAt(X1+16,Y1+140,CL_BLACK,Tr('Target: Turbo Pascal 7 / Free Pascal'));
+ TextAt(X1+16,Y1+156,CL_BLACK,Tr('8 sheets, 256 columns, 8192 rows'));
  DrawButton(X2-100,Y2-34,X2-24,Y2-12,'OK',True);
  ShowMouse;
  Done:=False;
@@ -6144,7 +6536,7 @@ Begin
  If Not InputDialog(Title,Prompt,S,10) Then Exit;
  Val(TrimStr(S),N,Code);
  If (Code<>0) Or (N<Lo) Or (N>Hi) Then Begin
-  MessageBox(Title,'Enter a number from '+IntToStr(Lo)+' to '+IntToStr(Hi));
+  MessageBox(Title,Tx('Enter a number from ','Entrez un nombre de ')+IntToStr(Lo)+Tx(' to ',' a ')+IntToStr(Hi));
   Exit;
  End;
  V:=N;
@@ -6277,7 +6669,7 @@ Var K: Integer; S: String; U: String; C: Integer;
 Begin
  If SelIsSingle Then Begin MessageBox('Sort','Select the range to sort first.'); Exit; End;
  FormLbl[1]:='Sort key column:'; FormVal[1]:=ColName(SelC1);
- FormLbl[2]:='Order (A/D):'; FormVal[2]:='A';
+ FormLbl[2]:='Order (A/D):'; FormVal[2]:=Tx('A','C');
  If Not FormDialog('Sort',2) Then Exit;
  U:=UpStr(TrimStr(FormVal[1]));
  C:=-1;
@@ -6306,13 +6698,24 @@ End;
 
 Procedure DoHelp;
 Begin
- MessageBox('1-2-3 Help',
-  'F1 Help  F2 Edit  F5 Go To  F9 Recalc  F10 or / Menu|'+
-  'Ctrl+N/O/S/P  New Open Save Print|'+
-  'Ctrl+C/X/V Copy Cut Paste  Ctrl+Z Undo|'+
-  'Ctrl+B/U Bold Underline  F8 Extend selection|'+
-  'Ctrl+PgUp/PgDn Change sheet  End+arrow Jump|'+
-  '@SUM(A1..A9)  +A1*B1  @IF(A1>0,"y","n")');
+ If French Then
+  Begin
+   MessageBox('1-2-3 Help',
+    'F1 Aide  F2 Edition  F5 Aller a  F9 Recalcul  F10 ou / Menu|'+
+    'Ctrl+N/O/S/P  Nouveau Ouvrir Enreg. Imprimer|'+
+    'Ctrl+C/X/V Copier Couper Coller  Ctrl+Z Annuler|'+
+    'Ctrl+B/U Gras Souligne  F8 Etendre la selection');
+   MessageBox('1-2-3 Help',
+    'Ctrl+PgUp/PgDn Changer de feuille  Fin+fleche Saut|'+
+    '@SUM(A1..A9)  +A1*B1  @IF(A1>0,"o","n")');
+  End Else
+  MessageBox('1-2-3 Help',
+   'F1 Help  F2 Edit  F5 Go To  F9 Recalc  F10 or / Menu|'+
+   'Ctrl+N/O/S/P  New Open Save Print|'+
+   'Ctrl+C/X/V Copy Cut Paste  Ctrl+Z Undo|'+
+   'Ctrl+B/U Bold Underline  F8 Extend selection|'+
+   'Ctrl+PgUp/PgDn Change sheet  End+arrow Jump|'+
+   '@SUM(A1..A9)  +A1*B1  @IF(A1>0,"y","n")');
 End;
 
 Procedure PlaceChart(ChI: Integer);
@@ -6358,7 +6761,7 @@ Begin
  Ch:=CurCh;
  If Ch=Nil Then Exit;
  FormLbl[1]:='X range:'; FormVal[1]:=Ch^.XRng;
- For I:=1 To NSER Do Begin FormLbl[I+1]:='Range '+Chr(64+I)+':'; FormVal[I+1]:=Ch^.Rng[I]; End;
+ For I:=1 To NSER Do Begin FormLbl[I+1]:=Tx('Range ','Plage ')+Chr(64+I)+':'; FormVal[I+1]:=Ch^.Rng[I]; End;
  If Not FormDialog('Chart Ranges',7) Then Exit;
  Ok:=True;
  For I:=1 To 7 Do
@@ -6387,7 +6790,7 @@ Var Ch: PChart; I: Integer;
 Begin
  Ch:=CurCh;
  If Ch=Nil Then Exit;
- For I:=1 To NSER Do Begin FormLbl[I]:='Series '+Chr(64+I)+':'; FormVal[I]:=Ch^.Legend[I]; End;
+ For I:=1 To NSER Do Begin FormLbl[I]:=Tx('Series ','Serie ')+Chr(64+I)+':'; FormVal[I]:=Ch^.Legend[I]; End;
  If Not FormDialog('Legend Text',6) Then Exit;
  For I:=1 To NSER Do Ch^.Legend[I]:=Copy(FormVal[I],1,14);
  Ch^.ShowLeg:=True;
@@ -6457,12 +6860,12 @@ Begin
  For I:=1 To Length(FN) Do If FN[I]='.' Then HasDot:=True;
  If Not HasDot Then FN:=FN+'.WKC';
  If FileExists(FN) And (UpStr(FN)<>UpStr(FileName)) Then
-  If ConfirmDialog('Save As',FN+' already exists. Replace it?')<>1 Then Exit;
+  If ConfirmDialog('Save As',FN+Tx(' already exists. Replace it?',' existe deja. Le remplacer ?'))<>1 Then Exit;
  If SaveAny(FN) Then Begin
   FileName:=FN;
   Modified:=False;
   ShowStatus('Saved');
- End Else MessageBox('Save As','Cannot write the file '+FN);
+ End Else MessageBox('Save As',Tx('Cannot write the file ','Impossible d''ecrire le fichier ')+FN);
 End;
 
 Procedure DoOpen;
@@ -6471,14 +6874,14 @@ Begin
  If Not ConfirmSaveFirst Then Exit;
  FN:='';
  If Not FileDialog('Open File',FN,False) Then Exit;
- If Not FileExists(FN) Then Begin MessageBox('Open File','File not found: '+FN); Exit; End;
+ If Not FileExists(FN) Then Begin MessageBox('Open File',Tx('File not found: ','Fichier introuvable : ')+FN); Exit; End;
  If LoadAny(FN) Then Begin
   FileName:=FN;
   Modified:=False;
   AppMode:=0;
   EnsureVisible;
  End Else Begin
-  MessageBox('Open File','Cannot read '+FN+'|(not a 1-2-3 clone or WK1 file)');
+  MessageBox('Open File',Tx('Cannot read ','Impossible de lire ')+FN+'|'+'(not a 1-2-3 clone or WK1 file)');
   ClearWorkbook;
  End;
 End;
@@ -6488,7 +6891,7 @@ Var FN: String;
 Begin
  FN:='LOTUS.PRN';
  If Not InputDialog('Print','Print the range to this text file:',FN,40) Then Exit;
- If PrintToFile(FN) Then MessageBox('Print','Printed to '+FN) Else MessageBox('Print','Cannot write '+FN);
+ If PrintToFile(FN) Then MessageBox('Print',Tx('Printed to ','Imprime dans ')+FN) Else MessageBox('Print',Tx('Cannot write ','Impossible d''ecrire ')+FN);
 End;
 
 Procedure ApplyFormat(F: Integer);
@@ -6605,7 +7008,7 @@ Begin
   Ch:=CurCh;
   If Ch<>Nil Then Begin
    CCol:=Ch^.SCol[Cmd-CM_GS_SERCOL];
-   If ColorDialog('Series '+IntToStr(Cmd-CM_GS_SERCOL)+' Color',CCol,False) Then Ch^.SCol[Cmd-CM_GS_SERCOL]:=CCol;
+   If ColorDialog(Tx('Series ','Serie ')+IntToStr(Cmd-CM_GS_SERCOL)+Tx(' Color',' : couleur'),CCol,False) Then Ch^.SCol[Cmd-CM_GS_SERCOL]:=CCol;
   End;
   Exit;
  End;
@@ -6621,7 +7024,7 @@ Begin
   CM_SAVE: Begin
    If FileName='' Then DoSaveAs
    Else If SaveAny(FileName) Then Begin Modified:=False; ShowStatus('Saved'); End
-   Else MessageBox('Save','Cannot write the file '+FileName);
+   Else MessageBox('Save',Tx('Cannot write the file ','Impossible d''ecrire le fichier ')+FileName);
   End;
   CM_SAVEAS: DoSaveAs;
   CM_PRINT: DoPrint;
@@ -6706,7 +7109,7 @@ Begin
    For I:=1 To MAX_PLACED Do
     If Placed[I].Used Then Begin
      Inc(N);
-     ListItem[N]:=Charts[Placed[I].Chart]^.Name+' at '+RangeText(Placed[I].Sheet,Placed[I].R1,Placed[I].C1,Placed[I].R2,Placed[I].C2);
+     ListItem[N]:=Charts[Placed[I].Chart]^.Name+Tx(' at ',' en ')+RangeText(Placed[I].Sheet,Placed[I].R1,Placed[I].C1,Placed[I].R2,Placed[I].C2);
      ChIdx[N]:=I;
     End;
    If N=0 Then MessageBox('Graph Go To','No graph is placed in the worksheet.')
@@ -6883,19 +7286,10 @@ Begin
      End;
      K_HOME: If SubOpen>0 Then SubHi:=FirstSel(SubOpen) Else MenuHi:=FirstSel(MenuIdOf(MenuOpen));
      K_F10: Done:=True;
-     #33: OpenBar(1);
-     #18: OpenBar(2);
-     #17: If AppMode=0 Then OpenBar(3);
-     #19: If AppMode=0 Then OpenBar(4);
-     #34: If AppMode=0 Then OpenBar(5);
-     #32: If AppMode=0 Then OpenBar(6) Else OpenBar(4);
-     #31: OpenBar(7);
-     #20: OpenBar(8);
-     #49: OpenBar(9);
-     #35: OpenBar(10);
-     #46: If AppMode=1 Then OpenBar(3);
-     #38: If AppMode=1 Then OpenBar(5);
-     #30: If AppMode=1 Then OpenBar(6);
+     Else Begin
+      Ix:=BarFromAlt(K2);
+      If Ix>0 Then OpenBar(Ix);
+     End;
     End;
    End Else Begin
     Case K1 Of
@@ -7099,16 +7493,6 @@ Begin
    K_F10: OpenMenuBar(1);
    K_F1: DoHelp;
    K_DEL: ExecCmd(CM_GW_DELOBJ);
-   #33: OpenMenuBar(1);
-   #18: OpenMenuBar(2);
-   #46: OpenMenuBar(3);
-   #32: OpenMenuBar(4);
-   #38: OpenMenuBar(5);
-   #30: OpenMenuBar(6);
-   #31: OpenMenuBar(7);
-   #20: OpenMenuBar(8);
-   #49: OpenMenuBar(9);
-   #35: OpenMenuBar(10);
    #107: ExecCmd(CM_EXIT);
    K_PGDN,K_PGUP: Begin
     I:=CurChart;
@@ -7118,6 +7502,10 @@ Begin
      If I<1 Then I:=MAX_CHARTS;
     Until (Charts[I]<>Nil) Or (I=CurChart);
     CurChart:=I;
+   End;
+   Else Begin
+    I:=BarFromAlt(K2);
+    If I>0 Then OpenMenuBar(I);
    End;
   End;
  End Else Begin
@@ -7131,6 +7519,7 @@ Begin
 End;
 
 Procedure HandleKey(K1,K2: Char);
+Var I: Integer;
 Begin
  If AppMode=1 Then Begin HandleKeyGraph(K1,K2); Exit; End;
  StatusMsg:='';
@@ -7159,17 +7548,11 @@ Begin
    #66: Begin SelMode:=Not SelMode; If Not SelMode Then CollapseSel; End;
    K_F9: ExecCmd(CM_RECALC);
    K_F10: OpenMenuBar(1);
-   #33: OpenMenuBar(1);
-   #18: OpenMenuBar(2);
-   #17: OpenMenuBar(3);
-   #19: OpenMenuBar(4);
-   #34: OpenMenuBar(5);
-   #32: OpenMenuBar(6);
-   #31: OpenMenuBar(7);
-   #20: OpenMenuBar(8);
-   #49: OpenMenuBar(9);
-   #35: OpenMenuBar(10);
    #107: ExecCmd(CM_EXIT);
+   Else Begin
+    I:=BarFromAlt(K2);
+    If I>0 Then OpenMenuBar(I);
+   End;
   End;
   If K2<>K_END Then EndMode:=False;
  End Else Begin
@@ -7485,16 +7868,31 @@ Var T: Text;
 Begin
  Assign(T,'');
  Rewrite(T);
- WriteLn(T,'LOTUS123 - Clone du tableur Lotus 1-2-3.');
- WriteLn(T);
- WriteLn(T,'Utilisation : LOTUS123 [classeur] [/?]');
- WriteLn(T);
- WriteLn(T,'  classeur   Fichier .WKC (format natif) ou .WK1 a ouvrir au demarrage.');
- WriteLn(T,'  /?         Affiche cette aide et quitte.');
- WriteLn(T);
- WriteLn(T,'Menus : souris, F10 ou /, Alt+lettre (Alt+F Fichier, Alt+G Graph...).');
- WriteLn(T,'Formules : +A1*B1  @SUM(A1..A9)  @IF(A1>0,"oui","non")');
- WriteLn(T,'Graph > New cree un graphique ; Graph > Add to Sheet le place dans la feuille.');
+ If UpStr(Copy(GetEnv('LANGUAGE'),1,2))='EN' Then Begin
+  WriteLn(T,'LOTUS123 - Clone of the Lotus 1-2-3 spreadsheet.');
+  WriteLn(T);
+  WriteLn(T,'Usage: LOTUS123 [workbook] [/?]');
+  WriteLn(T);
+  WriteLn(T,'  workbook   .WKC (native format) or .WK1 file to open at startup.');
+  WriteLn(T,'  /?         Show this help and exit.');
+  WriteLn(T);
+  WriteLn(T,'Language: French by default; set the environment variable LANGUAGE=EN for English.');
+  WriteLn(T,'Menus: mouse, F10 or /, Alt+letter (the underlined letter of each menu).');
+  WriteLn(T,'Formulas: +A1*B1  @SUM(A1..A9)  @IF(A1>0,"yes","no")');
+  WriteLn(T,'Graph > New creates a chart; Graph > Add to Sheet places it in the worksheet.');
+ End Else Begin
+  WriteLn(T,'LOTUS123 - Clone du tableur Lotus 1-2-3.');
+  WriteLn(T);
+  WriteLn(T,'Utilisation : LOTUS123 [classeur] [/?]');
+  WriteLn(T);
+  WriteLn(T,'  classeur   Fichier .WKC (format natif) ou .WK1 a ouvrir au demarrage.');
+  WriteLn(T,'  /?         Affiche cette aide et quitte.');
+  WriteLn(T);
+  WriteLn(T,'Langue : francais par defaut ; definir la variable d''environnement LANGUAGE=EN pour l''anglais.');
+  WriteLn(T,'Menus : souris, F10 ou /, Alt+lettre (la lettre soulignee de chaque menu).');
+  WriteLn(T,'Formules : +A1*B1  @SUM(A1..A9)  @IF(A1>0,"oui","non")');
+  WriteLn(T,'Graph > New cree un graphique ; Graph > Add to Sheet le place dans la feuille.');
+ End;
  Close(T);
 End;
 
@@ -7531,6 +7929,7 @@ Begin
  LastClkT:=0; LastClkR:=-1; LastClkC:=-1;
  NeedRedraw:=True;
  Randomize;
+ French:=UpStr(Copy(GetEnv('LANGUAGE'),1,2))<>'EN';
 End;
 
 BEGIN
