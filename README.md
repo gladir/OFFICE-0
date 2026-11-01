@@ -70,6 +70,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 			<td>Cette commande permet de lancer un clone de Lotus 1-2-3.</td>
 		</tr>
     <tr>
+      <td><b>3DCALC.PAS</b></td>
+      <td>Cette commande permet de lancer un clone graphique de 3D-CALC+ (tableur tridimensionnel de l'Atari ST : pages, formules, statistiques, graphiques, macros). Interface en français par défaut, en anglais avec la variable d'environnement LANGUAGE=EN.</td>
+    </tr>
+    <tr>
       <td><b>ACCESS.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Access.</td>
     </tr>
