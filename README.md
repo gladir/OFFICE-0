@@ -21,6 +21,10 @@ Aperçu du clone de OneNote :
 
 <img width="639" height="483" alt="image" src="https://github.com/user-attachments/assets/4e432deb-f940-45b2-adb1-c91959507b79" />
 
+Aperçu du clone de Outlook :
+
+<img width="639" height="481" alt="image" src="https://github.com/user-attachments/assets/0b6d7013-6a94-4398-8410-9d22c5aa0d53" />
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
