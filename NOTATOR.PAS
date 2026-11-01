@@ -5430,7 +5430,7 @@ Begin
  Case M Of
   1: MCount:=4;
   2: MCount:=11;
-  3: MCount:=14;
+  3: MCount:=18;
   4: MCount:=17;
   5: MCount:=10;
   6: MCount:=13;
@@ -5470,16 +5470,20 @@ Begin
       2: MItem:='Score edit~Edition partition~Partitur-Editor|F2';
       3: MItem:='Matrix edit~Edition matrice~Matrix-Editor|F3';
       4: MItem:='Event list~Liste d''ev.~Eventliste|F4';
-      5: MItem:='-';
-      6: MItem:='Go to bar...~Aller '#133' mesure...~Gehe zu Takt...|^G';
-      7: MItem:='Set left locator~Locator gauche~Linker Locator|[';
-      8: MItem:='Set right locator~Locator droit~Rechter Locator|]';
-      9: MItem:='Pattern length...~Longueur pattern...~Pattern-L'#132'nge...';
-      10: MItem:='Pattern name...~Nom du pattern...~Pattern-Name...';
-      11: MItem:='Track settings...~Param'#138'tres piste...~Spur-Einstellungen...';
-      12: MItem:='-';
-      13: MItem:='Hyper edit type~Type hyper edit~Hyper-Edit Typ';
-      14: MItem:='Show hyper edit~Afficher hyper edit~Hyper-Edit zeigen';
+      5: MItem:='Play~Jouer~Spielen|Space';
+      6: MItem:='Continue~Continuer~Fortsetzen|Enter';
+      7: MItem:='Stop~Arr'#136'ter~Stopp|Space';
+      8: MItem:='Record~Enregistrer~Aufnahme|*';
+      9: MItem:='-';
+      10: MItem:='Go to bar...~Aller '#133' mesure...~Gehe zu Takt...|^G';
+      11: MItem:='Set left locator~Locator gauche~Linker Locator|[';
+      12: MItem:='Set right locator~Locator droit~Rechter Locator|]';
+      13: MItem:='Pattern length...~Longueur pattern...~Pattern-L'#132'nge...';
+      14: MItem:='Pattern name...~Nom du pattern...~Pattern-Name...';
+      15: MItem:='Track settings...~Param'#138'tres piste...~Spur-Einstellungen...';
+      16: MItem:='-';
+      17: MItem:='Hyper edit type~Type hyper edit~Hyper-Edit Typ';
+      18: MItem:='Show hyper edit~Afficher hyper edit~Hyper-Edit zeigen';
      End;
   4: Case I Of
       1: MItem:='Quantize value...~Valeur quantif...~Quantisierungswert...';
@@ -5587,7 +5591,7 @@ Begin
  MChecked:=False;
  If M=3 Then Begin
   If (I>=1) And (I<=4) Then MChecked:=(View=I);
-  If I=14 Then MChecked:=ShowHyper;
+  If I=18 Then MChecked:=ShowHyper;
  End;
  If M=4 Then If I=8 Then MChecked:=(CT^.P.Groove<>0);
  If M=5 Then Begin
@@ -5761,14 +5765,18 @@ Begin
       2: CmdSetView(V_SCORE);
       3: CmdSetView(V_MATRIX);
       4: CmdSetView(V_LIST);
-      6: CmdGoto;
-      7: CmdSetLoc(True);
-      8: CmdSetLoc(False);
-      9: CmdPatLen;
-      10: CmdPatName;
-      11: CmdTrackSettings;
-      13: CmdHyperKind;
-      14: Toggle(ShowHyper);
+      5: CmdStart;
+      6: CmdCont;
+      7: CmdStop;
+      8: CmdRecord;
+      10: CmdGoto;
+      11: CmdSetLoc(True);
+      12: CmdSetLoc(False);
+      13: CmdPatLen;
+      14: CmdPatName;
+      15: CmdTrackSettings;
+      17: CmdHyperKind;
+      18: Toggle(ShowHyper);
      End;
   4: Case I Of
       1: CmdQuaValue;
