@@ -2285,7 +2285,6 @@ Begin
  BText(22,TB_Y+5,Copy(S,1,12));
  Box(150,TB_Y+1,480,TB_Y+TB_H-2,PAPER);
  BText(160,TB_Y+5,'N O T A T O R   S L   '+VERSION_TEXT);
- PText(380,TB_Y+5,'(c) 2026 Gladir');
  SmallBox(SCR_W-18,TB_Y);
 End;
 
@@ -5109,9 +5108,12 @@ Begin
   T3('F1 Arrange  F2 Score  F3 Matrix  F4 List  F12 Menus|',
      'F1 Arrangement  F2 Partition  F3 Matrice  F4 Liste  F12 Menus|',
      'F1 Arrange  F2 Partitur  F3 Matrix  F4 Liste  F12 Men'#129's|')+
-  T3('Space start/stop  Enter continue  * record|',
-     'Espace lecture/arr'#136't  Entr'#130'e continuer  * enregistrer|',
-     'Leertaste Start/Stop  Enter weiter  * Aufnahme|')+
+  T3('SPACE BAR = play / stop the song or MIDI file|',
+     'BARRE D''ESPACEMENT = jouer / arr'#136'ter le son ou le MIDI|',
+     'LEERTASTE = Song oder MIDI abspielen / stoppen|')+
+  T3('Enter continue  * record|',
+     'Entr'#130'e continuer  * enregistrer|',
+     'Enter weiter  * Aufnahme|')+
   T3('Z..M and Q..P = piano keys, - + = octave|',
      'Z..M et Q..P = touches de piano, - + = octave|',
      'Z..M und Q..P = Klaviertasten, - + = Oktave|')+
@@ -6588,29 +6590,37 @@ Begin
  If Lang=0 Then Begin
   WriteLn(H,'NOTATOR - Graphical clone of the Notator SL sequencer / score editor.');
   WriteLn(H);
-  WriteLn(H,'Usage : NOTATOR [file.SON | file.MID] [/?]');
+  WriteLn(H,'Usage : NOTATOR [file.SON | file.MID] [/PLAY] [/?]');
   WriteLn(H);
   WriteLn(H,'  file.SON  Song to open.');
   WriteLn(H,'  file.MID  Standard MIDI file to import in the current pattern.');
+  WriteLn(H,'  /PLAY     Play the file immediately in the GUI.');
   WriteLn(H,'  /?        Show this help.');
+  WriteLn(H,'  In the GUI, the space bar plays / stops the sound or MIDI.');
   WriteLn(H);
   WriteLn(H,'Language : French by default, LANGUAGE=EN for English,');
   WriteLn(H,'LANGUAGE=GR for German.');
  End Else If Lang=2 Then Begin
   WriteLn(H,'NOTATOR - Grafischer Klon des Sequenzers / Partitur-Editors Notator SL.');
   WriteLn(H);
-  WriteLn(H,'Aufruf : NOTATOR [Datei.SON | Datei.MID] [/?]');
+  WriteLn(H,'Aufruf : NOTATOR [Datei.SON | Datei.MID] [/PLAY] [/?]');
+  WriteLn(H);
+  WriteLn(H,'  /PLAY  Datei sofort in der Oberfl'#132'che abspielen.');
+  WriteLn(H,'  Leertaste = Song oder MIDI abspielen / stoppen.');
   WriteLn(H);
   WriteLn(H,'Sprache : Franz'#148'sisch als Standard, LANGUAGE=EN f'#129'r Englisch,');
   WriteLn(H,'LANGUAGE=GR f'#129'r Deutsch.');
  End Else Begin
-  WriteLn(H,'NOTATOR - Clone graphique du s'#130'quenceur / '#130'diteur de partition Notator SL.');
+  WriteLn(H,'NOTATOR - Cette commande permet de lancer le clone graphique '+
+            'du s'#130'quenceur / '#130'diteur de partition Notator SL.');
   WriteLn(H);
-  WriteLn(H,'Utilisation : NOTATOR [fichier.SON | fichier.MID] [/?]');
+  WriteLn(H,'Syntaxe : NOTATOR [fichier.SON | fichier.MID] [/PLAY] [/?]');
   WriteLn(H);
   WriteLn(H,'  fichier.SON  Morceau '#133' ouvrir.');
   WriteLn(H,'  fichier.MID  Fichier MIDI standard '#133' importer dans le pattern courant.');
+  WriteLn(H,'  /PLAY        Joue imm'#130'diatement le fichier dans l''interface.');
   WriteLn(H,'  /?           Affiche cette aide.');
+  WriteLn(H,'  Dans l''interface, la barre d''espacement joue / arr'#136'te le son.');
   WriteLn(H);
   WriteLn(H,'Langue : fran'#135'ais par d'#130'faut, LANGUAGE=EN pour l''anglais,');
   WriteLn(H,'LANGUAGE=GR pour l''allemand.');
@@ -6619,22 +6629,28 @@ Begin
 End;
 
 Procedure LoadCommandLine;
-Var Name,Ext: String;
+Var Name,Ext: String; I: Integer; PlayNow,Loaded: Boolean;
 Begin
- If ParamCount<1 Then Exit;
- Name:=ParamStr(1);
+ Name:='';PlayNow:=False;Loaded:=False;
+ For I:=1 To ParamCount Do
+  If (Upper(ParamStr(I))='/PLAY') Or (Upper(ParamStr(I))='-PLAY') Or
+     (Upper(ParamStr(I))='--PLAY') Then PlayNow:=True
+  Else If Name='' Then Name:=ParamStr(I);
+ If Name='' Then Exit;
  Ext:=Upper(Copy(Name,Length(Name)-3,4));
  If Ext='.MID' Then Begin
   If LoadMidi(Name) Then Begin
    ResetView;View:=V_SCORE;
    SongName:=Copy(ShortName(Name),1,Pos('.',ShortName(Name))-1)+'.SON';
    SongNamed:=False;
+   Loaded:=True;
   End;
  End Else Begin
   Name:=AddExt(Name,'SON');
   If FileExists(Name) Then
-   If LoadSong(Name) Then Begin ResetView;View:=V_ARR;End;
+   If LoadSong(Name) Then Begin ResetView;View:=V_ARR;Loaded:=True;End;
  End;
+ If PlayNow And Loaded Then CmdStart;
 End;
 
 Procedure MainLoop;

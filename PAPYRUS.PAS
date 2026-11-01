@@ -5177,7 +5177,8 @@ End;
 
 Procedure ShowHelpLine;
 Begin
- WriteLn('PAPYRUS - Clone graphique du traitement de texte Papyrus (Atari ST).');
+ WriteLn('PAPYRUS - Cette commande permet de lancer un clone graphique du ',
+         'traitement de texte Papyrus (Atari ST).');
  WriteLn;
  WriteLn('Utilisation : PAPYRUS [fichier.PAP] [/?]');
  WriteLn;
