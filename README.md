@@ -37,6 +37,9 @@ Aperçu du clone de Visio :
 
 <img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
 
+Aperçu du clone de Word :
+
+<img width="642" height="479" alt="image" src="https://github.com/user-attachments/assets/3208cc06-676b-47c4-a09f-a85fe45563f8" />
 
 <h2>Liste des fichiers</h2>
 
