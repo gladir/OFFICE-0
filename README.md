@@ -25,6 +25,10 @@ Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
 
+Aperçu du clone de Notator SL :
+
+<img width="642" height="480" alt="image" src="https://github.com/user-attachments/assets/b33d59ba-8bec-417b-bdce-f960986da2cd" />
+
 Aperçu du clone de OneNote :
 
 <img width="639" height="483" alt="image" src="https://github.com/user-attachments/assets/4e432deb-f940-45b2-adb1-c91959507b79" />
@@ -119,7 +123,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>
     <tr>
       <td><b>NOTATOR.PAS</b></td>
-      <td>Cette commande permet de lancer un clone graphique de Notator SL (séquenceur MIDI / éditeur de partition et impression de l'Atari ST : page d'arrangement, partition, matrice, liste d'événements, quantification, groove). Interface en français par défaut, en anglais avec LANGUAGE=EN et en allemand avec LANGUAGE=GR.</td>
+      <td>Cette commande permet de lancer un clone graphique de Notator SL (séquenceur MIDI / éditeur de partition et impression de l'Atari ST : page d'arrangement, partition, matrice, liste d'événements, quantification, groove).</td>
     </tr>
     <tr>
       <td><b>ONENOTE.PAS</b></td>
