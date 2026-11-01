@@ -33,6 +33,11 @@ Aperçu du clone de Project :
 
 <img width="641" height="481" alt="image" src="https://github.com/user-attachments/assets/54f79b67-1876-437a-b47b-5acf5bc4a960" />
 
+Aperçu du clone de Visio :
+
+<img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
+
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
