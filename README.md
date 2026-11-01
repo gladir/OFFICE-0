@@ -39,6 +39,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td>Cette commande permet de lancer un clone de Project.</td>
     </tr>    
     <tr>
+      <td><b>QUATTRO.PAS</b></td>
+      <td>Cette commande permet de lancer un clone de Quattro Pro.</td>
+    </tr>
+    <tr>
       <td><b>VISIO.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Visio.</td>
     </tr>    
