@@ -183,6 +183,7 @@ Var
  GenDec    : Integer;                  { precision globale }
  AngleMode : Integer;                  { 0 degres, 1 radians, 2 grades }
  LinkPages,SyncC,SyncR,SyncP,AlertErr : Boolean;
+ LangEN    : Boolean;
  OutFmt    : Integer;                  { 1 Degas, 2 IMG, 3 PCX, 4 imprimante }
  GraphDir  : String[60];
  DefColWid : Integer;
@@ -483,6 +484,304 @@ Begin
  ShortName:=Copy(S,I+1,255);
 End;
 
+
+Function Tr(Const S: String): String;
+Begin
+ Tr:=S;
+ If LangEN Or (S='') Then Exit;
+ If S='Desk' Then Begin Tr:='Bureau';Exit;End;
+ If S='File' Then Begin Tr:='Fichier';Exit;End;
+ If S='Window' Then Begin Tr:='Fen'#136'tre';Exit;End;
+ If S='Block' Then Begin Tr:='Bloc';Exit;End;
+ If S='Stat' Then Begin Tr:='Stat';Exit;End;
+ If S='Graph' Then Begin Tr:='Graphe';Exit;End;
+ If S='Text' Then Begin Tr:='Texte';Exit;End;
+ If S='Macro' Then Begin Tr:='Macro';Exit;End;
+ If S='About 3D-CALC+' Then Begin Tr:='A propos de 3D-CALC+';Exit;End;
+ If S='Free memory' Then Begin Tr:='M'#130'moire libre';Exit;End;
+ If S='Spreadsheet 1' Then Begin Tr:='Tableur 1';Exit;End;
+ If S='Spreadsheet 2' Then Begin Tr:='Tableur 2';Exit;End;
+ If S='Spreadsheet 3' Then Begin Tr:='Tableur 3';Exit;End;
+ If S='files' Then Begin Tr:='fichiers';Exit;End;
+ If S='Read file' Then Begin Tr:='Lire fichier';Exit;End;
+ If S='Save' Then Begin Tr:='Sauver';Exit;End;
+ If S='Save as' Then Begin Tr:='Sauver sous';Exit;End;
+ If S='Append file' Then Begin Tr:='Ajouter fichier';Exit;End;
+ If S='Merge file' Then Begin Tr:='Fusionner fichier';Exit;End;
+ If S='Read Lotus123 file' Then Begin Tr:='Lire fichier Lotus123';Exit;End;
+ If S='Import ASCII file' Then Begin Tr:='Importer fichier ASCII';Exit;End;
+ If S='Export ASCII file' Then Begin Tr:='Exporter fichier ASCII';Exit;End;
+ If S='Quit 3D-CALC' Then Begin Tr:='Quitter 3D-CALC';Exit;End;
+ If S='Open window' Then Begin Tr:='Ouvrir fen'#136'tre';Exit;End;
+ If S='Sort' Then Begin Tr:='Trier';Exit;End;
+ If S='Find' Then Begin Tr:='Chercher';Exit;End;
+ If S='Goto cell' Then Begin Tr:='Aller '#133' cellule';Exit;End;
+ If S='Define column' Then Begin Tr:='D'#130'finir colonne';Exit;End;
+ If S='Calculate window' Then Begin Tr:='Calculer fen'#136'tre';Exit;End;
+ If S='Print data' Then Begin Tr:='Imprimer donn'#130'es';Exit;End;
+ If S='Clear data' Then Begin Tr:='Effacer donn'#130'es';Exit;End;
+ If S='Command line' Then Begin Tr:='Ligne de commande';Exit;End;
+ If S='Output window' Then Begin Tr:='Sortie fen'#136'tre';Exit;End;
+ If S='Define block' Then Begin Tr:='D'#130'finir bloc';Exit;End;
+ If S='Set begin block' Then Begin Tr:='D'#130'but de bloc';Exit;End;
+ If S='Set end block' Then Begin Tr:='Fin de bloc';Exit;End;
+ If S='Move block' Then Begin Tr:='D'#130'placer bloc';Exit;End;
+ If S='Copy block' Then Begin Tr:='Copier bloc';Exit;End;
+ If S='Copy block to text' Then Begin Tr:='Copier bloc vers texte';Exit;End;
+ If S='Cut block' Then Begin Tr:='Couper bloc';Exit;End;
+ If S='Paste block' Then Begin Tr:='Coller bloc';Exit;End;
+ If S='Write block' Then Begin Tr:=#144'crire bloc';Exit;End;
+ If S='Read block' Then Begin Tr:='Lire bloc';Exit;End;
+ If S='Set block values' Then Begin Tr:='Bloc en valeurs';Exit;End;
+ If S='Hide block' Then Begin Tr:='Cacher bloc';Exit;End;
+ If S='Clear block' Then Begin Tr:='Effacer bloc';Exit;End;
+ If S='Averages and percentiles' Then Begin Tr:='Moyennes et percentiles';Exit;End;
+ If S='Histogram' Then Begin Tr:='Histogramme';Exit;End;
+ If S='Cumulative distribution' Then Begin Tr:='Distribution cumul'#130'e';Exit;End;
+ If S='Scatter diagram' Then Begin Tr:='Diagramme de dispersion';Exit;End;
+ If S='Draw curve' Then Begin Tr:='Tracer la droite';Exit;End;
+ If S='Regression and correlation' Then Begin Tr:='R'#130'gression et corr'#130'lation';Exit;End;
+ If S='Bar graph' Then Begin Tr:='Graphe '#133' barres';Exit;End;
+ If S='Line graph' Then Begin Tr:='Graphe en lignes';Exit;End;
+ If S='Pie chart' Then Begin Tr:='Graphe en secteurs';Exit;End;
+ If S='Multiple range graph' Then Begin Tr:='Graphe multi-plages';Exit;End;
+ If S='Function graph' Then Begin Tr:='Graphe de fonction';Exit;End;
+ If S='Read text' Then Begin Tr:='Lire texte';Exit;End;
+ If S='Save text' Then Begin Tr:='Sauver texte';Exit;End;
+ If S='Print text' Then Begin Tr:='Imprimer texte';Exit;End;
+ If S='Reformat' Then Begin Tr:='Reformater';Exit;End;
+ If S='Program' Then Begin Tr:='Programme';Exit;End;
+ If S='Clear' Then Begin Tr:='Effacer';Exit;End;
+ If S='Save text as' Then Begin Tr:='Sauver texte sous';Exit;End;
+ If S='Start recording' Then Begin Tr:='D'#130'but enregistrement';Exit;End;
+ If S='Stop recording' Then Begin Tr:='Fin enregistrement';Exit;End;
+ If S='Delete macro' Then Begin Tr:='Supprimer macro';Exit;End;
+ If S='List active macros' Then Begin Tr:='Liste des macros';Exit;End;
+ If S='Save desk macros' Then Begin Tr:='Sauver macros bureau';Exit;End;
+ If S='Load desk macros' Then Begin Tr:='Charger macros bureau';Exit;End;
+ If S='Settings' Then Begin Tr:='R'#130'glages';Exit;End;
+ If S='Link pages' Then Begin Tr:='Lier les pages';Exit;End;
+ If S='Column synchronization' Then Begin Tr:='Synchro colonnes';Exit;End;
+ If S='Row synchronization' Then Begin Tr:='Synchro lignes';Exit;End;
+ If S='Page synchronization' Then Begin Tr:='Synchro pages';Exit;End;
+ If S='Window grid' Then Begin Tr:='Grille fen'#136'tre';Exit;End;
+ If S='Output format' Then Begin Tr:='Format de sortie';Exit;End;
+ If S='Paths' Then Begin Tr:='Chemins';Exit;End;
+ If S='Graph options' Then Begin Tr:='Options graphiques';Exit;End;
+ If S='Cell font' Then Begin Tr:='Police cellule';Exit;End;
+ If S='Save options' Then Begin Tr:='Sauver options';Exit;End;
+ If S='Help' Then Begin Tr:='Aide';Exit;End;
+ If S='OPEN' Then Begin Tr:='OUVRIR';Exit;End;
+ If S='CLOSE' Then Begin Tr:='FERMER';Exit;End;
+ If S='AC ON/OFF' Then Begin Tr:='AUTOCALC';Exit;End;
+ If S='F3 ROW' Then Begin Tr:='F3 LIGNE';Exit;End;
+ If S='INSERT' Then Begin Tr:='INSERER';Exit;End;
+ If S='DELETE' Then Begin Tr:='SUPPR.';Exit;End;
+ If S='CLEAR' Then Begin Tr:='EFFACER';Exit;End;
+ If S='PASTE' Then Begin Tr:='COLLER';Exit;End;
+ If S='CUT CELL' Then Begin Tr:='COPIER';Exit;End;
+ If S='SEARCH' Then Begin Tr:='CHERCHER';Exit;End;
+ If S='REPEAT' Then Begin Tr:='REPETER';Exit;End;
+ If S='GO TO' Then Begin Tr:='ALLER A';Exit;End;
+ If S='SHIFT' Then Begin Tr:='MAJ';Exit;End;
+ If S='TEXT' Then Begin Tr:='TEXTE';Exit;End;
+ If S='REC' Then Begin Tr:='ENR.';Exit;End;
+ If S='Cancel' Then Begin Tr:='Annuler';Exit;End;
+ If S='YES' Then Begin Tr:='OUI';Exit;End;
+ If S='NO' Then Begin Tr:='NON';Exit;End;
+ If S='[ Type a name... ]' Then Begin Tr:='[ Taper un nom... ]';Exit;End;
+ If S='File name' Then Begin Tr:='Nom du fichier';Exit;End;
+ If S='Name (cell)' Then Begin Tr:='Nom (cellule)';Exit;End;
+ If S='Data range' Then Begin Tr:='Plage de donn'#130'es';Exit;End;
+ If S='Name Y (cell)' Then Begin Tr:='Nom Y (cellule)';Exit;End;
+ If S='Data Y range' Then Begin Tr:='Plage donn'#130'es Y';Exit;End;
+ If S='Define variable' Then Begin Tr:='D'#130'finir variable';Exit;End;
+ If S='The data range holds less than 2 numbers.' Then Begin Tr:='La plage contient moins de 2 nombres.';Exit;End;
+ If S='AVERAGES AND PERCENTILES' Then Begin Tr:='MOYENNES ET PERCENTILES';Exit;End;
+ If S='Number of cases' Then Begin Tr:='Nombre de cas';Exit;End;
+ If S='Range' Then Begin Tr:='Etendue';Exit;End;
+ If S='Arithmetic mean' Then Begin Tr:='Moyenne arithm'#130'tique';Exit;End;
+ If S='Geometric mean' Then Begin Tr:='Moyenne g'#130'om'#130'trique';Exit;End;
+ If S='Harmonic mean' Then Begin Tr:='Moyenne harmonique';Exit;End;
+ If S='Median' Then Begin Tr:='M'#130'diane';Exit;End;
+ If S='Mode (grouped data)' Then Begin Tr:='Mode (donn'#130'es group'#130'es)';Exit;End;
+ If S='Mean absolute deviation' Then Begin Tr:='Ecart moyen absolu';Exit;End;
+ If S='Variance' Then Begin Tr:='Variance';Exit;End;
+ If S='Standard deviation' Then Begin Tr:='Ecart type';Exit;End;
+ If S='Standard error of the mean' Then Begin Tr:='Erreur standard de la moyenne';Exit;End;
+ If S='Coefficient of kurtosis' Then Begin Tr:='Coefficient d''aplatissement';Exit;End;
+ If S='Skewness coefficient' Then Begin Tr:='Coefficient d''asym'#130'trie';Exit;End;
+ If S='Percentiles' Then Begin Tr:='Percentiles';Exit;End;
+ If S='HISTOGRAM' Then Begin Tr:='HISTOGRAMME';Exit;End;
+ If S='FREQUENCY' Then Begin Tr:='FREQUENCE';Exit;End;
+ If S='CUMULATIVE DISTRIBUTION' Then Begin Tr:='DISTRIBUTION CUMULEE';Exit;End;
+ If S='CUMULATIVE %' Then Begin Tr:='% CUMULE';Exit;End;
+ If S='Not enough data pairs.' Then Begin Tr:='Pas assez de paires de donn'#130'es.';Exit;End;
+ If S='SCATTER DIAGRAM' Then Begin Tr:='DIAGRAMME DE DISPERSION';Exit;End;
+ If S='Cannot compute the regression.' Then Begin Tr:='R'#130'gression impossible.';Exit;End;
+ If S='REGRESSION AND CORRELATION' Then Begin Tr:='REGRESSION ET CORRELATION';Exit;End;
+ If S='Mean of X' Then Begin Tr:='Moyenne de X';Exit;End;
+ If S='Mean of Y' Then Begin Tr:='Moyenne de Y';Exit;End;
+ If S='Variance of X' Then Begin Tr:='Variance de X';Exit;End;
+ If S='Variance of Y' Then Begin Tr:='Variance de Y';Exit;End;
+ If S='Coefficient of determination' Then Begin Tr:='Coefficient de d'#130'termination';Exit;End;
+ If S='Correlation coefficient' Then Begin Tr:='Coefficient de corr'#130'lation';Exit;End;
+ If S='t-value' Then Begin Tr:='Valeur de t';Exit;End;
+ If S='Degrees of freedom' Then Begin Tr:='Degr'#130's de libert'#130;Exit;End;
+ If S='Standard error of estimate' Then Begin Tr:='Erreur standard d''estimation';Exit;End;
+ If S='Total variation' Then Begin Tr:='Variation totale';Exit;End;
+ If S='Unexplained variation' Then Begin Tr:='Variation inexpliqu'#130'e';Exit;End;
+ If S='Explained variation' Then Begin Tr:='Variation expliqu'#130'e';Exit;End;
+ If S='Graph title' Then Begin Tr:='Titre du graphe';Exit;End;
+ If S='Label range' Then Begin Tr:='Plage des libell'#130's';Exit;End;
+ If S='Grid (Y/N)' Then Begin Tr:='Grille (O/N)';Exit;End;
+ If S='Automatic Y' Then Begin Tr:='Y automatique';Exit;End;
+ If S='Y minimum' Then Begin Tr:='Y minimum';Exit;End;
+ If S='Y maximum' Then Begin Tr:='Y maximum';Exit;End;
+ If S='3D (Y/N)' Then Begin Tr:='3D (O/N)';Exit;End;
+ If S='BAR GRAPH' Then Begin Tr:='GRAPHE A BARRES';Exit;End;
+ If S='LINE GRAPH' Then Begin Tr:='GRAPHE EN LIGNES';Exit;End;
+ If S='PIE CHART' Then Begin Tr:='GRAPHE EN SECTEURS';Exit;End;
+ If S='Invalid data range.' Then Begin Tr:='Plage de donn'#130'es invalide.';Exit;End;
+ If S='X label range' Then Begin Tr:='Plage libell'#130's X';Exit;End;
+ If S='Y label range' Then Begin Tr:='Plage libell'#130's Y';Exit;End;
+ If S='MULTIPLE RANGE GRAPH' Then Begin Tr:='GRAPHE MULTI-PLAGES';Exit;End;
+ If S='X cell address' Then Begin Tr:='Adresse cellule X';Exit;End;
+ If S='Y1 cell address' Then Begin Tr:='Adresse cellule Y1';Exit;End;
+ If S='Title (cell)' Then Begin Tr:='Titre (cellule)';Exit;End;
+ If S='FUNCTION GRAPH' Then Begin Tr:='GRAPHE DE FONCTION';Exit;End;
+ If S='Invalid cell address.' Then Begin Tr:='Adresse de cellule invalide.';Exit;End;
+ If S='MAX X must exceed MIN X.' Then Begin Tr:='MAX X doit d'#130'passer MIN X.';Exit;End;
+ If S='Key (F1-F10, A-Z)' Then Begin Tr:='Touche (F1-F10, A-Z)';Exit;End;
+ If S='Nothing recorded.' Then Begin Tr:='Rien d''enregistr'#130'.';Exit;End;
+ If S='End recording' Then Begin Tr:='Fin enregistrement';Exit;End;
+ If S='Active macros' Then Begin Tr:='Macros actives';Exit;End;
+ If S='No macro defined.' Then Begin Tr:='Aucune macro d'#130'finie.';Exit;End;
+ If S='3D-CALC.MAC not found.' Then Begin Tr:='3D-CALC.MAC introuvable.';Exit;End;
+ If S='Macros loaded.' Then Begin Tr:='Macros charg'#130'es.';Exit;End;
+ If S=' keys' Then Begin Tr:=' touches';Exit;End;
+ If S='SYNTAX ERROR' Then Begin Tr:='ERREUR DE SYNTAXE';Exit;End;
+ If S='3D-CALC+ command line - type HALT to return' Then Begin Tr:='Ligne de commande 3D-CALC+ - tapez HALT pour revenir';Exit;End;
+ If S='Page from' Then Begin Tr:='Page de';Exit;End;
+ If S='Page to' Then Begin Tr:='Page '#133;Exit;End;
+ If S='Column from' Then Begin Tr:='Colonne de';Exit;End;
+ If S='Column to' Then Begin Tr:='Colonne '#133;Exit;End;
+ If S='Row from' Then Begin Tr:='Ligne de';Exit;End;
+ If S='Row to' Then Begin Tr:='Ligne '#133;Exit;End;
+ If S='Select' Then Begin Tr:='S'#130'lection';Exit;End;
+ If S='Output S/D/P' Then Begin Tr:='Sortie E/D/I';Exit;End;
+ If S='PRINT TEXT' Then Begin Tr:='IMPRIMER TEXTE';Exit;End;
+ If S='Print' Then Begin Tr:='Impression';Exit;End;
+ If S='Cannot open output.' Then Begin Tr:='Sortie impossible.';Exit;End;
+ If S='PROGRAM OUTPUT' Then Begin Tr:='SORTIE DU PROGRAMME';Exit;End;
+ If S='Define a block first.' Then Begin Tr:='D'#130'finissez d''abord un bloc.';Exit;End;
+ If S='THE 3-DIMENSIONAL' Then Begin Tr:='LE TABLEUR';Exit;End;
+ If S='SPREADSHEET' Then Begin Tr:='TRIDIMENSIONNEL';Exit;End;
+ If S='Original program by' Then Begin Tr:='Programme original de';Exit;End;
+ If S='Pascal clone by' Then Begin Tr:='Clone Pascal de';Exit;End;
+ If S='Cell addressing' Then Begin Tr:='Adressage des cellules';Exit;End;
+ If S='Entering data' Then Begin Tr:='Saisie des donn'#130'es';Exit;End;
+ If S='Function keys' Then Begin Tr:='Touches de fonction';Exit;End;
+ If S='Mathematical functions' Then Begin Tr:='Fonctions math'#130'matiques';Exit;End;
+ If S='Statistical functions' Then Begin Tr:='Fonctions statistiques';Exit;End;
+ If S='String functions' Then Begin Tr:='Fonctions cha'#140'nes';Exit;End;
+ If S='Date and time functions' Then Begin Tr:='Fonctions date et heure';Exit;End;
+ If S='Operators' Then Begin Tr:='Op'#130'rateurs';Exit;End;
+ If S='Blocks' Then Begin Tr:='Blocs';Exit;End;
+ If S='Macros' Then Begin Tr:='Macros';Exit;End;
+ If S='HELP' Then Begin Tr:='AIDE';Exit;End;
+ If S='Mathematical' Then Begin Tr:='Math'#130'matiques';Exit;End;
+ If S='Statistical' Then Begin Tr:='Statistiques';Exit;End;
+ If S='String' Then Begin Tr:='Cha'#140'nes';Exit;End;
+ If S='Date and time' Then Begin Tr:='Date et heure';Exit;End;
+ If S='Not a valid 3D-CALC file.' Then Begin Tr:='Fichier 3D-CALC invalide.';Exit;End;
+ If S='Not a valid WKS/WK1 file.' Then Begin Tr:='Fichier WKS/WK1 invalide.';Exit;End;
+ If S='Unsaved data. Quit anyway ?' Then Begin Tr:='Donn'#130'es non sauv'#130'es. Quitter quand m'#136'me ?';Exit;End;
+ If S='Page' Then Begin Tr:='Page';Exit;End;
+ If S='Column' Then Begin Tr:='Colonne';Exit;End;
+ If S='Row' Then Begin Tr:='Ligne';Exit;End;
+ If S='GOTO CELL' Then Begin Tr:='ALLER A CELLULE';Exit;End;
+ If S='String not found.' Then Begin Tr:='Cha'#140'ne introuvable.';Exit;End;
+ If S='Search for' Then Begin Tr:='Rechercher';Exit;End;
+ If S='First column' Then Begin Tr:='Premi'#138're colonne';Exit;End;
+ If S='Last column' Then Begin Tr:='Derni'#138're colonne';Exit;End;
+ If S='Width (chars)' Then Begin Tr:='Largeur (car.)';Exit;End;
+ If S='Precision' Then Begin Tr:='Pr'#130'cision';Exit;End;
+ If S='DEFINE COLUMN' Then Begin Tr:='DEFINIR COLONNE';Exit;End;
+ If S='Sort on column' Then Begin Tr:='Trier sur colonne';Exit;End;
+ If S='First row' Then Begin Tr:='Premi'#138're ligne';Exit;End;
+ If S='Last row' Then Begin Tr:='Derni'#138're ligne';Exit;End;
+ If S='Order (A/D)' Then Begin Tr:='Ordre (C/D)';Exit;End;
+ If S='SORT' Then Begin Tr:='TRI';Exit;End;
+ If S='PRINT DATA' Then Begin Tr:='IMPRIMER DONNEES';Exit;End;
+ If S='Clear the entire spreadsheet ?' Then Begin Tr:='Effacer tout le tableur ?';Exit;End;
+ If S='No window open.' Then Begin Tr:='Aucune fen'#136'tre ouverte.';Exit;End;
+ If S='Set precision' Then Begin Tr:='D'#130'finir pr'#130'cision';Exit;End;
+ If S='Set attributes' Then Begin Tr:='D'#130'finir attributs';Exit;End;
+ If S='Set contents' Then Begin Tr:='D'#130'finir contenu';Exit;End;
+ If S='Graph info X/Y/D' Then Begin Tr:='Info graphe X/Y/D';Exit;End;
+ If S='DEFINE BLOCK' Then Begin Tr:='DEFINIR BLOC';Exit;End;
+ If S='Invalid block.' Then Begin Tr:='Bloc invalide.';Exit;End;
+ If S='No block defined.' Then Begin Tr:='Aucun bloc d'#130'fini.';Exit;End;
+ If S='Use Define block or drag the mouse.' Then Begin Tr:='Utilisez D'#130'finir bloc ou la souris.';Exit;End;
+ If S='Nothing to paste.' Then Begin Tr:='Rien '#133' coller.';Exit;End;
+ If S='Not a 3D-CALC block file.' Then Begin Tr:='Fichier de bloc invalide.';Exit;End;
+ If S='Autocalc (Y/N)' Then Begin Tr:='Autocalc (O/N)';Exit;End;
+ If S='Alert error (Y/N)' Then Begin Tr:='Alerte erreur (O/N)';Exit;End;
+ If S='Global width' Then Begin Tr:='Largeur globale';Exit;End;
+ If S='Global precision' Then Begin Tr:='Pr'#130'cision globale';Exit;End;
+ If S='SETTINGS' Then Begin Tr:='REGLAGES';Exit;End;
+ If S='SYSTEM PRINTER' Then Begin Tr:='IMPRIMANTE SYSTEME';Exit;End;
+ If S='WINDOW OUTPUT' Then Begin Tr:='SORTIE FENETRE';Exit;End;
+ If S='Graph folder' Then Begin Tr:='Dossier graphes';Exit;End;
+ If S='PATHS' Then Begin Tr:='CHEMINS';Exit;End;
+ If S='GRAPH OPTIONS' Then Begin Tr:='OPTIONS GRAPHIQUES';Exit;End;
+ If S='RANGE' Then Begin Tr:='PLAGE';Exit;End;
+ If S='LINE STYLE' Then Begin Tr:='STYLE LIGNE';Exit;End;
+ If S='WIDTH' Then Begin Tr:='EPAISS.';Exit;End;
+ If S='MARKER' Then Begin Tr:='MARQUE';Exit;End;
+ If S='FILL PATTERN' Then Begin Tr:='MOTIF';Exit;End;
+ If S='Options saved in 3D-CALC.OPT' Then Begin Tr:='Options sauv'#130'es dans 3D-CALC.OPT';Exit;End;
+ If S='Format : left margin 0, text width 78.' Then Begin Tr:='Format : marge gauche 0, largeur 78.';Exit;End;
+ If S='System font 8x8 is used in this version.' Then Begin Tr:='La police syst'#138'me 8x8 est utilis'#130'e.';Exit;End;
+ If S='January' Then Begin Tr:='Janvier';Exit;End;
+ If S='February' Then Begin Tr:='F'#130'vrier';Exit;End;
+ If S='March' Then Begin Tr:='Mars';Exit;End;
+ If S='April' Then Begin Tr:='Avril';Exit;End;
+ If S='May' Then Begin Tr:='Mai';Exit;End;
+ If S='June' Then Begin Tr:='Juin';Exit;End;
+ If S='July' Then Begin Tr:='Juillet';Exit;End;
+ If S='August' Then Begin Tr:='Ao'#150't';Exit;End;
+ If S='September' Then Begin Tr:='Septembre';Exit;End;
+ If S='October' Then Begin Tr:='Octobre';Exit;End;
+ If S='November' Then Begin Tr:='Novembre';Exit;End;
+ If S='December' Then Begin Tr:='D'#130'cembre';Exit;End;
+ If S='Sunday' Then Begin Tr:='Dimanche';Exit;End;
+ If S='Monday' Then Begin Tr:='Lundi';Exit;End;
+ If S='Tuesday' Then Begin Tr:='Mardi';Exit;End;
+ If S='Wednesday' Then Begin Tr:='Mercredi';Exit;End;
+ If S='Thursday' Then Begin Tr:='Jeudi';Exit;End;
+ If S='Friday' Then Begin Tr:='Vendredi';Exit;End;
+ If S='Saturday' Then Begin Tr:='Samedi';Exit;End;
+ If S='NONAME.3DD' Then Begin Tr:='SANSNOM.3DD';Exit;End;
+ If S='Sheet' Then Begin Tr:='Tableur';Exit;End;
+ If Copy(S,1,11)='Variable : ' Then Begin Tr:='Variable : '+Copy(S,12,255);Exit;End;
+ If Copy(S,1,22)='Regression line : Y = ' Then Begin Tr:='Droite de r'#130'gression : Y = '+Copy(S,23,255);Exit;End;
+ If Copy(S,1,13)='Cannot write ' Then Begin Tr:='Ecriture impossible : '+Copy(S,14,255);Exit;End;
+ If Copy(S,1,12)='Cannot read ' Then Begin Tr:='Lecture impossible : '+Copy(S,13,255);Exit;End;
+ If Copy(S,1,16)='Macros saved in ' Then Begin Tr:='Macros sauv'#130'es dans '+Copy(S,17,255);Exit;End;
+ If Copy(S,1,14)='Free memory : ' Then Begin Tr:='M'#130'moire libre : '+Copy(S,15,255);Exit;End;
+ If Copy(S,1,17)='File not found : ' Then Begin Tr:='Fichier introuvable : '+Copy(S,18,255);Exit;End;
+ If Copy(S,1,17)='Data exported to ' Then Begin Tr:='Donn'#130'es export'#130'es vers '+Copy(S,18,255);Exit;End;
+ If Copy(S,1,16)='Window saved in ' Then Begin Tr:='Fen'#136'tre sauv'#130'e dans '+Copy(S,17,255);Exit;End;
+End;
+
+Function L2(Const En,Fr: String): String;
+Begin
+ If LangEN Then L2:=En Else L2:=Fr;
+End;
+
+
 { ====================================================================== }
 {                         STOCKAGE DES CELLULES                          }
 { ====================================================================== }
@@ -578,7 +877,7 @@ Var P,C: Integer;
 Begin
  For P:=0 To MAXPAGE Do KillPage(S,P);
  For C:=0 To MAXCOL Do Begin Sh[S].ColW[C]:=DefColWid;Sh[S].ColP[C]:=-1;End;
- Sh[S].FileName:='NONAME.3DD';
+ Sh[S].FileName:=Tr('NONAME.3DD');
  Sh[S].Named:=False;
  Sh[S].Modified:=False;
  Sh[S].CurP:=0;Sh[S].CurC:=0;Sh[S].CurR:=0;
@@ -1097,10 +1396,10 @@ Begin
   FromJDN(Trunc(X)+2415020,Ag.Cnt,Ag.NNeg,Ag.NPos);
   V.K:=1;V.S:=Pad2(Ag.NPos)+'/'+Pad2(Ag.NNeg)+'/'+Pad2(Ag.Cnt Mod 100);
  End
- Else If Nm='DAY$' Then Begin V.K:=1;V.S:=DayNames[(Trunc(X)+2415020+1) Mod 7];End
+ Else If Nm='DAY$' Then Begin V.K:=1;V.S:=Tr(DayNames[(Trunc(X)+2415020+1) Mod 7]);End
  Else If Nm='MONTH$' Then Begin
   FromJDN(Trunc(X)+2415020,Ag.Cnt,Ag.NNeg,Ag.NPos);
-  V.K:=1;V.S:=MonthNames[Ag.NNeg];
+  V.K:=1;V.S:=Tr(MonthNames[Ag.NNeg]);
  End
  Else If Nm='NOW' Then Begin
   GetDate(DY,DM,DD,DW);
@@ -1786,9 +2085,10 @@ Begin
  FillPoly(3,Pt);
 End;
 
-Procedure Button(X1,Y1,X2,Y2: Integer; Const S: String; Hot,Enabled: Boolean);
-Var TX: Integer;
+Procedure Button(X1,Y1,X2,Y2: Integer; Const S0: String; Hot,Enabled: Boolean);
+Var TX: Integer; S: String;
 Begin
+ S:=Tr(S0);
  If Hot Then Begin
   Box(X1,Y1,X2,Y2,INK);
   Frame(X1-1,Y1-1,X2+1,Y2+1);
@@ -1824,21 +2124,21 @@ End;
 { ====================================================================== }
 
 Var
- FormLbl : Array[1..12] Of String[24];
+ FormLbl : Array[1..12] Of String[30];
  FormVal : Array[1..12] Of String[70];
  FormFW  : Integer;
  LstItem : Array[1..120] Of String[36];
  LstN    : Integer;
 
-Procedure MsgBox(Const Title,Txt: String);
-Var Lines: Array[1..14] Of String[60]; N,I,W,X1,Y1,X2,Y2,P: Integer; S: String; E: TEvent; Done: Boolean;
+Procedure MsgBox(Const Title0,Txt: String);
+Var Lines: Array[1..14] Of String[60]; N,I,W,X1,Y1,X2,Y2,P: Integer; S,Title: String; E: TEvent; Done: Boolean;
 Begin
- N:=0;S:=Txt;
+ N:=0;S:=Txt;Title:=Tr(Title0);
  While (S<>'') And (N<14) Do Begin
   P:=Pos('|',S);
   Inc(N);
-  If P=0 Then Begin Lines[N]:=Copy(S,1,60);S:='';End
-  Else Begin Lines[N]:=Copy(Copy(S,1,P-1),1,60);Delete(S,1,P);End;
+  If P=0 Then Begin Lines[N]:=Copy(Tr(S),1,60);S:='';End
+  Else Begin Lines[N]:=Copy(Tr(Copy(S,1,P-1)),1,60);Delete(S,1,P);End;
  End;
  W:=TextW(Title)+80;
  For I:=1 To N Do If TextW(Lines[I])+32>W Then W:=TextW(Lines[I])+32;
@@ -1863,9 +2163,10 @@ Begin
  NeedDraw:=True;
 End;
 
-Function ConfirmBox(Const Txt: String): Boolean;
-Var X1,Y1,X2,Y2,W: Integer; E: TEvent; Done: Boolean;
+Function ConfirmBox(Const Txt0: String): Boolean;
+Var X1,Y1,X2,Y2,W: Integer; E: TEvent; Done: Boolean; Txt: String;
 Begin
+ Txt:=Tr(Txt0);
  W:=TextW(Txt)+40;
  If W<260 Then W:=260;
  X1:=(SCR_W-W) Div 2;X2:=X1+W;Y1:=190;Y2:=Y1+90;
@@ -1879,7 +2180,7 @@ Begin
  Repeat
   PollEvent(E);
   If E.Kind=1 Then Begin
-   If UpCase(Chr(E.Key And $FF))='Y' Then Begin ConfirmBox:=True;Done:=True;End;
+   If (UpCase(Chr(E.Key And $FF))='Y') Or (UpCase(Chr(E.Key And $FF))='O') Then Begin ConfirmBox:=True;Done:=True;End;
    If (E.Key=K_ENTER) Then Begin ConfirmBox:=True;Done:=True;End;
    If (UpCase(Chr(E.Key And $FF))='N') Or (E.Key=K_ESC) Then Done:=True;
   End Else If E.Kind=2 Then Begin
@@ -1890,10 +2191,12 @@ Begin
  NeedDraw:=True;
 End;
 
-Function FormBox(Const Title: String; N: Integer): Boolean;
+Function FormBox(Const Title0: String; N: Integer): Boolean;
 Var LW,W,H,X1,Y1,X2,Y2,I,F,FX,FY,FW: Integer; E: TEvent; Done,Ok,Fresh,Redraw: Boolean; Ch: Char;
-    Blink: LongInt;
+    Blink: LongInt; Title: String;
 Begin
+ Title:=Tr(Title0);
+ For I:=1 To N Do FormLbl[I]:=Tr(FormLbl[I]);
  LW:=0;
  For I:=1 To N Do If Length(FormLbl[I])>LW Then LW:=Length(FormLbl[I]);
  LW:=LW*8+8;
@@ -1962,7 +2265,7 @@ End;
 
 Function InputBox(Const Title,Prompt: String; Var S: String; MaxLen: Integer): Boolean;
 Begin
- FormLbl[1]:=Copy(Prompt,1,24);
+ FormLbl[1]:=Copy(Prompt,1,30);
  FormVal[1]:=Copy(S,1,70);
  FormFW:=MaxLen;
  If FormFW>40 Then FormFW:=40;
@@ -1973,9 +2276,10 @@ Begin
 End;
 
 { Boite de selection dans une liste : LstItem[1..LstN]. Retourne 0 si annule }
-Function ChooseBox(Const Title: String; Start: Integer): Integer;
-Var X1,Y1,X2,Y2,W,H,I,Top,Sel,VisN: Integer; E: TEvent; Done,Redraw: Boolean; Res: Integer;
+Function ChooseBox(Const Title0: String; Start: Integer): Integer;
+Var X1,Y1,X2,Y2,W,H,I,Top,Sel,VisN: Integer; E: TEvent; Done,Redraw: Boolean; Res: Integer; Title: String;
 Begin
+ Title:=Tr(Title0);
  W:=TextW(Title)+80;
  For I:=1 To LstN Do If TextW(LstItem[I])+60>W Then W:=TextW(LstItem[I])+60;
  If W<260 Then W:=260;
@@ -2065,12 +2369,12 @@ Begin
  ScanFiles(Mask);
  If Lower(Mask)<>Mask Then ScanFiles(Lower(Mask));
  Inc(LstN);
- LstItem[LstN]:='[ Type a name... ]';
+ LstItem[LstN]:=Tr('[ Type a name... ]');
  FileSelect:=False;
  S:=Name;
  Sel:=1;
  For I:=1 To LstN-1 Do If Upper(LstItem[I])=Upper(ShortName(S)) Then Sel:=I;
- I:=ChooseBox(Title+' ('+Mask+')',Sel);
+ I:=ChooseBox(Tr(Title)+' ('+Mask+')',Sel);
  If I=0 Then Exit;
  If I<LstN Then Begin
   Name:=LstItem[I];
@@ -2109,124 +2413,134 @@ Begin
 End;
 
 { '-' = separateur, '=' prefixe = titre de section ; '|' separe le raccourci }
-Function MLabel(M,I: Integer): String;
+Function MLabelEn(M,I: Integer): String;
 Begin
- MLabel:='';
+ MLabelEn:='';
  Case M Of
   1: Case I Of
-      1: MLabel:='About 3D-CALC+';
-      2: MLabel:='-';
-      3: MLabel:='Free memory';
+      1: MLabelEn:='About 3D-CALC+';
+      2: MLabelEn:='-';
+      3: MLabelEn:='Free memory';
      End;
   2: Case I Of
-      1: MLabel:='Spreadsheet 1|Alt1';
-      2: MLabel:='Spreadsheet 2|Alt2';
-      3: MLabel:='Spreadsheet 3|Alt3';
-      4: MLabel:='=files';
-      5: MLabel:='Read file|^L';
-      6: MLabel:='Save|^S';
-      7: MLabel:='Save as|^X';
-      8: MLabel:='-';
-      9: MLabel:='Append file';
-      10: MLabel:='Merge file';
-      11: MLabel:='-';
-      12: MLabel:='Read Lotus123 file';
-      13: MLabel:='Import ASCII file';
-      14: MLabel:='Export ASCII file';
-      15: MLabel:='-';
-      16: MLabel:='Quit 3D-CALC|^Q';
+      1: MLabelEn:='Spreadsheet 1|Alt1';
+      2: MLabelEn:='Spreadsheet 2|Alt2';
+      3: MLabelEn:='Spreadsheet 3|Alt3';
+      4: MLabelEn:='=files';
+      5: MLabelEn:='Read file|^L';
+      6: MLabelEn:='Save|^S';
+      7: MLabelEn:='Save as|^X';
+      8: MLabelEn:='-';
+      9: MLabelEn:='Append file';
+      10: MLabelEn:='Merge file';
+      11: MLabelEn:='-';
+      12: MLabelEn:='Read Lotus123 file';
+      13: MLabelEn:='Import ASCII file';
+      14: MLabelEn:='Export ASCII file';
+      15: MLabelEn:='-';
+      16: MLabelEn:='Quit 3D-CALC|^Q';
      End;
   3: Case I Of
-      1: MLabel:='Open window|F1';
-      2: MLabel:='Sort';
-      3: MLabel:='Find|ShF7';
-      4: MLabel:='Goto cell|^F7';
-      5: MLabel:='Define column|ShF8';
-      6: MLabel:='Calculate window|F8';
-      7: MLabel:='-';
-      8: MLabel:='Print data|^O';
-      9: MLabel:='Clear data|^G';
-      10: MLabel:='Command line|^F';
-      11: MLabel:='-';
-      12: MLabel:='Output window';
+      1: MLabelEn:='Open window|F1';
+      2: MLabelEn:='Sort';
+      3: MLabelEn:='Find|ShF7';
+      4: MLabelEn:='Goto cell|^F7';
+      5: MLabelEn:='Define column|ShF8';
+      6: MLabelEn:='Calculate window|F8';
+      7: MLabelEn:='-';
+      8: MLabelEn:='Print data|^O';
+      9: MLabelEn:='Clear data|^G';
+      10: MLabelEn:='Command line|^F';
+      11: MLabelEn:='-';
+      12: MLabelEn:='Output window';
      End;
   4: Case I Of
-      1: MLabel:='Define block|^D';
-      2: MLabel:='Set begin block|^B';
-      3: MLabel:='Set end block|^E';
-      4: MLabel:='-';
-      5: MLabel:='Move block|^M';
-      6: MLabel:='Copy block|^N';
-      7: MLabel:='Copy block to text';
-      8: MLabel:='-';
-      9: MLabel:='Cut block|^C';
-      10: MLabel:='Paste block|^P';
-      11: MLabel:='Write block|^W';
-      12: MLabel:='Read block|^R';
-      13: MLabel:='-';
-      14: MLabel:='Set block values|^Y';
-      15: MLabel:='Hide block|^H';
-      16: MLabel:='Clear block|^K';
+      1: MLabelEn:='Define block|^D';
+      2: MLabelEn:='Set begin block|^B';
+      3: MLabelEn:='Set end block|^E';
+      4: MLabelEn:='-';
+      5: MLabelEn:='Move block|^M';
+      6: MLabelEn:='Copy block|^N';
+      7: MLabelEn:='Copy block to text';
+      8: MLabelEn:='-';
+      9: MLabelEn:='Cut block|^C';
+      10: MLabelEn:='Paste block|^P';
+      11: MLabelEn:='Write block|^W';
+      12: MLabelEn:='Read block|^R';
+      13: MLabelEn:='-';
+      14: MLabelEn:='Set block values|^Y';
+      15: MLabelEn:='Hide block|^H';
+      16: MLabelEn:='Clear block|^K';
      End;
   5: Case I Of
-      1: MLabel:='Averages and percentiles';
-      2: MLabel:='Histogram';
-      3: MLabel:='Cumulative distribution';
-      4: MLabel:='-';
-      5: MLabel:='Scatter diagram';
-      6: MLabel:='Draw curve';
-      7: MLabel:='Regression and correlation';
+      1: MLabelEn:='Averages and percentiles';
+      2: MLabelEn:='Histogram';
+      3: MLabelEn:='Cumulative distribution';
+      4: MLabelEn:='-';
+      5: MLabelEn:='Scatter diagram';
+      6: MLabelEn:='Draw curve';
+      7: MLabelEn:='Regression and correlation';
      End;
   6: Case I Of
-      1: MLabel:='Bar graph';
-      2: MLabel:='Line graph';
-      3: MLabel:='Pie chart';
-      4: MLabel:='Multiple range graph';
-      5: MLabel:='Function graph';
+      1: MLabelEn:='Bar graph';
+      2: MLabelEn:='Line graph';
+      3: MLabelEn:='Pie chart';
+      4: MLabelEn:='Multiple range graph';
+      5: MLabelEn:='Function graph';
      End;
   7: Case I Of
-      1: MLabel:='Open window|^T';
-      2: MLabel:='Read text|^I';
-      3: MLabel:='Save text';
-      4: MLabel:='Save as';
-      5: MLabel:='ASCII';
-      6: MLabel:='Format';
-      7: MLabel:='Print text|^U';
-      8: MLabel:='Reformat';
-      9: MLabel:='Program|^Z';
-      10: MLabel:='Clear|^V';
+      1: MLabelEn:='Open window|^T';
+      2: MLabelEn:='Read text|^I';
+      3: MLabelEn:='Save text';
+      4: MLabelEn:='Save as';
+      5: MLabelEn:='ASCII';
+      6: MLabelEn:='Format';
+      7: MLabelEn:='Print text|^U';
+      8: MLabelEn:='Reformat';
+      9: MLabelEn:='Program|^Z';
+      10: MLabelEn:='Clear|^V';
      End;
   8: Case I Of
-      1: MLabel:='Start recording';
-      2: MLabel:='Stop recording';
-      3: MLabel:='-';
-      4: MLabel:='Delete macro';
-      5: MLabel:='-';
-      6: MLabel:='List active macros';
-      7: MLabel:='-';
-      8: MLabel:='Save desk macros';
-      9: MLabel:='Load desk macros';
+      1: MLabelEn:='Start recording';
+      2: MLabelEn:='Stop recording';
+      3: MLabelEn:='-';
+      4: MLabelEn:='Delete macro';
+      5: MLabelEn:='-';
+      6: MLabelEn:='List active macros';
+      7: MLabelEn:='-';
+      8: MLabelEn:='Save desk macros';
+      9: MLabelEn:='Load desk macros';
      End;
   9: Case I Of
-      1: MLabel:='Settings';
-      2: MLabel:='-';
-      3: MLabel:='Link pages';
-      4: MLabel:='Column synchronization';
-      5: MLabel:='Row synchronization';
-      6: MLabel:='Page synchronization';
-      7: MLabel:='Window grid';
-      8: MLabel:='-';
-      9: MLabel:='Output format';
-      10: MLabel:='Paths';
-      11: MLabel:='Graph options';
-      12: MLabel:='Cell font';
-      13: MLabel:='-';
-      14: MLabel:='Save options';
+      1: MLabelEn:='Settings';
+      2: MLabelEn:='-';
+      3: MLabelEn:='Link pages';
+      4: MLabelEn:='Column synchronization';
+      5: MLabelEn:='Row synchronization';
+      6: MLabelEn:='Page synchronization';
+      7: MLabelEn:='Window grid';
+      8: MLabelEn:='-';
+      9: MLabelEn:='Output format';
+      10: MLabelEn:='Paths';
+      11: MLabelEn:='Graph options';
+      12: MLabelEn:='Cell font';
+      13: MLabelEn:='-';
+      14: MLabelEn:='Save options';
      End;
   10: Case I Of
-      1: MLabel:='Help';
+      1: MLabelEn:='Help';
      End;
  End;
+End;
+
+Function MLabel(M,I: Integer): String;
+Var S: String; P: Integer;
+Begin
+ S:=MLabelEn(M,I);
+ If (S='') Or (S='-') Or LangEN Then Begin MLabel:=S;Exit;End;
+ If S[1]='=' Then Begin MLabel:='='+Tr(Copy(S,2,40));Exit;End;
+ P:=Pos('|',S);
+ If P>0 Then MLabel:=Tr(Copy(S,1,P-1))+Copy(S,P,40) Else MLabel:=Tr(S);
 End;
 
 Function MChecked(M,I: Integer): Boolean;
@@ -2264,11 +2578,16 @@ Begin
  MSep:=(MLabel(M,I)='-');
 End;
 
+Function MT(I: Integer): String;
+Begin
+ MT:=Tr(MTitle[I]);
+End;
+
 Function MenuX(M: Integer): Integer;
 Var I,X: Integer;
 Begin
  X:=24;
- For I:=1 To M-1 Do X:=X+Length(MTitle[I])*8+16;
+ For I:=1 To M-1 Do X:=X+Length(MT(I))*8+16;
  MenuX:=X;
 End;
 
@@ -2318,7 +2637,7 @@ Begin
  TitleHit:=0;
  If (Y<0) Or (Y>=MENU_H) Then Exit;
  For M:=1 To NMENU Do
-  If (X>=MenuX(M)-8) And (X<=MenuX(M)+Length(MTitle[M])*8+7) Then TitleHit:=M;
+  If (X>=MenuX(M)-8) And (X<=MenuX(M)+Length(MT(M))*8+7) Then TitleHit:=M;
 End;
 
 Procedure DrawMenuBar;
@@ -2330,10 +2649,10 @@ Begin
  Line(0,MENU_H-1,SCR_W-1,MENU_H-1);
  For M:=1 To NMENU Do Begin
   If M=MenuOpen Then Begin
-   Box(MenuX(M)-8,0,MenuX(M)+Length(MTitle[M])*8+7,MENU_H-2,INK);
-   WText(MenuX(M),5,MTitle[M]);
+   Box(MenuX(M)-8,0,MenuX(M)+Length(MT(M))*8+7,MENU_H-2,INK);
+   WText(MenuX(M),5,MT(M));
   End Else If (M=1) And False Then Begin
-  End Else PText(MenuX(M),5,MTitle[M]);
+  End Else PText(MenuX(M),5,MT(M));
  End;
 End;
 
@@ -2461,13 +2780,13 @@ Begin
   X:=FK_X0+FK_LW+(I-1)*FK_CW;
   Line(X,FKEY_Y+1,X,SCR_H-3);
   For J:=0 To 3 Do
-   If FKTxt[I,J]<>'' Then SmallText(X+4,FKEY_Y+8+J*16,FKTxt[I,J]);
+   If FKTxt[I,J]<>'' Then SmallText(X+4,FKEY_Y+8+J*16,Tr(FKTxt[I,J]));
  End;
- SmallText(FK_X0+FK_LW-36,FKEY_Y+8+2*16,'SHIFT');
+ SmallText(FK_X0+FK_LW-36,FKEY_Y+8+2*16,Tr('SHIFT'));
  SmallText(FK_X0+FK_LW-30,FKEY_Y+8+3*16,'CTRL');
  If Recording Then Begin
   Box(FK_X0+2,FKEY_Y+6,FK_X0+30,FKEY_Y+16,INK);
-  WText(FK_X0+4,FKEY_Y+8,'REC');
+  WText(FK_X0+4,FKEY_Y+8,Tr('REC'));
  End;
  If Not AutoCalc Then PText(FK_X0+2,FKEY_Y+8,'MAN');
 End;
@@ -3056,7 +3375,7 @@ Begin
  If Not TxtOn Then Exit;
  Box(TX1,TY1,TX2,TY2,PAPER);
  Frame(TX1,TY1,TX2,TY2);
- T:='TEXT';
+ T:=Tr('TEXT');
  If TxtName<>'' Then T:=ShortName(TxtName);
  DrawTitleBar(TX1,TY1,TX2,T,TxtFocus,True);
  DrawScrollV(TX2-SB_W,TY1+TB_H+1,TX2,TY2-SB_W-1,TxtTopL,Max2(1,TxtN));
@@ -4146,7 +4465,7 @@ End;
 
 Procedure ChartDefaults(Kind: Integer; Const Title: String);
 Begin
- ChKind:=Kind;ChTitle:=Title;ChXT:='';ChYT:='';ChReg:=False;
+ ChKind:=Kind;ChTitle:=Tr(Title);ChXT:='';ChYT:='';ChReg:=False;
  ChartOn:=True;
  ChGrid:=GridOn;ChAuto:=True;ChD3:=False;
  ChX1:=70;ChY1:=MENU_H+22;ChX2:=SCR_W-12;ChY2:=FKEY_Y-14;
@@ -4164,14 +4483,14 @@ Procedure RepAdd(Const S: String);
 Begin
  If ChRepN<40 Then Begin
   Inc(ChRepN);
-  ChRep^[ChRepN]:=Copy(S,1,64);
+  ChRep^[ChRepN]:=Copy(Tr(S),1,64);
  End;
 End;
 
 Function PadTo(Const S: String; N: Integer): String;
 Var T: String;
 Begin
- T:=S;
+ T:=Tr(S);
  While Length(T)<N Do T:=T+' ';
  PadTo:=T;
 End;
@@ -4300,7 +4619,7 @@ Begin
  ChartDefaults(CH_HIST,'HISTOGRAM');
  ChNS:=1;ChNP:=K;
  ChXT:=NameOf(VarN1);
- ChYT:='FREQUENCY';
+ ChYT:=Tr('FREQUENCY');
 End;
 
 Procedure StatCumulative;
@@ -4318,7 +4637,7 @@ Begin
  ChartDefaults(CH_CUM,'CUMULATIVE DISTRIBUTION');
  ChNS:=1;ChNP:=N;
  ChXT:=NameOf(VarN1);
- ChYT:='CUMULATIVE %';
+ ChYT:=Tr('CUMULATIVE %');
 End;
 
 { Collecte les paires X,Y valides ; calcule la regression }
@@ -4407,7 +4726,7 @@ End;
 
 Function YN(Const S: String): Boolean;
 Begin
- YN:=(S<>'') And (UpCase(S[1])='Y');
+ YN:=(S<>'') And ((UpCase(S[1])='Y') Or (UpCase(S[1])='O'));
 End;
 
 Function ValOf(Const S: String; Def: Double): Double;
@@ -4430,7 +4749,7 @@ Var N,I,K,M: Integer; Rg: TRange; T,Ttl: String; IsNum: Boolean;
 Begin
  K:=Kind;
  If GFm[K,4]='' Then Begin
-  GFm[K,4]:='Y';GFm[K,5]:='Y';GFm[K,6]:='0';GFm[K,7]:='100';GFm[K,8]:='N';
+  GFm[K,4]:=L2('Y','O');GFm[K,5]:=L2('Y','O');GFm[K,6]:='0';GFm[K,7]:='100';GFm[K,8]:='N';
  End;
  If GXR<>'' Then GFm[K,2]:=GXR;
  If GDR<>'' Then GFm[K,3]:=GDR;
@@ -4476,7 +4795,7 @@ Procedure GraphMultiple;
 Var K,I,J,NR,NC,NYL: Integer; Rg,Ry,Rx: TRange; IsNum,Ok: Boolean; ByRow: Boolean; X: Double;
 Begin
  K:=4;
- If GFm[K,1]='' Then Begin GFm[K,5]:='B';GFm[K,6]:='Y';GFm[K,7]:='Y';GFm[K,8]:='0';GFm[K,9]:='100';GFm[K,10]:='N';End;
+ If GFm[K,1]='' Then Begin GFm[K,5]:='B';GFm[K,6]:=L2('Y','O');GFm[K,7]:=L2('Y','O');GFm[K,8]:='0';GFm[K,9]:='100';GFm[K,10]:='N';End;
  If GXR<>'' Then GFm[K,2]:=GXR;
  If GYR<>'' Then GFm[K,3]:=GYR;
  If GDR<>'' Then GFm[K,4]:=GDR;
@@ -4515,7 +4834,7 @@ Procedure GraphFunction;
 Var K,I,N: Integer; Rx,Ry: TRange; Mn,Mx,X,Lo,Hi: Double; Orig: String; Ok: Boolean; V: TVal;
 Begin
  K:=5;
- If GFm[K,1]='' Then Begin GFm[K,4]:='-180';GFm[K,5]:='180';GFm[K,6]:='Y';GFm[K,7]:='0';GFm[K,8]:='1';End;
+ If GFm[K,1]='' Then Begin GFm[K,4]:='-180';GFm[K,5]:='180';GFm[K,6]:=L2('Y','O');GFm[K,7]:='0';GFm[K,8]:='1';End;
  FormLbl[1]:='X cell address';FormLbl[2]:='Y1 cell address';FormLbl[3]:='Title (cell)';
  FormLbl[4]:='MIN X';FormLbl[5]:='MAX X';FormLbl[6]:='Automatic Y';FormLbl[7]:='Y minimum';FormLbl[8]:='Y maximum';
  For I:=1 To 8 Do FormVal[I]:=GFm[K,I];
@@ -4615,12 +4934,12 @@ Begin
  For L:=1 To 10 Do
   If DeskMac[L]<>Nil Then Begin
    Inc(LstN);
-   LstItem[LstN]:='Desk   Alt+F'+IntStr(L)+'   '+IntStr(DeskLen[L])+' keys';
+   LstItem[LstN]:=Tr('Desk')+'   Alt+F'+IntStr(L)+'   '+IntStr(DeskLen[L])+Tr(' keys');
   End;
  For L:=0 To 25 Do
   If Sh[CurS].SMac[L]<>Nil Then Begin
    Inc(LstN);
-   LstItem[LstN]:='Sheet'+IntStr(CurS)+' Alt+'+Chr(65+L)+'    '+IntStr(Sh[CurS].SMacLen[L])+' keys';
+   LstItem[LstN]:=Tr('Sheet')+IntStr(CurS)+' Alt+'+Chr(65+L)+'    '+IntStr(Sh[CurS].SMacLen[L])+Tr(' keys');
   End;
  If LstN=0 Then Begin MsgBox('Active macros','No macro defined.');Exit;End;
  ChooseBox('Active macros',1);
@@ -4726,7 +5045,7 @@ End;
 Procedure ProgPrint(Const S: String);
 Begin
  If ProgOut<>'' Then ProgOut:=ProgOut+'  ';
- ProgOut:=Copy(ProgOut+S,1,200);
+ ProgOut:=Copy(ProgOut+Tr(S),1,200);
 End;
 
 Procedure ExecStmt(St: String; Depth0: Integer);
@@ -4845,7 +5164,7 @@ Var E: TEvent; Ln: String; Done: Boolean; I: Integer; K: Word;
 Begin
  ConN:=0;Ln:='';Done:=False;ProgHalt:=False;
  ProgP:=Sh[CurS].CurP;ProgC:=Sh[CurS].CurC;ProgR:=Sh[CurS].CurR;
- ConAdd('3D-CALC+ command line - type HALT to return');
+ ConAdd(Tr('3D-CALC+ command line - type HALT to return'));
  DrawCon;
  Repeat
   PollEvent(E);
@@ -5033,9 +5352,9 @@ Begin
  Sel:=FormVal[7];Dest:=Upper(FormVal[8]);
  RecalcSheet(CurS);
  Open:=False;
- If (Dest<>'') And (Dest[1]<>'S') Then Begin
+ If (Dest<>'') And (Dest[1]<>'S') And (Dest[1]<>'E') Then Begin
   {$I-}
-  If Dest[1]='P' Then Assign(F,'PRN') Else Assign(F,'PRINT.TXT');
+  If (Dest[1]='P') Or (Dest[1]='I') Then Assign(F,'PRN') Else Assign(F,'PRINT.TXT');
   Rewrite(F);
   {$I+}
   If IOResult=0 Then Open:=True Else Begin MsgBox('Print','Cannot open output.');Exit;End;
@@ -5147,12 +5466,12 @@ Begin
  SetColor(INK);
  OutTextXY(X1+30,Y1+TB_H+28,'3D-CALC +');
  SetTextStyle(DefaultFont,HorizDir,1);
- PText(X1+20,Y1+TB_H+118,'THE 3-DIMENSIONAL');
- PText(X1+20,Y1+TB_H+130,'SPREADSHEET');
+ PText(X1+20,Y1+TB_H+118,Tr('THE 3-DIMENSIONAL'));
+ PText(X1+20,Y1+TB_H+130,Tr('SPREADSHEET'));
  PText(X1+20,Y1+TB_H+142,'Version '+VERSION_TEXT);
- PText(X1+20,Y1+TB_H+168,'Original program by');
+ PText(X1+20,Y1+TB_H+168,Tr('Original program by'));
  PText(X1+20,Y1+TB_H+180,'FRANK SCHOONJANS');
- PText(X1+20,Y1+TB_H+204,'Pascal clone by');
+ PText(X1+20,Y1+TB_H+204,Tr('Pascal clone by'));
  PText(X1+20,Y1+TB_H+216,'Sylvain Maltais');
  ShowMouse;
  Done:=False;
@@ -5169,28 +5488,35 @@ Procedure HelpBox;
 Var K: Integer;
 Begin
  LstN:=10;
- LstItem[1]:='Cell addressing';
- LstItem[2]:='Entering data';
- LstItem[3]:='Function keys';
- LstItem[4]:='Mathematical functions';
- LstItem[5]:='Statistical functions';
- LstItem[6]:='String functions';
- LstItem[7]:='Date and time functions';
- LstItem[8]:='Operators';
- LstItem[9]:='Blocks';
- LstItem[10]:='Macros';
+ LstItem[1]:=Tr('Cell addressing');
+ LstItem[2]:=Tr('Entering data');
+ LstItem[3]:=Tr('Function keys');
+ LstItem[4]:=Tr('Mathematical functions');
+ LstItem[5]:=Tr('Statistical functions');
+ LstItem[6]:=Tr('String functions');
+ LstItem[7]:=Tr('Date and time functions');
+ LstItem[8]:=Tr('Operators');
+ LstItem[9]:=Tr('Blocks');
+ LstItem[10]:=Tr('Macros');
  K:=ChooseBox('HELP',1);
  Case K Of
-  1: MsgBox('Cell addressing','[page]column row : 0A0, B12, 1BA12|$ before page/column/row = absolute: $A$2|Range : A2:A9 or 1B1:8B1 (3D)|K(c) column, R(l) row, C(p,c,l) cell, P(p) page');
-  2: MsgBox('Entering data','Type a value, text between quotes or a formula.|Return/Tab/arrows store and move, Ctrl+Enter stores only.|Esc clears the cell.|Formulas need no = sign: SUM(A2:A9)');
-  3: MsgBox('Function keys','F1 open window  Sh-F1 close  Ct-F1 autocalc|F2/F3/F4 insert page/row/column (Shift delete, Ctrl clear)|F5 paste cell  Sh-F5 load cell  F6 formula->result|F7 repeat find  Sh-F7 find  Ct-F7 goto|F8 calculate  Sh-F8 define column|F9/F10 page - / +  (Shift = renumber)');
-  4: MsgBox('Mathematical','ABS ACOS ASIN ATAN COS EXP FACT INT LN LOG MOD|RND ROUND SGN SIN SQR TAN  (angle unit: Settings)|PMT FV PV NPV SLN SYD DDB RATE TERM CTERM');
+  1: MsgBox('Cell addressing',L2('[page]column row : 0A0, B12, 1BA12|$ before page/column/row = absolute: $A$2|Range : A2:A9 or 1B1:8B1 (3D)|K(c) column, R(l) row, C(p,c,l) cell, P(p) page',
+        '[page]colonne ligne : 0A0, B12, 1BA12|$ devant page/colonne/ligne = absolu : $A$2|Plage : A2:A9 ou 1B1:8B1 (3D)|K(c) colonne, R(l) ligne, C(p,c,l) cellule, P(p) page'));
+  2: MsgBox('Entering data',L2('Type a value, text between quotes or a formula.|Return/Tab/arrows store and move, Ctrl+Enter stores only.|Esc clears the cell.|Formulas need no = sign: SUM(A2:A9)',
+        'Tapez une valeur, un texte entre guillemets ou une formule.|Retour/Tab/fleches valident et deplacent, Ctrl+Entree valide seulement.|Echap efface la cellule.|Pas de signe = dans les formules : SUM(A2:A9)'));
+  3: MsgBox('Function keys',L2('F1 open window  Sh-F1 close  Ct-F1 autocalc|F2/F3/F4 insert page/row/column (Shift delete, Ctrl clear)|F5 paste cell  Sh-F5 load cell  F6 formula->result|F7 repeat find  Sh-F7 find  Ct-F7 goto|F8 calculate  Sh-F8 define column|F9/F10 page - / +  (Shift = renumber)',
+        'F1 ouvrir fenetre  Maj-F1 fermer  Ctrl-F1 autocalc|F2/F3/F4 inserer page/ligne/colonne (Maj supprime, Ctrl efface)|F5 coller cellule  Maj-F5 copier cellule  F6 formule->resultat|F7 repeter recherche  Maj-F7 chercher  Ctrl-F7 aller a|F8 calculer  Maj-F8 definir colonne|F9/F10 page - / +  (Maj = renumeroter)'));
+  4: MsgBox('Mathematical',L2('ABS ACOS ASIN ATAN COS EXP FACT INT LN LOG MOD|RND ROUND SGN SIN SQR TAN  (angle unit: Settings)|PMT FV PV NPV SLN SYD DDB RATE TERM CTERM',
+        'ABS ACOS ASIN ATAN COS EXP FACT INT LN LOG MOD|RND ROUND SGN SIN SQR TAN  (unite d''angle : Reglages)|PMT FV PV NPV SLN SYD DDB RATE TERM CTERM'));
   5: MsgBox('Statistical','AVG COR COUNT COUNTNEG COUNTPOS COUNTPOS0 COUNTS|MAX MIN STD STDS VAR VARS SUM SUMNEG SUMPOS|FROW FCOL FPAGE HLOOKUP VLOOKUP');
   6: MsgBox('String','CHR CODE EXACT FIND LEFT LEN LOWER MID PROPER|REPEAT REPLACE RIGHT STR TRIM UPPER VAL');
   7: MsgBox('Date and time','DATE DAY MONTH YEAR DATE$ DAY$ MONTH$ NOW|TIME HOUR MINUTE SECOND TIME$');
-  8: MsgBox('Operators','^  -(neg)  * /  + -|= <> < > <= >=   AND   OR|Constants: TRUE FALSE PI  Variables: COL ROW PAGE KHIGH RHIGH PHIGH');
-  9: MsgBox('Blocks','Drag the mouse over cells or use Define block (^D).|^B/^E begin/end, ^M move, ^N copy, ^C cut, ^P paste|^W write, ^R read, ^Y values, ^K clear');
-  10: MsgBox('Macros','Macro|Start recording ... Stop recording, then give a key:|F1-F10 desk macro, A-Z spreadsheet macro. Run with Alt+key.');
+  8: MsgBox('Operators',L2('^  -(neg)  * /  + -|= <> < > <= >=   AND   OR|Constants: TRUE FALSE PI  Variables: COL ROW PAGE KHIGH RHIGH PHIGH',
+        '^  -(neg)  * /  + -|= <> < > <= >=   AND   OR|Constantes : TRUE FALSE PI  Variables : COL ROW PAGE KHIGH RHIGH PHIGH'));
+  9: MsgBox('Blocks',L2('Drag the mouse over cells or use Define block (^D).|^B/^E begin/end, ^M move, ^N copy, ^C cut, ^P paste|^W write, ^R read, ^Y values, ^K clear',
+        'Glissez la souris sur les cellules ou utilisez Definir bloc (^D).|^B/^E debut/fin, ^M deplacer, ^N copier, ^C couper, ^P coller|^W ecrire, ^R lire, ^Y valeurs, ^K effacer'));
+  10: MsgBox('Macros',L2('Start recording ... Stop recording, then give a key:|F1-F10 desk macro, A-Z spreadsheet macro. Run with Alt+key.',
+        'Debut enregistrement ... Fin enregistrement, puis donnez une touche :|F1-F10 macro bureau, A-Z macro tableur. Lancer avec Alt+touche.'));
  End;
 End;
 
@@ -5202,7 +5528,7 @@ Begin
  {$ELSE}
  L:=MemAvail;
  {$ENDIF}
- MsgBox('Free memory','Free memory : '+IntStr(L Div 1024)+' Kb');
+ MsgBox('Free memory',Tr('Free memory : ')+IntStr(L Div 1024)+' Ko');
 End;
 
 { ---- fichiers ---- }
@@ -5436,9 +5762,9 @@ Begin
  Dest:=Upper(FormVal[7]);
  RecalcSheet(CurS);
  Open:=False;
- If (Dest<>'') And (Dest[1]<>'S') Then Begin
+ If (Dest<>'') And (Dest[1]<>'S') And (Dest[1]<>'E') Then Begin
   {$I-}
-  If Dest[1]='P' Then Assign(F,'PRN') Else Assign(F,'PRINT.TXT');
+  If (Dest[1]='P') Or (Dest[1]='I') Then Assign(F,'PRN') Else Assign(F,'PRINT.TXT');
   Rewrite(F);
   {$I+}
   If IOResult<>0 Then Begin
@@ -5580,8 +5906,8 @@ End;
 Procedure SettingsBox;
 Var OldW,I,C: Integer;
 Begin
- FormLbl[1]:='Autocalc (Y/N)';If AutoCalc Then FormVal[1]:='Y' Else FormVal[1]:='N';
- FormLbl[2]:='Alert error (Y/N)';If AlertErr Then FormVal[2]:='Y' Else FormVal[2]:='N';
+ FormLbl[1]:='Autocalc (Y/N)';If AutoCalc Then FormVal[1]:=L2('Y','O') Else FormVal[1]:='N';
+ FormLbl[2]:='Alert error (Y/N)';If AlertErr Then FormVal[2]:=L2('Y','O') Else FormVal[2]:='N';
  FormLbl[3]:='Angle (R/D/G)';
  Case AngleMode Of 0: FormVal[3]:='D';1: FormVal[3]:='R';Else FormVal[3]:='G';End;
  FormLbl[4]:='Global width';FormVal[4]:=IntStr((DefColWid-6) Div 8);
@@ -5603,7 +5929,7 @@ Begin
 End;
 
 Procedure OutputFormatBox;
-Const Nm: Array[1..4] Of String[14] = ('DEGAS','IMG','PCX','SYSTEM PRINTER');
+Const Nm: Array[1..4] Of String[18] = ('DEGAS','IMG','PCX','SYSTEM PRINTER');
 Var X1,Y1,X2,Y2,I: Integer; E: TEvent; Done,Redraw: Boolean;
 Begin
  X1:=228;Y1:=130;X2:=420;Y2:=290;
@@ -5611,7 +5937,7 @@ Begin
  Repeat
   If Redraw Then Begin
    HideMouse;
-   DlgBox(X1,Y1,X2,Y2,'WINDOW OUTPUT',True);
+   DlgBox(X1,Y1,X2,Y2,Tr('WINDOW OUTPUT'),True);
    For I:=1 To 4 Do
     Button(X1+16,Y1+TB_H+14+(I-1)*30,X2-16,Y1+TB_H+34+(I-1)*30,Nm[I],OutFmt=I,True);
    ShowMouse;
@@ -5650,12 +5976,12 @@ Begin
  Repeat
   If Redraw Then Begin
    HideMouse;
-   DlgBox(X1,Y1,X2,Y2,'GRAPH OPTIONS',True);
-   BText(X1+14,Y1+TB_H+8,'RANGE');
-   BText(X1+78,Y1+TB_H+8,'LINE STYLE');
-   BText(X1+198,Y1+TB_H+8,'WIDTH');
-   BText(X1+262,Y1+TB_H+8,'MARKER');
-   BText(X1+322,Y1+TB_H+8,'FILL PATTERN');
+   DlgBox(X1,Y1,X2,Y2,Tr('GRAPH OPTIONS'),True);
+   BText(X1+14,Y1+TB_H+8,Tr('RANGE'));
+   BText(X1+78,Y1+TB_H+8,Tr('LINE STYLE'));
+   BText(X1+198,Y1+TB_H+8,Tr('WIDTH'));
+   BText(X1+262,Y1+TB_H+8,Tr('MARKER'));
+   BText(X1+322,Y1+TB_H+8,Tr('FILL PATTERN'));
    For I:=1 To MAXSER Do Begin
     Y:=Y1+TB_H+28+(I-1)*20;
     PText(X1+28,Y+4,IntStr(I));
@@ -6304,6 +6630,7 @@ End;
 Procedure InitData;
 Var I,K: Integer;
 Begin
+ LangEN:=(Upper(Copy(GetEnv('LANGUAGE'),1,2))='EN');
  CurS:=1;
  For I:=1 To NSHEET Do ZOrder[I]:=I;
  EvalGen:=1;
@@ -6346,14 +6673,29 @@ Procedure ShowHelpLine;
 Var H: Text;
 Begin
  Assign(H,'');Rewrite(H);
- WriteLn(H,'3DCALC - Clone graphique du tableur 3D-CALC+ (Atari ST).');
- WriteLn(H);
- WriteLn(H,'Utilisation : 3DCALC [fichier.3DD] [/?]');
- WriteLn(H);
- WriteLn(H,'  fichier.3DD  Feuille de calcul a ouvrir dans le tableur 1.');
- WriteLn(H,'  /?           Affiche cette aide.');
- WriteLn(H);
- WriteLn(H,'Menus a la souris ; F12 ouvre le menu File au clavier.');
+ If LangEN Then Begin
+  WriteLn(H,'3DCALC - Graphical clone of the 3D-CALC+ spreadsheet (Atari ST).');
+  WriteLn(H);
+  WriteLn(H,'Usage : 3DCALC [file.3DD] [/?]');
+  WriteLn(H);
+  WriteLn(H,'  file.3DD  Spreadsheet file to open in spreadsheet 1.');
+  WriteLn(H,'  /?        Show this help.');
+  WriteLn(H);
+  WriteLn(H,'Language : French by default, English if the LANGUAGE=EN');
+  WriteLn(H,'environment variable is set.');
+  WriteLn(H,'Menus with the mouse ; F12 opens the File menu from the keyboard.');
+ End Else Begin
+  WriteLn(H,'3DCALC - Clone graphique du tableur 3D-CALC+ (Atari ST).');
+  WriteLn(H);
+  WriteLn(H,'Utilisation : 3DCALC [fichier.3DD] [/?]');
+  WriteLn(H);
+  WriteLn(H,'  fichier.3DD  Feuille de calcul a ouvrir dans le tableur 1.');
+  WriteLn(H,'  /?           Affiche cette aide.');
+  WriteLn(H);
+  WriteLn(H,'Langue : francais par defaut, anglais si la variable d''environnement');
+  WriteLn(H,'LANGUAGE=EN est definie.');
+  WriteLn(H,'Menus a la souris ; F12 ouvre le menu Fichier au clavier.');
+ End;
  Close(H);
 End;
 
@@ -6394,6 +6736,7 @@ Begin
 End;
 
 BEGIN
+ LangEN:=(Upper(Copy(GetEnv('LANGUAGE'),1,2))='EN');
  If (ParamCount>=1) And ((ParamStr(1)='/?') Or (ParamStr(1)='-h') Or (ParamStr(1)='--help')) Then Begin
   ShowHelpLine;
   Halt(0);
