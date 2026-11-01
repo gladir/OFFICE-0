@@ -1,6 +1,10 @@
 # OFFICE-0
 Liste de commandes écrit en Pascal (Turbo Pascal et/ou Free Pascal) pour le bureau
 
+Aperçu du clone de Lotus 1-2-3 :
+
+<img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
