@@ -3,7 +3,7 @@ Liste de commandes écrit en Pascal (Turbo Pascal et/ou Free Pascal) pour le bur
 
 Aperçu de 1-2-3 :
 
-<img width="726" height="463" alt="image" src="https://github.com/user-attachments/assets/44a7ccda-5787-4814-ac00-b31c3d2256b3" />
+<img width="638" height="463" alt="image" src="https://github.com/user-attachments/assets/44a7ccda-5787-4814-ac00-b31c3d2256b3" />
 
 Aperçu du clone d'Access :
 
