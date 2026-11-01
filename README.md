@@ -118,6 +118,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td>Cette commande permet de lancer un clone graphique de Lotus 1-2-3 (menus, formules, graphiques 2D/3D).</td>
     </tr>
     <tr>
+      <td><b>NOTATOR.PAS</b></td>
+      <td>Cette commande permet de lancer un clone graphique de Notator SL (séquenceur MIDI / éditeur de partition et impression de l'Atari ST : page d'arrangement, partition, matrice, liste d'événements, quantification, groove). Interface en français par défaut, en anglais avec LANGUAGE=EN et en allemand avec LANGUAGE=GR.</td>
+    </tr>
+    <tr>
       <td><b>ONENOTE.PAS</b></td>
       <td>Cette commande permet de lancer un clone de OneNote.</td>
     </tr>    
@@ -320,6 +324,29 @@ pivotables (0, 90, 180, 270 degres), images PBM, corbeille pour supprimer un obj
 <li>Barre de format, regle, barre de touches de fonction F1-F10 configurable, zoom 25 a 300 %, annuler, chercher / remplacer,
 enregistrement <code>.PAP</code>, import / export ASCII, impression vers fichier ou <code>PRN</code>.</li>
 <li>Menus a la souris ou Alt+lettre ; <code>F9</code> active le mode selection au clavier ; <code>PAPYRUS /?</code> : aide.</li>
+</ul>
+
+<h2>NOTATOR : séquenceur MIDI et éditeur de partition</h2>
+
+<ul>
+<li><code>NOTATOR [fichier.SON | fichier.MID]</code> : clone graphique de Notator SL (Atari ST), en français par défaut,
+en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code> ; tout le code est dans <code>NOTATOR.PAS</code>
+(Turbo Pascal 7 / Free Pascal).</li>
+<li>Séquenceur : 1584 pistes (99 patterns de 16 pistes, 64 actives grâce aux 4 chaînes a, b, c, d de la page d'arrangement),
+ports A à F (96 canaux MIDI), résolution commutable 384 / 192 PPQ, enregistrement en temps réel avec transcription immédiate
+(clavier d'ordinateur Z..M / Q..P comme clavier musical, ou entrée MPU-401 sous DOS), locators, cycle, punch, métronome.</li>
+<li>Quatre vues : arrangement (F1), partition (F2), matrice (F3), liste d'événements (F4) ; hyper édition (vélocité, volume,
+panoramique, modulation, expression, pitch bend) au-dessus de la partition.</li>
+<li>Partition : clés, armures, chiffrage, ligatures, silences, tuplets, liaisons, symboles (nuances, fermate, trille, pédale...),
+styles de têtes de notes, textes, accords et paroles (l'espacement s'ajuste automatiquement aux paroles).</li>
+<li>Quantification non destructive avec groove (conception, groove adaptatif), transposition, vélocité, compression,
+délai, boucle, notes limites ; annulation, copier / coller, fusion et copie de pistes / patterns.</li>
+<li>Fichiers : morceaux <code>.SON</code>, import / export MIDI standard (<code>.MID</code>), impression de la partition sur
+imprimante ESC/P 24 aiguilles (<code>PRN</code> ou fichier) et copie d'écran PBM.</li>
+<li>Sortie sonore : sous Windows avec Free Pascal, un synthétiseur logiciel PCM16 envoie le son à l'API <code>waveOut</code>
+(déclarée localement depuis <code>winmm.dll</code>, comme dans <code>PLAYMP3.PAS</code> de MP3-Player-0, sans unité supplémentaire) ;
+sous DOS, haut-parleur du PC ou carte MPU-401.</li>
+<li>Exemples de musique dans <code>SAMPLES/NOTATOR/</code> ; <code>NOTATOR /?</code> : aide.</li>
 </ul>
 
 <h2>Licence</h2>

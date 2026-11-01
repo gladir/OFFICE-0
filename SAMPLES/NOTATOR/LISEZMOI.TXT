@@ -1,0 +1,23 @@
+Exemples de musique pour NOTATOR (clone de Notator SL)
+=======================================================
+
+Chaque morceau existe en deux formats :
+  .SON  morceau natif de NOTATOR      (Fichier > Charger morceau, ou NOTATOR FICHIER.SON)
+  .MID  fichier MIDI standard (format 1) (Fichier > Charger fichier MIDI)
+
+ODE_JOIE         Ode a la joie (Beethoven, domaine public) : melodie avec paroles,
+                 cordes, basse et batterie, 16 mesures, 108 bpm.
+FRERE_JACQUES    Frere Jacques en canon a 3 voix (traditionnel), 480 PPQ.
+TWINKLE          Ah ! vous dirai-je, maman (theme de Mozart, domaine public)
+                 avec basse d'Alberti a la main gauche.
+CANON_RE         Grille harmonique du Canon en Re (Pachelbel) : cordes, orgue,
+                 violoncelle ; armure de deux dieses, 60 bpm.
+BLUES_C          Blues en Do sur 12 mesures, jeu "humain" (swing et decalages
+                 volontaires) : essayez Quantifier > Valeur de quantification
+                 puis Quantifier > Quantifier, ou le groove adaptatif.
+GROOVES          Grooves de batterie (rock, funk, shuffle, breaks) : ouvrez la
+                 vue Matrice (F3).
+
+Touches utiles : F1 arrangement, F2 partition, F3 matrice, F4 liste, Espace
+lecture/arret, * enregistrement, F12 menus. Les compositions "originales"
+(BLUES_C, GROOVES) sont libres de droits.
