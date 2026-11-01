@@ -105,6 +105,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td><b>OUTLOOK.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Outlook.</td>
     </tr>    
+	<tr>
+		<td><b>PAPYRUS.PAS</b></td>
+		<td>Cette commande permet de lancer un clone graphique du traitement de texte Papyrus de l'Atari ST.</td>
+	</tr>
     <tr>
       <td><b>POWERPNT.PAS</b></td>
       <td>Cette commande permet de lancer un clone de PowerPoint.</td>
