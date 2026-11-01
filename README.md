@@ -23,6 +23,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 		<td>Cette commande permet de lancer un clone de Excel.</td>
 	</tr>
     <tr>
+      <td><b>LOTUS123.PAS</b></td>
+      <td>Cette commande permet de lancer un clone graphique de Lotus 1-2-3 (menus, formules, graphiques 2D/3D).</td>
+    </tr>
+    <tr>
       <td><b>ONENOTE.PAS</b></td>
       <td>Cette commande permet de lancer un clone de OneNote.</td>
     </tr>    
