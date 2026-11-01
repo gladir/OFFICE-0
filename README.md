@@ -17,6 +17,10 @@ Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
 
+Aperçu du clone de OneNote :
+
+<img width="639" height="483" alt="image" src="https://github.com/user-attachments/assets/4e432deb-f940-45b2-adb1-c91959507b79" />
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
