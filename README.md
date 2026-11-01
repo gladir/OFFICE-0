@@ -29,6 +29,10 @@ Aperçu du clone de PowerPoint :
 
 <img width="638" height="481" alt="image" src="https://github.com/user-attachments/assets/52a715e5-36cc-46d8-a4ea-346f7db61546" />
 
+Aperçu du clone de Project :
+
+<img width="641" height="481" alt="image" src="https://github.com/user-attachments/assets/54f79b67-1876-437a-b47b-5acf5bc4a960" />
+
 <h2>Liste des fichiers</h2>
 
 Voici la liste des différents fichiers proposés dans OFFICE-0 :
