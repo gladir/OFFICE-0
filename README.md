@@ -9,6 +9,10 @@ Aperçu du clone d'Access :
 
 <img width="638" height="475" alt="image" src="https://github.com/user-attachments/assets/975ff2d1-e9ec-4966-b614-393b2c3a2f1d" />
 
+Aperçu du clone d'Excel :
+
+<img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/9f56d511-ef57-42c4-992c-2686c3056760" />
+
 Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
