@@ -37,6 +37,26 @@ Aperçu du clone de Papyrus :
 
 <img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/6d4f1fe7-ecaf-4f08-b162-c72932ddc6aa" />
 
+<table>
+	<tr>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/ae54088b-cad2-44d6-9cc8-045da4615f02" /></td>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/adb3a900-163c-4502-88ae-ee42b90926e6" /></td>
+	</tr>
+	<tr>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/492c896a-015d-46a7-8c1f-0409ca6121a3" /></td>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/e059d7bb-8515-4e7c-953c-c071320ff1fd" /></td>
+	</tr>
+	<tr>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/c7a87a5c-8f7d-4d25-b921-da5a54115710" /></td>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/e8056365-ed4a-48bd-bfb1-de4adbdd018a" /></td>
+	</tr>
+	<tr>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/af246365-a8d3-4401-8c4d-7c9fe7c75840" /></td>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/6cbccc5c-d380-4699-9ed4-75bcb23a15fa" /></td>
+	</tr>
+
+</table>
+
 Aperçu du clone de PowerPoint :
 
 <img width="638" height="481" alt="image" src="https://github.com/user-attachments/assets/52a715e5-36cc-46d8-a4ea-346f7db61546" />
