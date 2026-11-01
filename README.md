@@ -41,6 +41,13 @@ Aperçu du clone de Quattro :
 
 <img width="636" height="480" alt="image" src="https://github.com/user-attachments/assets/176fbded-45d2-4237-a1c8-be85fb9871ec" />
 
+<table>
+	<tr>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/4f497933-e861-4aa4-9810-8f293fc8902d" /></td>
+		<td><img width="320" height="240" alt="image" src="https://github.com/user-attachments/assets/92b6c2db-e448-40d5-9f4e-44f8e2bebecf" /></td>
+	</tr>
+</table>
+
 Aperçu du clone de Visio :
 
 <img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
