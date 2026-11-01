@@ -343,6 +343,9 @@ styles de têtes de notes, textes, accords et paroles (l'espacement s'ajuste aut
 délai, boucle, notes limites ; annulation, copier / coller, fusion et copie de pistes / patterns.</li>
 <li>Fichiers : morceaux <code>.SON</code>, import / export MIDI standard (<code>.MID</code>), impression de la partition sur
 imprimante ESC/P 24 aiguilles (<code>PRN</code> ou fichier) et copie d'écran PBM.</li>
+<li>Sortie sonore : sous Windows avec Free Pascal, un synthétiseur logiciel PCM16 envoie le son à l'API <code>waveOut</code>
+(déclarée localement depuis <code>winmm.dll</code>, comme dans <code>PLAYMP3.PAS</code> de MP3-Player-0, sans unité supplémentaire) ;
+sous DOS, haut-parleur du PC ou carte MPU-401.</li>
 <li>Exemples de musique dans <code>SAMPLES/NOTATOR/</code> ; <code>NOTATOR /?</code> : aide.</li>
 </ul>
 

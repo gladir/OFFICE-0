@@ -18,6 +18,68 @@ Uses {$IFDEF FPC}
       DOS,Crt,Graph
      {$ENDIF};
 
+{$IFDEF MSWINDOWS}
+{ Declarations Win32/Win64 locales (meme technique que PLAYMP3.PAS) : aucune
+  unite supplementaire, les DLL sont celles du systeme Windows.
+  DWORD reste sur 32 bits; handles et DWORD_PTR suivent la taille du pointeur. }
+ Type
+  DWORD = LongWord;
+  HWAVEOUT = PtrUInt;
+  PHWAVEOUT = ^HWAVEOUT;
+  TWaveFormatEx = Packed Record
+   wFormatTag, nChannels: Word;
+   nSamplesPerSec, nAvgBytesPerSec: DWORD;
+   nBlockAlign, wBitsPerSample, cbSize: Word;
+  End;
+  PWaveFormatEx = ^TWaveFormatEx;
+  PWaveHdr = ^TWaveHdr;
+  TWaveHdr = Packed Record
+   lpData: PChar;
+   dwBufferLength, dwBytesRecorded: DWORD;
+   dwUser: PtrUInt;
+   dwFlags, dwLoops: DWORD;
+   lpNext: PWaveHdr;
+   reserved: PtrUInt;
+  End;
+
+ Const
+  WAVE_FORMAT_PCM = 1;
+  WAVE_MAPPER = DWORD($FFFFFFFF);
+  CALLBACK_NULL = 0;
+  MMSYSERR_NOERROR = 0;
+  WHDR_DONE = 1;
+  WHDR_PREPARED = 2;
+  WHDR_INQUEUE = 16;
+
+ Function waveOutOpen(Handle: PHWAVEOUT; Device: DWORD; Format: PWaveFormatEx;
+                      Callback, Instance: PtrUInt; Flags: DWORD): DWORD;
+ stdcall;
+ external 'winmm.dll' name 'waveOutOpen';
+
+ Function waveOutPrepareHeader(Handle: HWAVEOUT; Header: PWaveHdr; Size: DWORD): DWORD;
+ stdcall; external 'winmm.dll' name 'waveOutPrepareHeader';
+
+ Function waveOutUnprepareHeader(Handle: HWAVEOUT; Header: PWaveHdr; Size: DWORD): DWORD;
+ stdcall; external 'winmm.dll' name 'waveOutUnprepareHeader';
+
+ Function waveOutWrite(Handle: HWAVEOUT; Header: PWaveHdr; Size: DWORD): DWORD;
+ stdcall; external 'winmm.dll' name 'waveOutWrite';
+
+ Function waveOutReset(Handle: HWAVEOUT): DWORD;
+ stdcall;
+ external 'winmm.dll' name 'waveOutReset';
+
+ Function waveOutClose(Handle: HWAVEOUT): DWORD;
+ stdcall;
+ external 'winmm.dll' name 'waveOutClose';
+
+ Function GetTickCount: DWORD;
+ stdcall; external 'kernel32.dll' name 'GetTickCount';
+
+ Procedure Sleep(Milliseconds: DWORD);
+ stdcall; external 'kernel32.dll' name 'Sleep';
+{$ENDIF}
+
 { ====================================================================== }
 {                              CONSTANTES                                }
 { ====================================================================== }
@@ -530,7 +592,11 @@ Begin
  {$ENDIF}
  If E.Kind=0 Then Begin
   EngineStep;
+  {$IFDEF MSWINDOWS}
+  Sleep(2);
+  {$ELSE}
   Delay(3);
+  {$ENDIF}
  End;
 End;
 
@@ -1260,11 +1326,17 @@ Var
  PlayShown  : LongInt;       { derniere position affichee }
 
 Function NowCs: LongInt;
+{$IFDEF MSWINDOWS}
+Begin
+ NowCs:=LongInt(GetTickCount Div 10);
+End;
+{$ELSE}
 Var H,M,S,S100: Word;
 Begin
  GetTime(H,M,S,S100);
  NowCs:=((LongInt(H)*60+M)*60+S)*100+S100;
 End;
+{$ENDIF}
 
 Function CurPos: LongInt;
 Begin
@@ -1316,16 +1388,268 @@ Begin
  {$ENDIF}
 End;
 
+{$IFDEF MSWINDOWS}
+{ ---- Synthetiseur logiciel PCM16 mono envoye a l'API waveOut ---- }
+{$PUSH}{$Q-}{$R-}
+Const
+ SynthRate  = 22050;
+ SynthBlock = 2048;          { octets par tampon (1024 echantillons) }
+ NVoice     = 24;
+ NSlots     = 4;
+
+Type
+ TSynthSlot = Record
+  Data : Array[0..SynthBlock-1] Of Byte;
+  Head : TWaveHdr;
+  Prepared : Boolean;
+ End;
+ TVoice = Record
+  Used : Boolean;
+  Chan,Note,Timbre,Stage,Kind : Byte;
+  Phase,Inc,IncMin,Seed : LongWord;
+  Level,Amp,Age,Atk,DecS,Sus,RelS,Prev : LongInt;
+ End;
+ PSmallArr = ^TSmallArr;
+ TSmallArr = Array[0..SynthBlock Div 2-1] Of SmallInt;
+
+Var
+ WaveHandle : HWAVEOUT;
+ WaveOpened : Boolean;
+ SynSlots   : Array[0..NSlots-1] Of TSynthSlot;
+ Voices     : Array[1..NVoice] Of TVoice;
+ SinTab     : Array[0..255] Of LongInt;
+ NoteInc    : Array[0..127] Of LongWord;
+ ChanTimbre : Array[1..16] Of Byte;
+ VoiceAge   : LongInt;
+ TablesDone : Boolean;
+
+Function TimbreOf(Const S: String): Byte;
+Var U: String;
+Begin
+ U:=Upper(S);
+ TimbreOf:=0;
+ If U='FLUTE' Then TimbreOf:=1
+ Else If (U='STRINGS') Or (U='VIOLIN') Or (U='VIOLA') Or (U='CELLO') Or
+   (U='ORGAN') Or (U='PAD') Or (U='SYNTH') Then TimbreOf:=2
+ Else If U='BASS' Then TimbreOf:=3
+ Else If U='BRASS' Then TimbreOf:=4;
+End;
+
+Procedure SynthTables;
+Var I: Integer; F: Double;
+Begin
+ If TablesDone Then Exit;
+ For I:=0 To 255 Do SinTab[I]:=Round(32767*Sin(2*Pi*I/256));
+ For I:=0 To 127 Do Begin
+  F:=440*Exp(Ln(2)*(I-69)/12);
+  NoteInc[I]:=LongWord(Round(F/SynthRate*4294967296.0));
+ End;
+ For I:=1 To 16 Do ChanTimbre[I]:=0;
+ FillChar(Voices,SizeOf(Voices),0);
+ TablesDone:=True;
+End;
+
+Function SynthStart: Boolean;
+Var Format: TWaveFormatEx; J: Integer;
+Begin
+ SynthStart:=False;
+ If WaveOpened Then Begin SynthStart:=True;Exit;End;
+ SynthTables;
+ FillChar(Format,SizeOf(Format),0);
+ Format.wFormatTag:=WAVE_FORMAT_PCM;
+ Format.nChannels:=1;
+ Format.nSamplesPerSec:=SynthRate;
+ Format.wBitsPerSample:=16;
+ Format.nBlockAlign:=2;
+ Format.nAvgBytesPerSec:=SynthRate*2;
+ If waveOutOpen(@WaveHandle,WAVE_MAPPER,@Format,0,0,CALLBACK_NULL)<>
+   MMSYSERR_NOERROR Then Exit;
+ WaveOpened:=True;
+ For J:=0 To NSlots-1 Do Begin
+  FillChar(SynSlots[J].Data,SizeOf(SynSlots[J].Data),0);
+  FillChar(SynSlots[J].Head,SizeOf(TWaveHdr),0);
+  SynSlots[J].Head.lpData:=@SynSlots[J].Data;
+  SynSlots[J].Head.dwBufferLength:=SynthBlock;
+  If waveOutPrepareHeader(WaveHandle,@SynSlots[J].Head,SizeOf(TWaveHdr))<>
+    MMSYSERR_NOERROR Then SynSlots[J].Prepared:=False
+  Else SynSlots[J].Prepared:=True;
+ End;
+ SynthStart:=True;
+End;
+
+Procedure SynthStop;
+Var J: Integer;
+Begin
+ If Not WaveOpened Then Exit;
+ waveOutReset(WaveHandle);
+ For J:=0 To NSlots-1 Do
+  If SynSlots[J].Prepared Then Begin
+   waveOutUnprepareHeader(WaveHandle,@SynSlots[J].Head,SizeOf(TWaveHdr));
+   SynSlots[J].Prepared:=False;
+  End;
+ waveOutClose(WaveHandle);
+ WaveOpened:=False;
+ FillChar(Voices,SizeOf(Voices),0);
+End;
+
+Procedure SynthNoteOn(Ch,Nt,Vl,Tb: Integer);
+Var I,F,Old: Integer;
+Begin
+ If Not WaveOpened Then Exit;
+ F:=0;Old:=1;
+ For I:=1 To NVoice Do Begin
+  If (F=0) And (Not Voices[I].Used) Then F:=I;
+  If Voices[I].Age<Voices[Old].Age Then Old:=I;
+ End;
+ If F=0 Then F:=Old;
+ Inc(VoiceAge);
+ Voices[F].Used:=True;Voices[F].Chan:=Ch;Voices[F].Note:=Nt;
+ Voices[F].Timbre:=Tb;Voices[F].Stage:=0;Voices[F].Kind:=0;
+ Voices[F].Phase:=0;Voices[F].Level:=0;Voices[F].Prev:=0;
+ Voices[F].Seed:=LongWord(VoiceAge)*2654435761+LongWord(Nt);
+ Voices[F].Age:=VoiceAge;
+ Voices[F].Amp:=Vl;
+ Voices[F].Inc:=NoteInc[Clamp(Nt,0,127)];
+ Voices[F].IncMin:=0;
+ If Ch=10 Then Begin
+  { batterie : timbre = famille de percussion }
+  Voices[F].Timbre:=5;Voices[F].Stage:=1;Voices[F].Level:=32767;
+  Voices[F].Atk:=0;Voices[F].Sus:=0;Voices[F].RelS:=9;
+  Case Nt Of
+   35,36: Begin Voices[F].Kind:=1;Voices[F].DecS:=12;
+           Voices[F].Inc:=NoteInc[67];Voices[F].IncMin:=NoteInc[31];End;
+   37,38,39,40: Begin Voices[F].Kind:=2;Voices[F].DecS:=11;
+           Voices[F].Inc:=NoteInc[55];End;
+   42,44: Begin Voices[F].Kind:=3;Voices[F].DecS:=9;End;
+   46: Begin Voices[F].Kind:=3;Voices[F].DecS:=12;End;
+   49,51,52,53,55,57: Begin Voices[F].Kind:=3;Voices[F].DecS:=14;End;
+   41,43,45,47,48,50: Begin Voices[F].Kind:=4;Voices[F].DecS:=12;
+           Voices[F].Inc:=NoteInc[Clamp(Nt+12,0,127)];
+           Voices[F].IncMin:=NoteInc[Clamp(Nt+4,0,127)];End;
+   56: Begin Voices[F].Kind:=5;Voices[F].DecS:=11;
+           Voices[F].Inc:=NoteInc[89];End;
+  Else Begin Voices[F].Kind:=2;Voices[F].DecS:=10;End;
+  End;
+ End Else
+  Case Tb Of
+   1: Begin Voices[F].Atk:=40;Voices[F].DecS:=14;Voices[F].Sus:=26000;Voices[F].RelS:=10;End;
+   2: Begin Voices[F].Atk:=12;Voices[F].DecS:=14;Voices[F].Sus:=28000;Voices[F].RelS:=11;End;
+   3: Begin Voices[F].Atk:=6000;Voices[F].DecS:=12;Voices[F].Sus:=6000;Voices[F].RelS:=9;End;
+   4: Begin Voices[F].Atk:=60;Voices[F].DecS:=13;Voices[F].Sus:=24000;Voices[F].RelS:=10;End;
+   6: Begin Voices[F].Atk:=32767;Voices[F].DecS:=8;Voices[F].Sus:=0;Voices[F].RelS:=8;
+           Voices[F].Inc:=NoteInc[102];End;
+  Else Begin Voices[F].Atk:=8000;Voices[F].DecS:=13;Voices[F].Sus:=0;Voices[F].RelS:=9;End;
+  End;
+End;
+
+Procedure SynthNoteOff(Ch,Nt: Integer);
+Var I: Integer;
+Begin
+ If Ch=10 Then Exit;
+ For I:=1 To NVoice Do
+  If Voices[I].Used And (Voices[I].Chan=Ch) And (Voices[I].Note=Nt)
+     And (Voices[I].Stage<2) Then Voices[I].Stage:=2;
+End;
+
+Procedure SynthAllOff;
+Var I: Integer;
+Begin
+ For I:=1 To NVoice Do
+  If Voices[I].Used Then Voices[I].Stage:=2;
+End;
+
+Procedure SynthRender(Buf: PSmallArr; N: Integer);
+Var K,I,Idx,W,Nz: Integer; Mix: LongInt; V: ^TVoice;
+Begin
+ For K:=0 To N-1 Do Begin
+  Mix:=0;
+  For I:=1 To NVoice Do
+   If Voices[I].Used Then Begin
+    V:=@Voices[I];
+    Idx:=Integer(V^.Phase Shr 24);
+    If V^.Timbre=5 Then Begin
+     V^.Seed:=V^.Seed*1664525+1013904223;
+     Nz:=Integer(V^.Seed Shr 17)-16384;
+     Case V^.Kind Of
+      1,4: Begin
+            W:=SinTab[Idx];
+            If V^.Inc>V^.IncMin Then V^.Inc:=V^.Inc-(V^.Inc Shr 11);
+           End;
+      2: W:=Nz Div 2+SinTab[Idx] Div 4;
+      3: Begin W:=Nz-Integer(V^.Prev);V^.Prev:=Nz;End;
+      5: If Idx<128 Then W:=16000 Else W:=-16000;
+     Else W:=Nz;
+     End;
+     V^.Phase:=V^.Phase+V^.Inc;
+    End Else Begin
+     Case V^.Timbre Of
+      1: W:=SinTab[Idx]+SinTab[(Idx*2) And 255] Div 6;
+      2: W:=(Idx*256-32768) Div 2+SinTab[Idx] Div 3;
+      3: If Idx<128 Then W:=(18000+SinTab[Idx]) Div 2 Else W:=(-18000+SinTab[Idx]) Div 2;
+      4: W:=(Idx*256-32768) Div 2+SinTab[(Idx*2) And 255] Div 4;
+      6: W:=SinTab[Idx];
+     Else W:=(SinTab[Idx]+SinTab[(Idx*2) And 255] Div 2+
+              SinTab[(Idx*3) And 255] Div 3) Div 2;
+     End;
+     V^.Phase:=V^.Phase+V^.Inc;
+    End;
+    { enveloppe }
+    Case V^.Stage Of
+     0: Begin
+         V^.Level:=V^.Level+V^.Atk;
+         If V^.Level>=32767 Then Begin V^.Level:=32767;V^.Stage:=1;End;
+        End;
+     1: If V^.Level>V^.Sus Then Begin
+         V^.Level:=V^.Level-(V^.Level Shr V^.DecS)-1;
+         If V^.Level<V^.Sus Then V^.Level:=V^.Sus;
+         If (V^.Sus=0) And (V^.Level<=8) Then V^.Used:=False;
+        End;
+    Else Begin
+         V^.Level:=V^.Level-(V^.Level Shr V^.RelS)-1;
+         If V^.Level<=0 Then Begin V^.Level:=0;V^.Used:=False;End;
+        End;
+    End;
+    Mix:=Mix+(((LongInt(W)*V^.Level) Div 32768)*V^.Amp) Div 127;
+   End;
+  Mix:=Mix Div 3;
+  If Mix>32767 Then Mix:=32767;
+  If Mix<-32767 Then Mix:=-32767;
+  Buf^[K]:=SmallInt(Mix);
+ End;
+End;
+
+{ remplit les tampons libres ; appele par le moteur a chaque passage }
+Procedure SynthPump;
+Var J: Integer;
+Begin
+ If Not WaveOpened Then Exit;
+ For J:=0 To NSlots-1 Do
+  If SynSlots[J].Prepared And
+     ((SynSlots[J].Head.dwFlags And WHDR_INQUEUE)=0) Then Begin
+   SynthRender(PSmallArr(@SynSlots[J].Data),SynthBlock Div 2);
+   SynSlots[J].Head.dwBufferLength:=SynthBlock;
+   waveOutWrite(WaveHandle,@SynSlots[J].Head,SizeOf(TWaveHdr));
+  End;
+End;
+{$POP}
+{$ENDIF}
+
 Procedure SpeakerSet(F: Word);
 Begin
  If F=SpkFreq Then Exit;
  SpkFreq:=F;
+ {$IFNDEF MSWINDOWS}
  If F=0 Then NoSound Else Sound(F);
+ {$ENDIF}
 End;
 
 Procedure SpeakerUpdate;
 Var I,Hi: Integer; F: LongInt;
 Begin
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then SynthPump;
+ Exit;
+ {$ENDIF}
  If OutDev<>0 Then Begin SpeakerSet(0);Exit;End;
  If NowCs<ClickUntil Then Begin SpeakerSet(1200);Exit;End;
  Hi:=-1;
@@ -1347,6 +1671,9 @@ End;
 Procedure SndOn(Port1,Chan,Note,Vel: Byte; OffAt: LongInt; UseCs: Boolean);
 Var I,F: Integer;
 Begin
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then SynthNoteOn(Chan,Note,Vel,ChanTimbre[Chan]);
+ {$ENDIF}
  F:=0;I:=1;
  While (F=0) And (I<=MAXSND) Do Begin
   If Not Snd[I].Used Then F:=I;
@@ -1361,6 +1688,9 @@ End;
 Procedure SndOff(I: Integer);
 Begin
  If Not Snd[I].Used Then Exit;
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then SynthNoteOff(Snd[I].Chan,Snd[I].Note);
+ {$ENDIF}
  MidiSend(Snd[I].Port,$80+(Snd[I].Chan-1),Snd[I].Note,0,3);
  Snd[I].Used:=False;
 End;
@@ -1369,6 +1699,9 @@ Procedure AllNotesOff;
 Var I,C: Integer;
 Begin
  For I:=1 To MAXSND Do SndOff(I);
+ {$IFDEF MSWINDOWS}
+ SynthAllOff;
+ {$ENDIF}
  {$IFNDEF FPC}
  If OutDev=1 Then
   For C:=0 To 15 Do Begin MpuWrite($B0+C);MpuWrite(123);MpuWrite(0);End;
@@ -1397,6 +1730,9 @@ Begin
  Ch:=Tr^.P.Chan;
  Case E.Kind Of
   EK_NOTE: Begin
+    {$IFDEF MSWINDOWS}
+    ChanTimbre[Ch]:=TimbreOf(Tr^.P.Instr);
+    {$ENDIF}
     Note:=EffNote(Tr,E.D1);
     If (Note<Tr^.P.Lo) Or (Note>Tr^.P.Hi) Then Exit;
     Q:=QuaTicks(Tr^.P.Qua);Step:=0;
@@ -1528,6 +1864,9 @@ Procedure StopPlay; Forward;
 Procedure Click;
 Begin
  ClickUntil:=NowCs+4;
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then SynthNoteOn(1,102,100,6);
+ {$ENDIF}
  {$IFNDEF FPC}
  If OutDev=1 Then Begin
   MpuWrite($99);MpuWrite(76);MpuWrite(100);
@@ -1655,6 +1994,9 @@ Procedure PreviewNote(Pitch,Vel: Integer);
 Var Tr: PTrk;
 Begin
  Tr:=CT;
+ {$IFDEF MSWINDOWS}
+ ChanTimbre[Tr^.P.Chan]:=TimbreOf(Tr^.P.Instr);
+ {$ENDIF}
  SndOn(Tr^.P.Port,Tr^.P.Chan,Pitch,Vel,NowCs+30,True);
 End;
 
@@ -1716,6 +2058,7 @@ Begin
  If Playing Then Begin
   D:=Now1-LastCs;
   If D<0 Then D:=D+8640000;
+  If D<0 Then D:=0;
   LastCs:=Now1;
   If D>30 Then D:=30;
   RemT:=RemT+D*(Tempo10k Div 100)*PPQ;
@@ -4936,7 +5279,11 @@ End;
 Procedure CmdOutDev;
 Begin
  LstN:=3;
+ {$IFDEF MSWINDOWS}
+ LstItem[1]:='Windows (waveOut)';
+ {$ELSE}
  LstItem[1]:=T3('PC speaker','Haut-parleur PC','PC-Lautsprecher');
+ {$ENDIF}
  LstItem[2]:='MPU-401 (DOS)';
  LstItem[3]:=T3('None','Aucune','Keine');
  AllNotesOff;
@@ -4947,6 +5294,15 @@ Begin
   Info('MPU-401 is only available under DOS.','MPU-401 disponible seulement sous DOS.',
     'MPU-401 nur unter DOS verf'#129'gbar.');
  End;
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then Begin
+  If Not SynthStart Then Begin
+   OutDev:=2;
+   Info('Cannot open the Windows audio device.','Ouverture de la carte audio Windows impossible.',
+     'Windows-Audioger'#132't nicht verf'#129'gbar.');
+  End;
+ End Else SynthStop;
+ {$ENDIF}
  {$ELSE}
  If OutDev=1 Then MpuInit;
  {$ENDIF}
@@ -6315,12 +6671,19 @@ BEGIN
  {$ENDIF}
  InitializeGraphics;
  If MouseDriverFound Then ShowMouse;
+ {$IFDEF MSWINDOWS}
+ If OutDev=0 Then
+  If Not SynthStart Then OutDev:=2;
+ {$ENDIF}
  {$IFNDEF FPC}
  If OutDev=1 Then MpuInit;
  {$ENDIF}
  LoadCommandLine;
  MainLoop;
  AllNotesOff;
+ {$IFDEF MSWINDOWS}
+ SynthStop;
+ {$ENDIF}
  HideMouse;
  CloseGraph;
 END.
