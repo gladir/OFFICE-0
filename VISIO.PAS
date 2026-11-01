@@ -69,9 +69,9 @@ Const
  MENU_HIGHLIGHT_FG = 15;  { Blanc }
 
  { Constantes pour la barre d'outils (verticale, a gauche) }
- TOOLBAR_COUNT = 9;
+ TOOLBAR_COUNT = 19;
  CLASSIC_TOOLBAR_TOP = 43;        { Juste en dessous de la barre d'icones }
- CLASSIC_TOOLBAR_WIDTH = 28;      { Largeur de la barre d'outils verticale }
+ CLASSIC_TOOLBAR_WIDTH = 0;      { Largeur de la barre d'outils verticale }
  TOOLBAR_HEIGHT = 26;     { Conserve pour compatibilite (hauteur d'un bouton) }
  TOOLBAR_BUTTON_SIZE = 24; { Taille d'un bouton }
  TOOLBAR_PADDING = 2;     { Espacement entre les boutons }
@@ -85,7 +85,7 @@ Const
  ICONBAR_HEIGHT = 24;     { Hauteur de la barre d'icones }
  ICONBAR_BUTTON_SIZE = 20; { Taille d'un bouton }
  ICONBAR_PADDING = 2;
- ICONBAR_COUNT = 8;       { 6 icones + 2 separateurs }
+ ICONBAR_COUNT = 28;      { 6 icones + 3 separateurs + 19 outils }
  ICONBAR_COLOR = 7;       { Gris clair }
 
  { Constantes pour la zone de travail et les objets }
@@ -96,7 +96,7 @@ Const
  SELECTION_HANDLE_SIZE = 6; { Taille des poignÃ©es de sÃ©lection }
 
  { Constantes pour les polygones et courbes de BÃ©zier }
- MAX_POLYGON_POINTS = 20;  { Nombre maximum de points pour un polygone }
+ MAX_POLYGON_POINTS = 40;  { Nombre maximum de points pour un polygone }
  MAX_BEZIER_POINTS = 4;    { Nombre de points de contrÃ´le pour une courbe de BÃ©zier cubique }
 
  { Couleurs pour les poignÃ©es de redimensionnement }
@@ -212,7 +212,8 @@ Const
 
  { Noms des outils de la barre d'outils }
  ToolNames: Array[1..TOOLBAR_COUNT] of String[12] = (
-   'Selection', 'Rectangle', 'Ellipse', 'Line', 'Connector', 'Text', 'Polygon', 'Bezier', 'Image'
+   'Selection', 'Rectangle', 'Ellipse', 'Line', 'Connector', 'Text', 'Polygon', 'Bezier', 'Image',
+   'Arc', 'Freeform', 'Pencil', 'TextBlock', 'ConnPoint', 'Rotation', 'Crop', 'FormatPaint', 'Zoom', 'Pan'
  );
 
  { Noms des menus principaux }
@@ -229,8 +230,9 @@ Type
  TMenuLabels = Array[1..12] of String[20];
  TMenuShortcuts = Array[1..12] of String[12];
  TMenuState = (msNone, msMenuBar, msDropDown);
- TToolType = (ttSelection, ttRectangle, ttEllipse, ttLine, ttConnector, ttText, ttPolygon, ttBezier, ttImage);
- TShapeType = (stNone, stRectangle, stEllipse, stLine, stConnector, stText, stPolygon, stBezier, stImage);
+ TToolType = (ttSelection, ttRectangle, ttEllipse, ttLine, ttConnector, ttText, ttPolygon, ttBezier, ttImage,
+  ttArc, ttFreeform, ttPencil, ttTextBlock, ttConnPoint, ttRotate, ttCrop, ttFormat, ttZoom, ttPan, ttShapeLib);
+ TShapeType = (stNone, stRectangle, stEllipse, stLine, stConnector, stText, stPolygon, stBezier, stImage, stPolyline, stLib);
 
  { Structure pour l'en-tÃªte OLE Compound Document (format VSD) }
  TOLEHeader = Record
@@ -349,6 +351,8 @@ Type
   ConnectEndShape: Integer;    { Index de la forme cible (0 = pas connectÃ©) }
   ConnectStartAnchor: Integer; { Point d'ancrage source (ANCHOR_*) }
   ConnectEndAnchor: Integer;   { Point d'ancrage cible (ANCHOR_*) }
+  Kind: Integer;               { Numero de la forme de la bibliotheque }
+  Flags: Integer;              { bit0 miroir H, bit1 miroir V, bits2-3 rotation x90 }
  End;
 
 Var
@@ -373,6 +377,21 @@ Var
  StatusMessage: String[80];
  { Variables pour les objets graphiques }
  Shapes: Array[1..MAX_SHAPES] of TShapeObject;
+ { Points de connexion personnalises (position en millimes de la boite de la forme) }
+ ConnPts: Array[1..200] of Record Shp, RX, RY: Integer; End;
+ CPCount: Integer;
+ { Dessin a main levee / crayon }
+ FreeX, FreeY: Array[1..300] of Integer;
+ FreeN: Integer;
+ { Outils : pinceau de format, panoramique, rotation, zoom, infobulles }
+ FPHave: Boolean;
+ FPFill, FPLine, FPWidth, FPStyle: Integer;
+ PanLastX, PanLastY: Integer;
+ RotShape, RotPressX, RotPressY: Integer;
+ ZoomTotal: Real;
+ TipTool: Integer;
+ TipStart: LongInt;
+ TipShown, TipArmed: Boolean;
  ShapeCount: Integer;
  SelectedShape: Integer;
  { Variables pour les calques }
@@ -410,6 +429,8 @@ Var
  { Variables temporaires de la boucle principale (clavier) }
  MainLoopKey: Char;
  MainLoopExit: Boolean;
+ GhostW, GhostH: Integer;
+ DragPrevX, DragPrevY: Integer;
  { Variables pour les connecteurs et points d'ancrage }
  HoveredShapeForAnchor: Integer;  { Forme survolÃ©e pour afficher les points d'ancrage }
  NearestAnchorPoint: Integer;     { Point d'ancrage le plus proche de la souris }
@@ -423,6 +444,559 @@ Var
  StencilCount: Integer;
  CurrentStencil: Integer;        { Stencil actuellement sÃ©lectionnÃ© }
  NextMasterID: LongInt;          { Prochain ID de master disponible }
+
+{ ============================================================================ }
+{ === BIBLIOTHEQUE DE FORMES (panneau "Formes" de Visio) ===================== }
+{ ============================================================================ }
+Const
+ LIB_COUNT = 93;
+ LIB_CAT_COUNT = 5;
+ LibCatFirst: Array[1..LIB_CAT_COUNT] of Integer = (1, 36, 48, 60, 72);
+ LibCatLast: Array[1..LIB_CAT_COUNT] of Integer = (35, 47, 59, 71, 93);
+ LibCatNameFR: Array[1..LIB_CAT_COUNT] of String[16] =
+  ('Formes simples', 'Formes de fleche', 'Formes deco.', 'Graph. et maths', 'Organigramme');
+ LibCatNameEN: Array[1..LIB_CAT_COUNT] of String[16] =
+  ('Basic Shapes', 'Arrow Shapes', 'Decorative', 'Charts and Math', 'Flowchart');
+ LibNameFR: Array[1..LIB_COUNT] of String[20] = (
+  'Rectangle', 'Carre', 'Cercle', 'Ellipse', 'Triangle|rectangle', 'Triangle', 'Triangle|pivote',
+  'Pentagone', 'Hexagone', 'Heptagone', 'Octogone', 'Decagone', 'Trapeze', 'Paralle-|logramme',
+  'Croix', 'Losange', 'Chevron', 'Cube', 'Cylindre', 'Depot', 'Demi-|cercle', 'Demi-|ellipse',
+  'Cone', 'Cone|inverse', 'Pyramide', 'Ovale|pointu', 'Entonnoir', 'Engrenage',
+  'Etoile 4|branches', 'Etoile 5|branches', 'Etoile 6|branches', 'Etoile 7|branches',
+  'Etoile 8|branches', 'Rectangle|arrondi', 'Anneau',
+  'Fleche|droite', 'Fleche|gauche', 'Fleche|haut', 'Fleche|bas', 'Double|fleche H',
+  'Double|fleche V', 'Fleche|4 sens', 'Pentagone|fleche', 'Fleche|a encoche', 'Fleche|rayee',
+  'Fleche|coudee', 'Fleche|en T',
+  'Coeur', 'Nuage', 'Eclair', 'Soleil', 'Lune', 'Banniere', 'Cadre', 'Bulle|rectangle',
+  'Bulle|ronde', 'Sourire', 'Cible', 'Interdit',
+  'Plus', 'Moins', 'Produit', 'Diviser', 'Egal', 'Different', 'Crochet|gauche', 'Crochet|droit',
+  'Accolade|gauche', 'Accolade|droite', 'Secteur', 'Demi-|anneau',
+  'Processus', 'Decision', 'Debut/Fin', 'Donnees', 'Document', 'Processus|predefini',
+  'Base de|donnees', 'Renvoi|sur page', 'Renvoi|hors page', 'Fusion', 'Extraire', 'Ou',
+  'Jonction|somme', 'Saisie|manuelle', 'Operation|manuelle', 'Affichage', 'Prepara-|tion',
+  'Delai', 'Stockage|interne', 'Carte', 'Tri', 'Collation');
+ LibNameEN: Array[1..LIB_COUNT] of String[20] = (
+  'Rectangle', 'Square', 'Circle', 'Ellipse', 'Right|triangle', 'Triangle', 'Rotated|triangle',
+  'Pentagon', 'Hexagon', 'Heptagon', 'Octagon', 'Decagon', 'Trapezoid', 'Paralle-|logram',
+  'Cross', 'Diamond', 'Chevron', 'Cube', 'Cylinder', 'Can', 'Half|circle', 'Half|ellipse',
+  'Cone', 'Inverted|cone', 'Pyramid', 'Pointed|oval', 'Funnel', 'Gear',
+  '4-point|star', '5-point|star', '6-point|star', '7-point|star', '8-point|star',
+  'Rounded|rectangle', 'Donut',
+  'Right|arrow', 'Left|arrow', 'Up|arrow', 'Down|arrow', 'Double|arrow H', 'Double|arrow V',
+  '4-way|arrow', 'Pentagon|arrow', 'Notched|arrow', 'Striped|arrow', 'Bent|arrow', 'T|arrow',
+  'Heart', 'Cloud', 'Lightning', 'Sun', 'Moon', 'Banner', 'Frame', 'Rect.|callout',
+  'Round|callout', 'Smiley', 'Target', 'No|symbol',
+  'Plus', 'Minus', 'Multiply', 'Divide', 'Equal', 'Not|equal', 'Left|bracket', 'Right|bracket',
+  'Left|brace', 'Right|brace', 'Pie', 'Half|ring',
+  'Process', 'Decision', 'Start/End', 'Data', 'Document', 'Predef.|process',
+  'Database', 'On-page|reference', 'Off-page|reference', 'Merge', 'Extract', 'Or',
+  'Summing|junction', 'Manual|input', 'Manual|operation', 'Display', 'Preparat.',
+  'Delay', 'Internal|storage', 'Card', 'Sort', 'Collate');
+
+Type
+ TLibPath = Record
+  N: Integer;
+  Closed: Boolean;
+  Fill: Integer;   { 0 aucun, 1 remplissage, 2 blanc (trou), 3 couleur du trait }
+  P: TPointArray;
+ End;
+
+Var
+ LibP: Array[1..5] of TLibPath;
+ LibN: Integer;
+ LibScr: TPointArray;
+
+Procedure LPBegin(Closed: Boolean; Fill: Integer);
+Begin
+ If LibN < 5 Then Inc(LibN);
+ LibP[LibN].N := 0;
+ LibP[LibN].Closed := Closed;
+ LibP[LibN].Fill := Fill;
+End;
+
+Procedure LPAdd(X, Y: Real);
+Begin
+ If LibP[LibN].N < MAX_POLYGON_POINTS Then Begin
+  Inc(LibP[LibN].N);
+  LibP[LibN].P[LibP[LibN].N].X := Round(X);
+  LibP[LibN].P[LibP[LibN].N].Y := Round(Y);
+ End;
+End;
+
+{ Arc d'ellipse (angles en degres, y vers le bas) }
+Procedure LPArc(CX, CY, RX, RY, A0, A1: Real; Steps: Integer);
+Var I: Integer; A: Real;
+Begin
+ For I := 0 to Steps do Begin
+  A := (A0 + (A1 - A0) * I / Steps) * Pi / 180;
+  LPAdd(CX + RX * Cos(A), CY + RY * Sin(A));
+ End;
+End;
+
+Procedure LPPoly(V: Array of Integer);
+Var I: Integer;
+Begin
+ I := 0;
+ While I + 1 <= High(V) do Begin
+  LPAdd(V[I], V[I + 1]);
+  Inc(I, 2);
+ End;
+End;
+
+Procedure LPReg(N: Integer; A0: Real);
+Var I: Integer; A: Real;
+Begin
+ For I := 0 to N - 1 do Begin
+  A := (A0 + 360.0 * I / N) * Pi / 180;
+  LPAdd(500 + 500 * Cos(A), 500 + 500 * Sin(A));
+ End;
+End;
+
+Procedure LPStar(N: Integer; Ratio, A0: Real);
+Var I: Integer; A, R: Real;
+Begin
+ For I := 0 to 2 * N - 1 do Begin
+  A := (A0 + 180.0 * I / N) * Pi / 180;
+  If Odd(I) Then R := 500 * Ratio Else R := 500;
+  LPAdd(500 + R * Cos(A), 500 + R * Sin(A));
+ End;
+End;
+
+Procedure LPCylinder;
+Begin
+ LPBegin(True, 1);
+ LPAdd(0, 125);
+ LPArc(500, 875, 500, 125, 180, 0, 12);
+ LPArc(500, 125, 500, 125, 0, -180, 12);
+ LPBegin(True, 1);
+ LPArc(500, 125, 500, 125, 0, 360, 24);
+End;
+
+{ Construit la geometrie normalisee (0..1000) d'une forme de la bibliotheque }
+Procedure BuildLib(Kind: Integer);
+Var I: Integer; T: Real;
+Begin
+ LibN := 0;
+ Case Kind of
+  1, 2, 72: Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,1000, 0,1000]); End;
+  3, 4, 79: Begin LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 32); End;
+  5: Begin LPBegin(True, 1); LPPoly([0,0, 0,1000, 1000,1000]); End;
+  6, 82: Begin LPBegin(True, 1); LPPoly([500,0, 1000,1000, 0,1000]); End;
+  7, 81: Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 500,1000]); End;
+  8: Begin LPBegin(True, 1); LPReg(5, -90); End;
+  9: Begin LPBegin(True, 1); LPReg(6, 0); End;
+  10: Begin LPBegin(True, 1); LPReg(7, -90); End;
+  11: Begin LPBegin(True, 1); LPReg(8, 22.5); End;
+  12: Begin LPBegin(True, 1); LPReg(10, -90); End;
+  13: Begin LPBegin(True, 1); LPPoly([200,0, 800,0, 1000,1000, 0,1000]); End;
+  14: Begin LPBegin(True, 1); LPPoly([250,0, 1000,0, 750,1000, 0,1000]); End;
+  75: Begin LPBegin(True, 1); LPPoly([200,0, 1000,0, 800,1000, 0,1000]); End;
+  15: Begin LPBegin(True, 1);
+       LPPoly([333,0, 667,0, 667,333, 1000,333, 1000,667, 667,667, 667,1000, 333,1000,
+               333,667, 0,667, 0,333, 333,333]); End;
+  16, 73: Begin LPBegin(True, 1); LPPoly([500,0, 1000,500, 500,1000, 0,500]); End;
+  17: Begin LPBegin(True, 1); LPPoly([0,0, 650,0, 1000,500, 650,1000, 0,1000, 350,500]); End;
+  18: Begin
+       LPBegin(True, 1); LPPoly([0,250, 750,250, 750,1000, 0,1000]);
+       LPBegin(True, 1); LPPoly([0,250, 250,0, 1000,0, 750,250]);
+       LPBegin(True, 1); LPPoly([750,250, 1000,0, 1000,750, 750,1000]);
+      End;
+  19, 78: LPCylinder;
+  20: Begin
+       LPBegin(True, 1);
+       LPArc(850, 500, 150, 500, -90, 90, 12);
+       LPArc(150, 500, 150, 500, 90, 270, 12);
+       LPBegin(False, 0);
+       LPArc(850, 500, 150, 500, 90, 270, 12);
+      End;
+  21: Begin LPBegin(True, 1); LPArc(500, 1000, 500, 1000, 180, 360, 20); End;
+  22: Begin LPBegin(True, 1); LPArc(0, 500, 1000, 500, -90, 90, 20); End;
+  23: Begin
+       LPBegin(True, 1); LPAdd(500, 0); LPAdd(0, 875);
+       LPArc(500, 875, 500, 125, 180, 0, 12);
+      End;
+  24: Begin
+       LPBegin(True, 1); LPAdd(0, 125); LPAdd(500, 1000); LPAdd(1000, 125);
+       LPArc(500, 125, 500, 125, 0, -180, 12);
+       LPBegin(True, 1); LPArc(500, 125, 500, 125, 0, 360, 24);
+      End;
+  25: Begin
+       LPBegin(True, 1); LPPoly([500,0, 0,800, 500,1000]);
+       LPBegin(True, 1); LPPoly([500,0, 500,1000, 1000,800]);
+      End;
+  26: Begin
+       LPBegin(True, 1);
+       For I := 0 to 12 do Begin T := I / 12; LPAdd(1000 * T, 500 - 500 * Sin(Pi * T)); End;
+       For I := 11 downto 1 do Begin T := I / 12; LPAdd(1000 * T, 500 + 500 * Sin(Pi * T)); End;
+      End;
+  27: Begin
+       LPBegin(True, 1);
+       LPPoly([0,125, 400,600, 400,1000, 600,1000, 600,600, 1000,125]);
+       LPArc(500, 125, 500, 125, 0, -180, 12);
+       LPBegin(True, 1); LPArc(500, 125, 500, 125, 0, 360, 24);
+      End;
+  28: Begin
+       LPBegin(True, 1);
+       For I := 0 to 7 do Begin
+        T := I * 45;
+        LPAdd(500 + 400 * Cos((T - 9) * Pi / 180), 500 + 400 * Sin((T - 9) * Pi / 180));
+        LPAdd(500 + 500 * Cos((T - 6.5) * Pi / 180), 500 + 500 * Sin((T - 6.5) * Pi / 180));
+        LPAdd(500 + 500 * Cos((T + 6.5) * Pi / 180), 500 + 500 * Sin((T + 6.5) * Pi / 180));
+        LPAdd(500 + 400 * Cos((T + 9) * Pi / 180), 500 + 400 * Sin((T + 9) * Pi / 180));
+       End;
+       LPBegin(True, 2); LPArc(500, 500, 150, 150, 0, 360, 16);
+      End;
+  29: Begin LPBegin(True, 1); LPStar(4, 0.4, -90); End;
+  30: Begin LPBegin(True, 1); LPStar(5, 0.4, -90); End;
+  31: Begin LPBegin(True, 1); LPStar(6, 0.5, -90); End;
+  32: Begin LPBegin(True, 1); LPStar(7, 0.45, -90); End;
+  33: Begin LPBegin(True, 1); LPStar(8, 0.6, -90); End;
+  34: Begin
+       LPBegin(True, 1);
+       LPArc(850, 150, 150, 150, -90, 0, 5);
+       LPArc(850, 850, 150, 150, 0, 90, 5);
+       LPArc(150, 850, 150, 150, 90, 180, 5);
+       LPArc(150, 150, 150, 150, 180, 270, 5);
+      End;
+  35: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(True, 2); LPArc(500, 500, 230, 230, 0, 360, 24);
+      End;
+  { ---- fleches ---- }
+  36: Begin LPBegin(True, 1); LPPoly([0,300, 600,300, 600,0, 1000,500, 600,1000, 600,700, 0,700]); End;
+  37: Begin LPBegin(True, 1); LPPoly([1000,300, 400,300, 400,0, 0,500, 400,1000, 400,700, 1000,700]); End;
+  38: Begin LPBegin(True, 1); LPPoly([300,1000, 300,400, 0,400, 500,0, 1000,400, 700,400, 700,1000]); End;
+  39: Begin LPBegin(True, 1); LPPoly([300,0, 300,600, 0,600, 500,1000, 1000,600, 700,600, 700,0]); End;
+  40: Begin LPBegin(True, 1);
+       LPPoly([0,500, 250,0, 250,300, 750,300, 750,0, 1000,500, 750,1000, 750,700, 250,700, 250,1000]); End;
+  41: Begin LPBegin(True, 1);
+       LPPoly([500,0, 1000,250, 700,250, 700,750, 1000,750, 500,1000, 0,750, 300,750, 300,250, 0,250]); End;
+  42: Begin LPBegin(True, 1);
+       LPPoly([500,0, 700,200, 580,200, 580,420, 800,420, 800,300, 1000,500, 800,700, 800,580,
+               580,580, 580,800, 700,800, 500,1000, 300,800, 420,800, 420,580, 200,580, 200,700,
+               0,500, 200,300, 200,420, 420,420, 420,200, 300,200]); End;
+  43: Begin LPBegin(True, 1); LPPoly([0,0, 700,0, 1000,500, 700,1000, 0,1000]); End;
+  44: Begin LPBegin(True, 1);
+       LPPoly([0,300, 600,300, 600,0, 1000,500, 600,1000, 600,700, 0,700, 150,500]); End;
+  45: Begin
+       LPBegin(True, 1); LPPoly([0,300, 100,300, 100,700, 0,700]);
+       LPBegin(True, 1); LPPoly([200,300, 300,300, 300,700, 200,700]);
+       LPBegin(True, 1); LPPoly([400,300, 600,300, 600,0, 1000,500, 600,1000, 600,700, 400,700]);
+      End;
+  46: Begin LPBegin(True, 1);
+       LPPoly([0,1000, 0,400, 40,250, 150,150, 300,100, 600,100, 600,0, 1000,250, 600,500,
+               600,400, 350,400, 320,420, 300,460, 300,1000]); End;
+  47: Begin LPBegin(True, 1);
+       LPPoly([500,0, 750,250, 600,250, 600,400, 850,400, 850,250, 1000,500, 850,750, 850,600,
+               150,600, 150,750, 0,500, 150,250, 150,400, 400,400, 400,250, 250,250]); End;
+  { ---- decoratives ---- }
+  48: Begin
+       LPBegin(True, 1);
+       For I := 0 to 31 do Begin
+        T := 2 * Pi * I / 32;
+        LPAdd(500 + 16 * Sin(T) * Sin(T) * Sin(T) * 500 / 16,
+              (12 - (13 * Cos(T) - 5 * Cos(2 * T) - 2 * Cos(3 * T) - Cos(4 * T))) * 1000 / 29);
+       End;
+      End;
+  49: Begin
+       LPBegin(True, 1);
+       For I := 0 to 35 do Begin
+        T := 2 * Pi * I / 36;
+        LPAdd(500 + 500 * (0.8 + 0.2 * Abs(Cos(3 * T))) * Cos(T),
+              520 + 440 * (0.8 + 0.2 * Abs(Cos(3 * T))) * Sin(T));
+       End;
+      End;
+  50: Begin LPBegin(True, 1); LPPoly([300,0, 700,0, 500,350, 850,350, 250,1000, 450,520, 150,520]); End;
+  51: Begin
+       LPBegin(True, 1); LPStar(12, 0.6, -90);
+       LPBegin(True, 1); LPArc(500, 500, 270, 270, 0, 360, 20);
+      End;
+  52: Begin
+       LPBegin(True, 1);
+       LPArc(500, 500, 500, 500, 90, 270, 16);
+       For I := 1 to 12 do Begin T := I / 12; LPAdd(500 - 300 * Sin(Pi * T), 1000 * T); End;
+      End;
+  53: Begin
+       LPBegin(True, 1);
+       For I := 0 to 8 do Begin T := I / 8; LPAdd(1000 * T, 120 + 70 * Sin(2 * Pi * T)); End;
+       For I := 8 downto 0 do Begin T := I / 8; LPAdd(1000 * T, 880 + 70 * Sin(2 * Pi * T)); End;
+      End;
+  54: Begin
+       LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,1000, 0,1000]);
+       LPBegin(True, 2); LPPoly([150,150, 850,150, 850,850, 150,850]);
+      End;
+  55: Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,700, 400,700, 200,1000, 250,700, 0,700]); End;
+  56: Begin
+       LPBegin(True, 1); LPPoly([250,650, 180,1000, 480,730]);
+       LPBegin(True, 1); LPArc(500, 375, 500, 375, 0, 360, 24);
+      End;
+  57: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(True, 3); LPArc(340, 380, 70, 90, 0, 360, 10);
+       LPBegin(True, 3); LPArc(660, 380, 70, 90, 0, 360, 10);
+       LPBegin(False, 0); LPArc(500, 500, 300, 300, 25, 155, 12);
+      End;
+  58: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(True, 2); LPArc(500, 500, 380, 380, 0, 360, 24);
+       LPBegin(True, 1); LPArc(500, 500, 250, 250, 0, 360, 20);
+       LPBegin(True, 2); LPArc(500, 500, 120, 120, 0, 360, 14);
+      End;
+  59: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(True, 2); LPArc(500, 500, 380, 380, 0, 360, 28);
+       LPBegin(True, 1); LPPoly([192,108, 892,808, 808,892, 108,192]);
+      End;
+  { ---- graphiques et maths ---- }
+  60: Begin LPBegin(True, 1);
+       LPPoly([350,0, 650,0, 650,350, 1000,350, 1000,650, 650,650, 650,1000, 350,1000,
+               350,650, 0,650, 0,350, 350,350]); End;
+  61: Begin LPBegin(True, 1); LPPoly([0,380, 1000,380, 1000,620, 0,620]); End;
+  62: Begin LPBegin(True, 1);
+       LPPoly([200,0, 500,300, 800,0, 1000,200, 700,500, 1000,800, 800,1000, 500,700,
+               200,1000, 0,800, 300,500, 0,200]); End;
+  63: Begin
+       LPBegin(True, 1); LPPoly([0,400, 1000,400, 1000,600, 0,600]);
+       LPBegin(True, 1); LPArc(500, 170, 110, 110, 0, 360, 12);
+       LPBegin(True, 1); LPArc(500, 830, 110, 110, 0, 360, 12);
+      End;
+  64: Begin
+       LPBegin(True, 1); LPPoly([0,230, 1000,230, 1000,430, 0,430]);
+       LPBegin(True, 1); LPPoly([0,570, 1000,570, 1000,770, 0,770]);
+      End;
+  65: Begin
+       LPBegin(True, 1); LPPoly([0,230, 1000,230, 1000,430, 0,430]);
+       LPBegin(True, 1); LPPoly([0,570, 1000,570, 1000,770, 0,770]);
+       LPBegin(True, 1); LPPoly([680,0, 800,70, 320,1000, 200,930]);
+      End;
+  66: Begin LPBegin(False, 0); LPPoly([400,0, 120,0, 120,1000, 400,1000]); End;
+  67: Begin LPBegin(False, 0); LPPoly([600,0, 880,0, 880,1000, 600,1000]); End;
+  68: Begin LPBegin(False, 0);
+       LPPoly([600,0, 450,40, 400,130, 400,400, 250,500, 400,600, 400,870, 450,960, 600,1000]); End;
+  69: Begin LPBegin(False, 0);
+       LPPoly([400,0, 550,40, 600,130, 600,400, 750,500, 600,600, 600,870, 550,960, 400,1000]); End;
+  70: Begin LPBegin(True, 1); LPAdd(500, 500); LPArc(500, 500, 500, 500, 0, 270, 20); End;
+  71: Begin
+       LPBegin(True, 1);
+       LPArc(500, 1000, 500, 1000, 180, 360, 14);
+       LPArc(500, 1000, 250, 500, 360, 180, 14);
+      End;
+  { ---- organigramme ---- }
+  74: Begin
+       LPBegin(True, 1);
+       LPArc(250, 500, 250, 500, 90, 270, 12);
+       LPArc(750, 500, 250, 500, -90, 90, 12);
+      End;
+  76: Begin
+       LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,850]);
+       For I := 0 to 10 do Begin T := I / 10; LPAdd(1000 - 1000 * T, 850 + 90 * Sin(2 * Pi * T)); End;
+      End;
+  77: Begin
+       LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,1000, 0,1000]);
+       LPBegin(False, 0); LPPoly([120,0, 120,1000]);
+       LPBegin(False, 0); LPPoly([880,0, 880,1000]);
+      End;
+  80: Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,650, 500,1000, 0,650]); End;
+  83: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(False, 0); LPPoly([500,0, 500,1000]);
+       LPBegin(False, 0); LPPoly([0,500, 1000,500]);
+      End;
+  84: Begin
+       LPBegin(True, 1); LPArc(500, 500, 500, 500, 0, 360, 28);
+       LPBegin(False, 0); LPPoly([146,146, 854,854]);
+       LPBegin(False, 0); LPPoly([854,146, 146,854]);
+      End;
+  85: Begin LPBegin(True, 1); LPPoly([0,250, 1000,0, 1000,1000, 0,1000]); End;
+  86: Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 800,1000, 200,1000]); End;
+  87: Begin
+       LPBegin(True, 1); LPPoly([0,500, 200,0, 800,0]);
+       LPArc(800, 500, 200, 500, -90, 90, 12);
+       LPAdd(200, 1000);
+      End;
+  88: Begin LPBegin(True, 1); LPPoly([0,500, 200,0, 800,0, 1000,500, 800,1000, 200,1000]); End;
+  89: Begin
+       LPBegin(True, 1); LPPoly([0,0, 600,0]);
+       LPArc(600, 500, 400, 500, -90, 90, 14);
+       LPAdd(0, 1000);
+      End;
+  90: Begin
+       LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,1000, 0,1000]);
+       LPBegin(False, 0); LPPoly([150,0, 150,1000]);
+       LPBegin(False, 0); LPPoly([0,150, 1000,150]);
+      End;
+  91: Begin LPBegin(True, 1); LPPoly([200,0, 1000,0, 1000,1000, 0,1000, 0,200]); End;
+  92: Begin
+       LPBegin(True, 1); LPPoly([500,0, 1000,500, 500,1000, 0,500]);
+       LPBegin(False, 0); LPPoly([0,500, 1000,500]);
+      End;
+  93: Begin
+       LPBegin(True, 1); LPPoly([0,0, 1000,0, 500,500]);
+       LPBegin(True, 1); LPPoly([500,500, 1000,1000, 0,1000]);
+      End;
+  Else Begin LPBegin(True, 1); LPPoly([0,0, 1000,0, 1000,1000, 0,1000]); End;
+ End;
+End;
+
+{ Transforme un chemin de la forme en coordonnees ecran }
+Procedure LibScreenPath(P: Integer; Flags, X1, Y1, X2, Y2: Integer;
+ Var N: Integer; Var Closed: Boolean; Var Fill: Integer);
+Var K, Q, R: Integer; NX, NY, T: LongInt; MnX, MxX, MnY, MxY: Integer;
+Begin
+ MnX := X1; MxX := X2; MnY := Y1; MxY := Y2;
+ If MnX > MxX Then Begin MnX := X2; MxX := X1; End;
+ If MnY > MxY Then Begin MnY := Y2; MxY := Y1; End;
+ N := LibP[P].N; Closed := LibP[P].Closed; Fill := LibP[P].Fill;
+ Q := (Flags shr 2) and 3;
+ For K := 1 to N do Begin
+  NX := LibP[P].P[K].X; NY := LibP[P].P[K].Y;
+  If (Flags and 1) <> 0 Then NX := 1000 - NX;
+  If (Flags and 2) <> 0 Then NY := 1000 - NY;
+  For R := 1 to Q do Begin T := 1000 - NY; NY := NX; NX := T; End;
+  LibScr[K].X := MnX + Round(NX * (MxX - MnX) / 1000);
+  LibScr[K].Y := MnY + Round(NY * (MxY - MnY) / 1000);
+ End;
+End;
+
+{ Remplissage d'un polygone par balayage (regle pair/impair) }
+Procedure ScanFillPoly(Var A: TPointArray; N, Color: Integer);
+Var Y, YMin, YMax, I, J, C, T: Integer; XS: Array[1..MAX_POLYGON_POINTS] of Integer;
+ Y1, Y2, X1, X2: Integer;
+Begin
+ If N < 3 Then Exit;
+ YMin := A[1].Y; YMax := A[1].Y;
+ For I := 2 to N do Begin
+  If A[I].Y < YMin Then YMin := A[I].Y;
+  If A[I].Y > YMax Then YMax := A[I].Y;
+ End;
+ SetColor(Color);
+ SetLineStyle(SolidLn, 0, NormWidth);
+ For Y := YMin to YMax do Begin
+  C := 0;
+  For I := 1 to N do Begin
+   J := I + 1; If J > N Then J := 1;
+   Y1 := A[I].Y; Y2 := A[J].Y; X1 := A[I].X; X2 := A[J].X;
+   If ((Y1 <= Y) and (Y2 > Y)) or ((Y2 <= Y) and (Y1 > Y)) Then Begin
+    If C < MAX_POLYGON_POINTS Then Begin
+     Inc(C);
+     XS[C] := X1 + Round((Y - Y1) * (X2 - X1) / (Y2 - Y1));
+    End;
+   End;
+  End;
+  For I := 2 to C do Begin
+   T := XS[I]; J := I - 1;
+   While (J >= 1) and (XS[J] > T) do Begin XS[J + 1] := XS[J]; Dec(J); End;
+   XS[J + 1] := T;
+  End;
+  I := 1;
+  While I < C do Begin
+   Line(XS[I], Y, XS[I + 1], Y);
+   Inc(I, 2);
+  End;
+ End;
+End;
+
+{ Dessine une forme de la bibliotheque dans le rectangle donne }
+Procedure DrawLibShape(Kind, Flags, X1, Y1, X2, Y2, FillC, LineC, LStyle, LWidth: Integer);
+Var P, K, N, Fill: Integer; Closed: Boolean;
+Begin
+ BuildLib(Kind);
+ For P := 1 to LibN do Begin
+  LibScreenPath(P, Flags, X1, Y1, X2, Y2, N, Closed, Fill);
+  If Closed Then Begin
+   Case Fill of
+    1: ScanFillPoly(LibScr, N, FillC);
+    2: ScanFillPoly(LibScr, N, 15);
+    3: ScanFillPoly(LibScr, N, LineC);
+   End;
+  End;
+  SetColor(LineC);
+  SetLineStyle(LStyle, 0, LWidth);
+  For K := 1 to N - 1 do
+   Line(LibScr[K].X, LibScr[K].Y, LibScr[K + 1].X, LibScr[K + 1].Y);
+  If Closed and (N > 2) Then
+   Line(LibScr[N].X, LibScr[N].Y, LibScr[1].X, LibScr[1].Y);
+ End;
+ SetLineStyle(SolidLn, 0, NormWidth);
+End;
+
+Function LibName(K: Integer): String;
+Var S: String;
+Begin
+ If (K < 1) or (K > LIB_COUNT) Then Begin LibName := ''; Exit; End;
+ If Language = _French Then S := LibNameFR[K] Else S := LibNameEN[K];
+ LibName := S;
+End;
+
+{ Nom d'une forme sans saut de ligne }
+Function LibFlatName(K: Integer): String;
+Var S: String; I: Integer;
+Begin
+ S := LibName(K);
+ For I := 1 to Length(S) do If S[I] = '|' Then S[I] := ' ';
+ LibFlatName := S;
+End;
+
+{ Taille par defaut d'une forme deposee depuis le panneau }
+Procedure LibDefaultSize(K: Integer; Var W, H: Integer);
+Begin
+ W := 72; H := 48;
+ Case K of
+  2, 3, 8..12, 15, 16, 18, 25, 28..33, 35, 42, 47..52, 56..59, 60, 62, 63, 70, 79, 83, 84: Begin W := 56; H := 56; End;
+  19, 20, 78: Begin W := 48; H := 64; End;
+  23, 24, 27, 38, 39, 41, 66..69: Begin W := 40; H := 64; End;
+  36, 37, 40, 43..46, 61, 64, 65: Begin W := 72; H := 40; End;
+  21, 22: Begin W := 64; H := 36; End;
+ End;
+End;
+
+Const
+ PANEL_W = 172;
+ PANEL_STRIP = 14;
+ CELL_W = 77;
+ CELL_H = 46;
+
+Var
+ PanelOpen: Boolean;
+ PanelCat, PanelScroll: Integer;
+ PressKind, ArmedKind: Integer;
+ LibTmpP, LibTmpN, LibTmpF: Integer;
+ LibTmpC: Boolean;
+
+{ Choisit la partie FR ou EN d'une chaine 'FR~EN' }
+Function Bi(Const S: String): String;
+Var P: Integer;
+Begin
+ P := Pos('~', S);
+ If P = 0 Then Bi := S
+ Else If Language = _French Then Bi := Copy(S, 1, P - 1)
+ Else Bi := Copy(S, P + 1, 80);
+End;
+
+{ ---- noms des onglets ---- }
+Function RibTabName(I: Integer): String;
+Begin
+ Case I of
+  1: RibTabName := Bi('Fichier~File');
+  2: RibTabName := Bi('Accueil~Home');
+  3: RibTabName := Bi('Affichage~View');
+  4: RibTabName := Bi('Insertion~Insert');
+  5: RibTabName := Bi('Conception~Design');
+  6: RibTabName := Bi('Dessin~Draw');
+  7: RibTabName := Bi('Outils~Tools');
+  8: RibTabName := Bi('Fenetre~Window');
+  9: RibTabName := Bi('Aide~Help');
+ Else RibTabName := '';
+ End;
+End;
+
+Function RibTabX(I: Integer): Integer;
+Var K, X: Integer;
+Begin
+ X := 8;
+ For K := 1 to I - 1 do X := X + Length(RibTabName(K)) * 8 + 16;
+ RibTabX := X;
+End;
 
 { Mode graphique : VGA 640 x 480, ou, avec -maxscreen sous Free Pascal, la
   resolution maximale du pilote D8bit (sans effet sous Turbo Pascal). }
@@ -5849,7 +6423,7 @@ Begin
   { Generer un apercu placeholder visuel - le format binaire Visio etant }
   { proprietaire et tres complexe, on signale au moins que le fichier a   }
   { ete charge avec succes.                                                }
-  ShapeCount := 0;
+  ShapeCount := 0; CPCount := 0;
   VFXGeneratePlaceholderShapes(VFXShortFileName(FileName),
                                80, WORK_AREA_TOP + 10,
                                ScreenWidth - 20, ScreenHeight - 30);
@@ -5890,7 +6464,7 @@ Begin
 
  VFXMakeTempDirName;
  If Not VFXCreateTempDir Then Begin
-  ShapeCount := 0;
+  ShapeCount := 0; CPCount := 0;
   VFXGeneratePlaceholderShapes(VFXShortFileName(FileName),
                                WorkX1, WorkY1, WorkX2, WorkY2);
   ParseVSDXFile := True;
@@ -5900,15 +6474,15 @@ Begin
  If VFXExtractVSDX(FileName) Then Begin
   PageFile := VFX_TempDir + '\visio\pages\page1.xml';
   If VFXReadFileToBuf(PageFile) Then Begin
-   ShapeCount := 0;
+   ShapeCount := 0; CPCount := 0;
    VFXParseShapesFromBuf(WorkX1, WorkY1, WorkX2, WorkY2);
   End Else Begin
-   ShapeCount := 0;
+   ShapeCount := 0; CPCount := 0;
    VFXGeneratePlaceholderShapes(VFXShortFileName(FileName),
                                 WorkX1, WorkY1, WorkX2, WorkY2);
   End;
  End Else Begin
-  ShapeCount := 0;
+  ShapeCount := 0; CPCount := 0;
   VFXGeneratePlaceholderShapes(VFXShortFileName(FileName),
                                WorkX1, WorkY1, WorkX2, WorkY2);
  End;
@@ -5977,7 +6551,7 @@ Begin
   stRectangle: TShapeTypeToVisioShapeType := VISIO_SHAPE_RECTANGLE;
   stEllipse: TShapeTypeToVisioShapeType := VISIO_SHAPE_ELLIPSE;
   stLine: TShapeTypeToVisioShapeType := VISIO_SHAPE_LINE;
-  stPolygon: TShapeTypeToVisioShapeType := VISIO_SHAPE_POLYLINE;
+  stPolygon, stPolyline: TShapeTypeToVisioShapeType := VISIO_SHAPE_POLYLINE;
   stConnector: TShapeTypeToVisioShapeType := VISIO_SHAPE_CONNECTOR;
   stText: TShapeTypeToVisioShapeType := VISIO_SHAPE_TEXT;
  Else
@@ -8386,6 +8960,46 @@ Begin
  WriteLn(F, '  <polygon points="' + Points + '" ' + ShapeToSVGStyle(Shape) + ' />');
 End;
 
+Procedure WriteSVGLib(Var F: Text; Const Shape: TShapeObject);
+Var
+ Points: String;
+ K: Integer;
+Begin
+ BuildLib(Shape.Kind);
+ For LibTmpP := 1 to LibN do Begin
+  LibScreenPath(LibTmpP, Shape.Flags, Shape.X1, Shape.Y1, Shape.X2, Shape.Y2,
+                LibTmpN, LibTmpC, LibTmpF);
+  If LibTmpN < 2 Then Continue;
+  Points := '';
+  For K := 1 to LibTmpN do Begin
+   If K > 1 Then Points := Points + ' ';
+   Points := Points + IntToStrSVG(LibScr[K].X) + ',' + IntToStrSVG(LibScr[K].Y);
+  End;
+  If Not LibTmpC Then
+   WriteLn(F, '  <polyline points="' + Points + '" fill="none" stroke="#000000" />')
+  Else If LibTmpF = 2 Then
+   WriteLn(F, '  <polygon points="' + Points + '" fill="#FFFFFF" stroke="#000000" />')
+  Else If LibTmpF = 3 Then
+   WriteLn(F, '  <polygon points="' + Points + '" fill="#000000" stroke="#000000" />')
+  Else
+   WriteLn(F, '  <polygon points="' + Points + '" ' + ShapeToSVGStyle(Shape) + ' />');
+ End;
+End;
+
+Procedure WriteSVGPolyline(Var F: Text; Const Shape: TShapeObject);
+Var
+ Points: String;
+ I: Integer;
+Begin
+ If Shape.PointCount < 2 Then Exit;
+ Points := '';
+ For I := 1 to Shape.PointCount do Begin
+  If I > 1 Then Points := Points + ' ';
+  Points := Points + IntToStrSVG(Shape.Points[I].X) + ',' + IntToStrSVG(Shape.Points[I].Y);
+ End;
+ WriteLn(F, '  <polyline points="' + Points + '" ' + ShapeToSVGStyle(Shape) + ' />');
+End;
+
 { Echappement XML basique pour le contenu textuel d'un noeud SVG. }
 Function XMLEscape(Const S: String): String;
 Var
@@ -8543,6 +9157,8 @@ Begin
    stConnector: WriteSVGConnector(F, Shapes[I]);
    stText: WriteSVGText(F, Shapes[I]);
    stPolygon: WriteSVGPolygon(F, Shapes[I]);
+   stPolyline: WriteSVGPolyline(F, Shapes[I]);
+   stLib: WriteSVGLib(F, Shapes[I]);
    stBezier: WriteSVGBezier(F, Shapes[I]);
    { stImage n'est pas exportÃ© directement car nÃ©cessite l'inclusion de l'image }
   End;
@@ -8932,8 +9548,17 @@ Begin
    stLine, stConnector:
     DrawBufferLine(Shapes[I].X1, Shapes[I].Y1, Shapes[I].X2, Shapes[I].Y2, LC);
 
-   stPolygon, stBezier:
+   stPolygon, stBezier, stPolyline:
     DrawBufferPolygon(Shapes[I].Points, Shapes[I].PointCount, FC, LC);
+
+   stLib: Begin
+    BuildLib(Shapes[I].Kind);
+    For LibTmpP := 1 to LibN do Begin
+     LibScreenPath(LibTmpP, Shapes[I].Flags, Shapes[I].X1, Shapes[I].Y1,
+                   Shapes[I].X2, Shapes[I].Y2, LibTmpN, LibTmpC, LibTmpF);
+     DrawBufferPolygon(LibScr, LibTmpN, FC, LC);
+    End;
+   End;
   End;
  End;
 End;
@@ -11723,14 +12348,14 @@ Begin
     AddPoint(Shapes[I].X2, Shapes[I].Y2);
     EmitPolyPoints(WPG_REC_POLYLINE);
    End;
-   stPolygon: Begin
+   stPolygon, stPolyline: Begin
     If Shapes[I].PointCount >= 2 Then Begin
      EmitLineAttr(Shapes[I].LineColor);
      EmitFillAttr(Shapes[I].FillColor);
      NPts := 0;
      For J := 1 To Shapes[I].PointCount Do
       AddPoint(Shapes[I].Points[J].X, Shapes[I].Points[J].Y);
-     If Shapes[I].PointCount >= 3 Then
+     If (Shapes[I].PointCount >= 3) And (Shapes[I].ShapeType <> stPolyline) Then
       EmitPolyPoints(WPG_REC_POLYGON)
      Else
       EmitPolyPoints(WPG_REC_POLYLINE);
@@ -11741,6 +12366,21 @@ Begin
      EmitLineAttr(Shapes[I].LineColor);
      ApproxBezier(Shapes[I].Points, Shapes[I].PointCount);
      EmitPolyPoints(WPG_REC_POLYLINE);
+    End;
+   End;
+   stLib: Begin
+    BuildLib(Shapes[I].Kind);
+    For LibTmpP := 1 to LibN do Begin
+     LibScreenPath(LibTmpP, Shapes[I].Flags, Shapes[I].X1, Shapes[I].Y1,
+                   Shapes[I].X2, Shapes[I].Y2, LibTmpN, LibTmpC, LibTmpF);
+     If LibTmpN >= 2 Then Begin
+      EmitLineAttr(Shapes[I].LineColor);
+      EmitFillAttr(Shapes[I].FillColor);
+      NPts := 0;
+      For J := 1 To LibTmpN Do AddPoint(LibScr[J].X, LibScr[J].Y);
+      If LibTmpC and (LibTmpN >= 3) Then EmitPolyPoints(WPG_REC_POLYGON)
+      Else EmitPolyPoints(WPG_REC_POLYLINE);
+     End;
     End;
    End;
    { stText, stImage : pas de support vectoriel direct dans WPG 1.0 simple }
@@ -12293,7 +12933,7 @@ Procedure FileNew;
 Begin
  CurrentFileName := '';
  DocumentModified := False;
- ShapeCount := 0;
+ ShapeCount := 0; CPCount := 0;
  SelectedShape := 0;
  If Language = _English Then StatusMessage := 'New document'
                        Else StatusMessage := 'Nouveau document';
@@ -12340,7 +12980,7 @@ Procedure FileClose;
 Begin
  CurrentFileName := '';
  DocumentModified := False;
- ShapeCount := 0;
+ ShapeCount := 0; CPCount := 0;
  SelectedShape := 0;
  If Language = _English Then StatusMessage := 'Document closed'
                        Else StatusMessage := 'Document ferme';
@@ -12560,67 +13200,48 @@ Var
  HasSelection: Boolean;
 
 { ProcÃ©dure Undo - Annuler la derniÃ¨re action }
+Procedure CmdUndo; Forward;
+Procedure CmdRedo; Forward;
+Procedure CmdCut; Forward;
+Procedure CmdCopy; Forward;
+Procedure CmdPaste; Forward;
+Procedure CmdDelete; Forward;
+Procedure CmdSelectAll; Forward;
+Procedure UndoCheckpoint; Forward;
+
 Procedure EditUndo;
 Begin
- If CanUndo Then Begin
-  { TODO: Restaurer l'Ã©tat prÃ©cÃ©dent depuis la pile d'annulation }
-  { UndoStackIndex := UndoStackIndex - 1; }
-  CanRedo := True;
- End;
+ CmdUndo;
 End;
 
-{ ProcÃ©dure Redo - RÃ©tablir l'action annulÃ©e }
 Procedure EditRedo;
 Begin
- If CanRedo Then Begin
-  { TODO: Restaurer l'Ã©tat suivant depuis la pile de rÃ©tablissement }
-  { UndoStackIndex := UndoStackIndex + 1; }
- End;
+ CmdRedo;
 End;
 
-{ ProcÃ©dure Cut - Couper la sÃ©lection }
 Procedure EditCut;
 Begin
- If HasSelection Then Begin
-  { TODO: Copier la sÃ©lection dans le presse-papiers }
-  { TODO: Supprimer la sÃ©lection du document }
-  ClipboardEmpty := False;
-  DocumentModified := True;
- End;
+ CmdCut;
 End;
 
-{ ProcÃ©dure Copy - Copier la sÃ©lection }
 Procedure EditCopy;
 Begin
- If HasSelection Then Begin
-  { TODO: Copier la sÃ©lection dans le presse-papiers }
-  ClipboardEmpty := False;
- End;
+ CmdCopy;
 End;
 
-{ ProcÃ©dure Paste - Coller depuis le presse-papiers }
 Procedure EditPaste;
 Begin
- If Not ClipboardEmpty Then Begin
-  { TODO: Coller le contenu du presse-papiers dans le document }
-  DocumentModified := True;
- End;
+ CmdPaste;
 End;
 
-{ ProcÃ©dure Delete - Supprimer la sÃ©lection }
 Procedure EditDelete;
 Begin
- If HasSelection Then Begin
-  { TODO: Supprimer la sÃ©lection du document }
-  DocumentModified := True;
- End;
+ CmdDelete;
 End;
 
-{ ProcÃ©dure Select All - SÃ©lectionner tous les objets }
 Procedure EditSelectAll;
 Begin
- { TODO: SÃ©lectionner tous les objets du calque actif }
- HasSelection := True;
+ CmdSelectAll;
 End;
 
 { ProcÃ©dure Find - Rechercher du texte }
@@ -13800,122 +14421,597 @@ End;
 { ============================================================================ }
 
 { ProcÃ©dure pour dessiner l'icÃ´ne d'un outil }
+Const
+ { Ordre d'affichage des outils (numero de l'outil = Ord + 1), 2 colonnes }
+ ToolOrder: Array[1..TOOLBAR_COUNT] of Integer =
+  (1, 6, 5, 14, 13, 2, 3, 4, 10, 11, 12, 7, 8, 9, 15, 16, 17, 18, 19);
+
+Function ToolSlotOf(ToolIndex: Integer): Integer;
+Var S: Integer;
+Begin
+ ToolSlotOf := 1;
+ For S := 1 to TOOLBAR_COUNT do
+  If ToolOrder[S] = ToolIndex Then ToolSlotOf := S;
+End;
+
+Function ToolSlotX(Slot: Integer): Integer;
+Begin
+ ToolSlotX := TOOLBAR_PADDING + ((Slot - 1) mod 2) * (TOOLBAR_BUTTON_SIZE + TOOLBAR_PADDING);
+End;
+
+Function ToolSlotY(Slot: Integer): Integer;
+Begin
+ ToolSlotY := TOOLBAR_TOP + TOOLBAR_PADDING +
+              ((Slot - 1) div 2) * (TOOLBAR_BUTTON_SIZE + TOOLBAR_PADDING);
+End;
+
+{ Procedure pour dessiner l'icone d'un outil }
 Procedure DrawToolIcon(X, Y: Integer; ToolIndex: Integer);
 Var
- CenterX, CenterY: Integer;
+ CX, CY, I: Integer;
 Begin
- CenterX := X + TOOLBAR_BUTTON_SIZE div 2;
- CenterY := Y + TOOLBAR_BUTTON_SIZE div 2;
+ CX := X + TOOLBAR_BUTTON_SIZE div 2;
+ CY := Y + TOOLBAR_BUTTON_SIZE div 2;
 
  SetColor(Black);
+ SetLineStyle(SolidLn, 0, NormWidth);
  Case ToolIndex of
-  1: Begin { Selection - flÃ¨che }
-      Line(CenterX - 6, CenterY - 6, CenterX - 6, CenterY + 6);
-      Line(CenterX - 6, CenterY - 6, CenterX + 4, CenterY);
-      Line(CenterX - 6, CenterY + 6, CenterX + 4, CenterY);
-      Line(CenterX - 6, CenterY + 6, CenterX - 6, CenterY - 6);
+  1: Begin { Pointeur }
+      Line(CX - 6, CY - 6, CX - 6, CY + 6);
+      Line(CX - 6, CY - 6, CX + 4, CY);
+      Line(CX - 6, CY + 6, CX + 4, CY);
      End;
-  2: Begin { Rectangle }
-      Rectangle(CenterX - 7, CenterY - 5, CenterX + 7, CenterY + 5);
+  2: Rectangle(CX - 7, CY - 5, CX + 7, CY + 5);
+  3: Ellipse(CX, CY, 0, 360, 7, 5);
+  4: Line(CX - 6, CY + 6, CX + 6, CY - 6);
+  5: Begin { Connecteur }
+      Circle(CX - 6, CY, 2);
+      Circle(CX + 6, CY, 2);
+      Line(CX - 4, CY, CX + 4, CY);
      End;
-  3: Begin { Ellipse }
-      Ellipse(CenterX, CenterY, 0, 360, 7, 5);
+  6: OutTextXY(CX - 4, CY - 4, 'A');
+  7: Begin { Polygone }
+      Line(CX, CY - 7, CX + 6, CY - 3);
+      Line(CX + 6, CY - 3, CX + 6, CY + 3);
+      Line(CX + 6, CY + 3, CX, CY + 7);
+      Line(CX, CY + 7, CX - 6, CY + 3);
+      Line(CX - 6, CY + 3, CX - 6, CY - 3);
+      Line(CX - 6, CY - 3, CX, CY - 7);
      End;
-  4: Begin { Line - ligne diagonale }
-      Line(CenterX - 6, CenterY + 6, CenterX + 6, CenterY - 6);
+  8: Begin { Courbe de Bezier }
+      Line(CX - 7, CY + 4, CX - 5, CY - 1);
+      Line(CX - 5, CY - 1, CX - 2, CY - 4);
+      Line(CX - 2, CY - 4, CX + 1, CY - 3);
+      Line(CX + 1, CY - 3, CX + 3, CY + 1);
+      Line(CX + 3, CY + 1, CX + 5, CY + 4);
+      Line(CX + 5, CY + 4, CX + 7, CY + 3);
+      SetColor(Blue);
+      Rectangle(CX - 8, CY + 3, CX - 6, CY + 5);
+      Rectangle(CX + 6, CY + 2, CX + 8, CY + 4);
      End;
-  5: Begin { Connector - deux points avec ligne }
-      Circle(CenterX - 6, CenterY, 2);
-      Circle(CenterX + 6, CenterY, 2);
-      Line(CenterX - 4, CenterY, CenterX + 4, CenterY);
+  9: Begin { Image }
+      Rectangle(CX - 7, CY - 6, CX + 7, CY + 6);
+      Line(CX - 7, CY + 4, CX - 3, CY - 1);
+      Line(CX - 3, CY - 1, CX, CY + 2);
+      Line(CX, CY + 2, CX + 3, CY - 2);
+      Line(CX + 3, CY - 2, CX + 7, CY + 3);
+      Circle(CX + 3, CY - 4, 1);
      End;
-  6: Begin { Text - lettre A }
-      OutTextXY(CenterX - 4, CenterY - 4, 'A');
-     End;
+  10: Begin { Arc }
+       Ellipse(CX - 6, CY + 6, 0, 90, 12, 12);
+       SetColor(Blue);
+       Rectangle(CX - 8, CY + 4, CX - 4, CY + 8);
+       Rectangle(CX + 4, CY - 8, CX + 8, CY - 4);
+      End;
+  11: Begin { Main levee }
+       Line(CX - 8, CY + 3, CX - 5, CY - 3);
+       Line(CX - 5, CY - 3, CX - 2, CY + 3);
+       Line(CX - 2, CY + 3, CX + 1, CY - 4);
+       Line(CX + 1, CY - 4, CX + 4, CY + 2);
+       Line(CX + 4, CY + 2, CX + 8, CY - 2);
+      End;
+  12: Begin { Crayon }
+       Line(CX - 7, CY + 7, CX - 7, CY + 3);
+       Line(CX - 7, CY + 7, CX - 3, CY + 7);
+       Line(CX - 7, CY + 3, CX + 3, CY - 7);
+       Line(CX - 3, CY + 7, CX + 7, CY - 3);
+       Line(CX + 3, CY - 7, CX + 7, CY - 3);
+       Line(CX - 5, CY + 3, CX - 3, CY + 5);
+      End;
+  13: Begin { Bloc de texte }
+       SetLineStyle(DottedLn, 0, NormWidth);
+       Rectangle(CX - 8, CY - 7, CX + 8, CY + 7);
+       SetLineStyle(SolidLn, 0, NormWidth);
+       OutTextXY(CX - 4, CY - 4, 'A');
+      End;
+  14: Begin { Point de connexion }
+       SetColor(Red);
+       Line(CX - 5, CY - 5, CX + 5, CY + 5);
+       Line(CX - 5, CY + 5, CX + 5, CY - 5);
+       SetColor(Black);
+       Rectangle(CX - 7, CY - 7, CX + 7, CY + 7);
+      End;
+  15: Begin { Rotation }
+       Ellipse(CX, CY, 40, 330, 7, 7);
+       Line(CX + 5, CY - 7, CX + 8, CY - 2);
+       Line(CX + 5, CY - 7, CX + 1, CY - 4);
+      End;
+  16: Begin { Rogner }
+       Line(CX - 4, CY - 8, CX - 4, CY + 4);
+       Line(CX - 8, CY - 4, CX + 8, CY - 4);
+       Line(CX + 4, CY - 8, CX + 4, CY + 8);
+       Line(CX - 8, CY + 4, CX + 8, CY + 4);
+      End;
+  17: Begin { Pinceau de format }
+       Rectangle(CX - 5, CY - 7, CX + 3, CY - 2);
+       Line(CX - 1, CY - 2, CX - 1, CY + 1);
+       Rectangle(CX - 3, CY + 1, CX + 1, CY + 8);
+       SetColor(Red);
+       Line(CX + 4, CY - 6, CX + 8, CY - 6);
+      End;
+  18: Begin { Zoom }
+       Circle(CX - 2, CY - 2, 5);
+       Line(CX + 2, CY + 2, CX + 7, CY + 7);
+       Line(CX + 6, CY + 7, CX + 8, CY + 5);
+       Line(CX - 4, CY - 2, CX, CY - 2);
+       Line(CX - 2, CY - 4, CX - 2, CY);
+      End;
+  19: Begin { Panoramique }
+       Line(CX - 8, CY, CX + 8, CY);
+       Line(CX, CY - 8, CX, CY + 8);
+       Line(CX - 8, CY, CX - 5, CY - 3);
+       Line(CX - 8, CY, CX - 5, CY + 3);
+       Line(CX + 8, CY, CX + 5, CY - 3);
+       Line(CX + 8, CY, CX + 5, CY + 3);
+       Line(CX, CY - 8, CX - 3, CY - 5);
+       Line(CX, CY - 8, CX + 3, CY - 5);
+       Line(CX, CY + 8, CX - 3, CY + 5);
+       Line(CX, CY + 8, CX + 3, CY + 5);
+      End;
  End;
 End;
 
-{ ProcÃ©dure pour dessiner un bouton de la barre d'outils }
+{ Procedure pour dessiner un bouton de la barre d'outils }
 Procedure DrawToolButton(Index: Integer; IsSelected: Boolean);
 Var
- X, Y: Integer;
+ X, Y, Slot: Integer;
 Begin
- { Calculer la position du bouton (disposition verticale a gauche) }
- X := TOOLBAR_PADDING;
- Y := TOOLBAR_TOP + TOOLBAR_PADDING +
-      (Index - 1) * (TOOLBAR_BUTTON_SIZE + TOOLBAR_PADDING);
+ Slot := ToolSlotOf(Index);
+ X := ToolSlotX(Slot);
+ Y := ToolSlotY(Slot);
 
- { Dessiner le fond du bouton }
- If IsSelected Then Begin
-  SetFillStyle(SolidFill, TOOLBAR_BTN_SELECTED);
- End
- Else Begin
+ If IsSelected Then
+  SetFillStyle(SolidFill, TOOLBAR_BTN_SELECTED)
+ Else
   SetFillStyle(SolidFill, TOOLBAR_BTN_COLOR);
- End;
  Bar(X, Y, X + TOOLBAR_BUTTON_SIZE, Y + TOOLBAR_BUTTON_SIZE);
 
- { Dessiner la bordure du bouton }
- If IsSelected Then Begin
-  SetColor(White);
- End
- Else Begin
-  SetColor(TOOLBAR_BTN_BORDER);
- End;
+ If IsSelected Then SetColor(White) Else SetColor(TOOLBAR_BTN_BORDER);
  Rectangle(X, Y, X + TOOLBAR_BUTTON_SIZE, Y + TOOLBAR_BUTTON_SIZE);
 
- { Dessiner l'icÃ´ne de l'outil }
+ If IsSelected Then Begin
+  { icone en blanc sur fond bleu : on la dessine dans un bouton clair interieur }
+  SetFillStyle(SolidFill, TOOLBAR_BTN_COLOR);
+  Bar(X + 2, Y + 2, X + TOOLBAR_BUTTON_SIZE - 2, Y + TOOLBAR_BUTTON_SIZE - 2);
+ End;
  DrawToolIcon(X, Y, Index);
 End;
 
-{ ProcÃ©dure pour dessiner la barre d'outils complÃ¨te }
+{ Procedure pour dessiner la barre d'outils complete }
+Procedure DrawShapePanel; Forward;
+
 Procedure DrawToolbar;
-Var
- I: Integer;
- ToolIndex: Integer;
 Begin
- { Dessiner le fond de la barre d'outils (colonne verticale a gauche) }
- SetFillStyle(SolidFill, TOOLBAR_COLOR);
- Bar(0, TOOLBAR_TOP, TOOLBAR_WIDTH, ScreenHeight);
-
- { Dessiner une ligne de sÃ©paration a droite }
- SetColor(DarkGray);
- Line(TOOLBAR_WIDTH, TOOLBAR_TOP, TOOLBAR_WIDTH, ScreenHeight);
-
- { Dessiner chaque bouton d'outil }
- For I := 1 to TOOLBAR_COUNT do Begin
-  ToolIndex := Ord(CurrentTool) + 1;
-  DrawToolButton(I, I = ToolIndex);
- End;
+ DrawShapePanel;
 End;
 
-{ Fonction pour obtenir l'outil Ã  une position donnÃ©e }
+{ Fonction pour obtenir l'outil a une position donnee (0 = aucun) }
 Function GetToolAtPosition(MouseX, MouseY: Integer): Integer;
 Var
- I, X, Y: Integer;
+ S, X, Y: Integer;
 Begin
  GetToolAtPosition := 0;
-
- If (MouseX < 0) or (MouseX > TOOLBAR_WIDTH) or (MouseY < TOOLBAR_TOP) Then Exit;
-
- { Parcourir chaque bouton pour voir si la souris est dessus }
- For I := 1 to TOOLBAR_COUNT do Begin
-  X := TOOLBAR_PADDING;
-  Y := TOOLBAR_TOP + TOOLBAR_PADDING +
-       (I - 1) * (TOOLBAR_BUTTON_SIZE + TOOLBAR_PADDING);
-
+ If (MouseX < 0) or (MouseX > CLASSIC_TOOLBAR_WIDTH) or (MouseY < TOOLBAR_TOP) Then Exit;
+ For S := 1 to TOOLBAR_COUNT do Begin
+  X := ToolSlotX(S);
+  Y := ToolSlotY(S);
   If (MouseX >= X) and (MouseX <= X + TOOLBAR_BUTTON_SIZE) and
      (MouseY >= Y) and (MouseY <= Y + TOOLBAR_BUTTON_SIZE) Then Begin
-   GetToolAtPosition := I;
+   GetToolAtPosition := ToolOrder[S];
    Exit;
   End;
  End;
 End;
 
-{ ProcÃ©dure pour sÃ©lectionner un outil }
+{ ---- panneau "Formes" ---- }
+Function PanelWidth: Integer;
+Begin
+ If PanelOpen Then PanelWidth := PANEL_W Else PanelWidth := PANEL_STRIP;
+End;
+
+Procedure ApplyPanelWidth;
+Begin
+ TOOLBAR_WIDTH := CLASSIC_TOOLBAR_WIDTH + PanelWidth;
+End;
+
+Function PanelGridTop: Integer;
+Begin
+ PanelGridTop := TOOLBAR_TOP + 34;
+End;
+
+Function PanelVisibleRows: Integer;
+Begin
+ PanelVisibleRows := (ScreenHeight - 16 - PanelGridTop) div CELL_H;
+End;
+
+Function PanelTotalRows: Integer;
+Begin
+ PanelTotalRows := (LibCatLast[PanelCat] - LibCatFirst[PanelCat] + 2) div 2;
+End;
+
+Procedure PanelClampScroll;
+Var M: Integer;
+Begin
+ M := PanelTotalRows - PanelVisibleRows;
+ If M < 0 Then M := 0;
+ If PanelScroll > M Then PanelScroll := M;
+ If PanelScroll < 0 Then PanelScroll := 0;
+End;
+
+Function PanelCellKind(Col, Row: Integer): Integer;
+Var K: Integer;
+Begin
+ K := LibCatFirst[PanelCat] + (PanelScroll + Row) * 2 + Col;
+ If (K > LibCatLast[PanelCat]) or (Col < 0) or (Col > 1) Then K := 0;
+ PanelCellKind := K;
+End;
+
+Function PanelCellAt(X, Y: Integer): Integer;
+Var GX, Col, Row: Integer;
+Begin
+ PanelCellAt := 0;
+ If Not PanelOpen Then Exit;
+ GX := CLASSIC_TOOLBAR_WIDTH + 3;
+ If (X < GX) or (X >= GX + 2 * CELL_W) or (Y < PanelGridTop) Then Exit;
+ Col := (X - GX) div CELL_W;
+ Row := (Y - PanelGridTop) div CELL_H;
+ If Row >= PanelVisibleRows Then Exit;
+ PanelCellAt := PanelCellKind(Col, Row);
+End;
+
+Function PanelCellPos(K: Integer; Var CX, CY: Integer): Boolean;
+Var Idx, Row, Col: Integer;
+Begin
+ PanelCellPos := False;
+ If (K < LibCatFirst[PanelCat]) or (K > LibCatLast[PanelCat]) Then Exit;
+ Idx := K - LibCatFirst[PanelCat];
+ Row := Idx div 2 - PanelScroll; Col := Idx mod 2;
+ If (Row < 0) or (Row >= PanelVisibleRows) Then Exit;
+ CX := CLASSIC_TOOLBAR_WIDTH + 3 + Col * CELL_W;
+ CY := PanelGridTop + Row * CELL_H;
+ PanelCellPos := True;
+End;
+
+Procedure PanelArrow(X, Y: Integer; Dir: Integer);
+Begin
+ SetColor(Black);
+ Case Dir of
+  0: Begin Line(X - 3, Y + 2, X, Y - 1); Line(X, Y - 1, X + 3, Y + 2); Line(X - 2, Y + 2, X, Y); Line(X + 2, Y + 2, X, Y); End;
+  1: Begin Line(X - 3, Y - 1, X, Y + 2); Line(X, Y + 2, X + 3, Y - 1); Line(X - 2, Y - 1, X, Y + 1); Line(X + 2, Y - 1, X, Y + 1); End;
+  2: Begin Line(X + 1, Y - 3, X - 2, Y); Line(X - 2, Y, X + 1, Y + 3); Line(X, Y - 2, X - 1, Y); Line(X, Y + 2, X - 1, Y); End;
+  3: Begin Line(X - 1, Y - 3, X + 2, Y); Line(X + 2, Y, X - 1, Y + 3); Line(X, Y - 2, X + 1, Y); Line(X, Y + 2, X + 1, Y); End;
+ End;
+End;
+
+Procedure PanelButton(X1, Y1, X2, Y2: Integer);
+Begin
+ SetFillStyle(SolidFill, LightGray);
+ Bar(X1, Y1, X2, Y2);
+ SetColor(White); Line(X1, Y1, X2, Y1); Line(X1, Y1, X1, Y2);
+ SetColor(DarkGray); Line(X2, Y1, X2, Y2); Line(X1, Y2, X2, Y2);
+End;
+
+Procedure DrawShapePanel;
+Var
+ X0, GX, GT, R, C, K, CX, CY, I, VR, Total, SX, TrackTop, TrackBot, ThumbH, ThumbY, M, P: Integer;
+ S, L1, L2, Title, Nm: String;
+Begin
+ X0 := CLASSIC_TOOLBAR_WIDTH + 1;
+ SetFillStyle(SolidFill, LightGray);
+ Bar(X0, TOOLBAR_TOP, TOOLBAR_WIDTH, ScreenHeight);
+ SetColor(DarkGray);
+ Line(TOOLBAR_WIDTH, TOOLBAR_TOP, TOOLBAR_WIDTH, ScreenHeight);
+ If Language = _French Then Title := 'Formes' Else Title := 'Shapes';
+ If Not PanelOpen Then Begin
+  PanelButton(X0 + 1, TOOLBAR_TOP + 2, TOOLBAR_WIDTH - 2, TOOLBAR_TOP + 16);
+  PanelArrow(X0 + 6, TOOLBAR_TOP + 9, 3);
+  SetColor(Black);
+  For I := 1 to Length(Title) do OutTextXY(X0 + 3, TOOLBAR_TOP + 22 + I * 10, Copy(Title, I, 1));
+  Exit;
+ End;
+ { en-tete }
+ SetColor(Black);
+ OutTextXY(X0 + 6, TOOLBAR_TOP + 4, Title);
+ PanelButton(TOOLBAR_WIDTH - 18, TOOLBAR_TOP + 2, TOOLBAR_WIDTH - 3, TOOLBAR_TOP + 16);
+ PanelArrow(TOOLBAR_WIDTH - 11, TOOLBAR_TOP + 9, 2);
+ { selecteur de categorie }
+ PanelButton(X0 + 2, TOOLBAR_TOP + 18, X0 + 16, TOOLBAR_TOP + 32);
+ PanelArrow(X0 + 8, TOOLBAR_TOP + 25, 2);
+ PanelButton(TOOLBAR_WIDTH - 18, TOOLBAR_TOP + 18, TOOLBAR_WIDTH - 4, TOOLBAR_TOP + 32);
+ PanelArrow(TOOLBAR_WIDTH - 11, TOOLBAR_TOP + 25, 3);
+ SetFillStyle(SolidFill, White);
+ Bar(X0 + 18, TOOLBAR_TOP + 18, TOOLBAR_WIDTH - 20, TOOLBAR_TOP + 32);
+ SetColor(DarkGray);
+ Rectangle(X0 + 18, TOOLBAR_TOP + 18, TOOLBAR_WIDTH - 20, TOOLBAR_TOP + 32);
+ If Language = _French Then Nm := LibCatNameFR[PanelCat] Else Nm := LibCatNameEN[PanelCat];
+ SetColor(Black);
+ OutTextXY(X0 + 18 + ((TOOLBAR_WIDTH - 20 - X0 - 18) - Length(Nm) * 8) div 2, TOOLBAR_TOP + 22, Nm);
+ { grille }
+ GX := CLASSIC_TOOLBAR_WIDTH + 3;
+ GT := PanelGridTop;
+ VR := PanelVisibleRows;
+ PanelClampScroll;
+ For R := 0 to VR - 1 do
+  For C := 0 to 1 do Begin
+   K := PanelCellKind(C, R);
+   If K = 0 Then Continue;
+   CX := GX + C * CELL_W;
+   CY := GT + R * CELL_H;
+   If (CurrentTool = ttShapeLib) and (ArmedKind = K) Then Begin
+    SetFillStyle(SolidFill, Cyan);
+    Bar(CX, CY, CX + CELL_W - 3, CY + CELL_H - 3);
+    SetColor(Blue);
+    Rectangle(CX, CY, CX + CELL_W - 3, CY + CELL_H - 3);
+   End;
+   DrawLibShape(K, 0, CX + 22, CY + 4, CX + 50, CY + 22, White, Black, SolidLn, NormWidth);
+   S := LibName(K);
+   P := Pos('|', S);
+   If P > 0 Then Begin L1 := Copy(S, 1, P - 1); L2 := Copy(S, P + 1, 20); End
+   Else Begin L1 := S; L2 := ''; End;
+   SetColor(Black);
+   OutTextXY(CX + (CELL_W - 3 - Length(L1) * 8) div 2, CY + 26, L1);
+   If L2 <> '' Then OutTextXY(CX + (CELL_W - 3 - Length(L2) * 8) div 2, CY + 35, L2);
+  End;
+ { barre de defilement }
+ SX := TOOLBAR_WIDTH - 14;
+ TrackTop := GT + 15;
+ TrackBot := GT + VR * CELL_H - 16;
+ PanelButton(SX, GT, TOOLBAR_WIDTH - 2, GT + 14);
+ PanelArrow(SX + 6, GT + 7, 0);
+ PanelButton(SX, GT + VR * CELL_H - 15, TOOLBAR_WIDTH - 2, GT + VR * CELL_H - 1);
+ PanelArrow(SX + 6, GT + VR * CELL_H - 8, 1);
+ SetFillStyle(SolidFill, DarkGray);
+ Bar(SX, TrackTop, TOOLBAR_WIDTH - 2, TrackBot);
+ Total := PanelTotalRows;
+ If Total > VR Then Begin
+  ThumbH := (TrackBot - TrackTop) * VR div Total;
+  If ThumbH < 10 Then ThumbH := 10;
+  M := Total - VR;
+  ThumbY := TrackTop + ((TrackBot - TrackTop - ThumbH) * PanelScroll) div M;
+  PanelButton(SX, ThumbY, TOOLBAR_WIDTH - 2, ThumbY + ThumbH);
+ End;
+End;
+
+{ Clic dans le panneau : retourne True si traite }
+Function PanelClick(X, Y: Integer): Boolean;
+Var X0, K, GT, VR, SX, Total, M: Integer;
+Begin
+ PanelClick := False;
+ X0 := CLASSIC_TOOLBAR_WIDTH + 1;
+ If (X < X0) or (X > TOOLBAR_WIDTH) or (Y < TOOLBAR_TOP) Then Exit;
+ PanelClick := True;
+ If Not PanelOpen Then Begin
+  If Y < TOOLBAR_TOP + 18 Then Begin PanelOpen := True; ApplyPanelWidth; End;
+  Exit;
+ End;
+ GT := PanelGridTop; VR := PanelVisibleRows;
+ If (Y <= TOOLBAR_TOP + 16) Then Begin
+  If X >= TOOLBAR_WIDTH - 18 Then Begin PanelOpen := False; ApplyPanelWidth; End;
+  Exit;
+ End;
+ If (Y >= TOOLBAR_TOP + 18) and (Y <= TOOLBAR_TOP + 32) Then Begin
+  If X <= X0 + 17 Then PanelCat := (PanelCat + LIB_CAT_COUNT - 2) mod LIB_CAT_COUNT + 1
+  Else PanelCat := PanelCat mod LIB_CAT_COUNT + 1;
+  PanelScroll := 0;
+  Exit;
+ End;
+ SX := TOOLBAR_WIDTH - 14;
+ If (X >= SX) and (Y >= GT) Then Begin
+  Total := PanelTotalRows; M := Total - VR;
+  If M < 0 Then M := 0;
+  If Y <= GT + 14 Then Dec(PanelScroll)
+  Else If Y >= GT + VR * CELL_H - 15 Then Inc(PanelScroll)
+  Else If Y < GT + (VR * CELL_H) div 2 Then Dec(PanelScroll, VR - 1)
+  Else Inc(PanelScroll, VR - 1);
+  PanelClampScroll;
+  Exit;
+ End;
+ K := PanelCellAt(X, Y);
+ If K > 0 Then Begin
+  PressKind := K;
+  StatusMessage := Copy(LibFlatName(K), 1, 40);
+ End;
+End;
+
+Function GetIconBarButtonX(Index: Integer): Integer; Forward;
+Function GetIconBarButtonAtPosition(MouseX, MouseY: Integer): Integer; Forward;
+Function RibbonHitAt(X, Y: Integer): Integer; Forward;
+Procedure RibbonItemBox(I: Integer; Var X, Y, W, H: Integer); Forward;
+Procedure RibbonTipInfo(I: Integer; Var Title, Desc: String); Forward;
+
+{ Titre et description d'un outil (infobulle / barre d'etat) }
+Procedure ToolTipInfo(Tool: Integer; Var Title, Desc: String);
+Var EN: Boolean;
+Begin
+ EN := Language <> _French;
+ Title := ''; Desc := '';
+ If Tool >= 3000 Then Begin
+  If Tool - 3000 >= 10 Then ToolTipInfo(ToolOrder[Tool - 3000 - 9], Title, Desc)
+  Else Case Tool - 3000 of
+   1: If EN Then Begin Title := 'New'; Desc := 'Create a new drawing'; End
+      Else Begin Title := 'Nouveau'; Desc := 'Creer un nouveau dessin'; End;
+   2: If EN Then Begin Title := 'Open'; Desc := 'Open an existing drawing'; End
+      Else Begin Title := 'Ouvrir'; Desc := 'Ouvrir un dessin existant'; End;
+   3: If EN Then Begin Title := 'Save'; Desc := 'Save the drawing'; End
+      Else Begin Title := 'Enregistrer'; Desc := 'Enregistrer le dessin'; End;
+   5: If EN Then Begin Title := 'Print'; Desc := 'Print the drawing'; End
+      Else Begin Title := 'Imprimer'; Desc := 'Imprimer le dessin'; End;
+   7: If EN Then Begin Title := 'Undo'; Desc := 'Undo the last action'; End
+      Else Begin Title := 'Annuler'; Desc := 'Annuler la derniere action'; End;
+   8: If EN Then Begin Title := 'Redo'; Desc := 'Redo the undone action'; End
+      Else Begin Title := 'Retablir'; Desc := 'Retablir l''action annulee'; End;
+  End;
+  Exit;
+ End;
+ If Tool >= 2000 Then Begin
+  RibbonTipInfo(Tool - 2000, Title, Desc);
+  Exit;
+ End;
+ If Tool >= 1000 Then Begin
+  Title := LibFlatName(Tool - 1000);
+  If EN Then Desc := 'Click, or drag onto the page' Else Desc := 'Cliquer, ou glisser vers la page';
+  Exit;
+ End;
+ Case Tool of
+  1: If EN Then Begin Title := 'Pointer Tool'; Desc := 'Select, move and resize shapes'; End
+     Else Begin Title := 'Pointeur'; Desc := 'Selectionner, deplacer et redimensionner'; End;
+  2: If EN Then Begin Title := 'Rectangle'; Desc := 'Drag to draw a rectangle'; End
+     Else Begin Title := 'Rectangle'; Desc := 'Glisser pour dessiner un rectangle'; End;
+  3: If EN Then Begin Title := 'Ellipse'; Desc := 'Drag to draw an ellipse'; End
+     Else Begin Title := 'Ellipse'; Desc := 'Glisser pour dessiner une ellipse'; End;
+  4: If EN Then Begin Title := 'Line'; Desc := 'Drag to draw a straight line'; End
+     Else Begin Title := 'Ligne'; Desc := 'Glisser pour tracer une ligne droite'; End;
+  5: If EN Then Begin Title := 'Connector Tool'; Desc := 'Drag between two shapes to link them'; End
+     Else Begin Title := 'Connecteur'; Desc := 'Glisser entre deux formes pour les relier'; End;
+  6: If EN Then Begin Title := 'Text Tool'; Desc := 'Click to type text'; End
+     Else Begin Title := 'Texte'; Desc := 'Cliquer pour saisir du texte'; End;
+  7: If EN Then Begin Title := 'Polygon'; Desc := 'Click to place a hexagon'; End
+     Else Begin Title := 'Polygone'; Desc := 'Cliquer pour placer un hexagone'; End;
+  8: If EN Then Begin Title := 'Bezier Curve'; Desc := 'Click to place a Bezier curve'; End
+     Else Begin Title := 'Courbe de Bezier'; Desc := 'Cliquer pour placer une courbe'; End;
+  9: If EN Then Begin Title := 'Image'; Desc := 'Click to place a picture'; End
+     Else Begin Title := 'Image'; Desc := 'Cliquer pour placer une image'; End;
+  10: If EN Then Begin Title := 'Arc Tool'; Desc := 'Drag to draw a quarter-ellipse arc'; End
+      Else Begin Title := 'Arc'; Desc := 'Glisser pour tracer un arc d''ellipse'; End;
+  11: If EN Then Begin Title := 'Freeform Tool'; Desc := 'Drag to draw a freehand shape'; End
+      Else Begin Title := 'Main levee'; Desc := 'Glisser pour dessiner a main levee'; End;
+  12: If EN Then Begin Title := 'Pencil Tool'; Desc := 'Drag to draw straight segments'; End
+      Else Begin Title := 'Crayon'; Desc := 'Glisser pour tracer des segments droits'; End;
+  13: If EN Then Begin Title := 'Text Block Tool'; Desc := 'Drag to create a text frame'; End
+      Else Begin Title := 'Bloc de texte'; Desc := 'Glisser pour creer un cadre de texte'; End;
+  14: If EN Then Begin Title := 'Connection Point Tool'; Desc := 'Click a shape to add/remove a point'; End
+      Else Begin Title := 'Point de connexion'; Desc := 'Cliquer une forme: ajouter/retirer un point'; End;
+  15: If EN Then Begin Title := 'Rotation Tool'; Desc := 'Click: 90 deg. Drag: free angle (15 deg)'; End
+      Else Begin Title := 'Rotation'; Desc := 'Clic: 90 deg. Glisser: angle libre (15 deg)'; End;
+  16: If EN Then Begin Title := 'Crop Tool'; Desc := 'Drag a frame to crop the shape'; End
+      Else Begin Title := 'Rogner'; Desc := 'Glisser un cadre pour rogner la forme'; End;
+  17: If EN Then Begin Title := 'Format Painter'; Desc := 'Click source shape, then target'; End
+      Else Begin Title := 'Pinceau de format'; Desc := 'Cliquer la source puis la cible'; End;
+  18: If EN Then Begin Title := 'Zoom Tool'; Desc := 'Click: in. Right-click: out. Drag: fit'; End
+      Else Begin Title := 'Zoom'; Desc := 'Clic: agrandir. Clic droit: reduire. Glisser: cadrer'; End;
+  19: If EN Then Begin Title := 'Pan Tool'; Desc := 'Drag to scroll the whole drawing'; End
+      Else Begin Title := 'Panoramique'; Desc := 'Glisser pour deplacer tout le dessin'; End;
+ End;
+End;
+
+Function TipClock: LongInt;
+Var H, M, S, HS: Word;
+Begin
+ GetTime(H, M, S, HS);
+ TipClock := ((LongInt(H) * 60 + M) * 60 + S) * 100 + HS;
+End;
+
+{ Dessine l'infobulle de l'outil survole }
+Procedure DrawToolTip;
+Var
+ Title, Desc: String;
+ W, X, Y, Slot, BW, BH: Integer;
+Begin
+ If (Not TipShown) or (TipTool < 1) Then Exit;
+ ToolTipInfo(TipTool, Title, Desc);
+ W := Length(Desc);
+ If Length(Title) > W Then W := Length(Title);
+ W := W * 8 + 10;
+ If TipTool >= 3000 Then Begin
+  X := GetIconBarButtonX(TipTool - 3000);
+  Y := ICONBAR_TOP + ICONBAR_HEIGHT + 4;
+ End
+ Else If TipTool >= 2000 Then Begin
+  RibbonItemBox(TipTool - 2000, X, Y, BW, BH);
+  Y := Y + BH + 2;
+ End
+ Else If TipTool >= 1000 Then Begin
+  If Not PanelCellPos(TipTool - 1000, X, Y) Then Exit;
+  Y := Y + CELL_H;
+  X := X + 20;
+ End
+ Else Begin
+  Slot := ToolSlotOf(TipTool);
+  X := TOOLBAR_WIDTH + 6;
+  Y := ToolSlotY(Slot) + TOOLBAR_BUTTON_SIZE + 2;
+ End;
+ If X + W + 3 > ScreenWidth Then X := ScreenWidth - W - 3;
+ If Y + 28 > ScreenHeight - 16 Then Y := ScreenHeight - 16 - 28;
+ SetFillStyle(SolidFill, DarkGray);
+ Bar(X + 3, Y + 3, X + W + 3, Y + 27);
+ SetFillStyle(SolidFill, Yellow);
+ Bar(X, Y, X + W, Y + 24);
+ SetColor(Black);
+ Rectangle(X, Y, X + W, Y + 24);
+ OutTextXY(X + 5, Y + 3, Title);
+ SetColor(DarkGray);
+ OutTextXY(X + 5, Y + 14, Desc);
+ SetColor(Black);
+End;
+
+{ Gere le delai d'apparition de l'infobulle. Retourne True si l'ecran doit etre redessine. }
+Function UpdateToolTip(MX, MY: Integer; Blocked: Boolean): Boolean;
+Var T: Integer;
+Begin
+ UpdateToolTip := False;
+ If Blocked Then T := 0 Else Begin
+  T := GetToolAtPosition(MX, MY);
+  If T = 0 Then Begin
+   T := PanelCellAt(MX, MY);
+   If T > 0 Then T := T + 1000;
+  End;
+  If (T = 0) and RibbonMode Then Begin
+   T := RibbonHitAt(MX, MY);
+   If T > 0 Then T := T + 2000;
+  End;
+  If T = 0 Then Begin
+   T := GetIconBarButtonAtPosition(MX, MY);
+   If T > 0 Then T := T + 3000;
+  End;
+ End;
+ If T <> TipTool Then Begin
+  TipTool := T;
+  TipStart := TipClock;
+  TipArmed := True;
+  If TipShown Then Begin
+   TipShown := False;
+   UpdateToolTip := True;
+  End;
+ End
+ Else If (T > 0) and TipArmed and (Not TipShown) and
+         (((TipClock - TipStart + 8640000) mod 8640000) >= 45) Then Begin
+  TipShown := True;
+  UpdateToolTip := True;
+ End;
+End;
+
+{ Procedure pour selectionner un outil }
 Procedure SelectTool(ToolIndex: Integer);
+Var Title, Desc: String;
 Begin
  If (ToolIndex >= 1) and (ToolIndex <= TOOLBAR_COUNT) Then Begin
   CurrentTool := TToolType(ToolIndex - 1);
+  FPHave := False;
+  IsDrawing := False;
+  TipShown := False;
+  TipArmed := False;
+  ToolTipInfo(ToolIndex, Title, Desc);
+  StatusMessage := Copy(Title + ' - ' + Desc, 1, 80);
  End;
 End;
 
@@ -13932,16 +15028,21 @@ End;
 { 1: Nouveau, 2: Ouvrir, 3: Enregistrer, 4: separateur,
   5: Imprimer, 6: separateur, 7: Annuler, 8: Retablir. }
 
+Function IconBarLast: Integer;
+Begin
+ If RibbonMode Then IconBarLast := 8 Else IconBarLast := ICONBAR_COUNT;
+End;
+
 Function IsIconBarSeparator(Index: Integer): Boolean;
 Begin
- IsIconBarSeparator := (Index = 4) or (Index = 6);
+ IsIconBarSeparator := (Index = 4) or (Index = 6) or (Index = 9);
 End;
 
 Function GetIconBarButtonX(Index: Integer): Integer;
 Var
  I, X: Integer;
 Begin
- X := TOOLBAR_WIDTH + 1 + ICONBAR_PADDING;
+ X := CLASSIC_TOOLBAR_WIDTH + 1 + ICONBAR_PADDING;
  For I := 1 to Index - 1 Do Begin
   If IsIconBarSeparator(I) Then
    X := X + 8
@@ -14055,7 +15156,8 @@ Begin
   Line(X, Y + ICONBAR_BUTTON_SIZE - 1, X + ICONBAR_BUTTON_SIZE - 1, Y + ICONBAR_BUTTON_SIZE - 1);
  End;
 
- DrawIconBarIcon(X, Y, Index);
+ If Index >= 10 Then DrawToolIcon(X - 2, Y - 2, ToolOrder[Index - 9])
+ Else DrawIconBarIcon(X, Y, Index);
 End;
 
 Procedure DrawIconBar;
@@ -14070,19 +15172,19 @@ Begin
  SetColor(DarkGray);
  Line(0, ICONBAR_TOP + ICONBAR_HEIGHT, ScreenWidth, ICONBAR_TOP + ICONBAR_HEIGHT);
 
- For I := 1 to ICONBAR_COUNT Do
-  DrawIconBarButton(I, False);
+ For I := 1 to IconBarLast Do
+  DrawIconBarButton(I, (I >= 10) and (Ord(CurrentTool) + 1 = ToolOrder[I - 9]));
 End;
 
 Function GetIconBarButtonAtPosition(MouseX, MouseY: Integer): Integer;
 Var
  I, X: Integer;
 Begin
- If RibbonMode Then Begin GetIconBarButtonAtPosition := 0; Exit; End;
  GetIconBarButtonAtPosition := 0;
+ If RibbonMode Then Exit;
  If (MouseY < ICONBAR_TOP + 2) or
     (MouseY > ICONBAR_TOP + 2 + ICONBAR_BUTTON_SIZE) Then Exit;
- For I := 1 to ICONBAR_COUNT Do Begin
+ For I := 1 to IconBarLast Do Begin
   If IsIconBarSeparator(I) Then Continue;
   X := GetIconBarButtonX(I);
   If (MouseX >= X) and (MouseX <= X + ICONBAR_BUTTON_SIZE) Then Begin
@@ -14133,6 +15235,20 @@ Begin
  Shape.ConnectEndShape := 0;
  Shape.ConnectStartAnchor := ANCHOR_NONE;
  Shape.ConnectEndAnchor := ANCHOR_NONE;
+ Shape.Kind := 0;
+ Shape.Flags := 0;
+End;
+
+{ Position d'un point de connexion personnalise }
+Procedure CPPoint(K: Integer; Var AX, AY: Integer);
+Var S: Integer;
+Begin
+ AX := 0; AY := 0;
+ If (K < 1) or (K > CPCount) Then Exit;
+ S := ConnPts[K].Shp;
+ If (S < 1) or (S > ShapeCount) Then Exit;
+ AX := Shapes[S].X1 + Round((Shapes[S].X2 - Shapes[S].X1) * ConnPts[K].RX / 1000.0);
+ AY := Shapes[S].Y1 + Round((Shapes[S].Y2 - Shapes[S].Y1) * ConnPts[K].RY / 1000.0);
 End;
 
 { *** FONCTIONS POUR LES CONNECTEURS ET POINTS D'ANCRAGE *** }
@@ -14145,6 +15261,11 @@ Begin
  If (ShapeIndex < 1) or (ShapeIndex > ShapeCount) Then Begin
   AX := 0;
   AY := 0;
+  Exit;
+ End;
+
+ If AnchorType >= 100 Then Begin
+  CPPoint(AnchorType - 100, AX, AY);
   Exit;
  End;
 
@@ -14184,7 +15305,7 @@ End;
 { Fonction pour trouver la forme et le point d'ancrage le plus proche d'une position }
 Function FindNearestAnchor(X, Y: Integer; Var FoundShape: Integer; Var FoundAnchor: Integer): Boolean;
 Var
- I, AnchorType: Integer;
+ I, AnchorType, CPI: Integer;
  AX, AY: Integer;
  Dist, MinDist: Real;
  IsConnectable: Boolean;
@@ -14209,6 +15330,16 @@ Begin
      MinDist := Dist;
      FoundShape := I;
      FoundAnchor := AnchorType;
+     FindNearestAnchor := True;
+    End;
+   End;
+   For CPI := 1 to CPCount do If ConnPts[CPI].Shp = I Then Begin
+    CPPoint(CPI, AX, AY);
+    Dist := Sqrt(Sqr(X - AX) + Sqr(Y - AY));
+    If Dist < MinDist Then Begin
+     MinDist := Dist;
+     FoundShape := I;
+     FoundAnchor := 100 + CPI;
      FindNearestAnchor := True;
     End;
    End;
@@ -14256,7 +15387,7 @@ End;
 { ProcÃ©dure pour dessiner les points d'ancrage sur une forme }
 Procedure DrawAnchorPoints(ShapeIndex: Integer; HighlightAnchor: Integer);
 Var
- AnchorType: Integer;
+ AnchorType, CPI: Integer;
  AX, AY: Integer;
  HalfSize: Integer;
  AnchorColor: Integer;
@@ -14282,6 +15413,13 @@ Begin
   SetColor(Black);
   Bar(AX - HalfSize, AY - HalfSize, AX + HalfSize, AY + HalfSize);
   Rectangle(AX - HalfSize, AY - HalfSize, AX + HalfSize, AY + HalfSize);
+ End;
+ { Points de connexion ajoutes par l'utilisateur : croix }
+ For CPI := 1 to CPCount do If ConnPts[CPI].Shp = ShapeIndex Then Begin
+  CPPoint(CPI, AX, AY);
+  If 100 + CPI = HighlightAnchor Then SetColor(Green) Else SetColor(Red);
+  Line(AX - 3, AY - 3, AX + 3, AY + 3);
+  Line(AX - 3, AY + 3, AX + 3, AY - 3);
  End;
 End;
 
@@ -14431,6 +15569,19 @@ Begin
   stText: Begin
     SetColor(Shape.LineColor);
     OutTextXY(Shape.X1, Shape.Y1, Shape.Text);
+    { Bloc de texte : cadre pointille }
+    If Shape.LineStyle = LINESTYLE_DOTTED Then Begin
+     SetLineStyle(DottedLn, 0, NormWidth);
+     Rectangle(Shape.X1 - 2, Shape.Y1 - 2, Shape.X2 + 2, Shape.Y2 + 2);
+     SetLineStyle(SolidLn, 0, NormWidth);
+    End;
+   End;
+  stPolyline: Begin
+    { Trace ouvert (main levee / crayon) }
+    SetColor(Shape.LineColor);
+    For I := 1 to Shape.PointCount - 1 do
+     Line(Shape.Points[I].X, Shape.Points[I].Y,
+          Shape.Points[I + 1].X, Shape.Points[I + 1].Y);
    End;
   stPolygon: Begin
     { Dessiner un polygone si au moins 3 points sont dÃ©finis }
@@ -14489,6 +15640,15 @@ Begin
      End;
     End;
    End;
+  stLib: Begin
+    DrawLibShape(Shape.Kind, Shape.Flags, Shape.X1, Shape.Y1, Shape.X2, Shape.Y2,
+                 Shape.FillColor, Shape.LineColor, GraphLineStyle, Shape.LineWidth);
+    If Shape.Text <> '' Then Begin
+     SetColor(Black);
+     OutTextXY((Shape.X1 + Shape.X2) div 2 - Length(Shape.Text) * 4,
+               (Shape.Y1 + Shape.Y2) div 2 - 4, Shape.Text);
+    End;
+   End;
   stImage: Begin
     { Dessiner un placeholder pour l'image (rectangle avec X) }
     SetFillStyle(SolidFill, Shape.FillColor);
@@ -14520,6 +15680,10 @@ Begin
    DrawShape(Shapes[I]);
   End;
  End;
+
+ { Outil point de connexion : montrer les points de toutes les formes }
+ If CurrentTool = ttConnPoint Then
+  For I := 1 to ShapeCount do DrawAnchorPoints(I, ANCHOR_NONE);
 
  { Dessiner les points d'ancrage sur la forme survolÃ©e si on utilise l'outil connecteur }
  If (CurrentTool = ttConnector) and (HoveredShapeForAnchor > 0) Then Begin
@@ -14684,15 +15848,54 @@ Begin
  End;
 End;
 
+{ Recalcule le rectangle englobant d'une forme a points }
+Procedure FitBoundsToPoints(Var S: TShapeObject);
+Var K: Integer;
+Begin
+ If S.PointCount < 1 Then Exit;
+ S.X1 := S.Points[1].X; S.X2 := S.X1;
+ S.Y1 := S.Points[1].Y; S.Y2 := S.Y1;
+ For K := 2 to S.PointCount do Begin
+  If S.Points[K].X < S.X1 Then S.X1 := S.Points[K].X;
+  If S.Points[K].X > S.X2 Then S.X2 := S.Points[K].X;
+  If S.Points[K].Y < S.Y1 Then S.Y1 := S.Points[K].Y;
+  If S.Points[K].Y > S.Y2 Then S.Y2 := S.Points[K].Y;
+ End;
+End;
+
+{ Les points d'un polygone / d'une courbe suivent le rectangle englobant }
+Procedure RemapPoints(Idx, OX1, OY1, OX2, OY2: Integer);
+Var K: Integer; OW, OH, NW, NH: LongInt;
+Begin
+ If (Idx < 1) or (Idx > ShapeCount) Then Exit;
+ If Not (Shapes[Idx].ShapeType in [stPolygon, stBezier, stPolyline]) Then Exit;
+ OW := OX2 - OX1; OH := OY2 - OY1;
+ NW := Shapes[Idx].X2 - Shapes[Idx].X1; NH := Shapes[Idx].Y2 - Shapes[Idx].Y1;
+ For K := 1 to Shapes[Idx].PointCount do Begin
+  If OW <> 0 Then
+   Shapes[Idx].Points[K].X := Shapes[Idx].X1 + Round((Shapes[Idx].Points[K].X - OX1) * NW / OW)
+  Else
+   Shapes[Idx].Points[K].X := Shapes[Idx].Points[K].X + (Shapes[Idx].X1 - OX1);
+  If OH <> 0 Then
+   Shapes[Idx].Points[K].Y := Shapes[Idx].Y1 + Round((Shapes[Idx].Points[K].Y - OY1) * NH / OH)
+  Else
+   Shapes[Idx].Points[K].Y := Shapes[Idx].Points[K].Y + (Shapes[Idx].Y1 - OY1);
+ End;
+End;
+
 { ProcÃ©dure pour dÃ©placer un objet }
 Procedure MoveShape(ShapeIndex: Integer; DeltaX, DeltaY: Integer);
+Var OX1, OY1, OX2, OY2: Integer;
 Begin
  If (ShapeIndex < 1) or (ShapeIndex > ShapeCount) Then Exit;
+ OX1 := Shapes[ShapeIndex].X1; OY1 := Shapes[ShapeIndex].Y1;
+ OX2 := Shapes[ShapeIndex].X2; OY2 := Shapes[ShapeIndex].Y2;
 
  Shapes[ShapeIndex].X1 := Shapes[ShapeIndex].X1 + DeltaX;
  Shapes[ShapeIndex].Y1 := Shapes[ShapeIndex].Y1 + DeltaY;
  Shapes[ShapeIndex].X2 := Shapes[ShapeIndex].X2 + DeltaX;
  Shapes[ShapeIndex].Y2 := Shapes[ShapeIndex].Y2 + DeltaY;
+ RemapPoints(ShapeIndex, OX1, OY1, OX2, OY2);
 
  DocumentModified := True;
 End;
@@ -14745,6 +15948,8 @@ Begin
 
  DragStartX := X;
  DragStartY := Y;
+ DragPrevX := X;
+ DragPrevY := Y;
  DragOrigX1 := Shapes[ShapeIndex].X1;
  DragOrigY1 := Shapes[ShapeIndex].Y1;
  DragOrigX2 := Shapes[ShapeIndex].X2;
@@ -14767,25 +15972,25 @@ End;
 { ProcÃ©dure pour traiter le mouvement de la souris pendant le drag }
 Procedure HandleMouseMove(X, Y: Integer);
 Var
- DeltaX, DeltaY: Integer;
+ DeltaX, DeltaY, I: Integer;
+ MX1, MY1, MX2, MY2: Integer;
 Begin
  If DragMode = DRAG_MODE_NONE Then Exit;
  If SelectedShape < 1 Then Exit;
-
  If DragMode = DRAG_MODE_MOVE Then Begin
-  { DÃ©placer l'objet }
-  DeltaX := X - DragStartX;
-  DeltaY := Y - DragStartY;
-
-  { Restaurer position originale puis appliquer le dÃ©placement }
-  Shapes[SelectedShape].X1 := DragOrigX1 + DeltaX;
-  Shapes[SelectedShape].Y1 := DragOrigY1 + DeltaY;
-  Shapes[SelectedShape].X2 := DragOrigX2 + DeltaX;
-  Shapes[SelectedShape].Y2 := DragOrigY2 + DeltaY;
+  DeltaX := X - DragPrevX;
+  DeltaY := Y - DragPrevY;
+  If (DeltaX <> 0) or (DeltaY <> 0) Then Begin
+   For I := 1 to ShapeCount do
+    If Shapes[I].Selected Then MoveShape(I, DeltaX, DeltaY);
+   DragPrevX := X; DragPrevY := Y;
+  End;
  End
  Else If DragMode = DRAG_MODE_RESIZE Then Begin
-  { Redimensionner l'objet }
+  MX1 := Shapes[SelectedShape].X1; MY1 := Shapes[SelectedShape].Y1;
+  MX2 := Shapes[SelectedShape].X2; MY2 := Shapes[SelectedShape].Y2;
   ResizeShape(SelectedShape, DragResizeHandle, X, Y);
+  RemapPoints(SelectedShape, MX1, MY1, MX2, MY2);
  End;
 End;
 
@@ -14855,6 +16060,29 @@ End;
 
 { Trace l'apercu d'une forme en XOR + pointilles. Un second appel identique
   efface le precedent. Supporte Rectangle, Ellipse, Ligne, Connecteur. }
+{ Point d'un arc de quart d'ellipse allant de (SX,SY) a (EX,EY) }
+Procedure ArcPt(T: Real; SX, SY, EX, EY: Integer; Var PX, PY: Integer);
+Var A, B, C, D, U: Real;
+Begin
+ U := 1 - T;
+ A := SX; B := SX + 0.5522847 * (EX - SX);
+ C := EX; D := EX;
+ PX := Round(U*U*U*A + 3*U*U*T*B + 3*U*T*T*C + T*T*T*D);
+ A := SY; B := SY; C := EY + 0.5522847 * (SY - EY); D := EY;
+ PY := Round(U*U*U*A + 3*U*U*T*B + 3*U*T*T*C + T*T*T*D);
+End;
+
+Procedure XorPreviewArc(X1, Y1, X2, Y2: Integer);
+Var I, PX, PY, QX, QY: Integer;
+Begin
+ QX := X1; QY := Y1;
+ For I := 1 to 16 do Begin
+  ArcPt(I / 16, X1, Y1, X2, Y2, PX, PY);
+  Line(QX, QY, PX, PY);
+  QX := PX; QY := PY;
+ End;
+End;
+
 Procedure XorPreviewShape(Tool: TToolType; X1, Y1, X2, Y2: Integer);
 Var
  CX, CY, RX, RY: Integer;
@@ -14871,7 +16099,9 @@ Begin
    RY := Abs(Y2 - Y1) Div 2;
    XorPreviewEllipse(CX, CY, RX, RY);
   End;
-  ttLine, ttConnector: Line(X1, Y1, X2, Y2);
+  ttLine, ttConnector, ttRotate: Line(X1, Y1, X2, Y2);
+  ttTextBlock, ttCrop, ttZoom, ttShapeLib, ttSelection: Rectangle(X1, Y1, X2, Y2);
+  ttArc: XorPreviewArc(X1, Y1, X2, Y2);
  End;
  SetLineStyle(SolidLn, 0, NormWidth);
  SetWriteMode(CopyPut);
@@ -14976,9 +16206,10 @@ End;
 Procedure BeginTextEdit(Index,MouseX:Integer;SelectAll:Boolean);
 Begin
  If (Index<1) or (Index>ShapeCount) Then Exit;
- If Shapes[Index].ShapeType<>stText Then Exit;
+ If (Shapes[Index].ShapeType<>stText) and (Shapes[Index].ShapeType<>stLib) Then Exit;
  If IsLayerLocked(Shapes[Index].LayerIndex) Then Exit;
  If TextEditShape<>Index Then Begin
+  UndoCheckpoint;
   FinishTextEdit(False);SelectShape(Index);EndDrag;IsDrawing:=False;
   TextEditShape:=Index;TextEditOriginal:=Shapes[Index].Text;
   TextEditOldX2:=Shapes[Index].X2;TextEditOldY2:=Shapes[Index].Y2;
@@ -15030,8 +16261,16 @@ Begin
  End;
  If S<>Before Then Begin
   Shapes[TextEditShape].Text:=S;
-  Shapes[TextEditShape].X2:=Shapes[TextEditShape].X1+Length(S)*8+8;
-  Shapes[TextEditShape].Y2:=Shapes[TextEditShape].Y1+12;
+  If Shapes[TextEditShape].ShapeType=stLib Then Begin
+   { texte d'une forme : le cadre ne change pas }
+  End Else If Shapes[TextEditShape].LineStyle=LINESTYLE_DOTTED Then Begin
+   { bloc de texte : le cadre ne rapetisse pas }
+   If Shapes[TextEditShape].X1+Length(S)*8+8>Shapes[TextEditShape].X2 Then
+    Shapes[TextEditShape].X2:=Shapes[TextEditShape].X1+Length(S)*8+8;
+  End Else Begin
+   Shapes[TextEditShape].X2:=Shapes[TextEditShape].X1+Length(S)*8+8;
+   Shapes[TextEditShape].Y2:=Shapes[TextEditShape].Y1+12;
+  End;
   DocumentModified:=True;
  End;
 End;
@@ -15042,6 +16281,10 @@ Begin
  If (TextEditShape<1) or (TextEditShape>ShapeCount) Then Exit;
  X:=Shapes[TextEditShape].X1;Y:=Shapes[TextEditShape].Y1;
  W:=Length(Shapes[TextEditShape].Text)*8+8;
+ If Shapes[TextEditShape].ShapeType=stLib Then Begin
+  X:=(Shapes[TextEditShape].X1+Shapes[TextEditShape].X2) div 2-Length(Shapes[TextEditShape].Text)*4;
+  Y:=(Shapes[TextEditShape].Y1+Shapes[TextEditShape].Y2) div 2-4;
+ End;
  SetColor(Blue);Rectangle(X-2,Y-2,X+W,Y+12);
  If TextEditSelectAll Then Begin
   SetFillStyle(SolidFill,Blue);Bar(X,Y,X+W-8,Y+8);
@@ -15102,8 +16345,1106 @@ Begin
 End;
 
 Procedure DrawRibbon; Forward;
-Function RibbonHitAt(X,Y:Integer):Integer; Forward;
 Procedure ExecuteRibbonEntry(Index:Integer); Forward;
+{ ============================================================================ }
+{ === OUTILS SUPPLEMENTAIRES : arc, main levee, crayon, bloc de texte,       === }
+{ === point de connexion, rotation, rogner, pinceau de format, zoom, pan    === }
+{ ============================================================================ }
+
+Function ClampI(V: LongInt): Integer;
+Begin
+ If V > 30000 Then V := 30000;
+ If V < -30000 Then V := -30000;
+ ClampI := V;
+End;
+
+Function ATan2R(Y, X: Real): Real;
+Begin
+ If X > 0 Then ATan2R := ArcTan(Y / X)
+ Else If X < 0 Then Begin
+  If Y >= 0 Then ATan2R := ArcTan(Y / X) + Pi Else ATan2R := ArcTan(Y / X) - Pi;
+ End
+ Else Begin
+  If Y > 0 Then ATan2R := Pi / 2 Else If Y < 0 Then ATan2R := -Pi / 2 Else ATan2R := 0;
+ End;
+End;
+
+Procedure NewShapeStyle(Idx: Integer);
+Begin
+ Shapes[Idx].FillColor := CurrentFillColor;
+ Shapes[Idx].LineColor := CurrentLineColor;
+ Shapes[Idx].LineWidth := CurrentLineWidth;
+ Shapes[Idx].LineStyle := CurrentLineStyle;
+End;
+
+{ Decale tout le dessin }
+Procedure ShiftAllShapes(DX, DY: Integer);
+Var I, K: Integer;
+Begin
+ For I := 1 to ShapeCount do Begin
+  Shapes[I].X1 := ClampI(Shapes[I].X1 + DX); Shapes[I].X2 := ClampI(Shapes[I].X2 + DX);
+  Shapes[I].Y1 := ClampI(Shapes[I].Y1 + DY); Shapes[I].Y2 := ClampI(Shapes[I].Y2 + DY);
+  For K := 1 to Shapes[I].PointCount do Begin
+   Shapes[I].Points[K].X := ClampI(Shapes[I].Points[K].X + DX);
+   Shapes[I].Points[K].Y := ClampI(Shapes[I].Points[K].Y + DY);
+  End;
+ End;
+ DocumentModified := True;
+End;
+
+{ Homothetie de tout le dessin : (AX,AY) devient (BX,BY) }
+Procedure ZoomAllShapes(AX, AY, BX, BY: Integer; S: Real);
+Var I, K: Integer; ZS: String;
+Begin
+ For I := 1 to ShapeCount do Begin
+  Shapes[I].X1 := ClampI(BX + Round((Shapes[I].X1 - AX) * S));
+  Shapes[I].X2 := ClampI(BX + Round((Shapes[I].X2 - AX) * S));
+  Shapes[I].Y1 := ClampI(BY + Round((Shapes[I].Y1 - AY) * S));
+  Shapes[I].Y2 := ClampI(BY + Round((Shapes[I].Y2 - AY) * S));
+  For K := 1 to Shapes[I].PointCount do Begin
+   Shapes[I].Points[K].X := ClampI(BX + Round((Shapes[I].Points[K].X - AX) * S));
+   Shapes[I].Points[K].Y := ClampI(BY + Round((Shapes[I].Points[K].Y - AY) * S));
+  End;
+ End;
+ ZoomTotal := ZoomTotal * S;
+ DocumentModified := True;
+ Str(Round(ZoomTotal * 100), ZS);
+ StatusMessage := 'Zoom ' + ZS + '%';
+End;
+
+{ Simplification de trace (Douglas-Peucker) }
+Var DPKeep: Array[1..300] of Boolean;
+
+Procedure DPStep(A, B: Integer; Tol: Real);
+Var K, Best: Integer; D, MaxD, DX, DY, L: Real;
+Begin
+ If B <= A + 1 Then Exit;
+ DX := FreeX[B] - FreeX[A]; DY := FreeY[B] - FreeY[A];
+ L := Sqrt(DX * DX + DY * DY);
+ MaxD := -1; Best := A;
+ For K := A + 1 to B - 1 do Begin
+  If L < 0.5 Then D := Sqrt(Sqr(FreeX[K] - FreeX[A]) + Sqr(FreeY[K] - FreeY[A]))
+  Else D := Abs(DY * (FreeX[K] - FreeX[A]) - DX * (FreeY[K] - FreeY[A])) / L;
+  If D > MaxD Then Begin MaxD := D; Best := K; End;
+ End;
+ If MaxD > Tol Then Begin
+  DPKeep[Best] := True;
+  DPStep(A, Best, Tol);
+  DPStep(Best, B, Tol);
+ End;
+End;
+
+Procedure FinishFreehand(Pencil: Boolean);
+Var I, M, N, K: Integer; Idx: Array[1..300] of Integer;
+Begin
+ If FreeN < 2 Then Begin
+  StatusMessage := 'Trace trop court';
+  Exit;
+ End;
+ If ShapeCount >= MAX_SHAPES Then Exit;
+ N := 0;
+ If Pencil Then Begin
+  For I := 1 to FreeN do DPKeep[I] := False;
+  DPKeep[1] := True; DPKeep[FreeN] := True;
+  DPStep(1, FreeN, 6.0);
+  For I := 1 to FreeN do If DPKeep[I] Then Begin Inc(N); Idx[N] := I; End;
+ End
+ Else Begin
+  For I := 1 to FreeN do Begin Inc(N); Idx[N] := I; End;
+ End;
+ If N > MAX_POLYGON_POINTS Then Begin
+  { decimation reguliere en gardant le premier et le dernier }
+  M := MAX_POLYGON_POINTS;
+  For K := 1 to M do Idx[K] := Idx[1 + ((K - 1) * (N - 1)) div (M - 1)];
+  N := M;
+ End;
+ Inc(ShapeCount);
+ InitShape(Shapes[ShapeCount]);
+ Shapes[ShapeCount].ShapeType := stPolyline;
+ Shapes[ShapeCount].PointCount := N;
+ For K := 1 to N do Begin
+  Shapes[ShapeCount].Points[K].X := FreeX[Idx[K]];
+  Shapes[ShapeCount].Points[K].Y := FreeY[Idx[K]];
+ End;
+ FitBoundsToPoints(Shapes[ShapeCount]);
+ NewShapeStyle(ShapeCount);
+ DocumentModified := True;
+ SelectShape(ShapeCount);
+ CurrentTool := ttSelection;
+End;
+
+{ Rotation d'une forme de Deg degres (multiple de 15) autour de son centre }
+Procedure RotateShapeBy(I, Deg: Integer);
+Var CX, CY, K, W, H: Integer; C, S, A, DX, DY: Real;
+ Procedure RP(Var PX, PY: Integer);
+ Begin
+  DX := PX - CX; DY := PY - CY;
+  PX := ClampI(CX + Round(DX * C - DY * S));
+  PY := ClampI(CY + Round(DX * S + DY * C));
+ End;
+Begin
+ Deg := ((Deg mod 360) + 360) mod 360;
+ If (Deg = 0) or (I < 1) or (I > ShapeCount) Then Exit;
+ CX := (Shapes[I].X1 + Shapes[I].X2) div 2;
+ CY := (Shapes[I].Y1 + Shapes[I].Y2) div 2;
+ A := Deg * Pi / 180; C := Cos(A); S := Sin(A);
+ Case Shapes[I].ShapeType of
+  stLine, stConnector: Begin
+    If (Shapes[I].ShapeType = stConnector) and
+       ((Shapes[I].ConnectStartShape > 0) or (Shapes[I].ConnectEndShape > 0)) Then Begin
+     StatusMessage := 'Connecteur relie : il suit ses formes';
+     Exit;
+    End;
+    RP(Shapes[I].X1, Shapes[I].Y1);
+    RP(Shapes[I].X2, Shapes[I].Y2);
+   End;
+  stPolygon, stBezier, stPolyline: Begin
+    For K := 1 to Shapes[I].PointCount do RP(Shapes[I].Points[K].X, Shapes[I].Points[K].Y);
+    FitBoundsToPoints(Shapes[I]);
+   End;
+  stLib: Begin
+    If (Deg mod 90) = 0 Then Begin
+     K := (Deg div 90) mod 4;
+     Shapes[I].Flags := (Shapes[I].Flags and 3) or
+                        ((((Shapes[I].Flags shr 2) and 3 + K) mod 4) shl 2);
+     If K mod 2 = 1 Then Begin
+      W := Shapes[I].X2 - Shapes[I].X1; H := Shapes[I].Y2 - Shapes[I].Y1;
+      Shapes[I].X1 := CX - H div 2; Shapes[I].X2 := Shapes[I].X1 + H;
+      Shapes[I].Y1 := CY - W div 2; Shapes[I].Y2 := Shapes[I].Y1 + W;
+     End;
+    End
+    Else Begin
+     StatusMessage := 'Cette forme ne tourne que par 90 degres';
+     Exit;
+    End;
+   End;
+  stRectangle, stEllipse, stImage: Begin
+    If (Deg mod 90) = 0 Then Begin
+     If (Deg div 90) mod 2 = 1 Then Begin
+      W := Shapes[I].X2 - Shapes[I].X1; H := Shapes[I].Y2 - Shapes[I].Y1;
+      Shapes[I].X1 := CX - H div 2; Shapes[I].X2 := Shapes[I].X1 + H;
+      Shapes[I].Y1 := CY - W div 2; Shapes[I].Y2 := Shapes[I].Y1 + W;
+     End;
+    End
+    Else If Shapes[I].ShapeType = stRectangle Then Begin
+     { angle libre : le rectangle devient un polygone a 4 points }
+     Shapes[I].PointCount := 4;
+     Shapes[I].Points[1].X := Shapes[I].X1; Shapes[I].Points[1].Y := Shapes[I].Y1;
+     Shapes[I].Points[2].X := Shapes[I].X2; Shapes[I].Points[2].Y := Shapes[I].Y1;
+     Shapes[I].Points[3].X := Shapes[I].X2; Shapes[I].Points[3].Y := Shapes[I].Y2;
+     Shapes[I].Points[4].X := Shapes[I].X1; Shapes[I].Points[4].Y := Shapes[I].Y2;
+     For K := 1 to 4 do RP(Shapes[I].Points[K].X, Shapes[I].Points[K].Y);
+     Shapes[I].ShapeType := stPolygon;
+     FitBoundsToPoints(Shapes[I]);
+    End
+    Else Begin
+     StatusMessage := 'Cette forme ne tourne que par 90 degres';
+     Exit;
+    End;
+   End;
+  Else Begin
+    StatusMessage := 'Ce type de forme ne peut pas tourner';
+    Exit;
+   End;
+ End;
+ UpdateAllConnectors;
+ DocumentModified := True;
+End;
+
+{ Rogne la forme : intersection avec le cadre (R1..R2) }
+Procedure CropShapeTo(I, RX1, RY1, RX2, RY2: Integer);
+Var K, T: Integer;
+Begin
+ If RX1 > RX2 Then Begin T := RX1; RX1 := RX2; RX2 := T; End;
+ If RY1 > RY2 Then Begin T := RY1; RY1 := RY2; RY2 := T; End;
+ If (RX2 < Shapes[I].X1) or (RX1 > Shapes[I].X2) or
+    (RY2 < Shapes[I].Y1) or (RY1 > Shapes[I].Y2) Then Begin
+  StatusMessage := 'Le cadre ne touche pas la forme';
+  Exit;
+ End;
+ Case Shapes[I].ShapeType of
+  stPolygon, stBezier, stPolyline: Begin
+    For K := 1 to Shapes[I].PointCount do Begin
+     If Shapes[I].Points[K].X < RX1 Then Shapes[I].Points[K].X := RX1;
+     If Shapes[I].Points[K].X > RX2 Then Shapes[I].Points[K].X := RX2;
+     If Shapes[I].Points[K].Y < RY1 Then Shapes[I].Points[K].Y := RY1;
+     If Shapes[I].Points[K].Y > RY2 Then Shapes[I].Points[K].Y := RY2;
+    End;
+    FitBoundsToPoints(Shapes[I]);
+   End;
+  stLine, stConnector: Begin
+    If Shapes[I].X1 < RX1 Then Shapes[I].X1 := RX1; If Shapes[I].X1 > RX2 Then Shapes[I].X1 := RX2;
+    If Shapes[I].X2 < RX1 Then Shapes[I].X2 := RX1; If Shapes[I].X2 > RX2 Then Shapes[I].X2 := RX2;
+    If Shapes[I].Y1 < RY1 Then Shapes[I].Y1 := RY1; If Shapes[I].Y1 > RY2 Then Shapes[I].Y1 := RY2;
+    If Shapes[I].Y2 < RY1 Then Shapes[I].Y2 := RY1; If Shapes[I].Y2 > RY2 Then Shapes[I].Y2 := RY2;
+   End;
+  Else Begin
+    If Shapes[I].X1 < RX1 Then Shapes[I].X1 := RX1;
+    If Shapes[I].X2 > RX2 Then Shapes[I].X2 := RX2;
+    If Shapes[I].Y1 < RY1 Then Shapes[I].Y1 := RY1;
+    If Shapes[I].Y2 > RY2 Then Shapes[I].Y2 := RY2;
+   End;
+ End;
+ UpdateAllConnectors;
+ DocumentModified := True;
+ StatusMessage := 'Forme rognee';
+End;
+
+{ ============================================================================ }
+{ === COMMANDES : annuler/retablir, presse-papiers, ordre, alignement ... === }
+{ ============================================================================ }
+Const
+ MAX_UNDO = 30;
+
+Type
+ TSnapCP = Record Shp, RX, RY: Integer; End;
+ PSnap = ^TSnap;
+ TSnap = Record
+  Count, CPN: Integer;
+  Shp: Array[1..MAX_SHAPES] of TShapeObject;
+  CP: Array[1..200] of TSnapCP;
+ End;
+
+Var
+ UndoStack, RedoStack: Array[1..MAX_UNDO] of PSnap;
+ UndoTop, RedoTop: Integer;
+ SnapTmp: PSnap;
+ ClipShapes: Array[1..MAX_SHAPES] of TShapeObject;
+ ClipN, PasteShift: Integer;
+ PopupKind: Integer;       { 0 aucun, 1 remplissage, 2 trait }
+ PopupX, PopupY: Integer;
+ MarqueeActive: Boolean;
+ 
+Procedure SnapBuild(S: PSnap);
+Var I: Integer;
+Begin
+ FillChar(S^, SizeOf(TSnap), 0);
+ S^.Count := ShapeCount;
+ If ShapeCount > 0 Then Move(Shapes[1], S^.Shp[1], ShapeCount * SizeOf(TShapeObject));
+ For I := 1 to ShapeCount do S^.Shp[I].Selected := False;
+ S^.CPN := CPCount;
+ For I := 1 to CPCount do Begin
+  S^.CP[I].Shp := ConnPts[I].Shp; S^.CP[I].RX := ConnPts[I].RX; S^.CP[I].RY := ConnPts[I].RY;
+ End;
+End;
+
+Procedure SnapRestore(S: PSnap);
+Var I: Integer;
+Begin
+ ShapeCount := S^.Count;
+ If ShapeCount > 0 Then Move(S^.Shp[1], Shapes[1], ShapeCount * SizeOf(TShapeObject));
+ CPCount := S^.CPN;
+ For I := 1 to CPCount do Begin
+  ConnPts[I].Shp := S^.CP[I].Shp; ConnPts[I].RX := S^.CP[I].RX; ConnPts[I].RY := S^.CP[I].RY;
+ End;
+ SelectedShape := 0;
+ DocumentModified := True;
+End;
+
+Function SnapSameAsLive(S: PSnap): Boolean;
+Begin
+ If SnapTmp = Nil Then New(SnapTmp);
+ SnapBuild(SnapTmp);
+ SnapSameAsLive := CompareByte(SnapTmp^, S^, SizeOf(TSnap)) = 0;
+End;
+
+{ A appeler juste avant toute modification du document }
+Procedure UndoCheckpoint;
+Var I: Integer;
+Begin
+ If (UndoTop > 0) and SnapSameAsLive(UndoStack[UndoTop]) Then Exit;
+ If UndoTop >= MAX_UNDO Then Begin
+  Dispose(UndoStack[1]);
+  For I := 1 to MAX_UNDO - 1 do UndoStack[I] := UndoStack[I + 1];
+  UndoTop := MAX_UNDO - 1;
+ End;
+ Inc(UndoTop);
+ New(UndoStack[UndoTop]);
+ SnapBuild(UndoStack[UndoTop]);
+ For I := 1 to RedoTop do Dispose(RedoStack[I]);
+ RedoTop := 0;
+End;
+
+Procedure CmdUndo;
+Begin
+ If (UndoTop > 0) and SnapSameAsLive(UndoStack[UndoTop]) Then Begin
+  Dispose(UndoStack[UndoTop]);
+  Dec(UndoTop);
+ End;
+ If UndoTop = 0 Then Begin
+  If Language = _French Then StatusMessage := 'Rien a annuler' Else StatusMessage := 'Nothing to undo';
+  Exit;
+ End;
+ If RedoTop >= MAX_UNDO Then Begin Dispose(RedoStack[1]); Move(RedoStack[2], RedoStack[1], (MAX_UNDO - 1) * SizeOf(PSnap)); Dec(RedoTop); End;
+ Inc(RedoTop);
+ New(RedoStack[RedoTop]);
+ SnapBuild(RedoStack[RedoTop]);
+ SnapRestore(UndoStack[UndoTop]);
+ Dispose(UndoStack[UndoTop]);
+ Dec(UndoTop);
+ If Language = _French Then StatusMessage := 'Annule' Else StatusMessage := 'Undone';
+End;
+
+Procedure CmdRedo;
+Begin
+ If RedoTop = 0 Then Begin
+  If Language = _French Then StatusMessage := 'Rien a retablir' Else StatusMessage := 'Nothing to redo';
+  Exit;
+ End;
+ If UndoTop >= MAX_UNDO Then Begin Dispose(UndoStack[1]); Move(UndoStack[2], UndoStack[1], (MAX_UNDO - 1) * SizeOf(PSnap)); Dec(UndoTop); End;
+ Inc(UndoTop);
+ New(UndoStack[UndoTop]);
+ SnapBuild(UndoStack[UndoTop]);
+ SnapRestore(RedoStack[RedoTop]);
+ Dispose(RedoStack[RedoTop]);
+ Dec(RedoTop);
+ If Language = _French Then StatusMessage := 'Retabli' Else StatusMessage := 'Redone';
+End;
+
+Function CountSel: Integer;
+Var I, C: Integer;
+Begin
+ C := 0;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Inc(C);
+ CountSel := C;
+End;
+
+Procedure DeleteShapeAt(Idx: Integer);
+Var I, K: Integer;
+Begin
+ If (Idx < 1) or (Idx > ShapeCount) Then Exit;
+ For I := Idx to ShapeCount - 1 do Shapes[I] := Shapes[I + 1];
+ Dec(ShapeCount);
+ For I := 1 to ShapeCount do Begin
+  If Shapes[I].ConnectStartShape = Idx Then Begin Shapes[I].ConnectStartShape := 0; Shapes[I].ConnectStartAnchor := ANCHOR_NONE; End
+  Else If Shapes[I].ConnectStartShape > Idx Then Dec(Shapes[I].ConnectStartShape);
+  If Shapes[I].ConnectEndShape = Idx Then Begin Shapes[I].ConnectEndShape := 0; Shapes[I].ConnectEndAnchor := ANCHOR_NONE; End
+  Else If Shapes[I].ConnectEndShape > Idx Then Dec(Shapes[I].ConnectEndShape);
+ End;
+ K := 1;
+ While K <= CPCount do Begin
+  If ConnPts[K].Shp = Idx Then Begin
+   For I := K to CPCount - 1 do ConnPts[I] := ConnPts[I + 1];
+   Dec(CPCount);
+  End
+  Else Begin
+   If ConnPts[K].Shp > Idx Then Dec(ConnPts[K].Shp);
+   Inc(K);
+  End;
+ End;
+End;
+
+Procedure CmdDelete;
+Var I: Integer;
+Begin
+ If CountSel = 0 Then Exit;
+ UndoCheckpoint;
+ For I := ShapeCount downto 1 do If Shapes[I].Selected Then DeleteShapeAt(I);
+ SelectedShape := 0;
+ DocumentModified := True;
+End;
+
+Procedure CmdCopy;
+Var I: Integer;
+Begin
+ ClipN := 0;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Begin
+  Inc(ClipN);
+  ClipShapes[ClipN] := Shapes[I];
+ End;
+ PasteShift := 0;
+ ClipboardEmpty := ClipN = 0;
+ If ClipN > 0 Then Begin
+  If Language = _French Then StatusMessage := 'Copie' Else StatusMessage := 'Copied';
+ End;
+End;
+
+Procedure CmdPaste;
+Var I, K, First, OldG, NewG: Integer;
+ GOld, GNew: Array[1..20] of Integer; GN: Integer;
+Begin
+ If ClipN = 0 Then Exit;
+ UndoCheckpoint;
+ DeselectAllShapes;
+ Inc(PasteShift, 16);
+ GN := 0; First := 0;
+ For I := 1 to ClipN do Begin
+  If ShapeCount >= MAX_SHAPES Then Break;
+  Inc(ShapeCount);
+  Shapes[ShapeCount] := ClipShapes[I];
+  Shapes[ShapeCount].X1 := ClampI(Shapes[ShapeCount].X1 + PasteShift);
+  Shapes[ShapeCount].X2 := ClampI(Shapes[ShapeCount].X2 + PasteShift);
+  Shapes[ShapeCount].Y1 := ClampI(Shapes[ShapeCount].Y1 + PasteShift);
+  Shapes[ShapeCount].Y2 := ClampI(Shapes[ShapeCount].Y2 + PasteShift);
+  For K := 1 to Shapes[ShapeCount].PointCount do Begin
+   Shapes[ShapeCount].Points[K].X := ClampI(Shapes[ShapeCount].Points[K].X + PasteShift);
+   Shapes[ShapeCount].Points[K].Y := ClampI(Shapes[ShapeCount].Points[K].Y + PasteShift);
+  End;
+  Shapes[ShapeCount].ConnectStartShape := 0; Shapes[ShapeCount].ConnectEndShape := 0;
+  Shapes[ShapeCount].ConnectStartAnchor := ANCHOR_NONE; Shapes[ShapeCount].ConnectEndAnchor := ANCHOR_NONE;
+  OldG := Shapes[ShapeCount].GroupID;
+  If OldG > 0 Then Begin
+   NewG := 0;
+   For K := 1 to GN do If GOld[K] = OldG Then NewG := GNew[K];
+   If NewG = 0 Then Begin
+    Inc(NextGroupID); NewG := NextGroupID;
+    If GN < 20 Then Begin Inc(GN); GOld[GN] := OldG; GNew[GN] := NewG; End;
+   End;
+   Shapes[ShapeCount].GroupID := NewG;
+  End;
+  Shapes[ShapeCount].Selected := True;
+  If First = 0 Then First := ShapeCount;
+ End;
+ SelectedShape := First;
+ DocumentModified := True;
+ If Language = _French Then StatusMessage := 'Colle' Else StatusMessage := 'Pasted';
+End;
+
+Procedure CmdCut;
+Begin
+ If CountSel = 0 Then Exit;
+ CmdCopy;
+ CmdDelete;
+End;
+
+Procedure CmdDuplicate;
+Begin
+ If CountSel = 0 Then Exit;
+ CmdCopy;
+ CmdPaste;
+End;
+
+Procedure CmdSelectAll;
+Var I: Integer;
+Begin
+ SelectedShape := 0;
+ For I := 1 to ShapeCount do
+  If IsLayerVisible(Shapes[I].LayerIndex) and (Not IsLayerLocked(Shapes[I].LayerIndex)) Then Begin
+   Shapes[I].Selected := True;
+   If SelectedShape = 0 Then SelectedShape := I;
+  End;
+End;
+
+{ Deplace la forme Idx a la position NewIdx (ordre d'empilement) }
+Procedure MoveToIndex(Idx, NewIdx: Integer);
+Var T: TShapeObject; I, R: Integer;
+ Function Map(Old: Integer): Integer;
+ Begin
+  If Old = Idx Then Map := NewIdx
+  Else If (Idx < NewIdx) and (Old > Idx) and (Old <= NewIdx) Then Map := Old - 1
+  Else If (Idx > NewIdx) and (Old >= NewIdx) and (Old < Idx) Then Map := Old + 1
+  Else Map := Old;
+ End;
+Begin
+ If (Idx < 1) or (Idx > ShapeCount) or (NewIdx < 1) or (NewIdx > ShapeCount) or (Idx = NewIdx) Then Exit;
+ T := Shapes[Idx];
+ If Idx < NewIdx Then For I := Idx to NewIdx - 1 do Shapes[I] := Shapes[I + 1]
+ Else For I := Idx downto NewIdx + 1 do Shapes[I] := Shapes[I - 1];
+ Shapes[NewIdx] := T;
+ For I := 1 to ShapeCount do Begin
+  If Shapes[I].ConnectStartShape > 0 Then Shapes[I].ConnectStartShape := Map(Shapes[I].ConnectStartShape);
+  If Shapes[I].ConnectEndShape > 0 Then Shapes[I].ConnectEndShape := Map(Shapes[I].ConnectEndShape);
+ End;
+ For R := 1 to CPCount do ConnPts[R].Shp := Map(ConnPts[R].Shp);
+End;
+
+Procedure CmdBringFront;
+Var C, K, J: Integer;
+Begin
+ C := CountSel;
+ If C = 0 Then Exit;
+ UndoCheckpoint;
+ For K := 1 to C do Begin
+  J := 1;
+  While (J <= ShapeCount - (K - 1)) and (Not Shapes[J].Selected) do Inc(J);
+  If J <= ShapeCount - (K - 1) Then MoveToIndex(J, ShapeCount);
+ End;
+ SelectedShape := ShapeCount;
+ DocumentModified := True;
+End;
+
+Procedure CmdSendBack;
+Var C, K, J: Integer;
+Begin
+ C := CountSel;
+ If C = 0 Then Exit;
+ UndoCheckpoint;
+ For K := 1 to C do Begin
+  J := ShapeCount;
+  While (J >= K) and (Not Shapes[J].Selected) do Dec(J);
+  If J >= K Then MoveToIndex(J, 1);
+ End;
+ SelectedShape := 1;
+ DocumentModified := True;
+End;
+
+Procedure CmdRotate(Deg: Integer);
+Var I: Integer;
+Begin
+ If CountSel = 0 Then Exit;
+ UndoCheckpoint;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then RotateShapeBy(I, Deg);
+End;
+
+Procedure CmdFlip(Horizontal: Boolean);
+Var I, K, SX, SY: Integer;
+Begin
+ If CountSel = 0 Then Exit;
+ UndoCheckpoint;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Begin
+  SX := Shapes[I].X1 + Shapes[I].X2; SY := Shapes[I].Y1 + Shapes[I].Y2;
+  Case Shapes[I].ShapeType of
+   stLib: If Horizontal Then Shapes[I].Flags := Shapes[I].Flags xor 1
+          Else Shapes[I].Flags := Shapes[I].Flags xor 2;
+   stPolygon, stBezier, stPolyline: Begin
+     For K := 1 to Shapes[I].PointCount do
+      If Horizontal Then Shapes[I].Points[K].X := SX - Shapes[I].Points[K].X
+      Else Shapes[I].Points[K].Y := SY - Shapes[I].Points[K].Y;
+    End;
+   stLine, stConnector: Begin
+     If Shapes[I].ConnectStartShape + Shapes[I].ConnectEndShape = 0 Then Begin
+      If Horizontal Then Begin
+       Shapes[I].X1 := SX - Shapes[I].X1; Shapes[I].X2 := SX - Shapes[I].X2;
+      End Else Begin
+       Shapes[I].Y1 := SY - Shapes[I].Y1; Shapes[I].Y2 := SY - Shapes[I].Y2;
+      End;
+     End;
+    End;
+  End;
+ End;
+ DocumentModified := True;
+End;
+
+Procedure CmdSetFill(C: Integer);
+Var I: Integer;
+Begin
+ UndoCheckpoint;
+ CurrentFillColor := C;
+ For I := 1 to ShapeCount do
+  If Shapes[I].Selected and (Shapes[I].ShapeType <> stText) Then Shapes[I].FillColor := C;
+ DocumentModified := True;
+End;
+
+Procedure CmdSetLine(C: Integer);
+Var I: Integer;
+Begin
+ UndoCheckpoint;
+ CurrentLineColor := C;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Shapes[I].LineColor := C;
+ DocumentModified := True;
+End;
+
+Procedure CmdLineWidth;
+Var I: Integer;
+Begin
+ UndoCheckpoint;
+ If CurrentLineWidth >= 3 Then CurrentLineWidth := 1 Else CurrentLineWidth := 3;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Shapes[I].LineWidth := CurrentLineWidth;
+ DocumentModified := True;
+End;
+
+Procedure CmdLineStyle;
+Var I: Integer;
+Begin
+ UndoCheckpoint;
+ CurrentLineStyle := (CurrentLineStyle + 1) mod 4;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Shapes[I].LineStyle := CurrentLineStyle;
+ DocumentModified := True;
+End;
+
+{ Alignement : 1 gauche, 2 centre, 3 droite, 4 haut, 5 milieu, 6 bas }
+Procedure CmdAlign(Mode: Integer);
+Var I, MnX, MxX, MnY, MxY, DX, DY: Integer;
+Begin
+ If CountSel = 0 Then Exit;
+ UndoCheckpoint;
+ If CountSel = 1 Then Begin
+  MnX := TOOLBAR_WIDTH + 2; MxX := ScreenWidth - 2;
+  MnY := WORK_AREA_TOP + 2; MxY := ScreenHeight - 18;
+ End
+ Else Begin
+  MnX := 30000; MxX := -30000; MnY := 30000; MxY := -30000;
+  For I := 1 to ShapeCount do If Shapes[I].Selected Then Begin
+   If Shapes[I].X1 < MnX Then MnX := Shapes[I].X1;
+   If Shapes[I].X2 > MxX Then MxX := Shapes[I].X2;
+   If Shapes[I].Y1 < MnY Then MnY := Shapes[I].Y1;
+   If Shapes[I].Y2 > MxY Then MxY := Shapes[I].Y2;
+  End;
+ End;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Begin
+  DX := 0; DY := 0;
+  Case Mode of
+   1: DX := MnX - Shapes[I].X1;
+   2: DX := (MnX + MxX) div 2 - (Shapes[I].X1 + Shapes[I].X2) div 2;
+   3: DX := MxX - Shapes[I].X2;
+   4: DY := MnY - Shapes[I].Y1;
+   5: DY := (MnY + MxY) div 2 - (Shapes[I].Y1 + Shapes[I].Y2) div 2;
+   6: DY := MxY - Shapes[I].Y2;
+  End;
+  MoveShape(I, DX, DY);
+ End;
+ UpdateAllConnectors;
+End;
+
+{ Distribution : horizontale (True) ou verticale des formes selectionnees }
+Procedure CmdDistribute(Horizontal: Boolean);
+Var Idx: Array[1..MAX_SHAPES] of Integer; N, I, J, T, Span, Total, Pos, Gap: Integer;
+Begin
+ N := 0;
+ For I := 1 to ShapeCount do If Shapes[I].Selected Then Begin Inc(N); Idx[N] := I; End;
+ If N < 3 Then Begin
+  If Language = _French Then StatusMessage := 'Selectionner au moins 3 formes' Else StatusMessage := 'Select at least 3 shapes';
+  Exit;
+ End;
+ UndoCheckpoint;
+ For I := 2 to N do Begin
+  T := Idx[I]; J := I - 1;
+  While (J >= 1) and
+        ((Horizontal and (Shapes[Idx[J]].X1 > Shapes[T].X1)) or
+         ((Not Horizontal) and (Shapes[Idx[J]].Y1 > Shapes[T].Y1))) do Begin
+   Idx[J + 1] := Idx[J]; Dec(J);
+  End;
+  Idx[J + 1] := T;
+ End;
+ Total := 0;
+ If Horizontal Then Begin
+  Span := Shapes[Idx[N]].X2 - Shapes[Idx[1]].X1;
+  For I := 1 to N do Total := Total + Shapes[Idx[I]].X2 - Shapes[Idx[I]].X1;
+  Gap := (Span - Total) div (N - 1);
+  Pos := Shapes[Idx[1]].X1;
+  For I := 1 to N do Begin
+   MoveShape(Idx[I], Pos - Shapes[Idx[I]].X1, 0);
+   Pos := Shapes[Idx[I]].X2 + Gap;
+  End;
+ End
+ Else Begin
+  Span := Shapes[Idx[N]].Y2 - Shapes[Idx[1]].Y1;
+  For I := 1 to N do Total := Total + Shapes[Idx[I]].Y2 - Shapes[Idx[I]].Y1;
+  Gap := (Span - Total) div (N - 1);
+  Pos := Shapes[Idx[1]].Y1;
+  For I := 1 to N do Begin
+   MoveShape(Idx[I], 0, Pos - Shapes[Idx[I]].Y1);
+   Pos := Shapes[Idx[I]].Y2 + Gap;
+  End;
+ End;
+ UpdateAllConnectors;
+End;
+
+Procedure CmdGroup;
+Begin
+ HasSelection := True;
+ UndoCheckpoint;
+ FormatGroup;
+End;
+
+Procedure CmdUngroup;
+Begin
+ HasSelection := True;
+ UndoCheckpoint;
+ FormatUngroup;
+End;
+
+{ Vue : zoom autour du centre de la zone de travail }
+Procedure CmdViewZoom(F: Real);
+Var CX, CY: Integer;
+Begin
+ UndoCheckpoint;
+ CX := TOOLBAR_WIDTH + (ScreenWidth - TOOLBAR_WIDTH) div 2;
+ CY := WORK_AREA_TOP + (ScreenHeight - WORK_AREA_TOP - 16) div 2;
+ ZoomAllShapes(CX, CY, CX, CY, F);
+End;
+
+Procedure CmdViewFit;
+Var I, K, MnX, MxX, MnY, MxY: Integer; S, SX, SY: Real;
+Begin
+ If ShapeCount = 0 Then Exit;
+ UndoCheckpoint;
+ MnX := 30000; MxX := -30000; MnY := 30000; MxY := -30000;
+ For I := 1 to ShapeCount do Begin
+  If Shapes[I].X1 < MnX Then MnX := Shapes[I].X1;
+  If Shapes[I].X2 > MxX Then MxX := Shapes[I].X2;
+  If Shapes[I].Y1 < MnY Then MnY := Shapes[I].Y1;
+  If Shapes[I].Y2 > MxY Then MxY := Shapes[I].Y2;
+ End;
+ If MxX - MnX < 4 Then MxX := MnX + 4;
+ If MxY - MnY < 4 Then MxY := MnY + 4;
+ SX := (ScreenWidth - TOOLBAR_WIDTH - 40) / (MxX - MnX);
+ SY := (ScreenHeight - WORK_AREA_TOP - 56) / (MxY - MnY);
+ If SX < SY Then S := SX Else S := SY;
+ If S > 6 Then S := 6;
+ ZoomAllShapes((MnX + MxX) div 2, (MnY + MxY) div 2,
+               TOOLBAR_WIDTH + (ScreenWidth - TOOLBAR_WIDTH) div 2,
+               WORK_AREA_TOP + (ScreenHeight - WORK_AREA_TOP - 16) div 2, S);
+End;
+
+{ Fin de la selection par cadre }
+Procedure FinishMarquee(X, Y: Integer);
+Var I, RX1, RY1, RX2, RY2, T: Integer;
+Begin
+ MarqueeActive := False;
+ RX1 := DrawStartX; RY1 := DrawStartY; RX2 := X; RY2 := Y;
+ If RX1 > RX2 Then Begin T := RX1; RX1 := RX2; RX2 := T; End;
+ If RY1 > RY2 Then Begin T := RY1; RY1 := RY2; RY2 := T; End;
+ If (RX2 - RX1 < 4) and (RY2 - RY1 < 4) Then Exit;
+ SelectedShape := 0;
+ For I := 1 to ShapeCount do
+  If IsLayerVisible(Shapes[I].LayerIndex) and (Not IsLayerLocked(Shapes[I].LayerIndex)) and
+     (Shapes[I].X1 >= RX1) and (Shapes[I].X2 <= RX2) and
+     (Shapes[I].Y1 >= RY1) and (Shapes[I].Y2 <= RY2) Then Begin
+   Shapes[I].Selected := True;
+   If SelectedShape = 0 Then SelectedShape := I;
+  End;
+ If SelectedShape > 0 Then Begin
+  If Language = _French Then StatusMessage := 'Formes selectionnees' Else StatusMessage := 'Shapes selected';
+ End;
+End;
+
+{ Grille et regles }
+Procedure DrawGridLayer;
+Var X, Y: Integer;
+Begin
+ If Not ShowGrid Then Exit;
+ SetColor(LightGray);
+ Y := WORK_AREA_TOP + 14;
+ While Y < ScreenHeight - 16 do Begin
+  X := TOOLBAR_WIDTH + 14;
+  While X < ScreenWidth do Begin
+   PutPixel(X, Y, DarkGray);
+   Inc(X, 16);
+  End;
+  Inc(Y, 16);
+ End;
+End;
+
+Procedure DrawRulersLayer;
+Var X, Y: Integer; S: String;
+Begin
+ If Not ShowRulers Then Exit;
+ SetFillStyle(SolidFill, LightGray);
+ Bar(TOOLBAR_WIDTH + 1, WORK_AREA_TOP + 1, ScreenWidth, WORK_AREA_TOP + 12);
+ Bar(TOOLBAR_WIDTH + 1, WORK_AREA_TOP + 1, TOOLBAR_WIDTH + 12, ScreenHeight - 16);
+ SetColor(DarkGray);
+ Line(TOOLBAR_WIDTH + 1, WORK_AREA_TOP + 12, ScreenWidth, WORK_AREA_TOP + 12);
+ Line(TOOLBAR_WIDTH + 12, WORK_AREA_TOP + 12, TOOLBAR_WIDTH + 12, ScreenHeight - 16);
+ SetColor(Black);
+ X := TOOLBAR_WIDTH + 14;
+ While X < ScreenWidth do Begin
+  If ((X - TOOLBAR_WIDTH - 14) mod 80) = 0 Then Begin
+   Line(X, WORK_AREA_TOP + 4, X, WORK_AREA_TOP + 11);
+   Str(X - TOOLBAR_WIDTH - 14, S);
+   OutTextXY(X + 2, WORK_AREA_TOP + 3, S);
+  End
+  Else Line(X, WORK_AREA_TOP + 9, X, WORK_AREA_TOP + 11);
+  Inc(X, 16);
+ End;
+ Y := WORK_AREA_TOP + 14;
+ While Y < ScreenHeight - 16 do Begin
+  If ((Y - WORK_AREA_TOP - 14) mod 80) = 0 Then Line(TOOLBAR_WIDTH + 4, Y, TOOLBAR_WIDTH + 11, Y)
+  Else Line(TOOLBAR_WIDTH + 9, Y, TOOLBAR_WIDTH + 11, Y);
+  Inc(Y, 16);
+ End;
+End;
+
+{ Palette de couleurs (popup sous un bouton du ruban) }
+Procedure PopupBox(Var X, Y, W, H: Integer);
+Begin
+ W := 8 * 18 + 6; H := 2 * 18 + 6;
+ X := PopupX; Y := PopupY;
+ If X + W > ScreenWidth Then X := ScreenWidth - W - 1;
+End;
+
+Procedure DrawPopup;
+Var X, Y, W, H, I: Integer;
+Begin
+ If PopupKind = 0 Then Exit;
+ PopupBox(X, Y, W, H);
+ SetFillStyle(SolidFill, DarkGray); Bar(X + 3, Y + 3, X + W + 3, Y + H + 3);
+ SetFillStyle(SolidFill, LightGray); Bar(X, Y, X + W, Y + H);
+ SetColor(Black); Rectangle(X, Y, X + W, Y + H);
+ For I := 0 to 15 do Begin
+  SetFillStyle(SolidFill, I);
+  Bar(X + 3 + (I mod 8) * 18, Y + 3 + (I div 8) * 18, X + 3 + (I mod 8) * 18 + 15, Y + 3 + (I div 8) * 18 + 15);
+  SetColor(Black);
+  Rectangle(X + 3 + (I mod 8) * 18, Y + 3 + (I div 8) * 18, X + 3 + (I mod 8) * 18 + 15, Y + 3 + (I div 8) * 18 + 15);
+ End;
+End;
+
+Procedure PopupClick(X, Y: Integer);
+Var BX, BY, W, H, C: Integer;
+Begin
+ PopupBox(BX, BY, W, H);
+ If (X >= BX + 3) and (X < BX + 3 + 8 * 18) and (Y >= BY + 3) and (Y < BY + 3 + 2 * 18) Then Begin
+  C := ((Y - BY - 3) div 18) * 8 + (X - BX - 3) div 18;
+  If PopupKind = 1 Then CmdSetFill(C) Else CmdSetLine(C);
+ End;
+ PopupKind := 0;
+End;
+
+{ Pression du bouton gauche avec un des nouveaux outils }
+Procedure NewToolPress(X, Y: Integer);
+Var I, K, W, H, BestK: Integer; D, BestD: Real;
+Begin
+ Case CurrentTool of
+  ttArc, ttTextBlock, ttCrop, ttZoom, ttShapeLib: Begin
+    IsDrawing := True; DrawStartX := X; DrawStartY := Y;
+   End;
+  ttFreeform, ttPencil: Begin
+    IsDrawing := True; DrawStartX := X; DrawStartY := Y;
+    FreeN := 1; FreeX[1] := X; FreeY[1] := Y;
+   End;
+  ttPan: Begin
+    IsDrawing := True; PanLastX := X; PanLastY := Y;
+   End;
+  ttRotate: Begin
+    I := GetShapeAtPosition(X, Y);
+    If I > 0 Then Begin
+     SelectShape(I);
+     RotShape := I; RotPressX := X; RotPressY := Y;
+     DrawStartX := (Shapes[I].X1 + Shapes[I].X2) div 2;
+     DrawStartY := (Shapes[I].Y1 + Shapes[I].Y2) div 2;
+     IsDrawing := True;
+    End
+    Else Begin
+     RotShape := 0;
+     StatusMessage := 'Cliquer sur une forme a faire tourner';
+    End;
+   End;
+  ttFormat: Begin
+    I := GetShapeAtPosition(X, Y);
+    If Not FPHave Then Begin
+     If (I = 0) and (SelectedShape > 0) Then I := SelectedShape;
+     If I > 0 Then Begin
+      FPFill := Shapes[I].FillColor; FPLine := Shapes[I].LineColor;
+      FPWidth := Shapes[I].LineWidth; FPStyle := Shapes[I].LineStyle;
+      FPHave := True;
+      StatusMessage := 'Format copie : cliquer la forme cible';
+     End
+     Else StatusMessage := 'Cliquer une forme pour copier son format';
+    End
+    Else Begin
+     If I > 0 Then Begin
+      If Shapes[I].ShapeType <> stText Then Shapes[I].FillColor := FPFill;
+      Shapes[I].LineColor := FPLine;
+      Shapes[I].LineWidth := FPWidth;
+      If Shapes[I].ShapeType <> stText Then Shapes[I].LineStyle := FPStyle;
+      DocumentModified := True;
+      FPHave := False;
+      SelectShape(I);
+      CurrentTool := ttSelection;
+      StatusMessage := 'Format applique';
+     End
+     Else Begin
+      FPHave := False;
+      StatusMessage := 'Pinceau de format annule';
+     End;
+    End;
+   End;
+  ttConnPoint: Begin
+    I := GetShapeAtPosition(X, Y);
+    If I = 0 Then Begin
+     StatusMessage := 'Cliquer sur une forme';
+     Exit;
+    End;
+    { clic sur un point existant : on le retire }
+    BestK := 0; BestD := 8;
+    For K := 1 to CPCount do If ConnPts[K].Shp = I Then Begin
+     CPPoint(K, W, H);
+     D := Sqrt(Sqr(X - W) + Sqr(Y - H));
+     If D < BestD Then Begin BestD := D; BestK := K; End;
+    End;
+    If BestK > 0 Then Begin
+     For K := BestK to CPCount - 1 do ConnPts[K] := ConnPts[K + 1];
+     Dec(CPCount);
+     StatusMessage := 'Point de connexion retire';
+    End
+    Else If CPCount < 200 Then Begin
+     W := Shapes[I].X2 - Shapes[I].X1; H := Shapes[I].Y2 - Shapes[I].Y1;
+     Inc(CPCount);
+     ConnPts[CPCount].Shp := I;
+     If W > 0 Then ConnPts[CPCount].RX := ((X - Shapes[I].X1) * 1000) div W Else ConnPts[CPCount].RX := 500;
+     If H > 0 Then ConnPts[CPCount].RY := ((Y - Shapes[I].Y1) * 1000) div H Else ConnPts[CPCount].RY := 500;
+     If ConnPts[CPCount].RX < 0 Then ConnPts[CPCount].RX := 0;
+     If ConnPts[CPCount].RX > 1000 Then ConnPts[CPCount].RX := 1000;
+     If ConnPts[CPCount].RY < 0 Then ConnPts[CPCount].RY := 0;
+     If ConnPts[CPCount].RY > 1000 Then ConnPts[CPCount].RY := 1000;
+     DocumentModified := True;
+     StatusMessage := 'Point de connexion ajoute (cliquer dessus pour le retirer)';
+    End
+    Else StatusMessage := 'Trop de points de connexion';
+   End;
+ End;
+End;
+
+{ Mouvement du bouton enfonce (main levee, crayon, panoramique) ; ecran masque la souris }
+Procedure NewToolDrag(X, Y: Integer);
+Begin
+ Case CurrentTool of
+  ttFreeform, ttPencil: Begin
+    If (FreeN < 300) and
+       ((Abs(X - FreeX[FreeN]) >= 3) or (Abs(Y - FreeY[FreeN]) >= 3)) Then Begin
+     SetColor(CurrentLineColor);
+     SetLineStyle(SolidLn, 0, NormWidth);
+     Line(FreeX[FreeN], FreeY[FreeN], X, Y);
+     Inc(FreeN);
+     FreeX[FreeN] := X; FreeY[FreeN] := Y;
+    End;
+   End;
+  ttPan: Begin
+    If (X <> PanLastX) or (Y <> PanLastY) Then Begin
+     ShiftAllShapes(X - PanLastX, Y - PanLastY);
+     PanLastX := X; PanLastY := Y;
+     RefreshScreen;
+    End;
+   End;
+ End;
+End;
+
+{ Cree une forme de la bibliotheque }
+Procedure AddLibShape(K, X1, Y1, X2, Y2: Integer);
+Var T: Integer;
+Begin
+ If ShapeCount >= MAX_SHAPES Then Exit;
+ If X1 > X2 Then Begin T := X1; X1 := X2; X2 := T; End;
+ If Y1 > Y2 Then Begin T := Y1; Y1 := Y2; Y2 := T; End;
+ If X2 - X1 < 12 Then X2 := X1 + 12;
+ If Y2 - Y1 < 12 Then Y2 := Y1 + 12;
+ If X1 < TOOLBAR_WIDTH + 2 Then Begin X2 := X2 + (TOOLBAR_WIDTH + 2 - X1); X1 := TOOLBAR_WIDTH + 2; End;
+ If Y1 < WORK_AREA_TOP + 2 Then Begin Y2 := Y2 + (WORK_AREA_TOP + 2 - Y1); Y1 := WORK_AREA_TOP + 2; End;
+ Inc(ShapeCount);
+ InitShape(Shapes[ShapeCount]);
+ Shapes[ShapeCount].ShapeType := stLib;
+ Shapes[ShapeCount].Kind := K;
+ Shapes[ShapeCount].X1 := X1; Shapes[ShapeCount].Y1 := Y1;
+ Shapes[ShapeCount].X2 := X2; Shapes[ShapeCount].Y2 := Y2;
+ Shapes[ShapeCount].FillColor := CurrentFillColor;
+ Shapes[ShapeCount].LineColor := CurrentLineColor;
+ Shapes[ShapeCount].LineWidth := CurrentLineWidth;
+ Shapes[ShapeCount].LineStyle := CurrentLineStyle;
+ DocumentModified := True;
+ SelectShape(ShapeCount);
+ CurrentTool := ttSelection;
+ StatusMessage := Copy(LibFlatName(K), 1, 60);
+End;
+
+{ Relachement du bouton avec un des nouveaux outils (IsDrawing deja remis a False) }
+Procedure NewToolRelease(X, Y: Integer);
+Var A0, A1, Ang: Real; Deg, RX1, RY1, RX2, RY2, T: Integer; S, SX, SY: Real; ZS: String;
+Begin
+ Case CurrentTool of
+  ttArc: Begin
+    If ((Abs(X - DrawStartX) > 5) and (Abs(Y - DrawStartY) > 5)) and (ShapeCount < MAX_SHAPES) Then Begin
+     Inc(ShapeCount);
+     InitShape(Shapes[ShapeCount]);
+     Shapes[ShapeCount].ShapeType := stBezier;
+     Shapes[ShapeCount].PointCount := 4;
+     Shapes[ShapeCount].Points[1].X := DrawStartX; Shapes[ShapeCount].Points[1].Y := DrawStartY;
+     Shapes[ShapeCount].Points[2].X := DrawStartX + Round(0.5522847 * (X - DrawStartX));
+     Shapes[ShapeCount].Points[2].Y := DrawStartY;
+     Shapes[ShapeCount].Points[3].X := X;
+     Shapes[ShapeCount].Points[3].Y := Y + Round(0.5522847 * (DrawStartY - Y));
+     Shapes[ShapeCount].Points[4].X := X; Shapes[ShapeCount].Points[4].Y := Y;
+     FitBoundsToPoints(Shapes[ShapeCount]);
+     NewShapeStyle(ShapeCount);
+     DocumentModified := True;
+     SelectShape(ShapeCount);
+     CurrentTool := ttSelection;
+    End
+    Else StatusMessage := 'Glisser en diagonale pour tracer un arc';
+   End;
+  ttShapeLib: Begin
+    If (Abs(X - DrawStartX) < 6) and (Abs(Y - DrawStartY) < 6) Then Begin
+     LibDefaultSize(ArmedKind, RX1, RY1);
+     AddLibShape(ArmedKind, X - RX1 div 2, Y - RY1 div 2, X + RX1 div 2, Y + RY1 div 2);
+    End
+    Else AddLibShape(ArmedKind, DrawStartX, DrawStartY, X, Y);
+   End;
+  ttFreeform: FinishFreehand(False);
+  ttPencil: FinishFreehand(True);
+  ttTextBlock: Begin
+    If ShapeCount < MAX_SHAPES Then Begin
+     RX1 := DrawStartX; RY1 := DrawStartY; RX2 := X; RY2 := Y;
+     If RX1 > RX2 Then Begin T := RX1; RX1 := RX2; RX2 := T; End;
+     If RY1 > RY2 Then Begin T := RY1; RY1 := RY2; RY2 := T; End;
+     If RX2 - RX1 < 24 Then RX2 := RX1 + 120;
+     If RY2 - RY1 < 16 Then RY2 := RY1 + 40;
+     Inc(ShapeCount);
+     InitShape(Shapes[ShapeCount]);
+     Shapes[ShapeCount].ShapeType := stText;
+     Shapes[ShapeCount].X1 := RX1; Shapes[ShapeCount].Y1 := RY1;
+     Shapes[ShapeCount].X2 := RX2; Shapes[ShapeCount].Y2 := RY2;
+     Shapes[ShapeCount].Text := '';
+     Shapes[ShapeCount].LineColor := CurrentLineColor;
+     Shapes[ShapeCount].LineStyle := LINESTYLE_DOTTED;
+     DocumentModified := True;
+     CurrentTool := ttSelection;
+     BeginTextEdit(ShapeCount, RX1, False);
+    End;
+   End;
+  ttRotate: Begin
+    If (RotShape >= 1) and (RotShape <= ShapeCount) Then Begin
+     If (Abs(X - RotPressX) < 5) and (Abs(Y - RotPressY) < 5) Then Deg := 90
+     Else Begin
+      A0 := ATan2R(RotPressY - DrawStartY, RotPressX - DrawStartX);
+      A1 := ATan2R(Y - DrawStartY, X - DrawStartX);
+      Ang := (A1 - A0) * 180 / Pi;
+      Deg := Round(Ang / 15) * 15;
+     End;
+     If Deg <> 0 Then Begin
+      RotateShapeBy(RotShape, Deg);
+      Str(((Deg mod 360) + 360) mod 360, ZS);
+      StatusMessage := 'Rotation de ' + ZS + ' deg';
+     End;
+    End;
+    RotShape := 0;
+   End;
+  ttCrop: Begin
+    If (Abs(X - DrawStartX) >= 6) and (Abs(Y - DrawStartY) >= 6) Then Begin
+     T := SelectedShape;
+     If T = 0 Then T := GetShapeAtPosition(DrawStartX, DrawStartY);
+     If T > 0 Then CropShapeTo(T, DrawStartX, DrawStartY, X, Y)
+     Else StatusMessage := 'Selectionner d''abord une forme a rogner';
+    End;
+   End;
+  ttZoom: Begin
+    If (Abs(X - DrawStartX) >= 8) and (Abs(Y - DrawStartY) >= 8) Then Begin
+     RX1 := DrawStartX; RY1 := DrawStartY; RX2 := X; RY2 := Y;
+     If RX1 > RX2 Then Begin T := RX1; RX1 := RX2; RX2 := T; End;
+     If RY1 > RY2 Then Begin T := RY1; RY1 := RY2; RY2 := T; End;
+     SX := (ScreenWidth - TOOLBAR_WIDTH - 20) / (RX2 - RX1);
+     SY := (ScreenHeight - WORK_AREA_TOP - 40) / (RY2 - RY1);
+     If SX < SY Then S := SX Else S := SY;
+     If S > 8 Then S := 8;
+     If S < 0.2 Then S := 0.2;
+     ZoomAllShapes((RX1 + RX2) div 2, (RY1 + RY2) div 2,
+                   TOOLBAR_WIDTH + (ScreenWidth - TOOLBAR_WIDTH) div 2,
+                   WORK_AREA_TOP + (ScreenHeight - WORK_AREA_TOP - 16) div 2, S);
+    End
+    Else ZoomAllShapes(X, Y, X, Y, 2.0);
+   End;
+ End;
+End;
+
+{ Relachement apres un appui sur une forme du panneau }
+Procedure PanelRelease(X, Y: Integer);
+Var K, W, H: Integer;
+Begin
+ K := PressKind;
+ PressKind := 0;
+ If K = 0 Then Exit;
+ If (X > TOOLBAR_WIDTH) and (Y > WORK_AREA_TOP) Then Begin
+  LibDefaultSize(K, W, H);
+  AddLibShape(K, X - W div 2, Y - H div 2, X + W div 2, Y + H div 2);
+ End
+ Else If (PanelCellAt(X, Y) = K) Then Begin
+  CurrentTool := ttShapeLib;
+  ArmedKind := K;
+  If Language = _French Then
+   StatusMessage := Copy(LibFlatName(K) + ' : glisser sur la page pour dessiner', 1, 80)
+  Else
+   StatusMessage := Copy(LibFlatName(K) + ': drag on the page to draw', 1, 80);
+ End;
+End;
+
 
 Procedure HandleLeftClick(X, Y: Integer);
 Var
@@ -15113,6 +17454,12 @@ Var
  MenuIdx, ItemIdx: Integer;
  ShouldExit: Boolean;
 Begin
+ TipShown := False; TipArmed := False;
+ If PopupKind > 0 Then Begin
+  PopupClick(X, Y);
+  Exit;
+ End;
+ If (Y > WORK_AREA_TOP) and (X > TOOLBAR_WIDTH) Then UndoCheckpoint;
  If (Y>WORK_AREA_TOP) and (CurrentTool in [ttSelection,ttText]) Then Begin
   ShapeIndex:=GetShapeAtPosition(X,Y);
   If (ShapeIndex>0) and (Shapes[ShapeIndex].ShapeType=stText) Then Begin
@@ -15180,13 +17527,17 @@ Begin
   If ToolIndex > 0 Then Begin
    SelectTool(ToolIndex);
    DrawToolbar;
+  End
+  Else Begin
+   TipShown := False; TipArmed := False;
+   PanelClick(X, Y);
   End;
   Exit;
  End;
 
  { Verifier si le clic est dans la barre d'icones horizontale }
  If (Y > MENU_HEIGHT) and (Y <= ICONBAR_TOP + ICONBAR_HEIGHT) and
-    (X > TOOLBAR_WIDTH) Then Begin
+    (X > CLASSIC_TOOLBAR_WIDTH) Then Begin
   ToolIndex := GetIconBarButtonAtPosition(X, Y);
   If ToolIndex > 0 Then Begin
    { Effet d'enfoncement visuel bref }
@@ -15223,6 +17574,10 @@ Begin
      Else Begin
       DeselectAllShapes;
       EndDrag;
+      { selection par cadre }
+      IsDrawing := True;
+      MarqueeActive := True;
+      DrawStartX := X; DrawStartY := Y;
      End;
     End;
    ttRectangle, ttEllipse, ttLine, ttConnector: Begin
@@ -15247,6 +17602,8 @@ Begin
       BeginTextEdit(ShapeCount,X,False);
      End;
     End;
+   ttArc, ttTextBlock, ttCrop, ttZoom, ttFreeform, ttPencil, ttPan,
+   ttRotate, ttFormat, ttConnPoint, ttShapeLib: NewToolPress(X, Y);
    ttPolygon: Begin
      { Pour les polygones, on ajoute un point au polygone en cours }
      { Pour simplifier, crÃ©er un polygone rÃ©gulier (hexagone) }
@@ -15330,6 +17687,10 @@ Var
  StartShape, StartAnchor: Integer;
  EndShape, EndAnchor: Integer;
 Begin
+ If PressKind > 0 Then Begin
+  PanelRelease(X, Y);
+  Exit;
+ End;
  { Terminer le glissement s'il y en a un en cours }
  If DragMode <> DRAG_MODE_NONE Then Begin
   EndDrag;
@@ -15341,6 +17702,16 @@ Begin
  If Not IsDrawing Then Exit;
 
  IsDrawing := False;
+
+ If MarqueeActive Then Begin
+  FinishMarquee(X, Y);
+  Exit;
+ End;
+
+ If CurrentTool in [ttArc, ttFreeform, ttPencil, ttTextBlock, ttRotate, ttCrop, ttZoom, ttPan, ttShapeLib] Then Begin
+  NewToolRelease(X, Y);
+  Exit;
+ End;
 
  { Traitement spÃ©cial pour les connecteurs }
  If CurrentTool = ttConnector Then Begin
@@ -15405,9 +17776,12 @@ Procedure InitShapes;
 Var
  I: Integer;
 Begin
- ShapeCount := 0;
+ ShapeCount := 0; CPCount := 0;
  SelectedShape := 0;
  IsDrawing := False;
+ UndoTop := 0; RedoTop := 0; SnapTmp := Nil; ClipN := 0; PopupKind := 0; MarqueeActive := False;
+ FPHave := False; FreeN := 0; RotShape := 0; ZoomTotal := 1.0;
+ TipTool := 0; TipShown := False; TipArmed := False; TipStart := 0;
  DrawStartX := 0;
  DrawStartY := 0;
  LastMouseX := 0;
@@ -15581,6 +17955,10 @@ Var
  ShapeIndex: Integer;
 Begin
  FinishTextEdit(False);
+ If (CurrentTool = ttZoom) and (Y > WORK_AREA_TOP) and (X > TOOLBAR_WIDTH) Then Begin
+  ZoomAllShapes(X, Y, X, Y, 0.5);
+  Exit;
+ End;
  { Masquer le menu contextuel s'il est dÃ©jÃ  visible }
  If ContextMenuVisible Then Begin
   HideContextMenu;
@@ -15620,6 +17998,7 @@ Procedure DrawMenuBar;
 Var
  I: Integer;
  TextX: Integer;
+ TabName: String;
 Begin
  { Dessiner le fond de la barre de menu }
  SetFillStyle(SolidFill, MENU_BAR_COLOR);
@@ -15631,13 +18010,14 @@ Begin
 
  { Dessiner chaque Ã©lÃ©ment du menu }
  For I := 1 to MENU_COUNT do Begin
-  TextX := MenuPositions[I];
+  If RibbonMode Then Begin TextX := RibTabX(I); TabName := RibTabName(I); End
+  Else Begin TextX := MenuPositions[I]; TabName := MenuNames[I]; End;
 
   { Si ce menu est sÃ©lectionnÃ©, dessiner le fond en surbrillance }
   If ((I = CurrentMenu) and (MenuState <> msNone)) or
      (RibbonMode and (I = RibbonTab)) Then Begin
    SetFillStyle(SolidFill, MENU_HIGHLIGHT_BG);
-   Bar(TextX - 4, 1, TextX + Length(MenuNames[I]) * 8 + 4, MENU_HEIGHT - 1);
+   Bar(TextX - 4, 1, TextX + Length(TabName) * 8 + 4, MENU_HEIGHT - 1);
    SetColor(MENU_HIGHLIGHT_FG);
   End
   Else Begin
@@ -15645,7 +18025,7 @@ Begin
   End;
 
   { Dessiner le texte du menu }
-  OutTextXY(TextX, 4, MenuNames[I]);
+  OutTextXY(TextX, 4, TabName);
  End;
 End;
 
@@ -15988,7 +18368,14 @@ Begin
  { VÃ©rifier si on est dans la barre de menu }
  If (MouseY >= 0) and (MouseY <= MENU_HEIGHT) Then Begin
   For I := 1 to MENU_COUNT do Begin
-   If (MouseX >= MenuPositions[I] - 4) and
+   If RibbonMode Then Begin
+    If (MouseX >= RibTabX(I) - 4) and
+       (MouseX <= RibTabX(I) + Length(RibTabName(I)) * 8 + 4) Then Begin
+     GetMenuAtPosition := I;
+     Exit;
+    End;
+   End
+   Else If (MouseX >= MenuPositions[I] - 4) and
       (MouseX <= MenuPositions[I] + Length(MenuNames[I]) * 8 + 4) Then Begin
     GetMenuAtPosition := I;
     Exit;
@@ -17442,6 +19829,10 @@ End;
 { Action declenchee par un clic sur un bouton de la barre d'icones }
 Procedure ExecuteIconBarAction(Index: Integer);
 Begin
+ If Index >= 10 Then Begin
+  SelectTool(ToolOrder[Index - 9]);
+  Exit;
+ End;
  Case Index of
   1: FileNew;       { Nouveau }
   2: FileOpen;      { Ouvrir }
@@ -17583,114 +19974,805 @@ Begin
 End;
 
 { ProcÃ©dure pour rafraÃ®chir l'affichage complet }
-Function RibbonMenuItem(Index:Integer):Integer;
-Var I,N:Integer;
+{ ============================================================================ }
+{ === RUBAN (mode /RUBANMENU) : onglets, groupes, grandes icones, infobulles === }
+{ ============================================================================ }
+Const
+ RIB_MAX = 56;
+ RC_NONE = 999;
+ RC_NEW = 1; RC_OPEN = 2; RC_SAVE = 3; RC_SAVEAS = 4; RC_CLOSE = 5; RC_EXPORT = 6;
+ RC_PRINT = 7; RC_PREVIEW = 8; RC_EXIT = 9; RC_PASTE = 10; RC_CUT = 11; RC_COPY = 12;
+ RC_DUP = 13; RC_UNDO = 14; RC_REDO = 15; RC_DELETE = 16; RC_SELALL = 17;
+ RC_FILL = 21; RC_LINE = 22; RC_WEIGHT = 23; RC_DASH = 24; RC_FRONT = 25; RC_BACK = 26;
+ RC_ROTR = 27; RC_ROTL = 28; RC_FLIPH = 29; RC_FLIPV = 30; RC_LAYERS = 31;
+ RC_GROUP = 32; RC_UNGROUP = 33; RC_AL_L = 34; RC_AL_C = 35; RC_AL_R = 36;
+ RC_AL_T = 37; RC_AL_M = 38; RC_AL_B = 39; RC_DISTH = 40; RC_DISTV = 41;
+ RC_ZOOMIN = 42; RC_ZOOMOUT = 43; RC_FIT = 44; RC_GRID = 45; RC_RULERS = 46;
+ RC_PANEL = 47; RC_IMAGE = 48; RC_ABOUT = 49; RC_SNAP = 63; RC_TOOL = 100;
+
+Type
+ TRibItem = Record
+  Cap: String[18];
+  Tip: String[46];
+  Icon, Cmd, X, Y, W, H: Integer;
+  Big: Boolean;
+ End;
+ TRibGroup = Record
+  X1, X2: Integer;
+  Title: String[18];
+ End;
+
+Var
+ RibItems: Array[1..RIB_MAX] of TRibItem;
+ RibGroups: Array[1..10] of TRibGroup;
+ RibCount, RibGroupCount: Integer;
+ RibBuiltTab: Integer;
+ RibBuiltLang: Integer;
+ RibX, RibGStart, RibColN, RibColFirst: Integer;
+ RibGTitle: String;
+ RX0, RY0: Integer;
+ RSc: Real;
+ RGray: Boolean;
+
+{ ---- primitives d'icones (grille 32x32, echelle RSc) ---- }
+Function RXc(V: Integer): Integer;
 Begin
- N:=0;RibbonMenuItem:=0;
- For I:=1 To GetMenuItemCount(RibbonTab) Do
-  If Not IsMenuSeparator(RibbonTab,I) Then Begin
-   Inc(N);If N=Index Then RibbonMenuItem:=I;
-  End;
+ RXc := RX0 + Round(V * RSc);
 End;
 
-Function RibbonItemCount:Integer;
-Var I,N:Integer;
+Function RYc(V: Integer): Integer;
 Begin
- N:=0;For I:=1 To GetMenuItemCount(RibbonTab) Do
-  If Not IsMenuSeparator(RibbonTab,I) Then Inc(N);
- RibbonItemCount:=N;
+ RYc := RY0 + Round(V * RSc);
 End;
 
-Procedure RibbonButtonBox(Index:Integer;Var X,Y,W,H:Integer);
+Procedure RCol(C: Integer);
 Begin
- W:=(ScreenWidth-8) div 4;H:=28;
- X:=4+((Index-1) div 4)*W;Y:=MENU_HEIGHT+4+((Index-1) mod 4)*H;
+ If RGray Then SetColor(DarkGray) Else SetColor(C);
 End;
 
-Function RibbonHitAt(X,Y:Integer):Integer;
-Var I,BX,BY,W,H:Integer;
+Procedure RLn(A, B, C, D: Integer);
 Begin
- RibbonHitAt:=0;If Not RibbonMode Then Exit;
- For I:=1 To RibbonItemCount Do Begin
-  RibbonButtonBox(I,BX,BY,W,H);
-  If (X>=BX) and (X<BX+W) and (Y>=BY) and (Y<BY+H) Then RibbonHitAt:=I;
+ Line(RXc(A), RYc(B), RXc(C), RYc(D));
+End;
+
+Procedure RBar(A, B, C, D, Fill, Border: Integer);
+Begin
+ If RGray Then SetFillStyle(SolidFill, LightGray) Else SetFillStyle(SolidFill, Fill);
+ Bar(RXc(A), RYc(B), RXc(C), RYc(D));
+ RCol(Border);
+ Rectangle(RXc(A), RYc(B), RXc(C), RYc(D));
+End;
+
+Procedure ROval(CX, CY, RX, RY, Fill, Border: Integer);
+Begin
+ If RGray Then SetFillStyle(SolidFill, LightGray) Else SetFillStyle(SolidFill, Fill);
+ FillEllipse(RXc(CX), RYc(CY), Round(RX * RSc), Round(RY * RSc));
+ RCol(Border);
+ Ellipse(RXc(CX), RYc(CY), 0, 360, Round(RX * RSc), Round(RY * RSc));
+End;
+
+Procedure RArc(CX, CY, R, A0, A1: Integer);
+Begin
+ Ellipse(RXc(CX), RYc(CY), A0, A1, Round(R * RSc), Round(R * RSc));
+End;
+
+Procedure RTri(X1, Y1, X2, Y2, X3, Y3, Fill: Integer);
+Var A: TPointArray;
+Begin
+ A[1].X := RXc(X1); A[1].Y := RYc(Y1);
+ A[2].X := RXc(X2); A[2].Y := RYc(Y2);
+ A[3].X := RXc(X3); A[3].Y := RYc(Y3);
+ If RGray Then ScanFillPoly(A, 3, LightGray) Else ScanFillPoly(A, 3, Fill);
+ Line(A[1].X, A[1].Y, A[2].X, A[2].Y);
+ Line(A[2].X, A[2].Y, A[3].X, A[3].Y);
+ Line(A[3].X, A[3].Y, A[1].X, A[1].Y);
+End;
+
+Procedure RPage(Dx, Dy: Integer);
+Begin
+ RBar(8 + Dx, 3 + Dy, 24 + Dx, 29 + Dy, White, Black);
+ RCol(Black);
+ RLn(19 + Dx, 3 + Dy, 24 + Dx, 8 + Dy);
+ RLn(19 + Dx, 3 + Dy, 19 + Dx, 8 + Dy);
+ RLn(19 + Dx, 8 + Dy, 24 + Dx, 8 + Dy);
+End;
+
+{ Dessine l'icone Id dans une zone Sz x Sz (32 ou 16) }
+Procedure RibIcon(Id, X, Y, Sz: Integer);
+Var I: Integer;
+Begin
+ RX0 := X; RY0 := Y; RSc := Sz / 32;
+ SetLineStyle(SolidLn, 0, NormWidth);
+ Case Id of
+  1: RPage(0, 0);
+  2: Begin
+      RBar(3, 12, 29, 27, Yellow, Black);
+      RCol(Black); RLn(3, 12, 8, 7); RLn(8, 7, 14, 7); RLn(14, 7, 16, 12);
+     End;
+  3: Begin
+      RBar(4, 4, 28, 28, Blue, Black);
+      RBar(9, 4, 23, 13, White, Black);
+      RBar(8, 18, 24, 28, LightGray, Black);
+     End;
+  4: Begin
+      RBar(4, 4, 26, 26, Blue, Black);
+      RBar(9, 4, 21, 12, White, Black);
+      RBar(8, 16, 22, 26, LightGray, Black);
+      RCol(Black); RLn(20, 30, 30, 18); RLn(23, 31, 31, 21);
+      RBar(24, 20, 30, 26, Yellow, Black);
+     End;
+  5: Begin
+      RPage(-2, 0);
+      RCol(Red); RLn(18, 16, 30, 28); RLn(30, 16, 18, 28); RLn(19, 16, 31, 28); RLn(31, 16, 19, 28);
+     End;
+  6: Begin
+      RPage(-4, 0);
+      RCol(Green); RLn(16, 20, 30, 20); RLn(16, 21, 30, 21);
+      RTri(26, 14, 26, 28, 31, 21, Green);
+     End;
+  7: Begin
+      RBar(9, 4, 23, 13, White, Black);
+      RBar(3, 12, 29, 24, LightGray, Black);
+      RBar(9, 20, 23, 30, White, Black);
+      RCol(Black); RLn(11, 24, 21, 24);
+     End;
+  8: Begin
+      RPage(-3, 0);
+      ROval(20, 20, 7, 7, White, Blue);
+      RCol(Blue); RLn(25, 25, 30, 30); RLn(26, 25, 31, 30);
+     End;
+  9: Begin
+      RBar(5, 3, 19, 29, Brown, Black);
+      RCol(Black); RLn(16, 16, 17, 16);
+      RCol(Green); RLn(15, 16, 30, 16); RLn(15, 17, 30, 17);
+      RTri(26, 11, 26, 23, 31, 17, Green);
+     End;
+  10: Begin
+       RBar(5, 5, 27, 30, Brown, Black);
+       RBar(11, 2, 21, 8, LightGray, Black);
+       RBar(9, 11, 23, 27, White, Black);
+       RCol(Black); RLn(11, 15, 21, 15); RLn(11, 19, 21, 19); RLn(11, 23, 18, 23);
+      End;
+  11: Begin
+       RCol(Black); RLn(9, 3, 21, 20); RLn(23, 3, 11, 20); RLn(10, 3, 22, 20); RLn(22, 3, 10, 20);
+       ROval(9, 25, 4, 4, White, Blue); ROval(23, 25, 4, 4, White, Blue);
+      End;
+  12: Begin RPage(-4, -1); RPage(2, 2); End;
+  13: Begin
+       RBar(4, 4, 20, 20, Cyan, Blue);
+       RBar(12, 12, 28, 28, LightCyan, Blue);
+      End;
+  14: Begin
+       RCol(Blue);
+       For I := 0 to 1 do Begin RArc(17, 17 + I, 9, 270, 90); End;
+       RLn(17, 9, 10, 9); RLn(17, 10, 10, 10);
+       RTri(4, 9, 11, 3, 11, 15, Blue);
+      End;
+  15: Begin
+       RCol(Blue);
+       For I := 0 to 1 do Begin RArc(15, 17 + I, 9, 90, 270); End;
+       RLn(15, 9, 22, 9); RLn(15, 10, 22, 10);
+       RTri(28, 9, 21, 3, 21, 15, Blue);
+      End;
+  16: Begin
+       RCol(Red);
+       For I := 0 to 2 do Begin RLn(6 + I, 6, 26 + I, 26); RLn(26 + I, 6, 6 + I, 26); End;
+      End;
+  17: Begin
+       RCol(Blue); SetLineStyle(DashedLn, 0, NormWidth);
+       Rectangle(RXc(4), RYc(6), RXc(28), RYc(26));
+       SetLineStyle(SolidLn, 0, NormWidth);
+       RBar(9, 11, 15, 17, White, Black); RBar(18, 15, 24, 21, White, Black);
+      End;
+  18: Begin
+       RBar(8, 4, 9, 4, Black, Black);
+       RTri(8, 3, 8, 27, 25, 15, White);
+       RCol(Black); RLn(14, 19, 21, 29);
+      End;
+  19: Begin
+       ROval(6, 16, 3, 3, White, Black); ROval(26, 16, 3, 3, White, Black);
+       RCol(Black); RLn(9, 16, 23, 16); RLn(9, 17, 23, 17);
+      End;
+  20: Begin
+       RCol(Black);
+       For I := 0 to 1 do Begin RLn(6 + I, 28, 16 + I, 4); RLn(16 + I, 4, 26 + I, 28); End;
+       RLn(10, 20, 23, 20); RLn(10, 21, 23, 21);
+      End;
+  21: Begin
+       RCol(Black);
+       RLn(10, 5, 20, 5); RLn(10, 5, 5, 15); RLn(5, 15, 15, 25); RLn(15, 25, 27, 13); RLn(27, 13, 10, 5);
+       RBar(7, 9, 20, 9, Black, Black);
+       ROval(27, 22, 2, 3, Cyan, Blue);
+       RBar(3, 27, 29, 31, CurrentFillColor, Black);
+      End;
+  22: Begin
+       RCol(Black);
+       RLn(24, 3, 28, 7); RLn(24, 3, 8, 19); RLn(28, 7, 12, 23); RLn(8, 19, 5, 27); RLn(5, 27, 12, 23);
+       RBar(3, 27, 29, 31, CurrentLineColor, Black);
+      End;
+  23: Begin
+       RBar(3, 6, 29, 7, Black, Black); RBar(3, 12, 29, 15, Black, Black);
+       RBar(3, 20, 29, 25, Black, Black);
+      End;
+  24: Begin
+       RBar(3, 14, 9, 17, Black, Black); RBar(13, 14, 19, 17, Black, Black);
+       RBar(23, 14, 29, 17, Black, Black);
+      End;
+  25: Begin
+       RBar(3, 3, 20, 20, LightGray, Black);
+       RBar(11, 11, 28, 28, Cyan, Blue);
+      End;
+  26: Begin
+       RBar(11, 11, 28, 28, LightGray, Black);
+       RBar(3, 3, 20, 20, Cyan, Blue);
+      End;
+  27: Begin
+       RCol(Blue);
+       For I := 0 to 1 do Begin RArc(16, 17 + I, 10, 50, 320); End;
+       RTri(23, 3, 28, 12, 17, 9, Blue);
+      End;
+  28: Begin
+       RCol(Blue);
+       For I := 0 to 1 do Begin RArc(16, 17 + I, 10, 220, 130); End;
+       RTri(9, 3, 4, 12, 15, 9, Blue);
+      End;
+  29: Begin
+       RTri(3, 26, 3, 6, 14, 26, Cyan);
+       RTri(29, 26, 29, 6, 18, 26, White);
+       RCol(Black); SetLineStyle(DashedLn, 0, NormWidth); RLn(16, 3, 16, 29);
+       SetLineStyle(SolidLn, 0, NormWidth);
+      End;
+  30: Begin
+       RTri(6, 3, 26, 3, 6, 14, Cyan);
+       RTri(6, 29, 26, 29, 6, 18, White);
+       RCol(Black); SetLineStyle(DashedLn, 0, NormWidth); RLn(3, 16, 29, 16);
+       SetLineStyle(SolidLn, 0, NormWidth);
+      End;
+  31: Begin
+       RTri(16, 3, 30, 10, 16, 17, Cyan);
+       RTri(16, 3, 2, 10, 16, 17, Cyan);
+       RCol(Blue); RLn(2, 16, 16, 23); RLn(16, 23, 30, 16);
+       RLn(2, 22, 16, 29); RLn(16, 29, 30, 22);
+      End;
+  32: Begin
+       RCol(Blue); SetLineStyle(DashedLn, 0, NormWidth);
+       Rectangle(RXc(2), RYc(2), RXc(30), RYc(30));
+       SetLineStyle(SolidLn, 0, NormWidth);
+       RBar(6, 6, 16, 16, Cyan, Blue); RBar(15, 15, 26, 26, Yellow, Black);
+      End;
+  33: Begin
+       RBar(3, 3, 14, 14, Cyan, Blue); RBar(18, 18, 29, 29, Yellow, Black);
+      End;
+  34, 35, 36: Begin
+       RBar(4, 4, 28, 9, Cyan, Blue); RBar(4, 12, 20, 17, Cyan, Blue); RBar(4, 20, 12, 25, Cyan, Blue);
+       RCol(Black);
+       If Id = 34 Then RLn(3, 2, 3, 28)
+       Else If Id = 35 Then RLn(16, 2, 16, 28)
+       Else RLn(29, 2, 29, 28);
+      End;
+  37, 38, 39: Begin
+       RBar(4, 4, 9, 28, Cyan, Blue); RBar(12, 4, 17, 20, Cyan, Blue); RBar(20, 4, 25, 12, Cyan, Blue);
+       RCol(Black);
+       If Id = 37 Then RLn(2, 3, 28, 3)
+       Else If Id = 38 Then RLn(2, 16, 28, 16)
+       Else RLn(2, 29, 28, 29);
+      End;
+  40: Begin
+       RBar(2, 8, 8, 24, Cyan, Blue); RBar(13, 8, 19, 24, Cyan, Blue); RBar(24, 8, 30, 24, Cyan, Blue);
+       RCol(Black); RLn(2, 4, 30, 4); RLn(2, 28, 30, 28);
+      End;
+  41: Begin
+       RBar(8, 2, 24, 8, Cyan, Blue); RBar(8, 13, 24, 19, Cyan, Blue); RBar(8, 24, 24, 30, Cyan, Blue);
+       RCol(Black); RLn(4, 2, 4, 30); RLn(28, 2, 28, 30);
+      End;
+  42: Begin
+       ROval(13, 13, 9, 9, White, Blue);
+       RCol(Blue); RLn(20, 20, 29, 29); RLn(21, 20, 30, 29); RLn(20, 21, 29, 30);
+       RCol(Black); RLn(8, 13, 18, 13); RLn(13, 8, 13, 18);
+      End;
+  43: Begin
+       ROval(13, 13, 9, 9, White, Blue);
+       RCol(Blue); RLn(20, 20, 29, 29); RLn(21, 20, 30, 29); RLn(20, 21, 29, 30);
+       RCol(Black); RLn(8, 13, 18, 13);
+      End;
+  44: Begin
+       RBar(8, 6, 24, 26, White, Black);
+       RCol(Blue); RLn(2, 2, 7, 2); RLn(2, 2, 2, 7); RLn(30, 2, 25, 2); RLn(30, 2, 30, 7);
+       RLn(2, 30, 7, 30); RLn(2, 30, 2, 25); RLn(30, 30, 25, 30); RLn(30, 30, 30, 25);
+      End;
+  45: Begin
+       RCol(DarkGray);
+       For I := 0 to 3 do Begin RLn(4, 4 + I * 8, 28, 4 + I * 8); RLn(4 + I * 8, 4, 4 + I * 8, 28); End;
+      End;
+  46: Begin
+       RBar(2, 9, 30, 23, Yellow, Black);
+       RCol(Black);
+       For I := 0 to 7 do RLn(5 + I * 3, 9, 5 + I * 3, 12 + (I mod 2) * 3);
+      End;
+  47: Begin
+       ROval(9, 9, 6, 6, White, Black);
+       RBar(17, 4, 29, 14, White, Black);
+       RTri(4, 29, 14, 29, 9, 19, White);
+       RBar(18, 19, 29, 29, Cyan, Blue);
+      End;
+  48: Begin
+       RBar(3, 5, 29, 27, White, Black);
+       RCol(Green); RLn(3, 24, 12, 13); RLn(12, 13, 18, 20); RLn(18, 20, 23, 15); RLn(23, 15, 29, 22);
+       ROval(22, 10, 3, 3, Yellow, Black);
+      End;
+  49: Begin
+       ROval(16, 16, 13, 13, Blue, Black);
+       RBar(14, 14, 18, 24, White, White);
+       RBar(14, 8, 18, 11, White, White);
+      End;
+  63: Begin
+       RCol(Black);
+       For I := 0 to 3 do Begin RLn(4, 4 + I * 8, 28, 4 + I * 8); RLn(4 + I * 8, 4, 4 + I * 8, 28); End;
+       ROval(12, 12, 4, 4, Red, Black);
+      End;
+  Else Begin
+       RBar(5, 5, 27, 27, LightGray, Black);
+       RCol(Black); RLn(9, 12, 23, 12); RLn(9, 17, 23, 17); RLn(9, 22, 18, 22);
+      End;
+ End;
+End;
+
+{ ---- construction de la disposition ---- }
+Function RibTop: Integer;
+Begin
+ RibTop := MENU_HEIGHT + 3;
+End;
+
+Procedure RibFlushCol;
+Var I, M: Integer;
+Begin
+ If RibColN = 0 Then Exit;
+ M := 0;
+ For I := RibColFirst to RibCount do If RibItems[I].W > M Then M := RibItems[I].W;
+ For I := RibColFirst to RibCount do Begin RibItems[I].W := M; RibItems[I].X := RibX; End;
+ RibX := RibX + M + 2;
+ RibColN := 0;
+End;
+
+Procedure RibBegin(Title: String);
+Begin
+ RibFlushCol;
+ RibX := RibX + 4;
+ RibGStart := RibX;
+ RibGTitle := Bi(Title);
+End;
+
+Procedure RibEnd;
+Begin
+ RibFlushCol;
+ If RibGroupCount < 10 Then Begin
+  If RibX - RibGStart < Length(RibGTitle) * 8 + 6 Then RibX := RibGStart + Length(RibGTitle) * 8 + 6;
+  Inc(RibGroupCount);
+  RibGroups[RibGroupCount].X1 := RibGStart;
+  RibGroups[RibGroupCount].X2 := RibX;
+  RibGroups[RibGroupCount].Title := RibGTitle;
+ End;
+ RibX := RibX + 4;
+End;
+
+Procedure RibBig(Cap, Tip: String; Icon, Cmd: Integer);
+Var L1, L2: String; P, W: Integer;
+Begin
+ RibFlushCol;
+ If RibCount >= RIB_MAX Then Exit;
+ Cap := Bi(Cap);
+ P := Pos(' ', Cap);
+ If P > 0 Then Begin L1 := Copy(Cap, 1, P - 1); L2 := Copy(Cap, P + 1, 20); End
+ Else Begin L1 := Cap; L2 := ''; End;
+ W := Length(L1);
+ If Length(L2) > W Then W := Length(L2);
+ W := W * 8 + 12;
+ If W < 44 Then W := 44;
+ Inc(RibCount);
+ RibItems[RibCount].Cap := Cap; RibItems[RibCount].Tip := Bi(Tip);
+ RibItems[RibCount].Icon := Icon; RibItems[RibCount].Cmd := Cmd;
+ RibItems[RibCount].Big := True;
+ RibItems[RibCount].X := RibX; RibItems[RibCount].Y := RibTop;
+ RibItems[RibCount].W := W; RibItems[RibCount].H := 78;
+ RibX := RibX + W + 2;
+End;
+
+Procedure RibSmall(Cap, Tip: String; Icon, Cmd: Integer);
+Var W: Integer;
+Begin
+ If RibColN = 3 Then RibFlushCol;
+ If RibCount >= RIB_MAX Then Exit;
+ Cap := Bi(Cap);
+ If Cap = '' Then W := 28 Else W := 24 + Length(Cap) * 8 + 4;
+ Inc(RibCount);
+ If RibColN = 0 Then RibColFirst := RibCount;
+ RibItems[RibCount].Cap := Cap; RibItems[RibCount].Tip := Bi(Tip);
+ RibItems[RibCount].Icon := Icon; RibItems[RibCount].Cmd := Cmd;
+ RibItems[RibCount].Big := False;
+ RibItems[RibCount].X := RibX; RibItems[RibCount].Y := RibTop + RibColN * 26;
+ RibItems[RibCount].W := W; RibItems[RibCount].H := 25;
+ Inc(RibColN);
+End;
+
+Procedure BuildRibbon;
+Var T: Integer;
+Begin
+ RibCount := 0; RibGroupCount := 0; RibColN := 0; RibX := 2;
+ Case RibbonTab of
+  1: Begin
+      RibBegin('Document~Document');
+      RibBig('Nouveau~New', 'Creer un nouveau dessin~Create a new drawing', 1, RC_NEW);
+      RibBig('Ouvrir~Open', 'Ouvrir un dessin existant~Open an existing drawing', 2, RC_OPEN);
+      RibBig('Enregistrer~Save', 'Enregistrer le dessin~Save the drawing', 3, RC_SAVE);
+      RibBig('Enreg. sous~Save as', 'Enregistrer sous un autre nom~Save under another name', 4, RC_SAVEAS);
+      RibEnd;
+      RibBegin('Exporter~Export');
+      RibBig('Exporter~Export', 'Exporter en SVG, BMP, WPG...~Export to SVG, BMP, WPG...', 6, RC_EXPORT);
+      RibEnd;
+      RibBegin('Imprimer~Print');
+      RibBig('Imprimer~Print', 'Imprimer le dessin~Print the drawing', 7, RC_PRINT);
+      RibBig('Apercu~Preview', 'Apercu avant impression~Print preview', 8, RC_PREVIEW);
+      RibEnd;
+      RibBegin('Fermer~Close');
+      RibBig('Fermer~Close', 'Fermer le dessin~Close the drawing', 5, RC_CLOSE);
+      RibBig('Quitter~Exit', 'Quitter Visio~Quit Visio', 9, RC_EXIT);
+      RibEnd;
+     End;
+  2: Begin
+      RibBegin('Presse-papiers~Clipboard');
+      RibBig('Coller~Paste', 'Coller le contenu du presse-papiers~Paste the clipboard', 10, RC_PASTE);
+      RibSmall('Couper~Cut', 'Couper la selection~Cut the selection', 11, RC_CUT);
+      RibSmall('Copier~Copy', 'Copier la selection~Copy the selection', 12, RC_COPY);
+      RibSmall('Dupliq.~Dupl.', 'Dupliquer la selection~Duplicate the selection', 13, RC_DUP);
+      RibEnd;
+      RibBegin('Edition~Edit');
+      RibSmall('', 'Annuler~Undo', 14, RC_UNDO);
+      RibSmall('', 'Retablir~Redo', 15, RC_REDO);
+      RibSmall('', 'Supprimer~Delete', 16, RC_DELETE);
+      RibEnd;
+      RibBegin('Outils~Tools');
+      RibSmall('', 'Outil Pointeur~Pointer Tool', 18, RC_TOOL + 1);
+      RibSmall('', 'Outil Connecteur~Connector Tool', 19, RC_TOOL + 5);
+      RibSmall('', 'Outil Texte~Text Tool', 20, RC_TOOL + 6);
+      RibEnd;
+      RibBegin('Styles~Styles');
+      RibBig('Remplis.~Fill', 'Couleur de remplissage~Fill color', 21, RC_FILL);
+      RibBig('Trait~Line', 'Couleur du trait~Line color', 22, RC_LINE);
+      RibSmall('', 'Epaisseur du trait~Line weight', 23, RC_WEIGHT);
+      RibSmall('', 'Style du trait~Line style', 24, RC_DASH);
+      RibEnd;
+      RibBegin('Organiser~Arrange');
+      RibSmall('', 'Premier plan~Bring to front', 25, RC_FRONT);
+      RibSmall('', 'Arriere-plan~Send to back', 26, RC_BACK);
+      RibSmall('', 'Pivoter a droite~Rotate right', 27, RC_ROTR);
+      RibSmall('', 'Pivoter a gauche~Rotate left', 28, RC_ROTL);
+      RibSmall('', 'Miroir horizontal~Flip horizontal', 29, RC_FLIPH);
+      RibSmall('', 'Miroir vertical~Flip vertical', 30, RC_FLIPV);
+      RibEnd;
+      RibBegin('Modifier~Edit');
+      RibBig('Tout select.~Select all', 'Selectionner toutes les formes~Select all shapes', 17, RC_SELALL);
+      RibEnd;
+     End;
+  3: Begin
+      RibBegin('Zoom~Zoom');
+      RibBig('Zoom avant~Zoom in', 'Agrandir le dessin~Enlarge the drawing', 42, RC_ZOOMIN);
+      RibBig('Zoom arriere~Zoom out', 'Reduire le dessin~Shrink the drawing', 43, RC_ZOOMOUT);
+      RibBig('Page entiere~Fit page', 'Ajuster toutes les formes a la fenetre~Fit all shapes in the window', 44, RC_FIT);
+      RibEnd;
+      RibBegin('Afficher~Show');
+      RibSmall('Grille~Grid', 'Afficher la grille~Show the grid', 45, RC_GRID);
+      RibSmall('Regles~Rulers', 'Afficher les regles~Show the rulers', 46, RC_RULERS);
+      RibSmall('Formes (F4)~Shapes (F4)', 'Panneau Formes~Shapes pane', 47, RC_PANEL);
+      RibEnd;
+      RibBegin('Outils de vue~View tools');
+      RibSmall('Zoom~Zoom', 'Outil Zoom~Zoom Tool', 18, RC_TOOL + 18);
+      RibSmall('Panoramique~Pan', 'Outil Panoramique~Pan Tool', 19, RC_TOOL + 19);
+      RibEnd;
+     End;
+  4: Begin
+      RibBegin('Formes~Shapes');
+      RibBig('Panneau Formes~Shapes pane', 'Afficher le panneau Formes (F4)~Show the Shapes pane (F4)', 47, RC_PANEL);
+      RibBig('Bloc de texte~Text block', 'Dessiner un bloc de texte~Draw a text block', 50, RC_TOOL + 13);
+      RibBig('Image~Picture', 'Placer une image~Place a picture', 48, RC_TOOL + 9);
+      RibEnd;
+      RibBegin('Liens~Links');
+      RibBig('Connecteur~Connector', 'Relier deux formes~Connect two shapes', 19, RC_TOOL + 5);
+      RibBig('Point connexion~Connection pt', 'Ajouter un point de connexion~Add a connection point', 57, RC_TOOL + 14);
+      RibEnd;
+      RibBegin('Calques~Layers');
+      RibBig('Calques~Layers', 'Gerer les calques~Manage layers', 31, RC_LAYERS);
+      RibEnd;
+     End;
+  5: Begin
+      RibBegin('Remplis./trait~Fill/line');
+      RibBig('Remplis.~Fill', 'Couleur de remplissage~Fill color', 21, RC_FILL);
+      RibBig('Trait~Line', 'Couleur du trait~Line color', 22, RC_LINE);
+      RibSmall('', 'Epaisseur du trait~Line weight', 23, RC_WEIGHT);
+      RibSmall('', 'Style du trait~Line style', 24, RC_DASH);
+      RibEnd;
+      RibBegin('Organiser~Arrange');
+      RibSmall('Grouper~Group', 'Grouper les formes~Group the shapes', 32, RC_GROUP);
+      RibSmall('Degroup.~Ungroup', 'Degrouper~Ungroup', 33, RC_UNGROUP);
+      RibSmall('Avant~Front', 'Amener au premier plan~Bring to front', 25, RC_FRONT);
+      RibSmall('Arriere~Back', 'Envoyer a larriere-plan~Send to back', 26, RC_BACK);
+      RibEnd;
+      RibBegin('Aligner~Align');
+      RibSmall('', 'Aligner a gauche~Align left', 34, RC_AL_L);
+      RibSmall('', 'Centrer horizontalement~Align center', 35, RC_AL_C);
+      RibSmall('', 'Aligner a droite~Align right', 36, RC_AL_R);
+      RibSmall('', 'Aligner en haut~Align top', 37, RC_AL_T);
+      RibSmall('', 'Centrer verticalement~Align middle', 38, RC_AL_M);
+      RibSmall('', 'Aligner en bas~Align bottom', 39, RC_AL_B);
+      RibEnd;
+      RibBegin('Distribuer~Distribute');
+      RibBig('Horizontal~Horizontal', 'Repartir horizontalement~Distribute horizontally', 40, RC_DISTH);
+      RibBig('Vertical~Vertical', 'Repartir verticalement~Distribute vertically', 41, RC_DISTV);
+      RibEnd;
+     End;
+  6: Begin
+      RibBegin('Outils de dessin~Drawing tools');
+      For T := 1 to 19 do RibSmall('', '', 0, RC_TOOL + ToolOrder[T]);
+      RibEnd;
+      RibBegin('Pivoter~Rotate');
+      RibSmall('', 'Pivoter a droite~Rotate right', 27, RC_ROTR);
+      RibSmall('', 'Pivoter a gauche~Rotate left', 28, RC_ROTL);
+      RibSmall('', 'Miroir horizontal~Flip horizontal', 29, RC_FLIPH);
+      RibSmall('', 'Miroir vertical~Flip vertical', 30, RC_FLIPV);
+      RibEnd;
+      RibBegin('Formes~Shapes');
+      RibBig('Panneau Formes~Shapes pane', 'Afficher le panneau Formes (F4)~Show the Shapes pane (F4)', 47, RC_PANEL);
+      RibEnd;
+     End;
+  7: Begin
+      RibBegin('Aimantation~Snap');
+      RibBig('Grille~Grid', 'Aligner sur la grille~Snap to grid', 63, RC_SNAP);
+      RibBig('Reperes~Guides', 'Non disponible~Not available', 63, RC_NONE);
+      RibEnd;
+      RibBegin('Options~Options');
+      RibBig('Options~Options', 'Non disponible~Not available', 0, RC_NONE);
+      RibEnd;
+     End;
+  8: Begin
+      RibBegin('Fenetre~Window');
+      RibBig('Nouvelle fenetre~New window', 'Non disponible~Not available', 0, RC_NONE);
+      RibBig('Cascade~Cascade', 'Non disponible~Not available', 0, RC_NONE);
+      RibBig('Mosaique~Tile', 'Non disponible~Not available', 0, RC_NONE);
+      RibEnd;
+     End;
+  9: Begin
+      RibBegin('Aide~Help');
+      RibBig('Rubriques~Help topics', 'Non disponible~Not available', 0, RC_NONE);
+      RibBig('A propos~About', 'A propos de Visio~About Visio', 49, RC_ABOUT);
+      RibEnd;
+     End;
+ End;
+ RibFlushCol;
+ RibBuiltTab := RibbonTab;
+ RibBuiltLang := Ord(Language);
+End;
+
+Procedure EnsureRibbon;
+Begin
+ If (RibBuiltTab <> RibbonTab) or (RibBuiltLang <> Ord(Language)) Then BuildRibbon;
+End;
+
+Function RibCmdEnabled(Cmd: Integer): Boolean;
+Var N: Integer;
+Begin
+ N := CountSel;
+ Case Cmd of
+  RC_NONE: RibCmdEnabled := False;
+  RC_CUT, RC_COPY, RC_DUP, RC_DELETE, RC_FRONT, RC_BACK, RC_ROTR, RC_ROTL, RC_FLIPH, RC_FLIPV,
+  RC_AL_L, RC_AL_C, RC_AL_R, RC_AL_T, RC_AL_M, RC_AL_B, RC_UNGROUP: RibCmdEnabled := N > 0;
+  RC_GROUP, RC_DISTH, RC_DISTV: RibCmdEnabled := N >= 2;
+  RC_PASTE: RibCmdEnabled := ClipN > 0;
+ Else RibCmdEnabled := True;
+ End;
+End;
+
+Function RibCmdChecked(Cmd: Integer): Boolean;
+Begin
+ RibCmdChecked := False;
+ If (Cmd > RC_TOOL) and (Cmd <= RC_TOOL + TOOLBAR_COUNT) Then
+  RibCmdChecked := Ord(CurrentTool) + 1 = Cmd - RC_TOOL
+ Else Case Cmd of
+  RC_GRID: RibCmdChecked := ShowGrid;
+  RC_RULERS: RibCmdChecked := ShowRulers;
+  RC_SNAP: RibCmdChecked := SnapToGridEnabled;
+  RC_PANEL: RibCmdChecked := PanelOpen;
+ End;
+End;
+
+Function RibbonItemCount: Integer;
+Begin
+ EnsureRibbon;
+ RibbonItemCount := RibCount;
+End;
+
+Function RibbonHitAt(X, Y: Integer): Integer;
+Var I: Integer;
+Begin
+ RibbonHitAt := 0;
+ If Not RibbonMode Then Exit;
+ If (Y <= MENU_HEIGHT) or (Y > WORK_AREA_TOP) Then Exit;
+ EnsureRibbon;
+ For I := 1 to RibCount do
+  If (X >= RibItems[I].X) and (X < RibItems[I].X + RibItems[I].W) and
+     (Y >= RibItems[I].Y) and (Y < RibItems[I].Y + RibItems[I].H) Then RibbonHitAt := I;
+End;
+
+Procedure RibbonItemBox(I: Integer; Var X, Y, W, H: Integer);
+Begin
+ EnsureRibbon;
+ X := 0; Y := 0; W := 0; H := 0;
+ If (I >= 1) and (I <= RibCount) Then Begin
+  X := RibItems[I].X; Y := RibItems[I].Y; W := RibItems[I].W; H := RibItems[I].H;
+ End;
+End;
+
+Procedure RibbonTipInfo(I: Integer; Var Title, Desc: String);
+Var D2: String;
+Begin
+ EnsureRibbon;
+ Title := ''; Desc := '';
+ If (I < 1) or (I > RibCount) Then Exit;
+ If (RibItems[I].Cmd > RC_TOOL) and (RibItems[I].Cmd <= RC_TOOL + TOOLBAR_COUNT) Then
+  ToolTipInfo(RibItems[I].Cmd - RC_TOOL, Title, Desc)
+ Else Begin
+  Title := RibItems[I].Cap;
+  If Title = '' Then Begin Title := RibItems[I].Tip; Desc := ''; End
+  Else Desc := RibItems[I].Tip;
+ End;
+ If Not RibCmdEnabled(RibItems[I].Cmd) Then Begin
+  If Language = _French Then D2 := ' (indisponible)' Else D2 := ' (unavailable)';
+  If Length(Desc) + Length(D2) <= 60 Then Desc := Desc + D2;
  End;
 End;
 
 Procedure DrawRibbon;
-Var I,J,X,Y,W,H,N,Icon:Integer;Items:TMenuLabels;Shortcuts:TMenuShortcuts;Caption:String;
+Var I, X, Y, W, H, P, G: Integer; L1, L2: String; Ena: Boolean;
 Begin
  If Not RibbonMode Then Exit;
- SetFillStyle(SolidFill,LightGray);Bar(0,MENU_HEIGHT+1,ScreenWidth,WORK_AREA_TOP);
- GetMenuLabels(RibbonTab,Items,Shortcuts,N);
- For I:=1 To RibbonItemCount Do Begin
-  RibbonButtonBox(I,X,Y,W,H);J:=RibbonMenuItem(I);
-  If (I=RibbonHover) or (RibbonKeyboard and (I=RibbonFocus)) Then Begin
-   SetFillStyle(SolidFill,White);Bar(X,Y,X+W-2,Y+H-2);
+ EnsureRibbon;
+ SetFillStyle(SolidFill, LightGray);
+ Bar(0, MENU_HEIGHT + 1, ScreenWidth, WORK_AREA_TOP);
+ SetColor(White); Line(0, MENU_HEIGHT + 1, ScreenWidth, MENU_HEIGHT + 1);
+ For G := 1 to RibGroupCount do Begin
+  SetColor(DarkGray);
+  Line(RibGroups[G].X2 + 2, MENU_HEIGHT + 5, RibGroups[G].X2 + 2, WORK_AREA_TOP - 4);
+  OutTextXY((RibGroups[G].X1 + RibGroups[G].X2) div 2 - Length(RibGroups[G].Title) * 4,
+            WORK_AREA_TOP - 12, RibGroups[G].Title);
+ End;
+ For I := 1 to RibCount do Begin
+  X := RibItems[I].X; Y := RibItems[I].Y; W := RibItems[I].W; H := RibItems[I].H;
+  Ena := RibCmdEnabled(RibItems[I].Cmd);
+  If RibCmdChecked(RibItems[I].Cmd) Then Begin
+   SetFillStyle(SolidFill, Cyan); Bar(X, Y, X + W - 1, Y + H - 1);
+   SetColor(Blue); Rectangle(X, Y, X + W - 1, Y + H - 1);
+  End
+  Else If (I = RibbonHover) or (RibbonKeyboard and (I = RibbonFocus)) Then Begin
+   SetFillStyle(SolidFill, White); Bar(X, Y, X + W - 1, Y + H - 1);
+   SetColor(DarkGray); Rectangle(X, Y, X + W - 1, Y + H - 1);
   End;
-  If J>0 Then Begin
-   Caption:=Items[J];Icon:=0;
-   If RibbonTab=1 Then Case J Of 1:Icon:=1;2:Icon:=2;4:Icon:=3;9:Icon:=5;End;
-   If RibbonTab=2 Then Case J Of 1:Icon:=7;2:Icon:=8;End;
-   If Icon>0 Then DrawIconBarIcon(X+2,Y+3,Icon)
-   Else Begin
-    SetColor(Blue);Rectangle(X+5,Y+6,X+19,Y+19);
-    Line(X+8,Y+10,X+16,Y+10);Line(X+8,Y+14,X+16,Y+14);
+  RGray := Not Ena;
+  If RibItems[I].Big Then Begin
+   RibIcon(RibItems[I].Icon, X + (W - 32) div 2, Y + 4, 32);
+   P := Pos(' ', RibItems[I].Cap);
+   If P > 0 Then Begin L1 := Copy(RibItems[I].Cap, 1, P - 1); L2 := Copy(RibItems[I].Cap, P + 1, 20); End
+   Else Begin L1 := RibItems[I].Cap; L2 := ''; End;
+   If Ena Then SetColor(Black) Else SetColor(DarkGray);
+   OutTextXY(X + (W - Length(L1) * 8) div 2, Y + 41, L1);
+   If L2 <> '' Then OutTextXY(X + (W - Length(L2) * 8) div 2, Y + 51, L2)
+   Else If (RibItems[I].Cmd = RC_FILL) or (RibItems[I].Cmd = RC_LINE) Then
+    PanelArrow(X + W div 2, Y + 58, 1);
+  End
+  Else Begin
+   If (RibItems[I].Cmd > RC_TOOL) and (RibItems[I].Cmd <= RC_TOOL + TOOLBAR_COUNT) Then Begin
+    SetColor(Black);
+    DrawToolIcon(X + 1, Y, RibItems[I].Cmd - RC_TOOL);
+   End
+   Else RibIcon(RibItems[I].Icon, X + 6, Y + 4, 16);
+   If RibItems[I].Cap <> '' Then Begin
+    If Ena Then SetColor(Black) Else SetColor(DarkGray);
+    OutTextXY(X + 26, Y + 8, RibItems[I].Cap);
    End;
   End;
-  If (RibbonTab>6) and Not ((RibbonTab=9) and (J=3)) Then SetColor(DarkGray)
-  Else SetColor(Black);
-  OutTextXY(X+28,Y+10,Copy(Caption,1,(W-32) div 8));
+  RGray := False;
  End;
- SetColor(DarkGray);Line(0,WORK_AREA_TOP,ScreenWidth,WORK_AREA_TOP);
+ SetColor(DarkGray); Line(0, WORK_AREA_TOP, ScreenWidth, WORK_AREA_TOP);
 End;
 
-Procedure ExecuteRibbonEntry(Index:Integer);
-Var J:Integer;
+Procedure RunRibbonCmd(Cmd, Index: Integer);
 Begin
- If (Index<1) or (Index>RibbonItemCount) Then Exit;
- J:=RibbonMenuItem(Index);
- If J=0 Then Exit;
- Case RibbonTab Of
-  1: If ExecuteFileMenuAction(J) Then Halt;
-  2: ExecuteEditMenuAction(J);
-  3: ExecuteViewMenuAction(J);
-  4: ExecuteInsertMenuAction(J);
-  5: ExecuteFormatMenuAction(J);
-  6: ExecuteShapeMenuAction(J);
-  9: If J=3 Then ShowAboutDialog;
+ If (Cmd > RC_TOOL) and (Cmd <= RC_TOOL + TOOLBAR_COUNT) Then Begin SelectTool(Cmd - RC_TOOL); Exit; End;
+ Case Cmd of
+  RC_NEW: FileNew;
+  RC_OPEN: FileOpen;
+  RC_SAVE: FileSave;
+  RC_SAVEAS: FileSaveAs;
+  RC_CLOSE: FileClose;
+  RC_EXPORT: FileExport;
+  RC_PRINT: FilePrint;
+  RC_PREVIEW: FilePrintPreview;
+  RC_EXIT: If FileExit Then Halt;
+  RC_PASTE: CmdPaste;
+  RC_CUT: CmdCut;
+  RC_COPY: CmdCopy;
+  RC_DUP: CmdDuplicate;
+  RC_UNDO: CmdUndo;
+  RC_REDO: CmdRedo;
+  RC_DELETE: CmdDelete;
+  RC_SELALL: CmdSelectAll;
+  RC_FILL: Begin PopupKind := 1; PopupX := RibItems[Index].X; PopupY := WORK_AREA_TOP + 1; End;
+  RC_LINE: Begin PopupKind := 2; PopupX := RibItems[Index].X; PopupY := WORK_AREA_TOP + 1; End;
+  RC_WEIGHT: CmdLineWidth;
+  RC_DASH: CmdLineStyle;
+  RC_FRONT: CmdBringFront;
+  RC_BACK: CmdSendBack;
+  RC_ROTR: CmdRotate(90);
+  RC_ROTL: CmdRotate(270);
+  RC_FLIPH: CmdFlip(True);
+  RC_FLIPV: CmdFlip(False);
+  RC_LAYERS: ShowLayerDialog;
+  RC_GROUP: CmdGroup;
+  RC_UNGROUP: CmdUngroup;
+  RC_AL_L..RC_AL_B: CmdAlign(Cmd - RC_AL_L + 1);
+  RC_DISTH: CmdDistribute(True);
+  RC_DISTV: CmdDistribute(False);
+  RC_ZOOMIN: CmdViewZoom(1.25);
+  RC_ZOOMOUT: CmdViewZoom(0.8);
+  RC_FIT: CmdViewFit;
+  RC_GRID: ViewGrid;
+  RC_RULERS: ViewRulers;
+  RC_SNAP: ViewSnapToGrid;
+  RC_PANEL: Begin PanelOpen := Not PanelOpen; ApplyPanelWidth; End;
+  RC_ABOUT: ShowAboutDialog;
  End;
- RibbonKeyboard:=False;RibbonFocus:=0;
 End;
 
-Function HandleRibbonKey(Key,Scan:Char):Boolean;
-Var TabIndex:Integer;
+Procedure ExecuteRibbonEntry(Index: Integer);
 Begin
- HandleRibbonKey:=False;If Not RibbonMode Then Exit;
- TabIndex:=0;
- If Key=#0 Then Case Scan Of
-  #33:TabIndex:=1;#18:TabIndex:=2;#30:TabIndex:=3;#23:TabIndex:=4;
-  #50:TabIndex:=5;#34:TabIndex:=6;#24:TabIndex:=7;#49:TabIndex:=8;#35,#59:TabIndex:=9;
-  #68:TabIndex:=RibbonTab;
+ EnsureRibbon;
+ If (Index < 1) or (Index > RibCount) Then Exit;
+ If Not RibCmdEnabled(RibItems[Index].Cmd) Then Exit;
+ RunRibbonCmd(RibItems[Index].Cmd, Index);
+ RibbonKeyboard := False; RibbonFocus := 0;
+End;
+
+Function HandleRibbonKey(Key, Scan: Char): Boolean;
+Var TabIndex: Integer;
+Begin
+ HandleRibbonKey := False;
+ If Not RibbonMode Then Exit;
+ TabIndex := 0;
+ If Key = #0 Then Case Scan Of
+  #33: TabIndex := 1; #18: TabIndex := 2; #30: TabIndex := 3; #23: TabIndex := 4;
+  #50: TabIndex := 5; #34: TabIndex := 6; #24: TabIndex := 7; #49: TabIndex := 8;
+  #35, #59: TabIndex := 9;
+  #68: TabIndex := RibbonTab;
  End;
- If TabIndex>0 Then Begin
-  RibbonTab:=TabIndex;RibbonFocus:=0;RibbonKeyboard:=True;
- End Else If RibbonKeyboard Then Begin
-  If Key=#0 Then Case Scan Of
-   #75:Begin RibbonTab:=(RibbonTab+MENU_COUNT-2) mod MENU_COUNT+1;RibbonFocus:=0;End;
-   #77:Begin RibbonTab:=RibbonTab mod MENU_COUNT+1;RibbonFocus:=0;End;
-   #72:RibbonFocus:=(RibbonFocus+RibbonItemCount-2) mod RibbonItemCount+1;
-   #80:RibbonFocus:=RibbonFocus mod RibbonItemCount+1;
-   #15:RibbonFocus:=(RibbonFocus+RibbonItemCount-2) mod RibbonItemCount+1;
+ If TabIndex > 0 Then Begin
+  RibbonTab := TabIndex; RibbonFocus := 0; RibbonKeyboard := True;
+ End
+ Else If RibbonKeyboard Then Begin
+  EnsureRibbon;
+  If Key = #0 Then Case Scan Of
+   #75: Begin RibbonTab := (RibbonTab + MENU_COUNT - 2) mod MENU_COUNT + 1; RibbonFocus := 0; End;
+   #77: Begin RibbonTab := RibbonTab mod MENU_COUNT + 1; RibbonFocus := 0; End;
+   #72, #15: If RibCount > 0 Then RibbonFocus := (RibbonFocus + RibCount - 2) mod RibCount + 1;
+   #80: If RibCount > 0 Then RibbonFocus := RibbonFocus mod RibCount + 1;
    Else Exit;
-  End Else Case Key Of
-   #9:RibbonFocus:=RibbonFocus mod RibbonItemCount+1;
-   #13,' ':If RibbonFocus>0 Then ExecuteRibbonEntry(RibbonFocus);
-   #27:Begin RibbonKeyboard:=False;RibbonFocus:=0;End;
+  End
+  Else Case Key Of
+   #9: If RibCount > 0 Then RibbonFocus := RibbonFocus mod RibCount + 1;
+   #13, ' ': If RibbonFocus > 0 Then ExecuteRibbonEntry(RibbonFocus);
+   #27: Begin RibbonKeyboard := False; RibbonFocus := 0; End;
    Else Exit;
   End;
- End Else Exit;
- HandleRibbonKey:=True;HideMouse;DrawMenuBar;DrawRibbon;ShowMouse;
+ End
+ Else Exit;
+ HandleRibbonKey := True;
+ HideMouse; DrawMenuBar; DrawRibbon; ShowMouse;
 End;
 
 Function CommandLineHelpRequested:Boolean;
@@ -17735,8 +20817,9 @@ Begin
    CommandLineFile:=CommandLineFile+ParamStr(I);
   End;
  End;
- TOOLBAR_WIDTH:=CLASSIC_TOOLBAR_WIDTH;WORK_AREA_TOP:=CLASSIC_WORK_AREA_TOP;
- If RibbonMode Then WORK_AREA_TOP:=MENU_HEIGHT+120;
+ PanelOpen:=True;PanelCat:=1;PanelScroll:=0;PressKind:=0;ArmedKind:=0;
+ TOOLBAR_WIDTH:=CLASSIC_TOOLBAR_WIDTH+PANEL_W;WORK_AREA_TOP:=CLASSIC_WORK_AREA_TOP;
+ If RibbonMode Then WORK_AREA_TOP:=MENU_HEIGHT+99;
  TOOLBAR_TOP:=WORK_AREA_TOP;
 End;
 
@@ -17744,16 +20827,20 @@ Procedure RefreshScreen;
 Begin
  { Effacer l'Ã©cran avec fond blanc (zone de travail sous la barre d'outils) }
  SetFillStyle(SolidFill, White);
- Bar(TOOLBAR_WIDTH + 1, MENU_HEIGHT + 1, ScreenWidth, ScreenHeight);
+ Bar(0, MENU_HEIGHT + 1, ScreenWidth, ScreenHeight);
+ DrawGridLayer;
 
  { Dessiner tous les objets graphiques }
  DrawAllShapes;
+
+ DrawRulersLayer;
 
  { Dessiner la barre de menu }
  DrawMenuBar;
 
  { Dessiner la barre d'icones horizontale }
- If RibbonMode Then DrawRibbon Else DrawIconBar;
+ DrawIconBar;
+ If RibbonMode Then DrawRibbon;
 
  { Dessiner la barre d'outils }
  DrawToolbar;
@@ -17777,6 +20864,9 @@ Begin
  If LayerDialogVisible Then Begin
   DrawLayerDialog;
  End;
+
+ DrawPopup;
+ DrawToolTip;
 
  { Barre d'etat : afficher le dernier message d'action }
  If StatusMessage <> '' Then Begin
@@ -17855,6 +20945,12 @@ BEGIN
     GetMouseState(LastMouseX, LastMouseY, LastMouseButton);
    {$ENDIF}
 
+   If UpdateToolTip(LastMouseX, LastMouseY,
+        AboutDialogVisible Or LayerDialogVisible Or PropertiesDialogVisible Or
+        ContextMenuVisible Or (MenuState = msDropDown) Or (DragMode <> DRAG_MODE_NONE) Or
+        ((LastMouseButton and 3) <> 0)) Then Begin
+    HideMouse; RefreshScreen; ShowMouse;
+   End;
    If RibbonMode and Not AboutDialogVisible and Not PropertiesDialogVisible and Not LayerDialogVisible and
       Not ContextMenuVisible and (DragMode=DRAG_MODE_NONE) and
       ((LastMouseX<>PrevMouseX) or (LastMouseY<>PrevMouseY)) Then Begin
@@ -17961,15 +21057,28 @@ BEGIN
       GetMouseState(LastMouseX, LastMouseY, LastMouseButton);
      {$ENDIF}
      { Si on est en mode glissement, mettre Ã  jour la position }
-     If DragMode <> DRAG_MODE_NONE Then Begin
+     If PressKind > 0 Then Begin
+      HideMouse;
+      LibDefaultSize(PressKind, GhostW, GhostH);
+      UpdatePreview(ttRectangle, LastMouseX - GhostW div 2, LastMouseY - GhostH div 2,
+                    LastMouseX + GhostW div 2, LastMouseY + GhostH div 2);
+      ShowMouse;
+     End
+     Else If DragMode <> DRAG_MODE_NONE Then Begin
       HideMouse;
       HandleMouseMove(LastMouseX, LastMouseY);
       RefreshScreen;
       ShowMouse;
      End
+     Else If IsDrawing And (CurrentTool in [ttFreeform, ttPencil, ttPan]) Then Begin
+      HideMouse;
+      NewToolDrag(LastMouseX, LastMouseY);
+      ShowMouse;
+     End
      Else If IsDrawing And
-            ((CurrentTool = ttRectangle) Or (CurrentTool = ttEllipse) Or
-             (CurrentTool = ttLine) Or (CurrentTool = ttConnector))
+            ((CurrentTool in [ttRectangle, ttEllipse, ttLine, ttConnector, ttArc,
+                              ttTextBlock, ttCrop, ttZoom, ttRotate, ttShapeLib]) Or
+             MarqueeActive)
      Then Begin
       HideMouse;
       If (Not PreviewValid) Or
@@ -18108,6 +21217,13 @@ BEGIN
             HideContextMenu;
             RefreshScreen;
            End
+           Else If (CurrentTool <> ttSelection) Or IsDrawing Then Begin
+            { Echap : abandonner l'outil en cours et revenir au pointeur }
+            CurrentTool := ttSelection;
+            IsDrawing := False;
+            FPHave := False;
+            RefreshScreen;
+           End
            Else Begin
             Break; { Escape pour quitter }
            End;
@@ -18129,6 +21245,10 @@ BEGIN
           Case MainLoopKey of
            #60: Begin
                  If SelectedShape>0 Then BeginTextEdit(SelectedShape,Shapes[SelectedShape].X2,False);
+                 RefreshScreen;
+                End;
+           #62: Begin { F4 - panneau Formes }
+                 PanelOpen := Not PanelOpen; ApplyPanelWidth;
                  RefreshScreen;
                 End;
            #59: Begin { F1 - Aide }
