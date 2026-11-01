@@ -280,6 +280,20 @@ Les chemins contenant des espaces peuvent etre places entre guillemets.</li>
 Les commandes sans gestionnaire existant restent grisees.</li>
 </ul>
 
+<h2>PAPYRUS : traitement de texte multilingue</h2>
+
+<ul>
+<li><code>PAPYRUS [fichier.PAP]</code> : clone graphique du traitement de texte Papyrus (Atari ST), en francais par defaut ;
+tout le code est dans <code>PAPYRUS.PAS</code> (Turbo Pascal 7 / Free Pascal).</li>
+<li>Document WYSIWYG : pages A4/A5/A3/Lettre, marges, en-tete et pied de page, 1 a 4 colonnes, cesure automatique
+(allemand, francais, italien, anglais, espagnol, turc), tabulations (gauche, centre, droite, decimale), formats de paragraphe.</li>
+<li>Palette d'outils (fleche, texte, cadre de texte, rectangles), objets deplacables / redimensionnables, cadres de texte
+pivotables (0, 90, 180, 270 degres), images PBM, corbeille pour supprimer un objet.</li>
+<li>Barre de format, regle, barre de touches de fonction F1-F10 configurable, zoom 25 a 300 %, annuler, chercher / remplacer,
+enregistrement <code>.PAP</code>, import / export ASCII, impression vers fichier ou <code>PRN</code>.</li>
+<li>Menus a la souris ou Alt+lettre ; <code>F9</code> active le mode selection au clavier ; <code>PAPYRUS /?</code> : aide.</li>
+</ul>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
