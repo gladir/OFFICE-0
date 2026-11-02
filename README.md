@@ -31,6 +31,10 @@ Aperçu du clone d'Acrobat :
 
 <img width="636" height="476" alt="image" src="https://github.com/user-attachments/assets/31715206-7b6d-4965-914e-1e1c4ab26d54" />
 
+Aperçu du clone Cubase :
+
+<img width="639" height="476" alt="image" src="https://github.com/user-attachments/assets/73ee655a-6714-4254-9502-72cd07bed606" />
+
 Aperçu du clone d'Excel :
 
 <img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/9f56d511-ef57-42c4-992c-2686c3056760" />
@@ -126,7 +130,11 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	<tr>
 		<td><b>ACROBAT.PAS</b></td>
 		<td>Cette commande permet de lancer un clone d'Acrobat.</td>
-	</tr>	
+	</tr>
+	<tr>
+		<td><b>CUBASE.PAS</b></td>
+		<td>Cette commande permet de lancer le clone graphique du séquenceur MIDI Cubase de Steinberg.</td>
+	</tr>
 	<tr>
 		<td><b>EXCEL.PAS</b></td>
 		<td>Cette commande permet de lancer un clone de Excel.</td>
