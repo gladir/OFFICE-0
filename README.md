@@ -376,19 +376,22 @@ sous DOS, haut-parleur du PC ou carte MPU-401.</li>
 <h2>NEWS : publication de journaux (clone de News Master)</h2>
 
 <ul>
-<li><code>NEWS [fichier.NWC] [/?]</code> : clone graphique du programme de publication de journaux News Master (Unison World, 1986),
+<li><code>NEWS [fichier.NWS | fichier.NWC] [/?]</code> : clone graphique du programme de publication de journaux News Master (Unison World, 1986),
 en français par défaut, en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code> ; tout le code est dans
 <code>NEWS.PAS</code> (Turbo Pascal 7 / Free Pascal), avec les menus déroulants de <code>PAPYRUS.PAS</code>.</li>
 <li>Écrans d'origine : écran de titre, menu principal, menu d'édition à touches de fonction F1..F6 (vue, texte, images, mise en page,
 fichier, impression) et écran de mise en page en miniature (ajout / suppression de colonnes, de titres et de pages).</li>
+<li>Fichiers d'origine : lecture et écriture des journaux <code>.NWS</code> de News Master (page paysage de 960 x 760, images
+incorporées, texte principal et titre, polices et justification), lecture des bibliothèques d'images <code>.SDR</code> / <code>.SDX</code> /
+<code>.SHP</code> (NEWS, BUSINESS, FANCYABC, SPORTS, TRAVEL...) et des polices <code>NEWS.FLB</code> si les fichiers sont dans le
+répertoire courant. Les journaux enregistrés relisent correctement dans <code>NEWS.EXE</code> d'origine.</li>
 <li>Texte : une histoire qui coule de colonne en colonne et de page en page, alignement gauche / droite / centré / justifié,
 choix de la police par caractère, sélection, couper / copier / coller, annulation, recherche, import / export ASCII.</li>
-<li>Images : bibliothèque intégrée de 14 images, prendre / poser / copier, taille, rognage, retournement, lignes et boîtes avec
-motifs de remplissage et habillage du texte (par-dessus, deux côtés, gauche, droite, zone dégagée).</li>
-<li>Vues : zoom x2, normale, largeur de page, page entière. Fichiers <code>.NWC</code> ; impression d'une page ou de toutes les pages
-en bitmap PBM.</li>
-<li>Polices : si <code>NEWS.FLB</code> (bibliothèque de polices originale de News Master) est dans le répertoire courant, ses 34 polices
-sont lues directement ; sinon des polices intégrées sont produites à partir de la police 8x8 du BGI.</li>
+<li>Images : 14 images intégrées et celles des bibliothèques d'origine (touche Tab pour changer de bibliothèque), prendre / poser /
+copier, taille, rognage, retournement, lignes et boîtes avec motifs de remplissage et habillage du texte.</li>
+<li>Vues : zoom x2, normale, largeur de page, page entière. Format étendu <code>.NWC</code> (jusqu'à 8 pages) ; impression d'une page
+ou de toutes les pages en bitmap PBM.</li>
+<li>Sans <code>NEWS.FLB</code>, des polices intégrées sont produites à partir de la police 8x8 du BGI.</li>
 </ul>
 
 <h2>Licence</h2>
