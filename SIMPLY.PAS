@@ -719,9 +719,11 @@ Begin
  If Cnt=0 Then Exit;
  If (Cnt=1) And (L[1]=8) Then Begin
   T:=N[1];
-  If Lang=2 Then Begin M:=T Div 1000000;Dd:=(T Div 10000) Mod 100;Y:=T Mod 10000;End
+  If Lang=2 Then Begin
+    M:=T Div 1000000;Dd:=(T Div 10000) Mod 100;Y:=T Mod 10000;End
   Else Begin Dd:=T Div 1000000;M:=(T Div 10000) Mod 100;Y:=T Mod 10000;End;
-  If (Y<1900) Then Begin Y:=T Div 10000;M:=(T Div 100) Mod 100;Dd:=T Mod 100;End;
+  If (Y<1900) Then Begin
+    Y:=T Div 10000;M:=(T Div 100) Mod 100;Dd:=T Mod 100;End;
  End Else If Cnt=3 Then Begin
   If L[1]>=3 Then Begin Y:=N[1];M:=N[2];Dd:=N[3];End
   Else If Lang=2 Then Begin M:=N[1];Dd:=N[2];Y:=N[3];End
@@ -805,7 +807,8 @@ Begin
  End;
 End;
 
-Function InsertAcc(Num: Integer; Const Nm: String; K: Integer; Bk: Boolean): Integer;
+Function InsertAcc(Num: Integer; Const Nm: String; K: Integer; Bk: Boolean):
+    Integer;
 Var I,P: Integer;
 Begin
  InsertAcc:=0;
@@ -839,7 +842,8 @@ Begin
  If Dr<0 Then Begin Cr:=Cr-Dr;Dr:=0;End;
  If Cr<0 Then Begin Dr:=Dr-Cr;Cr:=0;End;
  For I:=1 To PN Do
-  If (PL[I].Acc=Acc) And (((PL[I].Dr<>0) And (Dr<>0)) Or ((PL[I].Cr<>0) And (Cr<>0))) Then Begin
+  If (PL[I].Acc=Acc) And (((PL[I].Dr<>0) And (Dr<>0)) Or ((PL[I].Cr<>0)
+      And (Cr<>0))) Then Begin
    PL[I].Dr:=PL[I].Dr+Dr;PL[I].Cr:=PL[I].Cr+Cr;Exit;
   End;
  If PN>=MAXPL Then Exit;
@@ -881,15 +885,18 @@ Begin
  If PN=0 Then Exit;
  For I:=1 To PN Do
   If FindAcc(PL[I].Acc)=0 Then Begin
-   ErrMsg:=T3('Compte inexistant : ','Account does not exist: ','Konto existiert nicht: ')+IntStr(PL[I].Acc);
+   ErrMsg:=T3('Compte inexistant : ','Account does not exist: ',
+       'Konto existiert nicht: ')+IntStr(PL[I].Acc);
    Exit;
   End;
  If PSumDr<>PSumCr Then Begin
-  ErrMsg:=T3('L''@ecriture n''est pas @equilibr@ee.','The entry is out of balance.','Die Buchung ist nicht ausgeglichen.');
+  ErrMsg:=T3('L''@ecriture n''est pas @equilibr@ee.',
+      'The entry is out of balance.','Die Buchung ist nicht ausgeglichen.');
   Exit;
  End;
  If NJ+PN>MAXJL Then Begin
-  ErrMsg:=T3('Le journal est plein.','The journal is full.','Das Journal ist voll.');
+  ErrMsg:=T3('Le journal est plein.','The journal is full.',
+      'Das Journal ist voll.');
   Exit;
  End;
  Inc(SU.NextJ);
@@ -959,9 +966,12 @@ Begin
  SU.Rng[4].Lo:=4000;SU.Rng[4].Hi:=4999;
  SU.Rng[5].Lo:=5000;SU.Rng[5].Hi:=5999;
  SU.Rng[6].Lo:=6000;SU.Rng[6].Hi:=6999;
- SU.Msg[1]:=Dc('Paiement sur r@eception S.V.P. Frais d''administration de 1.5% par mois apr@es 30 jours.');
- SU.Msg[2]:='Payment upon receipt please. 1.5% administration charges per month after 30 days.';
- SU.Msg[3]:=Dc('Zahlung bei Erhalt bitte. 1,5% Verwaltungsgeb@3hr pro Monat nach 30 Tagen.');
+ SU.Msg[1]:=Dc('Paiement sur r@eception S.V.P. Frais d''administration de '+
+     '1.5% par mois apr@es 30 jours.');
+ SU.Msg[2]:='Payment upon receipt please. 1.5% administration charges per '+
+     'month after 30 days.';
+ SU.Msg[3]:=Dc('Zahlung bei Erhalt bitte. 1,5% Verwaltungsgeb@3hr pro Monat '+
+     'nach 30 Tagen.');
  SU.Link[LK_AP]:=2200;SU.Link[LK_AR]:=1200;SU.Link[LK_GSTPD]:=1310;
  SU.Link[LK_GSTCL]:=2310;SU.Link[LK_WAGE]:=6500;SU.Link[LK_TAXPAY]:=2320;
  SU.Link[LK_PENPAY]:=2330;SU.Link[LK_UIPAY]:=2340;SU.Link[LK_FRTEXP]:=6100;
@@ -988,38 +998,58 @@ End;
 Procedure DefaultChart;
 Begin
  AddA(1000,T3('Petite caisse','Petty Cash','Kleine Kasse'),False);
- AddA(1080,T3('Banque : Compte courant','Bank: Current','Bank: Girokonto'),True);
- AddA(1090,T3('Banque : Compte d''@epargne','Bank: Savings','Bank: Sparkonto'),True);
+ AddA(1080,T3('Banque : Compte courant','Bank: Current','Bank: Girokonto'),
+     True);
+ AddA(1090,T3('Banque : Compte d''@epargne','Bank: Savings','Bank: Sparkonto'),
+     True);
  AddA(1200,T3('Comptes clients','Accounts Receivable','Forderungen'),False);
  AddA(1300,T3('Inventaire','Inventory','Warenbestand'),False);
- AddA(1310,T3('TPS pay@ee sur achats','GST Paid on Purchases','Vorsteuer'),False);
- AddA(1320,T3('Frais pay@es d''avance','Prepaid Expenses','Aktive Abgrenzung'),False);
+ AddA(1310,T3('TPS pay@ee sur achats','GST Paid on Purchases','Vorsteuer'),
+     False);
+ AddA(1320,T3('Frais pay@es d''avance','Prepaid Expenses','Aktive Abgrenzung'),
+     False);
  AddA(1500,T3('V@ehicules','Vehicles','Fahrzeuge'),False);
- AddA(1510,T3('Amort. cumul@e : V@ehicules','Accum Deprec: Vehicles','Kum. Abschr.: Fahrzeuge'),False);
- AddA(1520,T3('Mobilier et @equipement','Furniture and Equipment','B@3roausstattung'),False);
- AddA(1530,T3('Amort. cumul@e : Mobilier','Accum Deprec: Furn & Equip','Kum. Abschr.: Ausstattung'),False);
- AddA(1540,T3('Mat@eriel informatique','Computer Hardware','Computer-Hardware'),False);
- AddA(2200,T3('Comptes fournisseurs','Accounts Payable','Verbindlichkeiten'),False);
- AddA(2310,T3('TPS perc@ue sur ventes','GST Charged on Sales','Umsatzsteuer'),False);
- AddA(2320,T3('Imp@ots retenus @a payer','Income Tax Payable','Lohnsteuer'),False);
- AddA(2330,T3('R@egime de pension @a payer','Pension Plan Payable','Rentenvers. zu zahlen'),False);
- AddA(2340,T3('Assurance-emploi @a payer','Unemployment Ins Payable','Arbeitslosenv. zu zahlen'),False);
+ AddA(1510,T3('Amort. cumul@e : V@ehicules','Accum Deprec: Vehicles',
+     'Kum. Abschr.: Fahrzeuge'),False);
+ AddA(1520,T3('Mobilier et @equipement','Furniture and Equipment',
+     'B@3roausstattung'),False);
+ AddA(1530,T3('Amort. cumul@e : Mobilier','Accum Deprec: Furn & Equip',
+     'Kum. Abschr.: Ausstattung'),False);
+ AddA(1540,T3('Mat@eriel informatique','Computer Hardware','Computer-Hardware'),
+     False);
+ AddA(2200,T3('Comptes fournisseurs','Accounts Payable','Verbindlichkeiten'),
+     False);
+ AddA(2310,T3('TPS perc@ue sur ventes','GST Charged on Sales','Umsatzsteuer'),
+     False);
+ AddA(2320,T3('Imp@ots retenus @a payer','Income Tax Payable','Lohnsteuer'),
+     False);
+ AddA(2330,T3('R@egime de pension @a payer','Pension Plan Payable',
+     'Rentenvers. zu zahlen'),False);
+ AddA(2340,T3('Assurance-emploi @a payer','Unemployment Ins Payable',
+     'Arbeitslosenv. zu zahlen'),False);
  AddA(2700,T3('Emprunt bancaire','Bank Loan','Bankdarlehen'),False);
  AddA(3000,T3('Capital-actions','Capital Stock','Stammkapital'),False);
- AddA(3500,T3('B@en@efices non r@epartis','Retained Earnings','Gewinnvortrag'),False);
+ AddA(3500,T3('B@en@efices non r@epartis','Retained Earnings','Gewinnvortrag'),
+     False);
  AddA(4100,T3('Ventes','Sales','Umsatzerl@2se'),False);
- AddA(4200,T3('Revenus de services','Service Revenue','Dienstleistungserl@2se'),False);
+ AddA(4200,T3('Revenus de services','Service Revenue','Dienstleistungserl@2se'),
+     False);
  AddA(4300,T3('Revenus de transport','Freight Revenue','Frachterl@2se'),False);
- AddA(4900,T3('Escomptes sur ventes','Sales Discounts','Erl@2sschm@1lerungen'),False);
- AddA(5000,T3('Co@ut des marchandises vendues','Cost of Goods Sold','Wareneinsatz'),False);
- AddA(5100,T3('Escomptes sur achats','Purchase Discounts','Skonti auf Eink@1ufe'),False);
- AddA(5200,T3('Ajustements d''inventaire','Inventory Adjustments','Bestandskorrekturen'),False);
+ AddA(4900,T3('Escomptes sur ventes','Sales Discounts','Erl@2sschm@1lerungen'),
+     False);
+ AddA(5000,T3('Co@ut des marchandises vendues','Cost of Goods Sold',
+     'Wareneinsatz'),False);
+ AddA(5100,T3('Escomptes sur achats','Purchase Discounts',
+     'Skonti auf Eink@1ufe'),False);
+ AddA(5200,T3('Ajustements d''inventaire','Inventory Adjustments',
+     'Bestandskorrekturen'),False);
  AddA(6000,T3('Publicit@e','Advertising','Werbung'),False);
  AddA(6100,T3('Frais de transport','Freight Expense','Frachtkosten'),False);
  AddA(6200,T3('Fournitures de bureau','Office Supplies','B@3romaterial'),False);
  AddA(6300,T3('Loyer','Rent','Miete'),False);
  AddA(6400,T3('T@el@ephone','Telephone','Telefon'),False);
- AddA(6500,T3('Salaires et gages','Wages and Salaries','L@2hne und Geh@1lter'),False);
+ AddA(6500,T3('Salaires et gages','Wages and Salaries','L@2hne und Geh@1lter'),
+     False);
  AddA(6700,T3('Frais bancaires','Bank Charges','Bankgeb@3hren'),False);
  AddA(6800,T3('Services publics','Utilities','Nebenkosten'),False);
 End;
@@ -1040,14 +1070,16 @@ Begin
  Inc(NV);
  FillChar(Vn^[NV],SizeOf(TParty),0);
  Vn^[NV].Name:=Dc(Nm);Vn^[NV].Ad1:=Dc(A1);Vn^[NV].Ad2:=Dc(A2);Vn^[NV].Phone:=Ph;
- Vn^[NV].Acc:=Acc;Vn^[NV].Tax:=True;Vn^[NV].DPct:=2;Vn^[NV].DDays:=10;Vn^[NV].NDays:=30;
+ Vn^[NV].Acc:=Acc;Vn^[NV].Tax:=True;Vn^[NV].DPct:=2;Vn^[NV].DDays:=10;
+ Vn^[NV].NDays:=30;
 End;
 
 Procedure AddCust(Const Nm,A1,A2,Ph: String; Acc: Integer);
 Begin
  Inc(NC_);
  FillChar(Cu^[NC_],SizeOf(TParty),0);
- Cu^[NC_].Name:=Dc(Nm);Cu^[NC_].Ad1:=Dc(A1);Cu^[NC_].Ad2:=Dc(A2);Cu^[NC_].Phone:=Ph;
+ Cu^[NC_].Name:=Dc(Nm);Cu^[NC_].Ad1:=Dc(A1);Cu^[NC_].Ad2:=Dc(A2);
+ Cu^[NC_].Phone:=Ph;
  Cu^[NC_].Acc:=Acc;Cu^[NC_].Tax:=True;Cu^[NC_].DPct:=2;Cu^[NC_].DDays:=10;
  Cu^[NC_].NDays:=30;Cu^[NC_].Limit:=1000000;
 End;
@@ -1062,7 +1094,8 @@ Begin
  If Svc Then It^[NI].RAcc:=4200 Else It^[NI].RAcc:=4100;
 End;
 
-Procedure SampleInvoice(Typ,P: Integer; Const No: String; D,Net: LongInt; Acc: Integer);
+Procedure SampleInvoice(Typ,P: Integer; Const No: String; D,
+    Net: LongInt; Acc: Integer);
 Var Tx: LongInt; Cmt: String;
 Begin
  Tx:=PctOf(Net,SU.Gst);
@@ -1086,27 +1119,39 @@ Begin
  FileN:='UNIVERSL.SDB';
  D0:=DayToDate(DayNum(SessDate)-90);
  PClear;
- PDr(1080,2500000);PDr(1000,50000);PDr(1090,1000000);PDr(1500,3000000);PDr(1520,800000);
+ PDr(1080,2500000);PDr(1000,50000);PDr(1090,1000000);PDr(1500,3000000);
+ PDr(1520,800000);
  PDr(1300,420000);
  PCr(2700,1500000);PCr(3000,5000000);PCr(3500,1270000);
- Commit(D0,'OUV-01',T3('Soldes d''ouverture','Opening balances','Er@2ffnungssalden'));
- AddVend('Papeterie Centrale','45 rue Saint-Denis','Montr@eal, QC','514-555-0101',6200);
- AddVend('Quincaillerie Bolduc','789 Industrial Blvd','Laval, QC','450-555-0188',1300);
- AddVend('Bell Canada','1 Carrefour Alexander-Graham-Bell','Verdun, QC','514-555-0142',6400);
- AddCust('Les Entreprises Tremblay','12 chemin des Pins','Qu@ebec, QC','418-555-0123',4100);
- AddCust('Maison Dufresne Inc.','88 avenue du Parc','Montr@eal, QC','514-555-0177',4100);
- AddCust('Habitations Lavoie','5 rue de la Gare','Sherbrooke, QC','819-555-0160',4200);
+ Commit(D0,'OUV-01',T3('Soldes d''ouverture','Opening balances',
+     'Er@2ffnungssalden'));
+ AddVend('Papeterie Centrale','45 rue Saint-Denis','Montr@eal, QC',
+     '514-555-0101',6200);
+ AddVend('Quincaillerie Bolduc','789 Industrial Blvd','Laval, QC',
+     '450-555-0188',1300);
+ AddVend('Bell Canada','1 Carrefour Alexander-Graham-Bell','Verdun, QC',
+     '514-555-0142',6400);
+ AddCust('Les Entreprises Tremblay','12 chemin des Pins','Qu@ebec, QC',
+     '418-555-0123',4100);
+ AddCust('Maison Dufresne Inc.','88 avenue du Parc','Montr@eal, QC',
+     '514-555-0177',4100);
+ AddCust('Habitations Lavoie','5 rue de la Gare','Sherbrooke, QC',
+     '819-555-0160',4200);
  AddItemRec('2X4-8','Montant 2x4 - 8 pieds','ea',650,400,50000,False);
  AddItemRec('CLOU-1','Clous 3 pouces (boite)','box',1295,700,12000,False);
  AddItemRec('PLYW-4','Contreplaque 4x8','ea',3995,2500,8000,False);
  AddItemRec('MO-HR','Main-d''oeuvre (heure)','hr',4500,0,0,True);
- Em^[1].Name:='Marie Gagnon';Em^[1].Ad1:='22 rue Principale';Em^[1].Ad2:='Laval, QC';
+ Em^[1].Name:='Marie Gagnon';Em^[1].Ad1:='22 rue Principale';
+ Em^[1].Ad2:='Laval, QC';
  Em^[1].SIN:='123-456-789';Em^[1].Rate:=2200;Em^[1].Hrs:=8000;
- Em^[2].Name:='Jean Roy';Em^[2].Ad1:='9 boul. Industriel';Em^[2].Ad2:=Dc('Montr@eal, QC');
+ Em^[2].Name:='Jean Roy';Em^[2].Ad1:='9 boul. Industriel';
+ Em^[2].Ad2:=Dc('Montr@eal, QC');
  Em^[2].SIN:='987-654-321';Em^[2].Rate:=1850;Em^[2].Hrs:=8000;
  NE:=2;
- Pj^[1].Name:=T3('R@enovation Tremblay','Tremblay Renovation','Umbau Tremblay');Pj^[1].Budget:=2500000;
- Pj^[2].Name:=T3('Maison Dufresne','Dufresne House','Haus Dufresne');Pj^[2].Budget:=4200000;
+ Pj^[1].Name:=T3('R@enovation Tremblay','Tremblay Renovation','Umbau Tremblay');
+ Pj^[1].Budget:=2500000;
+ Pj^[2].Name:=T3('Maison Dufresne','Dufresne House','Haus Dufresne');
+ Pj^[2].Budget:=4200000;
  NP:=2;
  D1:=DayNum(SessDate);
  SampleInvoice(1,1,'PC-4417',DayToDate(D1-50),32000,6200);
@@ -1258,7 +1303,8 @@ Begin
  Bx(X1,Y1,X2,Y2,C1);
  SetColor(C2);
  For Y:=Y1 To Y2 Do Begin
-  If Odd(Y) Then SetLineStyle(UserBitLn,$AAAA,1) Else SetLineStyle(UserBitLn,$5555,1);
+  If Odd(Y) Then SetLineStyle(UserBitLn,$AAAA,1) Else
+    SetLineStyle(UserBitLn,$5555,1);
   Line(X1,Y,X2,Y);
  End;
  SetLineStyle(SolidLn,0,1);
@@ -1366,7 +1412,8 @@ Function IsDouble(X,Y: LongInt): Boolean;
 Var T: LongInt;
 Begin
  T:=Tick;
- IsDouble:=(Abs(T-LastClickT)<45) And (Abs(X-LastClickX)<5) And (Abs(Y-LastClickY)<5);
+ IsDouble:=(Abs(T-LastClickT)<45) And (Abs(X-LastClickX)<5)
+     And (Abs(Y-LastClickY)<5);
  LastClickT:=T;LastClickX:=X;LastClickY:=Y;
 End;
 
@@ -1439,8 +1486,10 @@ Begin
   srcType: ListText:=KindName(I);
   srcPayBy: ListText:=PayByName(I);
   srcPrj: ListText:=Pj^[R].Name;
-  srcKind: ListText:=T3('Payer les factures fournisseurs','Pay Vendor Invoices','Lieferantenrechnungen zahlen');
-  srcRKind: ListText:=T3('Recevoir paiements clients','Receive Customer Payments','Kundenzahlungen erhalten');
+  srcKind: ListText:=T3('Payer les factures fournisseurs','Pay Vendor Invoices',
+      'Lieferantenrechnungen zahlen');
+  srcRKind: ListText:=T3('Recevoir paiements clients',
+      'Receive Customer Payments','Kundenzahlungen erhalten');
  End;
 End;
 
@@ -1482,7 +1531,8 @@ Begin
  P^.Ctl[N].W:=Wd;P^.Ctl[N].H:=Ht;P^.Ctl[N].Txt:=T;
  P^.Ctl[N].Tab:=P^.BTab;P^.Ctl[N].Ena:=True;P^.Ctl[N].Max:=40;P^.Ctl[N].Num:=0;
  P^.Ctl[N].Src:=0;P^.Ctl[N].Sel:=0;P^.Ctl[N].Cur:=Length(T);
- P^.Ctl[N].On:=False;P^.Ctl[N].Bold:=False;P^.Ctl[N].Rt:=False;P^.Ctl[N].Def:=False;
+ P^.Ctl[N].On:=False;P^.Ctl[N].Bold:=False;P^.Ctl[N].Rt:=False;
+ P^.Ctl[N].Def:=False;
  AddCtl:=N;
 End;
 
@@ -1605,7 +1655,8 @@ Procedure ST(P: PWin; Id: Integer; Const S: String);
 Var I: Integer;
 Begin
  I:=Ix(P,Id);
- If I>0 Then Begin P^.Ctl[I].Txt:=S;P^.Ctl[I].Cur:=Length(S);P^.Ctl[I].Sel:=0;End;
+ If I>0 Then Begin
+   P^.Ctl[I].Txt:=S;P^.Ctl[I].Cur:=Length(S);P^.Ctl[I].Sel:=0;End;
 End;
 
 Function GV(P: PWin; Id: Integer): Boolean;
@@ -1680,7 +1731,8 @@ End;
 Function Focusable(P: PWin; I: Integer): Boolean;
 Begin
  With P^.Ctl[I] Do
-  Focusable:=Ena And (Kind In [ckEdit,ckCheck,ckButton,ckCombo,ckGrid,ckRadio,ckText])
+  Focusable:=Ena
+      And (Kind In [ckEdit,ckCheck,ckButton,ckCombo,ckGrid,ckRadio,ckText])
    And ((Tab=0) Or (Tab=P^.CurTab));
 End;
 
@@ -1725,7 +1777,8 @@ Procedure FirstFocus(P: PWin);
 Var I: Integer;
 Begin
  For I:=1 To P^.NC Do
-  If Focusable(P,I) And (P^.Ctl[I].Kind<>ckButton) Then Begin SetFocus(P,I);Exit;End;
+  If Focusable(P,I) And (P^.Ctl[I].Kind<>ckButton) Then Begin
+    SetFocus(P,I);Exit;End;
  For I:=1 To P^.NC Do If Focusable(P,I) Then Begin SetFocus(P,I);Exit;End;
 End;
 
@@ -1779,11 +1832,13 @@ Begin
     End;
     Mx:=(P^.GColW[C]-4) Div 8;
     If Length(S)>Mx Then Begin
-     If P^.GEdit And (Rw=P^.GRow) And (C=P^.GCol) Then S:=Copy(S,Length(S)-Mx+1,Mx) Else S:=Copy(S,1,Mx);
+     If P^.GEdit And (Rw=P^.GRow) And (C=P^.GCol) Then
+       S:=Copy(S,Length(S)-Mx+1,Mx) Else S:=Copy(S,1,Mx);
     End;
     If Sl Then Begin
      If (P^.GMode=2) And (C=1) Then Tx(X+2,Y+3,S,cWht)
-     Else If P^.GKind[C] In [1,3] Then Tx(X+P^.GColW[C]-3-Length(S)*8,Y+3,S,cWht)
+     Else If P^.GKind[C] In [1,3] Then
+       Tx(X+P^.GColW[C]-3-Length(S)*8,Y+3,S,cWht)
      Else Tx(X+3,Y+3,S,cWht);
     End Else Begin
      If P^.GKind[C] In [1,3] Then Tx(X+P^.GColW[C]-3-Length(S)*8,Y+3,S,cBlk)
@@ -1803,7 +1858,8 @@ Begin
  If P^.GMode=0 Then
   For R:=1 To P^.GVis Do Ln(AX,AY+16+R*RH-1,AX+GW-1,AY+16+R*RH-1,cLGr);
  { cellule courante }
- If (P^.GMode=0) And (P^.GN>0) And (P^.GRow>P^.GTop) And (P^.GRow<=P^.GTop+P^.GVis) And (P^.GNC>0) Then Begin
+ If (P^.GMode=0) And (P^.GN>0) And (P^.GRow>P^.GTop)
+     And (P^.GRow<=P^.GTop+P^.GVis) And (P^.GNC>0) Then Begin
   Off:=0;
   For C:=1 To P^.GCol-1 Do Off:=Off+P^.GColW[C];
   Y:=AY+16+(P^.GRow-P^.GTop-1)*RH;
@@ -1840,7 +1896,8 @@ Begin
      Bx(AX+3,AY+3,AX+3+Length(S)*8,AY+14,cNavy);
      Tx(AX+4,AY+5,S,cWht);
     End Else Begin
-     If Rt And Not Fc Then Tx(X2-3-Length(S)*8,AY+5,S,Cc) Else Tx(AX+4,AY+5,S,Cc);
+     If Rt And Not Fc Then Tx(X2-3-Length(S)*8,AY+5,S,Cc) Else
+       Tx(AX+4,AY+5,S,Cc);
      If Fc And Ena Then Ln(AX+4+(Cur-Off)*8,AY+3,AX+4+(Cur-Off)*8,AY+14,cBlk);
     End;
    End;
@@ -1857,12 +1914,15 @@ Begin
     SetColor(cDGr);Circle(AX+6,AY+6,6);
     SetColor(cWht);Arc(AX+6,AY+6,200,20,5);
     SetFillStyle(SolidFill,cWht);FillEllipse(AX+6,AY+6,4,4);
-    If On Then Begin SetFillStyle(SolidFill,cBlk);FillEllipse(AX+6,AY+6,2,2);End;
+    If On Then Begin
+      SetFillStyle(SolidFill,cBlk);FillEllipse(AX+6,AY+6,2,2);End;
     Tx(AX+20,AY+3,StripAmp(Txt),Cc);
     If Fc Then FocusRect(AX+18,AY+1,X2,AY+12);
    End;
    ckButton: Begin
-    If Def Then Begin SetColor(cBlk);SetLineStyle(SolidLn,0,1);Rectangle(AX-1,AY-1,X2+1,Y2+1);End;
+    If Def Then Begin
+      SetColor(cBlk);SetLineStyle(SolidLn,0,1);Rectangle(AX-1,AY-1,X2+1,Y2+1);
+      End;
     If Pr Then Begin
      Bx(AX,AY,X2,Y2,cLGr);
      SetColor(cDGr);Rectangle(AX,AY,X2,Y2);
@@ -1912,7 +1972,8 @@ Begin
  X1:=P^.X;Y1:=P^.Y;X2:=X1+P^.W-1;Y2:=Y1+P^.H-1;
  SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  Raised(X1,Y1,X2,Y2);
- If Active Then Bx(X1+3,Y1+3,X2-3,Y1+20,cNavy) Else Bx(X1+3,Y1+3,X2-3,Y1+20,cDGr);
+ If Active Then Bx(X1+3,Y1+3,X2-3,Y1+20,cNavy) Else
+   Bx(X1+3,Y1+3,X2-3,Y1+20,cDGr);
  TxB(X1+8,Y1+8,P^.Title,cWht);
  Raised(X2-20,Y1+5,X2-5,Y1+18);
  Ln(X2-16,Y1+8,X2-9,Y1+15,cBlk);Ln(X2-15,Y1+8,X2-8,Y1+15,cBlk);
@@ -2077,7 +2138,8 @@ Begin
    K_PGDN: Begin P^.GRow:=P^.GRow+P^.GVis;ClampGrid(P);End;
    K_HOME: Begin P^.GRow:=1;ClampGrid(P);End;
    K_END: Begin P^.GRow:=P^.GN;ClampGrid(P);End;
-   K_ENTER: If P^.GMode=1 Then Dispatch(P,evDbl,P^.GRow,P^.GCol) Else GridKey:=False;
+   K_ENTER: If P^.GMode=1 Then Dispatch(P,evDbl,P^.GRow,P^.GCol) Else
+     GridKey:=False;
    32: If P^.GMode=2 Then Dispatch(P,evDbl,P^.GRow,1) Else GridKey:=False;
    33..255: Begin
      Ch:=UpCase(Chr(K));
@@ -2106,7 +2168,8 @@ Begin
   GridCommit(P);
   If Y<AY+16 Then Dec(P^.GTop)
   Else If Y>=AY+GH-16 Then Inc(P^.GTop)
-  Else If Y<AY+16+LongInt(GH-32)*P^.GTop Div Max2(1,P^.GN) Then P^.GTop:=P^.GTop-P^.GVis
+  Else If Y<AY+16+LongInt(GH-32)*P^.GTop Div Max2(1,P^.GN) Then
+    P^.GTop:=P^.GTop-P^.GVis
   Else P^.GTop:=P^.GTop+P^.GVis;
   If P^.GTop>P^.GN-P^.GVis Then P^.GTop:=P^.GN-P^.GVis;
   If P^.GTop<0 Then P^.GTop:=0;
@@ -2135,10 +2198,13 @@ End;
 Function SelTitle(Src: Integer): String;
 Begin
  Case Src Of
-  srcVend: SelTitle:=T3('Choisir un fournisseur','Select Vendor','Lieferant w@1hlen');
+  srcVend: SelTitle:=T3('Choisir un fournisseur','Select Vendor',
+      'Lieferant w@1hlen');
   srcCust: SelTitle:=T3('Choisir un client','Select Customer','Kunde w@1hlen');
-  srcAcct,srcBank: SelTitle:=T3('Choisir un compte','Select Account','Konto w@1hlen');
-  srcEmp: SelTitle:=T3('Choisir un employ@e','Select Employee','Mitarbeiter w@1hlen');
+  srcAcct,srcBank: SelTitle:=T3('Choisir un compte','Select Account',
+      'Konto w@1hlen');
+  srcEmp: SelTitle:=T3('Choisir un employ@e','Select Employee',
+      'Mitarbeiter w@1hlen');
   srcItem: SelTitle:=T3('Choisir un article','Select Item','Artikel w@1hlen');
   srcPrj: SelTitle:=T3('Choisir un projet','Select Project','Projekt w@1hlen');
   Else SelTitle:=T3('Choisir','Select','Ausw@1hlen');
@@ -2189,7 +2255,8 @@ Procedure ToggleRadio(P: PWin; I: Integer);
 Var J: Integer;
 Begin
  For J:=1 To P^.NC Do
-  If (P^.Ctl[J].Kind=ckRadio) And (P^.Ctl[J].Sel=P^.Ctl[I].Sel) Then P^.Ctl[J].On:=False;
+  If (P^.Ctl[J].Kind=ckRadio) And (P^.Ctl[J].Sel=P^.Ctl[I].Sel) Then
+    P^.Ctl[J].On:=False;
  P^.Ctl[I].On:=True;
 End;
 
@@ -2313,7 +2380,8 @@ Begin
  For I:=P^.NC DownTo 1 Do Begin
   AX:=OX+P^.Ctl[I].X;AY:=OY+P^.Ctl[I].Y;
   Hit:=P^.Ctl[I].Ena And ((P^.Ctl[I].Tab=0) Or (P^.Ctl[I].Tab=P^.CurTab))
-   And (P^.Ctl[I].Kind<>ckLabel) And (P^.Ctl[I].Kind<>ckBox) And (P^.Ctl[I].Kind<>ckRule)
+   And (P^.Ctl[I].Kind<>ckLabel) And (P^.Ctl[I].Kind<>ckBox)
+       And (P^.Ctl[I].Kind<>ckRule)
    And InBox(X,Y,AX,AY,AX+P^.Ctl[I].W-1,AY+P^.Ctl[I].H-1);
   If Hit Then Begin
    If P^.Foc<>I Then SetFocus(P,I);
@@ -2417,12 +2485,14 @@ End;
 { ---- boites de dialogue usuelles ---- }
 
 Function MsgBox(Const Msg: String; Btn: Integer): Integer;
-Var P: PWin; Lines: Array[1..8] Of String[60]; NL,I,Mx,Wd,Ht,BX,Pp,K: Integer; S,T: String;
+Var P: PWin; Lines: Array[1..8] Of
+  String[60]; NL,I,Mx,Wd,Ht,BX,Pp,K: Integer; S,T: String;
 Begin
  S:=Msg;NL:=0;
  While (S<>'') And (NL<8) Do Begin
   Pp:=Pos('|',S);
-  If Pp=0 Then Begin T:=S;S:='';End Else Begin T:=Copy(S,1,Pp-1);Delete(S,1,Pp);End;
+  If Pp=0 Then Begin T:=S;S:='';End Else Begin
+    T:=Copy(S,1,Pp-1);Delete(S,1,Pp);End;
   While (Length(T)>52) And (NL<8) Do Begin
    K:=52;
    While (K>20) And (T[K]<>' ') Do Dec(K);
@@ -2445,7 +2515,8 @@ Begin
  Else Begin
   AddBtn(P,1,BX,12+NL*12+12,70,T3('Oui','Yes','Ja'),True);
   AddBtn(P,2,BX+78,12+NL*12+12,70,T3('Non','No','Nein'),False);
-  If Btn=3 Then AddBtn(P,3,BX+156,12+NL*12+12,70,T3('Annuler','Cancel','Abbrechen'),False);
+  If Btn=3 Then
+    AddBtn(P,3,BX+156,12+NL*12+12,70,T3('Annuler','Cancel','Abbrechen'),False);
  End;
  MsgBox:=RunWin(P);
 End;
@@ -2463,7 +2534,8 @@ End;
 Var
  InStr: String[60];
 
-Function InputBox(Const Ti,Prompt: String; Var S: String; MaxL,Num: Integer): Boolean;
+Function InputBox(Const Ti,Prompt: String; Var S: String; MaxL,
+    Num: Integer): Boolean;
 Var P: PWin;
 Begin
  P:=NewWin(wkInput,Ti,360,118);
@@ -2557,7 +2629,8 @@ Procedure UpdateAcctType(P: PWin);
 Var K: Integer;
 Begin
  K:=KindOfNum(ValInt(GT(P,10),0));
- If K=0 Then ST(P,12,T3('Type : (hors plage)','Type: (out of range)','Typ: (au@7erhalb)'))
+ If K=0 Then
+   ST(P,12,T3('Type : (hors plage)','Type: (out of range)','Typ: (au@7erhalb)'))
  Else ST(P,12,T3('Type : ','Type: ','Typ: ')+KindName(K));
 End;
 
@@ -2578,16 +2651,26 @@ Begin
      N:=ValInt(GT(P,10),0);
      S:=TrimStr(GT(P,11));
      K:=KindOfNum(N);
-     If (N<1) Or (N>9999) Then Info(T3('Num@ero de compte invalide.','Invalid account number.','Ung@3ltige Kontonummer.'))
+     If (N<1) Or (N>9999) Then
+       Info(T3('Num@ero de compte invalide.','Invalid account number.',
+         'Ung@3ltige Kontonummer.'))
      Else If (EditIdx=0) And (FindAcc(N)>0) Then
-      Info(T3('Ce num@ero de compte existe d@ej@a.','This account number already exists.','Diese Kontonummer existiert bereits.'))
+      Info(T3('Ce num@ero de compte existe d@ej@a.',
+          'This account number already exists.',
+          'Diese Kontonummer existiert bereits.'))
      Else If K=0 Then
-      Info(T3('Le num@ero est hors des plages d@efinies|dans la num@erotation des comptes.','The number is outside the ranges|defined in the account numbering.','Die Nummer liegt au@7erhalb der|definierten Kontenbereiche.'))
-     Else If S='' Then Info(T3('Le nom du compte est obligatoire.','The account name is required.','Der Kontoname ist erforderlich.'))
+      Info(T3('Le num@ero est hors des plages d@efinies|dans la '+
+          'num@erotation des comptes.',
+          'The number is outside the ranges|defined in the account numbering.',
+          'Die Nummer liegt au@7erhalb der|definierten Kontenbereiche.'))
+     Else If S='' Then
+       Info(T3('Le nom du compte est obligatoire.',
+         'The account name is required.','Der Kontoname ist erforderlich.'))
      Else Begin
       If EditIdx=0 Then Begin
        I:=InsertAcc(N,S,K,GV(P,13));
-       If I=0 Then Info(T3('Trop de comptes.','Too many accounts.','Zu viele Konten.'))
+       If I=0 Then
+         Info(T3('Trop de comptes.','Too many accounts.','Zu viele Konten.'))
        Else Begin P^.Res:=1;P^.Done:=True;Modified:=True;LastNew:=N;End;
       End Else Begin
        Ac^[EditIdx].Name:=S;Ac^[EditIdx].Bank:=GV(P,13);
@@ -2641,22 +2724,30 @@ Begin
   evButton: Case A Of
    1: Begin
      S:=TrimStr(GT(P,10));
-     If S='' Then Info(T3('Le nom est obligatoire.','The name is required.','Der Name ist erforderlich.'))
+     If S='' Then
+       Info(T3('Le nom est obligatoire.','The name is required.',
+         'Der Name ist erforderlich.'))
      Else Begin
       If EditIdx=0 Then Begin
        If P^.Aux=1 Then Begin
-        If NV>=MAXVEN Then Begin Info(T3('Trop de fournisseurs.','Too many vendors.','Zu viele Lieferanten.'));Exit;End;
+        If NV>=MAXVEN Then Begin
+          Info(T3('Trop de fournisseurs.','Too many vendors.',
+            'Zu viele Lieferanten.'));Exit;End;
         Inc(NV);N:=NV;
        End Else Begin
-        If NC_>=MAXCUS Then Begin Info(T3('Trop de clients.','Too many customers.','Zu viele Kunden.'));Exit;End;
+        If NC_>=MAXCUS Then Begin
+          Info(T3('Trop de clients.','Too many customers.','Zu viele Kunden.'));
+          Exit;End;
         Inc(NC_);N:=NC_;
        End;
        FillChar(PA^[N],SizeOf(TParty),0);
       End Else N:=EditIdx;
       With PA^[N] Do Begin
-       Name:=S;Ad1:=TrimStr(GT(P,11));Ad2:=TrimStr(GT(P,12));Phone:=TrimStr(GT(P,13));
+       Name:=S;Ad1:=TrimStr(GT(P,11));Ad2:=TrimStr(GT(P,12));
+       Phone:=TrimStr(GT(P,13));
        Contact:=TrimStr(GT(P,14));Acc:=AcctComboNum(P,15,0);Tax:=GV(P,16);
-       DPct:=ValInt(GT(P,17),0);DDays:=ValInt(GT(P,18),0);NDays:=ValInt(GT(P,19),30);
+       DPct:=ValInt(GT(P,17),0);DDays:=ValInt(GT(P,18),0);
+       NDays:=ValInt(GT(P,19),30);
        If DPct>100 Then DPct:=100;
        If P^.Aux=2 Then Limit:=GMoney(P,20);
       End;
@@ -2673,29 +2764,41 @@ Function EditParty(Side,Idx: Integer): Boolean;
 Var P: PWin; Ti: String; Y,Ht: Integer;
 Begin
  EditIdx:=Idx;
- If Side=1 Then Ti:=T3('Fournisseur','Vendor','Lieferant') Else Ti:=T3('Client','Customer','Kunde');
+ If Side=1 Then Ti:=T3('Fournisseur','Vendor','Lieferant') Else
+   Ti:=T3('Client','Customer','Kunde');
  If Side=1 Then Ht:=294 Else Ht:=322;
  P:=NewWin(wkParty,Ti,420,Ht);
  P^.Aux:=Side;
  AddLbl(P,0,12,14,T3('Nom :','Name:','Name:'));AddEdit(P,10,130,10,260,30,0,'');
- AddLbl(P,0,12,38,T3('Adresse :','Address:','Adresse:'));AddEdit(P,11,130,34,260,30,0,'');
+ AddLbl(P,0,12,38,T3('Adresse :','Address:','Adresse:'));
+ AddEdit(P,11,130,34,260,30,0,'');
  AddEdit(P,12,130,58,260,30,0,'');
- AddLbl(P,0,12,86,T3('T@el@ephone :','Phone:','Telefon:'));AddEdit(P,13,130,82,130,16,0,'');
- AddLbl(P,0,12,110,T3('Contact :','Contact:','Kontakt:'));AddEdit(P,14,130,106,260,24,0,'');
- If Side=1 Then AddLbl(P,0,12,134,T3('Compte de d@epense :','Expense account:','Aufwandskonto:'))
- Else AddLbl(P,0,12,134,T3('Compte de revenus :','Revenue account:','Ertragskonto:'));
+ AddLbl(P,0,12,86,T3('T@el@ephone :','Phone:','Telefon:'));
+ AddEdit(P,13,130,82,130,16,0,'');
+ AddLbl(P,0,12,110,T3('Contact :','Contact:','Kontakt:'));
+ AddEdit(P,14,130,106,260,24,0,'');
+ If Side=1 Then
+   AddLbl(P,0,12,134,T3('Compte de d@epense :','Expense account:',
+     'Aufwandskonto:'))
+ Else
+   AddLbl(P,0,12,134,T3('Compte de revenus :','Revenue account:',
+     'Ertragskonto:'));
  AddCombo(P,15,130,130,260,srcAcct);
- AddLbl(P,0,12,158,T3('Escompte (%) :','Discount (%):','Skonto (%):'));AddEdit(P,17,130,154,50,3,3,'');
- AddLbl(P,0,196,158,T3('si pay@e en','if paid in','bei Zahlung in'));AddEdit(P,18,300,154,40,3,3,'');
+ AddLbl(P,0,12,158,T3('Escompte (%) :','Discount (%):','Skonto (%):'));
+ AddEdit(P,17,130,154,50,3,3,'');
+ AddLbl(P,0,196,158,T3('si pay@e en','if paid in','bei Zahlung in'));
+ AddEdit(P,18,300,154,40,3,3,'');
  AddLbl(P,0,346,158,T3('j.','days','Tg.'));
- AddLbl(P,0,12,182,T3('Net (jours) :','Net days:','Netto (Tage):'));AddEdit(P,19,130,178,50,3,3,'');
+ AddLbl(P,0,12,182,T3('Net (jours) :','Net days:','Netto (Tage):'));
+ AddEdit(P,19,130,178,50,3,3,'');
  Y:=206;
  If Side=2 Then Begin
   AddLbl(P,0,12,Y+4,T3('Limite de cr@edit :','Credit limit:','Kreditlimit:'));
   AddEdit(P,20,130,Y,110,12,1,'');
   Y:=Y+28;
  End;
- AddChk(P,16,130,Y+2,T3('Taxable (TPS)','Taxable (GST)','Steuerpflichtig (USt)'),True);
+ AddChk(P,16,130,Y+2,T3('Taxable (TPS)','Taxable (GST)',
+     'Steuerpflichtig (USt)'),True);
  AddBtn(P,1,130,Y+30,80,'OK',True);
  AddBtn(P,2,220,Y+30,80,T3('Annuler','Cancel','Abbrechen'),False);
  EditParty:=RunWin(P)=1;
@@ -2716,14 +2819,19 @@ Begin
   evButton: Case A Of
    1: Begin
      S:=TrimStr(GT(P,10));
-     If S='' Then Info(T3('Le nom est obligatoire.','The name is required.','Der Name ist erforderlich.'))
+     If S='' Then
+       Info(T3('Le nom est obligatoire.','The name is required.',
+         'Der Name ist erforderlich.'))
      Else Begin
       If EditIdx=0 Then Begin
-       If NE>=MAXEMP Then Begin Info(T3('Trop d''employ@es.','Too many employees.','Zu viele Mitarbeiter.'));Exit;End;
+       If NE>=MAXEMP Then Begin
+         Info(T3('Trop d''employ@es.','Too many employees.',
+           'Zu viele Mitarbeiter.'));Exit;End;
        Inc(NE);N:=NE;FillChar(Em^[N],SizeOf(TEmp),0);
       End Else N:=EditIdx;
       With Em^[N] Do Begin
-       Name:=S;Ad1:=TrimStr(GT(P,11));Ad2:=TrimStr(GT(P,12));SIN:=TrimStr(GT(P,13));
+       Name:=S;Ad1:=TrimStr(GT(P,11));Ad2:=TrimStr(GT(P,12));
+       SIN:=TrimStr(GT(P,13));
        Rate:=GMoney(P,14);Hrs:=ParseMoney(GT(P,15));
       End;
       Modified:=True;P^.Res:=1;P^.Done:=True;
@@ -2741,12 +2849,17 @@ Begin
  EditIdx:=Idx;
  P:=NewWin(wkEmp,T3('Employ@e','Employee','Mitarbeiter'),410,246);
  AddLbl(P,0,12,14,T3('Nom :','Name:','Name:'));AddEdit(P,10,130,10,250,30,0,'');
- AddLbl(P,0,12,38,T3('Adresse :','Address:','Adresse:'));AddEdit(P,11,130,34,250,30,0,'');
+ AddLbl(P,0,12,38,T3('Adresse :','Address:','Adresse:'));
+ AddEdit(P,11,130,34,250,30,0,'');
  AddEdit(P,12,130,58,250,30,0,'');
- AddLbl(P,0,12,86,T3('N.A.S. :','SIN:','Sozialvers.-Nr.:'));AddEdit(P,13,130,82,120,11,0,'');
- AddLbl(P,0,12,110,T3('Taux horaire :','Hourly rate:','Stundensatz:'));AddEdit(P,14,130,106,100,12,1,'');
- AddLbl(P,0,12,134,T3('Heures / p@eriode :','Hours / period:','Std. / Periode:'));AddEdit(P,15,130,130,100,8,5,'');
- AddLbl(P,0,12,158,T3('Cumul annuel :','Year to date:','Jahressumme:'));AddEdit(P,16,130,154,100,12,1,'');
+ AddLbl(P,0,12,86,T3('N.A.S. :','SIN:','Sozialvers.-Nr.:'));
+ AddEdit(P,13,130,82,120,11,0,'');
+ AddLbl(P,0,12,110,T3('Taux horaire :','Hourly rate:','Stundensatz:'));
+ AddEdit(P,14,130,106,100,12,1,'');
+ AddLbl(P,0,12,134,T3('Heures / p@eriode :','Hours / period:',
+     'Std. / Periode:'));AddEdit(P,15,130,130,100,8,5,'');
+ AddLbl(P,0,12,158,T3('Cumul annuel :','Year to date:','Jahressumme:'));
+ AddEdit(P,16,130,154,100,12,1,'');
  SEna(P,16,False);
  AddBtn(P,1,130,184,80,'OK',True);
  AddBtn(P,2,220,184,80,T3('Annuler','Cancel','Abbrechen'),False);
@@ -2770,7 +2883,8 @@ Begin
   evInit: Begin
    If EditIdx>0 Then Begin
     With It^[EditIdx] Do Begin
-     ST(P,10,Code);ST(P,11,Desc);ST(P,12,Unit_);SMoney(P,13,Price);SMoney(P,14,Cost);
+     ST(P,10,Code);ST(P,11,Desc);ST(P,12,Unit_);SMoney(P,13,Price);
+     SMoney(P,14,Cost);
      ST(P,17,FmtQty(Qty));SV(P,16,Svc);
      SetAcctCombo(P,18,AAcc);SetAcctCombo(P,19,RAcc);SetAcctCombo(P,20,CAcc);
     End;
@@ -2785,19 +2899,27 @@ Begin
   evButton: Case A Of
    1: Begin
      S:=TrimStr(GT(P,10));
-     If S='' Then Info(T3('Le code est obligatoire.','The item code is required.','Der Artikelcode ist erforderlich.'))
+     If S='' Then
+       Info(T3('Le code est obligatoire.','The item code is required.',
+         'Der Artikelcode ist erforderlich.'))
      Else If (EditIdx=0) And (FindItem(S)>0) Then
-      Info(T3('Ce code d''article existe d@ej@a.','This item code already exists.','Dieser Artikelcode existiert bereits.'))
+      Info(T3('Ce code d''article existe d@ej@a.',
+          'This item code already exists.',
+          'Dieser Artikelcode existiert bereits.'))
      Else Begin
       If EditIdx=0 Then Begin
-       If NI>=MAXITM Then Begin Info(T3('Trop d''articles.','Too many items.','Zu viele Artikel.'));Exit;End;
+       If NI>=MAXITM Then Begin
+         Info(T3('Trop d''articles.','Too many items.','Zu viele Artikel.'));
+         Exit;End;
        Inc(NI);N:=NI;FillChar(It^[N],SizeOf(TItem),0);
        It^[N].Code:=S;It^[N].Qty:=ParseMoney(GT(P,17));
       End Else N:=EditIdx;
       With It^[N] Do Begin
-       Desc:=TrimStr(GT(P,11));Unit_:=TrimStr(GT(P,12));Price:=GMoney(P,13);Cost:=GMoney(P,14);
+       Desc:=TrimStr(GT(P,11));Unit_:=TrimStr(GT(P,12));Price:=GMoney(P,13);
+       Cost:=GMoney(P,14);
        Svc:=GV(P,16);
-       AAcc:=AcctComboNum(P,18,1300);RAcc:=AcctComboNum(P,19,4100);CAcc:=AcctComboNum(P,20,5000);
+       AAcc:=AcctComboNum(P,18,1300);RAcc:=AcctComboNum(P,19,4100);
+       CAcc:=AcctComboNum(P,20,5000);
        If Svc Then Qty:=0;
       End;
       Modified:=True;P^.Res:=1;P^.Done:=True;
@@ -2813,17 +2935,28 @@ Function EditItem(Idx: Integer): Boolean;
 Var P: PWin;
 Begin
  EditIdx:=Idx;
- P:=NewWin(wkItem,T3('Article / Service','Item / Service','Artikel / Dienst'),430,330);
- AddLbl(P,0,12,14,T3('Code :','Code:','Code:'));AddEdit(P,10,150,10,100,10,0,'');
- AddLbl(P,0,12,38,T3('Description :','Description:','Beschreibung:'));AddEdit(P,11,150,34,260,30,0,'');
- AddLbl(P,0,12,62,T3('Unit@e :','Unit:','Einheit:'));AddEdit(P,12,150,58,60,6,0,'');
- AddLbl(P,0,12,86,T3('Prix de vente :','Selling price:','Verkaufspreis:'));AddEdit(P,13,150,82,110,12,1,'');
- AddLbl(P,0,12,110,T3('Co@ut unitaire :','Unit cost:','St@3ckkosten:'));AddEdit(P,14,150,106,110,12,1,'');
- AddChk(P,16,150,132,T3('Service (non inventori@e)','Service (not stocked)','Dienstleistung (ohne Lager)'),False);
- AddLbl(P,0,12,158,T3('Quantit@e en stock :','Quantity on hand:','Lagerbestand:'));AddEdit(P,17,150,154,100,10,5,'');
- AddLbl(P,0,12,182,T3('Compte d''actif :','Asset account:','Bestandskonto:'));AddCombo(P,18,150,178,260,srcAcct);
- AddLbl(P,0,12,206,T3('Compte de revenus :','Revenue account:','Ertragskonto:'));AddCombo(P,19,150,202,260,srcAcct);
- AddLbl(P,0,12,230,T3('Compte de co@ut :','COGS account:','Wareneinsatzkonto:'));AddCombo(P,20,150,226,260,srcAcct);
+ P:=NewWin(wkItem,T3('Article / Service','Item / Service','Artikel / Dienst'),
+     430,330);
+ AddLbl(P,0,12,14,T3('Code :','Code:','Code:'));
+ AddEdit(P,10,150,10,100,10,0,'');
+ AddLbl(P,0,12,38,T3('Description :','Description:','Beschreibung:'));
+ AddEdit(P,11,150,34,260,30,0,'');
+ AddLbl(P,0,12,62,T3('Unit@e :','Unit:','Einheit:'));
+ AddEdit(P,12,150,58,60,6,0,'');
+ AddLbl(P,0,12,86,T3('Prix de vente :','Selling price:','Verkaufspreis:'));
+ AddEdit(P,13,150,82,110,12,1,'');
+ AddLbl(P,0,12,110,T3('Co@ut unitaire :','Unit cost:','St@3ckkosten:'));
+ AddEdit(P,14,150,106,110,12,1,'');
+ AddChk(P,16,150,132,T3('Service (non inventori@e)','Service (not stocked)',
+     'Dienstleistung (ohne Lager)'),False);
+ AddLbl(P,0,12,158,T3('Quantit@e en stock :','Quantity on hand:',
+     'Lagerbestand:'));AddEdit(P,17,150,154,100,10,5,'');
+ AddLbl(P,0,12,182,T3('Compte d''actif :','Asset account:','Bestandskonto:'));
+ AddCombo(P,18,150,178,260,srcAcct);
+ AddLbl(P,0,12,206,T3('Compte de revenus :','Revenue account:',
+     'Ertragskonto:'));AddCombo(P,19,150,202,260,srcAcct);
+ AddLbl(P,0,12,230,T3('Compte de co@ut :','COGS account:',
+     'Wareneinsatzkonto:'));AddCombo(P,20,150,226,260,srcAcct);
  AddBtn(P,1,150,262,80,'OK',True);
  AddBtn(P,2,240,262,80,T3('Annuler','Cancel','Abbrechen'),False);
  EditItem:=RunWin(P)=1;
@@ -2841,10 +2974,14 @@ Begin
   evButton: Case A Of
    1: Begin
      S:=TrimStr(GT(P,10));
-     If S='' Then Info(T3('Le nom est obligatoire.','The name is required.','Der Name ist erforderlich.'))
+     If S='' Then
+       Info(T3('Le nom est obligatoire.','The name is required.',
+         'Der Name ist erforderlich.'))
      Else Begin
       If EditIdx=0 Then Begin
-       If NP>=MAXPRJ Then Begin Info(T3('Trop de projets.','Too many projects.','Zu viele Projekte.'));Exit;End;
+       If NP>=MAXPRJ Then Begin
+         Info(T3('Trop de projets.','Too many projects.','Zu viele Projekte.'));
+         Exit;End;
        Inc(NP);N:=NP;
       End Else N:=EditIdx;
       Pj^[N].Name:=S;Pj^[N].Budget:=GMoney(P,11);
@@ -2863,7 +3000,8 @@ Begin
  EditIdx:=Idx;
  P:=NewWin(wkPrj,T3('Projet','Project','Projekt'),380,150);
  AddLbl(P,0,12,14,T3('Nom :','Name:','Name:'));AddEdit(P,10,100,10,250,30,0,'');
- AddLbl(P,0,12,38,T3('Budget :','Budget:','Budget:'));AddEdit(P,11,100,34,110,12,1,'');
+ AddLbl(P,0,12,38,T3('Budget :','Budget:','Budget:'));
+ AddEdit(P,11,100,34,110,12,1,'');
  AddBtn(P,1,100,68,80,'OK',True);
  AddBtn(P,2,190,68,80,T3('Annuler','Cancel','Abbrechen'),False);
  EditPrj:=RunWin(P)=1;
@@ -2913,7 +3051,8 @@ Begin
     End;
    5: Begin
      P^.GCell[I,1]:=It^[I].Code;P^.GCell[I,2]:=It^[I].Desc;
-     If It^[I].Svc Then P^.GCell[I,3]:='-' Else P^.GCell[I,3]:=FmtQty(It^[I].Qty);
+     If It^[I].Svc Then P^.GCell[I,3]:='-' Else
+       P^.GCell[I,3]:=FmtQty(It^[I].Qty);
      P^.GCell[I,4]:=FmtMoney(It^[I].Price);
     End;
    6: Begin
@@ -2950,18 +3089,23 @@ Begin
  Case E Of
   1: Begin
     For J:=1 To NJ Do If Jl^[J].Acc=Ac^[Idx].Num Then Begin
-     Info(T3('Ce compte contient des transactions.|Il ne peut pas @etre supprim@e.','This account has transactions.|It cannot be deleted.','Dieses Konto hat Buchungen.|Es kann nicht gel@2scht werden.'));
+     Info(T3('Ce compte contient des transactions.|Il ne peut pas @etre '+
+         'supprim@e.','This account has transactions.|It cannot be deleted.',
+         'Dieses Konto hat Buchungen.|Es kann nicht gel@2scht werden.'));
      Exit;
     End;
     If IsLinked(Ac^[Idx].Num) Then Begin
-     Info(T3('Ce compte est un compte d''int@egration.','This is a linked account.','Dies ist ein Integrationskonto.'));Exit;
+     Info(T3('Ce compte est un compte d''int@egration.',
+         'This is a linked account.','Dies ist ein Integrationskonto.'));Exit;
     End;
     For I:=Idx To NA-1 Do Ac^[I]:=Ac^[I+1];
     Dec(NA);
    End;
   2,3: Begin
     For J:=1 To NIv Do If (Iv^[J].Typ=E-1) And (Iv^[J].Party=Idx) Then Begin
-     Info(T3('Ce tiers a des factures.|Il ne peut pas @etre supprim@e.','This record has invoices.|It cannot be deleted.','Dieser Eintrag hat Rechnungen.|Er kann nicht gel@2scht werden.'));
+     Info(T3('Ce tiers a des factures.|Il ne peut pas @etre supprim@e.',
+         'This record has invoices.|It cannot be deleted.',
+         'Dieser Eintrag hat Rechnungen.|Er kann nicht gel@2scht werden.'));
      Exit;
     End;
     If E=2 Then Begin For I:=Idx To NV-1 Do Vn^[I]:=Vn^[I+1];Dec(NV);End
@@ -2999,7 +3143,8 @@ Begin
     End;
    13: If P^.GN>0 Then Begin
      Idx:=P^.GRow;
-     If Ask(T3('Supprimer cet enregistrement ?','Delete this record?','Diesen Eintrag l@2schen?')) Then Begin
+     If Ask(T3('Supprimer cet enregistrement ?','Delete this record?',
+         'Diesen Eintrag l@2schen?')) Then Begin
       DeleteRec(E,Idx);
       N:=Idx;If N>ListCountE(E) Then N:=ListCountE(E);
       FillList(P,N);
@@ -3020,7 +3165,8 @@ Begin
   2: Ti:=T3('Fournisseurs','Vendors','Lieferanten');
   3: Ti:=T3('Clients','Customers','Kunden');
   4: Ti:=T3('Employ@es','Employees','Mitarbeiter');
-  5: Ti:=T3('Inventaire et services','Inventory & Services','Lager und Dienste');
+  5: Ti:=T3('Inventaire et services','Inventory & Services',
+      'Lager und Dienste');
   6: Ti:=T3('Projets','Projects','Projekte');
  End;
  P:=NewWin(wkList,Ti,500,270);
@@ -3096,21 +3242,25 @@ Begin
      1: Begin
        N:=ValInt(P^.GCell[A,1],0);I:=FindAcc(N);
        If (N<>0) And (I=0) Then Begin
-        Info(T3('Ce compte n''existe pas.','This account does not exist.','Dieses Konto existiert nicht.'));
+        Info(T3('Ce compte n''existe pas.','This account does not exist.',
+            'Dieses Konto existiert nicht.'));
         P^.GCell[A,1]:='';P^.GCell[A,2]:='';
-       End Else If I>0 Then Begin P^.GCell[A,1]:=IntStr(N);P^.GCell[A,2]:=Ac^[I].Name;End
+       End Else If I>0 Then Begin
+         P^.GCell[A,1]:=IntStr(N);P^.GCell[A,2]:=Ac^[I].Name;End
        Else P^.GCell[A,2]:='';
       End;
      3: Begin
        If TrimStr(P^.GCell[A,3])<>'' Then Begin
         V:=ParseMoney(P^.GCell[A,3]);
-        If V=0 Then P^.GCell[A,3]:='' Else Begin P^.GCell[A,3]:=FmtMoney(V);P^.GCell[A,4]:='';End;
+        If V=0 Then P^.GCell[A,3]:='' Else Begin
+          P^.GCell[A,3]:=FmtMoney(V);P^.GCell[A,4]:='';End;
        End;
       End;
      4: Begin
        If TrimStr(P^.GCell[A,4])<>'' Then Begin
         V:=ParseMoney(P^.GCell[A,4]);
-        If V=0 Then P^.GCell[A,4]:='' Else Begin P^.GCell[A,4]:=FmtMoney(V);P^.GCell[A,3]:='';End;
+        If V=0 Then P^.GCell[A,4]:='' Else Begin
+          P^.GCell[A,4]:=FmtMoney(V);P^.GCell[A,3]:='';End;
        End;
       End;
     End;
@@ -3132,20 +3282,28 @@ Begin
       If (D<>0) Or (V<>0) Then Begin
        N:=ValInt(P^.GCell[R,1],0);
        If FindAcc(N)=0 Then Begin
-        Info(T3('Compte manquant @a la ligne ','Missing account on line ','Konto fehlt in Zeile ')+IntStr(R));Exit;
+        Info(T3('Compte manquant @a la ligne ','Missing account on line ',
+            'Konto fehlt in Zeile ')+IntStr(R));Exit;
        End;
        PAdd(N,D,V);Inc(Cnt);
       End;
      End;
      If Cnt<2 Then Begin
-      Info(T3('Une @ecriture requiert au moins deux lignes.','An entry needs at least two lines.','Eine Buchung braucht mindestens zwei Zeilen.'));Exit;
+      Info(T3('Une @ecriture requiert au moins deux lignes.',
+          'An entry needs at least two lines.',
+          'Eine Buchung braucht mindestens zwei Zeilen.'));Exit;
      End;
      If PSumDr<>PSumCr Then Begin
-      Info(T3('L''@ecriture n''est pas @equilibr@ee.|Diff@erence : ','The entry is out of balance.|Difference: ','Die Buchung ist nicht ausgeglichen.|Differenz: ')+FmtMoney(PSumDr-PSumCr));
+      Info(T3('L''@ecriture n''est pas @equilibr@ee.|Diff@erence : ',
+          'The entry is out of balance.|Difference: ',
+          'Die Buchung ist nicht ausgeglichen.|Differenz: ')+FmtMoney(PSumDr-
+          PSumCr));
       Exit;
      End;
      If Commit(Dt,TrimStr(GT(P,10)),TrimStr(GT(P,12))) Then Begin
-      Info(T3('@Ecriture no ','Entry no. ','Buchung Nr. ')+IntStr(SU.NextJ)+T3(' enregistr@ee.',' recorded.',' gebucht.'));
+      Info(T3('@Ecriture no ','Entry no. ',
+          'Buchung Nr. ')+IntStr(SU.NextJ)+T3(' enregistr@ee.',' recorded.',
+          ' gebucht.'));
       JournalReset(P);
      End Else Info(ErrMsg);
     End;
@@ -3159,10 +3317,13 @@ End;
 Procedure OpenJournal;
 Var P: PWin;
 Begin
- P:=NewWin(wkJournal,T3('Transactions diverses (Journal g@en@eral)','Miscellaneous Transactions (General Journal)','Sonstige Buchungen (Hauptjournal)'),584,330);
+ P:=NewWin(wkJournal,T3('Transactions diverses (Journal g@en@eral)',
+     'Miscellaneous Transactions (General Journal)',
+     'Sonstige Buchungen (Hauptjournal)'),584,330);
  AddLbl(P,0,8,12,'Source');AddEdit(P,10,70,8,110,12,0,'');
  AddLbl(P,0,200,12,'Date');AddEdit(P,11,240,8,100,12,2,'');
- AddLbl(P,0,8,38,T3('Commentaire','Comment','Kommentar'));AddEdit(P,12,100,34,200,20,0,'');
+ AddLbl(P,0,8,38,T3('Commentaire','Comment','Kommentar'));
+ AddEdit(P,12,100,34,200,20,0,'');
  AddGrid(P,100,8,62,10,0,24);
  GridCol(P,70,0,T3('Compte','Account','Konto'),True);
  GridCol(P,250,2,T3('Nom du compte','Account name','Kontoname'),False);
@@ -3206,7 +3367,8 @@ End;
 Procedure InvRowCalc(P: PWin; R: Integer);
 Begin
  If (TrimStr(P^.GCell[R,2])<>'') And (TrimStr(P^.GCell[R,5])<>'') Then
-  P^.GCell[R,6]:=FmtMoney(MulQ(ParseMoney(P^.GCell[R,2]),ParseMoney(P^.GCell[R,5])));
+  P^.GCell[R,6]:=FmtMoney(MulQ(ParseMoney(P^.GCell[R,2]),ParseMoney(P^.GCell[R,
+      5])));
 End;
 
 Procedure InvFillItem(P: PWin; R,It_: Integer);
@@ -3246,7 +3408,8 @@ Begin
 End;
 
 Function BuildInv(P: PWin; Var D,Total: LongInt; Var Party: Integer): Boolean;
-Var R,Acc,It_,Bk: Integer; Amt,Sub,Frt,Tax,Q,Cst: LongInt; PA: PPartyArr; Typ: Integer;
+Var R,Acc,It_,Bk: Integer; Amt,Sub,Frt,Tax,Q,Cst: LongInt; PA: PPartyArr;
+Typ: Integer;
 Begin
  BuildInv:=False;
  ErrMsg:='';
@@ -3254,13 +3417,20 @@ Begin
  Party:=GS(P,10);
  If Typ=1 Then PA:=Vn Else PA:=Cu;
  If (Party<1) Or (Party>ListCount(srcVend+Typ-1)) Then Begin
-  If Typ=1 Then ErrMsg:=T3('Choisissez un fournisseur.','Select a vendor.','W@1hlen Sie einen Lieferanten.')
-  Else ErrMsg:=T3('Choisissez un client.','Select a customer.','W@1hlen Sie einen Kunden.');
+  If Typ=1 Then
+    ErrMsg:=T3('Choisissez un fournisseur.','Select a vendor.',
+      'W@1hlen Sie einen Lieferanten.')
+  Else
+    ErrMsg:=T3('Choisissez un client.','Select a customer.',
+      'W@1hlen Sie einen Kunden.');
   Exit;
  End;
- If Not ParseDate(GT(P,13),D) Then Begin ErrMsg:=T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.');Exit;End;
+ If Not ParseDate(GT(P,13),D) Then Begin
+   ErrMsg:=T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.');Exit;End;
  If TrimStr(GT(P,12))='' Then Begin
-  ErrMsg:=T3('Le num@ero de facture est obligatoire.','The invoice number is required.','Die Rechnungsnummer ist erforderlich.');Exit;
+  ErrMsg:=T3('Le num@ero de facture est obligatoire.',
+      'The invoice number is required.',
+      'Die Rechnungsnummer ist erforderlich.');Exit;
  End;
  PClear;SaN:=0;Sub:=0;
  For R:=1 To P^.GN Do Begin
@@ -3269,7 +3439,8 @@ Begin
    Acc:=ValInt(P^.GCell[R,7],0);
    If Acc=0 Then Acc:=PA^[Party].Acc;
    If FindAcc(Acc)=0 Then Begin
-    ErrMsg:=T3('Compte invalide @a la ligne ','Invalid account on line ','Ung@3ltiges Konto in Zeile ')+IntStr(R);Exit;
+    ErrMsg:=T3('Compte invalide @a la ligne ','Invalid account on line ',
+        'Ung@3ltiges Konto in Zeile ')+IntStr(R);Exit;
    End;
    Sub:=Sub+Amt;
    If Typ=1 Then PDr(Acc,Amt) Else PCr(Acc,Amt);
@@ -3280,7 +3451,8 @@ Begin
      Inc(SaN);SaItem[SaN]:=It_;SaQ[SaN]:=Q;SaAmt[SaN]:=Amt;
     End Else Begin
      If It^[It_].Qty<Q Then Begin
-      ErrMsg:=T3('Stock insuffisant : ','Insufficient stock: ','Lagerbestand unzureichend: ')+It^[It_].Code;Exit;
+      ErrMsg:=T3('Stock insuffisant : ','Insufficient stock: ',
+          'Lagerbestand unzureichend: ')+It^[It_].Code;Exit;
      End;
      Cst:=MulQ(Q,It^[It_].Cost);
      PDr(It^[It_].CAcc,Cst);PCr(It^[It_].AAcc,Cst);
@@ -3290,7 +3462,8 @@ Begin
   End;
  End;
  If Sub=0 Then Begin
-  ErrMsg:=T3('La facture ne contient aucune ligne.','The invoice has no lines.','Die Rechnung hat keine Zeilen.');Exit;
+  ErrMsg:=T3('La facture ne contient aucune ligne.','The invoice has no lines.',
+      'Die Rechnung hat keine Zeilen.');Exit;
  End;
  Frt:=GMoney(P,20);
  Tax:=0;
@@ -3303,7 +3476,9 @@ Begin
  End;
  If GV(P,11) Then Begin
   Bk:=BankComboNum(P,17);
-  If Bk=0 Then Begin ErrMsg:=T3('Choisissez un compte bancaire.','Select a bank account.','W@1hlen Sie ein Bankkonto.');Exit;End;
+  If Bk=0 Then Begin
+    ErrMsg:=T3('Choisissez un compte bancaire.','Select a bank account.',
+      'W@1hlen Sie ein Bankkonto.');Exit;End;
   If Typ=1 Then PCr(Bk,Total) Else PDr(Bk,Total);
  End Else Begin
   If Typ=1 Then PCr(LinkAcc(LK_AP),Total) Else PDr(LinkAcc(LK_AR),Total);
@@ -3334,7 +3509,8 @@ Var I: Integer;
 Begin
  InvExists:=False;
  For I:=1 To NIv Do
-  If (Iv^[I].Typ=Typ) And (Iv^[I].Party=Party) And (Upper(Iv^[I].No)=Upper(No)) Then InvExists:=True;
+  If (Iv^[I].Typ=Typ) And (Iv^[I].Party=Party)
+      And (Upper(Iv^[I].No)=Upper(No)) Then InvExists:=True;
 End;
 
 Procedure HInvoice(P: PWin; Ev,A,B: Integer);
@@ -3358,11 +3534,13 @@ Begin
        If S<>'' Then Begin I:=FindItem(S);If I>0 Then InvFillItem(P,A,I);End;
       End;
      2: Begin
-       If TrimStr(P^.GCell[A,2])<>'' Then P^.GCell[A,2]:=FmtQty(ParseMoney(P^.GCell[A,2]));
+       If TrimStr(P^.GCell[A,2])<>'' Then
+         P^.GCell[A,2]:=FmtQty(ParseMoney(P^.GCell[A,2]));
        InvRowCalc(P,A);
       End;
      5: Begin
-       If TrimStr(P^.GCell[A,5])<>'' Then P^.GCell[A,5]:=FmtMoney(ParseMoney(P^.GCell[A,5]));
+       If TrimStr(P^.GCell[A,5])<>'' Then
+         P^.GCell[A,5]:=FmtMoney(ParseMoney(P^.GCell[A,5]));
        InvRowCalc(P,A);
       End;
      6: If TrimStr(P^.GCell[A,6])<>'' Then Begin
@@ -3372,7 +3550,8 @@ Begin
      7: Begin
        N:=ValInt(P^.GCell[A,7],0);
        If (N<>0) And (FindAcc(N)=0) Then Begin
-        Info(T3('Ce compte n''existe pas.','This account does not exist.','Dieses Konto existiert nicht.'));
+        Info(T3('Ce compte n''existe pas.','This account does not exist.',
+            'Dieses Konto existiert nicht.'));
         P^.GCell[A,7]:='';
        End;
       End;
@@ -3397,13 +3576,16 @@ Begin
      If Not BuildInv(P,D,Tot,Pt) Then Begin Info(ErrMsg);Exit;End;
      S:=TrimStr(GT(P,12));
      If (Not GV(P,11)) And InvExists(P^.Aux,Pt,S) Then Begin
-      Info(T3('Ce num@ero de facture existe d@ej@a.','This invoice number already exists.','Diese Rechnungsnummer existiert bereits.'));Exit;
+      Info(T3('Ce num@ero de facture existe d@ej@a.',
+          'This invoice number already exists.',
+          'Diese Rechnungsnummer existiert bereits.'));Exit;
      End;
      If Commit(D,S,ListText(srcVend+P^.Aux-1,Pt)) Then Begin
       If Not GV(P,11) Then AddInv(P^.Aux,Pt,S,D,Tot);
       ApplyStock;
       If (P^.Aux=2) And (S=IntStr(SU.NextInv)) Then Inc(SU.NextInv);
-      Info(T3('Facture enregistr@ee. Total : ','Invoice recorded. Total: ','Rechnung gebucht. Summe: ')+FmtMoney(Tot));
+      Info(T3('Facture enregistr@ee. Total : ','Invoice recorded. Total: ',
+          'Rechnung gebucht. Summe: ')+FmtMoney(Tot));
       InvReset(P);
      End Else Info(ErrMsg);
     End;
@@ -3417,18 +3599,23 @@ End;
 Procedure OpenInvoice(Typ: Integer);
 Var P: PWin; Ti: String;
 Begin
- If Typ=1 Then Ti:=T3('Journal des achats','Purchases Journal','Einkaufsjournal')
+ If Typ=1 Then
+   Ti:=T3('Journal des achats','Purchases Journal','Einkaufsjournal')
  Else Ti:=T3('Journal des ventes','Sales Journal','Verkaufsjournal');
  P:=NewWin(wkInvoice,Ti,552,396);
  P^.Aux:=Typ;
- If Typ=1 Then AddLbl(P,0,8,8,T3('Achet@e de','Purchased from','Eingekauft bei'))
+ If Typ=1 Then
+   AddLbl(P,0,8,8,T3('Achet@e de','Purchased from','Eingekauft bei'))
  Else AddLbl(P,0,8,8,T3('Vendu @a','Sold to','Verkauft an'));
  AddCombo(P,10,8,20,300,srcVend+Typ-1);
  AddBox(P,8,42,300,50,'');
- AddLblW(P,14,16,50,284,'',False,True);AddLblW(P,15,16,62,284,'',False,False);AddLblW(P,16,16,74,284,'',False,False);
- If Typ=1 Then AddChk(P,11,330,10,T3('Achat comptant','Cash purchase','Barkauf'),False)
+ AddLblW(P,14,16,50,284,'',False,True);AddLblW(P,15,16,62,284,'',False,False);
+ AddLblW(P,16,16,74,284,'',False,False);
+ If Typ=1 Then
+   AddChk(P,11,330,10,T3('Achat comptant','Cash purchase','Barkauf'),False)
  Else AddChk(P,11,330,10,T3('Vente comptant','Cash sale','Barverkauf'),False);
- AddLbl(P,0,330,36,T3('Facture','Invoice','Rechnung'));AddEdit(P,12,410,32,110,12,0,'');
+ AddLbl(P,0,330,36,T3('Facture','Invoice','Rechnung'));
+ AddEdit(P,12,410,32,110,12,0,'');
  AddLbl(P,0,330,60,'Date');AddEdit(P,13,410,56,110,12,2,'');
  If Typ=1 Then AddLbl(P,0,8,100,T3('Pay@e de :','Paid from:','Bezahlt von:'))
  Else AddLbl(P,0,8,100,T3('D@epos@e dans :','Deposit to:','Einzahlung auf:'));
@@ -3441,9 +3628,12 @@ Begin
  GridCol(P,76,1,T3('Prix','Price','Preis'),False);
  GridCol(P,80,1,T3('Montant','Amount','Betrag'),False);
  GridCol(P,56,0,T3('Compte','Acct','Konto'),True);
- AddLbl(P,0,300,256,T3('Transport','Freight','Fracht'));AddEdit(P,20,400,252,124,12,1,'');
- AddLbl(P,0,300,280,T3('Sous-total','Subtotal','Zwischensumme'));AddLblW(P,21,400,280,124,'',True,False);
- AddLbl(P,0,300,294,T3('Taxe (TPS)','Tax (GST)','Steuer (USt)'));AddLblW(P,22,400,294,124,'',True,False);
+ AddLbl(P,0,300,256,T3('Transport','Freight','Fracht'));
+ AddEdit(P,20,400,252,124,12,1,'');
+ AddLbl(P,0,300,280,T3('Sous-total','Subtotal','Zwischensumme'));
+ AddLblW(P,21,400,280,124,'',True,False);
+ AddLbl(P,0,300,294,T3('Taxe (TPS)','Tax (GST)','Steuer (USt)'));
+ AddLblW(P,22,400,294,124,'',True,False);
  AddLbl(P,0,300,310,'Total');AddLblW(P,23,400,310,124,'',True,True);
  AddBtn(P,31,8,334,110,T3('Distribuer','Distribute','Verteilen'),False);
  AddBtn(P,32,126,334,110,T3('Enregistrer','Record','Buchen'),True);
@@ -3504,7 +3694,8 @@ Begin
  Pt:=GS(P,15);D:=DateOrToday(GT(P,14));N:=0;
  If (Pt>0) And (Pt<=ListCount(P^.Aux)) Then
   For I:=1 To NIv Do
-   If (Iv^[I].Typ=P^.Aux) And (Iv^[I].Party=Pt) And (Owing(I)<>0) And (N<MAXROW) Then Begin
+   If (Iv^[I].Typ=P^.Aux) And (Iv^[I].Party=Pt) And (Owing(I)<>0)
+       And (N<MAXROW) Then Begin
     Inc(N);PayMap[N]:=I;
     P^.GCell[N,1]:=Iv^[I].No;P^.GCell[N,2]:=FmtMoney(Iv^[I].Amt);
     P^.GCell[N,3]:=FmtMoney(Owing(I));P^.GCell[N,4]:=FmtMoney(PayDisc(I,D));
@@ -3533,7 +3724,8 @@ Begin
 End;
 
 Procedure HPay(P: PWin; Ev,A,B: Integer);
-Var R,Pt,Bk,Inv,Side: Integer; D,V,Ds,O,SumP,SumD,Pre: LongInt; S: String; Bad: Boolean;
+Var R,Pt,Bk,Inv,Side: Integer; D,V,Ds,O,SumP,SumD,Pre: LongInt; S: String;
+Bad: Boolean;
 Begin
  Side:=P^.Aux;
  Case Ev Of
@@ -3552,7 +3744,8 @@ Begin
      V:=ParseMoney(P^.GCell[A,5]);
      If V=0 Then P^.GCell[A,5]:='' Else Begin
       P^.GCell[A,5]:=FmtMoney(V);
-      If TrimStr(P^.GCell[A,6])='' Then P^.GCell[A,6]:=FmtMoney(Owing(PayMap[A])-V);
+      If TrimStr(P^.GCell[A,6])='' Then
+        P^.GCell[A,6]:=FmtMoney(Owing(PayMap[A])-V);
      End;
     End;
     If B=6 Then Begin
@@ -3570,45 +3763,63 @@ Begin
    31: Begin
      Pt:=GS(P,15);Bk:=BankComboNum(P,12);
      If (Pt<1) Or (Pt>ListCount(Side)) Then Begin
-      If Side=1 Then Info(T3('Choisissez un fournisseur.','Select a vendor.','W@1hlen Sie einen Lieferanten.'))
-      Else Info(T3('Choisissez un client.','Select a customer.','W@1hlen Sie einen Kunden.'));
+      If Side=1 Then
+        Info(T3('Choisissez un fournisseur.','Select a vendor.',
+          'W@1hlen Sie einen Lieferanten.'))
+      Else
+        Info(T3('Choisissez un client.','Select a customer.',
+          'W@1hlen Sie einen Kunden.'));
       Exit;
      End;
-     If Bk=0 Then Begin Info(T3('Choisissez un compte bancaire.','Select a bank account.','W@1hlen Sie ein Bankkonto.'));Exit;End;
-     If Not ParseDate(GT(P,14),D) Then Begin Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
+     If Bk=0 Then Begin
+       Info(T3('Choisissez un compte bancaire.','Select a bank account.',
+         'W@1hlen Sie ein Bankkonto.'));Exit;End;
+     If Not ParseDate(GT(P,14),D) Then Begin
+       Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
      S:=TrimStr(GT(P,13));
-     If S='' Then Begin Info(T3('Le num@ero est obligatoire.','The number is required.','Die Nummer ist erforderlich.'));Exit;End;
+     If S='' Then Begin
+       Info(T3('Le num@ero est obligatoire.','The number is required.',
+         'Die Nummer ist erforderlich.'));Exit;End;
      SumP:=0;SumD:=0;Bad:=False;
      For R:=1 To P^.GN Do Begin
       V:=ParseMoney(P^.GCell[R,6]);Ds:=ParseMoney(P^.GCell[R,5]);
       O:=Owing(PayMap[R]);
       If (V<>0) Or (Ds<>0) Then Begin
-       If ((O>0) And ((V+Ds>O) Or (V<0) Or (Ds<0))) Or ((O<0) And ((V+Ds<O) Or (V>0) Or (Ds>0))) Then Begin
-        Info(T3('Montant trop @elev@e @a la ligne ','Amount too large on line ','Betrag zu hoch in Zeile ')+IntStr(R));Exit;
+       If ((O>0) And ((V+Ds>O) Or (V<0) Or (Ds<0))) Or ((O<0) And ((V+Ds<O)
+           Or (V>0) Or (Ds>0))) Then Begin
+        Info(T3('Montant trop @elev@e @a la ligne ','Amount too large on line ',
+            'Betrag zu hoch in Zeile ')+IntStr(R));Exit;
        End;
        SumP:=SumP+V;SumD:=SumD+Ds;
       End;
      End;
      Pre:=GMoney(P,18);
-     If Pre<0 Then Begin Info(T3('Pr@epaiement invalide.','Invalid prepayment.','Ung@3ltige Vorauszahlung.'));Exit;End;
+     If Pre<0 Then Begin
+       Info(T3('Pr@epaiement invalide.','Invalid prepayment.',
+         'Ung@3ltige Vorauszahlung.'));Exit;End;
      If (SumP+Pre=0) And (SumD=0) Then Begin
-      Info(T3('Aucun montant @a traiter.','Nothing to process.','Nichts zu verarbeiten.'));Exit;
+      Info(T3('Aucun montant @a traiter.','Nothing to process.',
+          'Nichts zu verarbeiten.'));Exit;
      End;
      PClear;
      If Side=1 Then Begin
-      PDr(LinkAcc(LK_AP),SumP+SumD+Pre);PCr(Bk,SumP+Pre);PCr(LinkAcc(LK_PDISC),SumD);
+      PDr(LinkAcc(LK_AP),SumP+SumD+Pre);PCr(Bk,SumP+Pre);
+      PCr(LinkAcc(LK_PDISC),SumD);
      End Else Begin
-      PDr(Bk,SumP+Pre);PDr(LinkAcc(LK_SDISC),SumD);PCr(LinkAcc(LK_AR),SumP+SumD+Pre);
+      PDr(Bk,SumP+Pre);PDr(LinkAcc(LK_SDISC),SumD);
+      PCr(LinkAcc(LK_AR),SumP+SumD+Pre);
      End;
      If Commit(D,S,ListText(Side,Pt)) Then Begin
       For R:=1 To P^.GN Do Begin
        Inv:=PayMap[R];
-       Iv^[Inv].Paid:=Iv^[Inv].Paid+ParseMoney(P^.GCell[R,6])+ParseMoney(P^.GCell[R,5]);
+       Iv^[Inv].Paid:=Iv^[Inv].Paid+ParseMoney(P^.GCell[R,
+           6])+ParseMoney(P^.GCell[R,5]);
       End;
       If Pre>0 Then AddInv(Side,Pt,'PP'+TrimStr(GT(P,17)),D,-Pre);
       If (Side=1) And (S=IntStr(SU.NextChq)) Then Inc(SU.NextChq);
       If (Side=2) And (S=IntStr(SU.NextRcpt)) Then Inc(SU.NextRcpt);
-      Info(T3('Transaction enregistr@ee : ','Transaction recorded: ','Buchung erfasst: ')+FmtMoney(SumP+Pre));
+      Info(T3('Transaction enregistr@ee : ','Transaction recorded: ',
+          'Buchung erfasst: ')+FmtMoney(SumP+Pre));
       PayReset(P);
      End Else Info(ErrMsg);
     End;
@@ -3621,20 +3832,25 @@ End;
 Procedure OpenPay(Side: Integer);
 Var P: PWin; Ti: String;
 Begin
- If Side=1 Then Ti:=T3('Paiements','Payments','Zahlungen') Else Ti:=T3('Encaissements','Receipts','Zahlungseing@1nge');
+ If Side=1 Then Ti:=T3('Paiements','Payments','Zahlungen') Else
+   Ti:=T3('Encaissements','Receipts','Zahlungseing@1nge');
  P:=NewWin(wkPay,Ti,600,398);
  P^.Aux:=Side;
- If Side=1 Then AddCombo(P,10,8,8,280,srcKind) Else AddCombo(P,10,8,8,280,srcRKind);
+ If Side=1 Then AddCombo(P,10,8,8,280,srcKind) Else
+   AddCombo(P,10,8,8,280,srcRKind);
  AddLbl(P,0,298,12,T3('Par','By','Per'));AddCombo(P,11,328,8,110,srcPayBy);
- If Side=1 Then AddLbl(P,0,8,36,T3('De','From','Von')) Else AddLbl(P,0,8,36,T3('Vers','To','Auf'));
+ If Side=1 Then AddLbl(P,0,8,36,T3('De','From','Von')) Else
+   AddLbl(P,0,8,36,T3('Vers','To','Auf'));
  AddCombo(P,12,50,32,344,srcBank);
  AddBox(P,8,54,570,94,'');
  AddLblW(P,0,18,62,300,SU.Co,False,True);
- If Side=1 Then AddLbl(P,0,396,62,'No.') Else AddLbl(P,0,396,62,T3('Re@ku no','Receipt','Beleg'));
+ If Side=1 Then AddLbl(P,0,396,62,'No.') Else
+   AddLbl(P,0,396,62,T3('Re@ku no','Receipt','Beleg'));
  AddEdit(P,13,440,58,100,12,3,'');
  If Side=1 Then AddLblW(P,21,18,84,360,'',False,False);
  AddLbl(P,0,396,86,'Date');AddEdit(P,14,440,82,100,12,2,'');
- If Side=1 Then AddLbl(P,0,18,108,T3('A l''ordre de','To the order of','Zahlbar an'))
+ If Side=1 Then
+   AddLbl(P,0,18,108,T3('A l''ordre de','To the order of','Zahlbar an'))
  Else AddLbl(P,0,18,108,T3('Re@ku de','Received from','Erhalten von'));
  AddCombo(P,15,130,104,250,srcVend+Side-1);
  AddLblW(P,16,396,112,150,'',True,True);
@@ -3646,10 +3862,13 @@ Begin
  GridCol(P,96,3,T3('Escpt dispo','Disc. Avail','Skonto frei'),False);
  GridCol(P,96,1,T3('Escpt pris','Disc. Taken','Skonto gen.'),True);
  GridCol(P,92,1,T3('Paiement','Payment','Zahlung'),True);
- AddLbl(P,0,8,268,T3('R@ef. pr@epaiement','Prepayment Ref.','Vorausz.-Ref.'));AddEdit(P,17,152,264,90,12,0,'');
- AddLbl(P,0,260,268,T3('Mnt pr@epaiement','Prepayment Amt','Vorausz.-Betrag'));AddEdit(P,18,420,264,120,12,1,'');
+ AddLbl(P,0,8,268,T3('R@ef. pr@epaiement','Prepayment Ref.','Vorausz.-Ref.'));
+ AddEdit(P,17,152,264,90,12,0,'');
+ AddLbl(P,0,260,268,T3('Mnt pr@epaiement','Prepayment Amt','Vorausz.-Betrag'));
+ AddEdit(P,18,420,264,120,12,1,'');
  AddLbl(P,0,300,296,'Total');AddLblW(P,19,420,296,120,'',True,True);
- AddLbl(P,0,8,300,T3('Commentaire','Comment','Kommentar'));AddEdit(P,20,100,296,190,40,0,'');
+ AddLbl(P,0,8,300,T3('Commentaire','Comment','Kommentar'));
+ AddEdit(P,20,100,296,190,40,0,'');
  AddBtn(P,32,8,338,110,T3('Tout payer','Pay all','Alle zahlen'),False);
  AddBtn(P,31,396,338,104,T3('Traiter','Process','Verarbeiten'),True);
  AddBtn(P,2,508,338,84,T3('Fermer','Close','Schlie@7en'),False);
@@ -3670,11 +3889,13 @@ Begin
  PayN:=PayG-PayT-PayP-PayU;
 End;
 
-Procedure PostPaycheque(E: Integer; H: LongInt; D: LongInt; Bk: Integer; Const No: String);
+Procedure PostPaycheque(E: Integer; H: LongInt; D: LongInt; Bk: Integer; Const
+    No: String);
 Begin
  CalcPay(H,Em^[E].Rate);
  PClear;
- PDr(LinkAcc(LK_WAGE),PayG);PCr(LinkAcc(LK_TAXPAY),PayT);PCr(LinkAcc(LK_PENPAY),PayP);
+ PDr(LinkAcc(LK_WAGE),PayG);PCr(LinkAcc(LK_TAXPAY),PayT);
+ PCr(LinkAcc(LK_PENPAY),PayP);
  PCr(LinkAcc(LK_UIPAY),PayU);PCr(Bk,PayN);
 End;
 
@@ -3709,17 +3930,25 @@ Begin
   evButton: Case A Of
    31: Begin
      E:=GS(P,10);Bk:=BankComboNum(P,15);
-     If (E<1) Or (E>NE) Then Begin Info(T3('Choisissez un employ@e.','Select an employee.','W@1hlen Sie einen Mitarbeiter.'));Exit;End;
-     If Bk=0 Then Begin Info(T3('Choisissez un compte bancaire.','Select a bank account.','W@1hlen Sie ein Bankkonto.'));Exit;End;
-     If Not ParseDate(GT(P,11),D) Then Begin Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
+     If (E<1) Or (E>NE) Then Begin
+       Info(T3('Choisissez un employ@e.','Select an employee.',
+         'W@1hlen Sie einen Mitarbeiter.'));Exit;End;
+     If Bk=0 Then Begin
+       Info(T3('Choisissez un compte bancaire.','Select a bank account.',
+         'W@1hlen Sie ein Bankkonto.'));Exit;End;
+     If Not ParseDate(GT(P,11),D) Then Begin
+       Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
      H:=ParseMoney(GT(P,12));
-     If H<=0 Then Begin Info(T3('Les heures doivent @etre positives.','Hours must be positive.','Stunden m@3ssen positiv sein.'));Exit;End;
+     If H<=0 Then Begin
+       Info(T3('Les heures doivent @etre positives.','Hours must be positive.',
+         'Stunden m@3ssen positiv sein.'));Exit;End;
      S:=TrimStr(GT(P,14));
      PostPaycheque(E,H,D,Bk,S);
      If Commit(D,S,Em^[E].Name) Then Begin
       Em^[E].Ytd:=Em^[E].Ytd+PayG;
       If S=IntStr(SU.NextChq) Then Inc(SU.NextChq);
-      Info(T3('Ch@eque de paie enregistr@e. Net : ','Paycheque recorded. Net: ','Gehaltsscheck gebucht. Netto: ')+FmtMoney(PayN));
+      Info(T3('Ch@eque de paie enregistr@e. Net : ','Paycheque recorded. Net: ',
+          'Gehaltsscheck gebucht. Netto: ')+FmtMoney(PayN));
       ST(P,14,IntStr(SU.NextChq));SS(P,10,0);ST(P,12,'0');PaychUpdate(P);
      End Else Info(ErrMsg);
     End;
@@ -3732,21 +3961,33 @@ End;
 Procedure OpenPaych;
 Var P: PWin;
 Begin
- If NE=0 Then Begin Info(T3('Aucun employ@e n''est d@efini.','No employee is defined.','Kein Mitarbeiter definiert.'));Exit;End;
- P:=NewWin(wkPaych,T3('Ch@eques de paie','Paycheques','Gehaltsschecks'),420,300);
- AddLbl(P,0,8,14,T3('Employ@e','Employee','Mitarbeiter'));AddCombo(P,10,110,10,290,srcEmp);
+ If NE=0 Then Begin
+   Info(T3('Aucun employ@e n''est d@efini.','No employee is defined.',
+     'Kein Mitarbeiter definiert.'));Exit;End;
+ P:=NewWin(wkPaych,T3('Ch@eques de paie','Paycheques','Gehaltsschecks'),420,
+     300);
+ AddLbl(P,0,8,14,T3('Employ@e','Employee','Mitarbeiter'));
+ AddCombo(P,10,110,10,290,srcEmp);
  AddLbl(P,0,8,40,'Date');AddEdit(P,11,110,36,100,12,2,'');
- AddLbl(P,0,230,40,T3('Ch@eque','Cheque','Scheck'));AddEdit(P,14,300,36,100,10,3,'');
+ AddLbl(P,0,230,40,T3('Ch@eque','Cheque','Scheck'));
+ AddEdit(P,14,300,36,100,10,3,'');
  AddLbl(P,0,8,66,T3('Banque','Bank','Bank'));AddCombo(P,15,110,62,290,srcBank);
- AddLbl(P,0,8,92,T3('Heures','Hours','Stunden'));AddEdit(P,12,110,88,90,10,5,'');
- AddLbl(P,0,230,92,T3('Taux','Rate','Satz'));AddLblW(P,13,290,92,110,'',True,False);
+ AddLbl(P,0,8,92,T3('Heures','Hours','Stunden'));
+ AddEdit(P,12,110,88,90,10,5,'');
+ AddLbl(P,0,230,92,T3('Taux','Rate','Satz'));
+ AddLblW(P,13,290,92,110,'',True,False);
  AddBox(P,8,116,392,110,T3('Talon de paie','Pay slip','Gehaltsabrechnung'));
- AddLbl(P,0,20,136,T3('Salaire brut','Gross wages','Bruttolohn'));AddLblW(P,20,230,136,150,'',True,False);
- AddLbl(P,0,20,152,T3('Imp@ot sur le revenu','Income tax','Lohnsteuer'));AddLblW(P,21,230,152,150,'',True,False);
- AddLbl(P,0,20,168,T3('R@egime de pension','Pension plan','Rentenversicherung'));AddLblW(P,22,230,168,150,'',True,False);
- AddLbl(P,0,20,184,T3('Assurance-emploi','Unemployment ins.','Arbeitslosenvers.'));AddLblW(P,23,230,184,150,'',True,False);
+ AddLbl(P,0,20,136,T3('Salaire brut','Gross wages','Bruttolohn'));
+ AddLblW(P,20,230,136,150,'',True,False);
+ AddLbl(P,0,20,152,T3('Imp@ot sur le revenu','Income tax','Lohnsteuer'));
+ AddLblW(P,21,230,152,150,'',True,False);
+ AddLbl(P,0,20,168,T3('R@egime de pension','Pension plan',
+     'Rentenversicherung'));AddLblW(P,22,230,168,150,'',True,False);
+ AddLbl(P,0,20,184,T3('Assurance-emploi','Unemployment ins.',
+     'Arbeitslosenvers.'));AddLblW(P,23,230,184,150,'',True,False);
  AddRule(P,20,200,360);
- AddLbl(P,0,20,208,T3('Net @a payer','Net pay','Nettolohn'));AddLblW(P,24,230,208,150,'',True,True);
+ AddLbl(P,0,20,208,T3('Net @a payer','Net pay','Nettolohn'));
+ AddLblW(P,24,230,208,150,'',True,True);
  AddBtn(P,31,200,240,96,T3('Traiter','Process','Verarbeiten'),True);
  AddBtn(P,2,304,240,96,T3('Fermer','Close','Schlie@7en'),False);
  RunWin(P);
@@ -3779,8 +4020,11 @@ Begin
   evButton: Case A Of
    31: Begin
      Bk:=BankComboNum(P,11);
-     If Bk=0 Then Begin Info(T3('Choisissez un compte bancaire.','Select a bank account.','W@1hlen Sie ein Bankkonto.'));Exit;End;
-     If Not ParseDate(GT(P,10),D) Then Begin Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
+     If Bk=0 Then Begin
+       Info(T3('Choisissez un compte bancaire.','Select a bank account.',
+         'W@1hlen Sie ein Bankkonto.'));Exit;End;
+     If Not ParseDate(GT(P,10),D) Then Begin
+       Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
      Cnt:=0;Tot:=0;R:=1;
      While R<=NE Do Begin
       H:=ParseMoney(P^.GCell[R,2]);
@@ -3794,9 +4038,13 @@ Begin
       Inc(R);
      End;
      If Cnt>0 Then Begin
-      Info(IntStr(Cnt)+T3(' ch@eque(s) de paie trait@e(s).|Total net : ',' paycheque(s) processed.|Total net: ',' Gehaltsscheck(s) verarbeitet.|Summe netto: ')+FmtMoney(Tot));
+      Info(IntStr(Cnt)+T3(' ch@eque(s) de paie trait@e(s).|Total net : ',
+          ' paycheque(s) processed.|Total net: ',
+          ' Gehaltsscheck(s) verarbeitet.|Summe netto: ')+FmtMoney(Tot));
       P^.Res:=1;P^.Done:=True;
-     End Else Info(T3('Aucune heure saisie.','No hours entered.','Keine Stunden erfasst.'));
+     End Else
+       Info(T3('Aucune heure saisie.','No hours entered.',
+         'Keine Stunden erfasst.'));
     End;
    2: Begin P^.Res:=0;P^.Done:=True;End;
   End;
@@ -3807,10 +4055,14 @@ End;
 Procedure OpenRun;
 Var P: PWin;
 Begin
- If NE=0 Then Begin Info(T3('Aucun employ@e n''est d@efini.','No employee is defined.','Kein Mitarbeiter definiert.'));Exit;End;
- P:=NewWin(wkRun,T3('Passage de la paie','Payroll Cheque Run','Gehaltslauf'),500,300);
+ If NE=0 Then Begin
+   Info(T3('Aucun employ@e n''est d@efini.','No employee is defined.',
+     'Kein Mitarbeiter definiert.'));Exit;End;
+ P:=NewWin(wkRun,T3('Passage de la paie','Payroll Cheque Run','Gehaltslauf'),
+     500,300);
  AddLbl(P,0,8,14,'Date');AddEdit(P,10,60,10,100,12,2,'');
- AddLbl(P,0,180,14,T3('Banque','Bank','Bank'));AddCombo(P,11,236,10,244,srcBank);
+ AddLbl(P,0,180,14,T3('Banque','Bank','Bank'));
+ AddCombo(P,11,236,10,244,srcBank);
  AddGrid(P,100,8,40,8,0,NE);
  GridCol(P,170,2,T3('Employ@e','Employee','Mitarbeiter'),False);
  GridCol(P,90,1,T3('Heures','Hours','Stunden'),False);
@@ -3830,10 +4082,13 @@ Var J,R,Bn: Integer; Base,Clr: LongInt;
 Begin
  Bn:=BankComboNum(P,10);
  Base:=0;
- For J:=1 To NJ Do If (Jl^[J].Acc=Bn) And Jl^[J].Rec Then Base:=Base+Jl^[J].Dr-Jl^[J].Cr;
+ For J:=1 To NJ Do If (Jl^[J].Acc=Bn) And Jl^[J].Rec Then
+   Base:=Base+Jl^[J].Dr-Jl^[J].Cr;
  Clr:=Base;
- For R:=1 To P^.GN Do If RcOn[R] Then Clr:=Clr+Jl^[RcMap[R]].Dr-Jl^[RcMap[R]].Cr;
- ST(P,20,FmtMoney(Base));ST(P,21,FmtMoney(Clr));ST(P,22,FmtMoney(GMoney(P,12)-Clr));
+ For R:=1 To P^.GN Do If RcOn[R] Then
+   Clr:=Clr+Jl^[RcMap[R]].Dr-Jl^[RcMap[R]].Cr;
+ ST(P,20,FmtMoney(Base));ST(P,21,FmtMoney(Clr));
+ ST(P,22,FmtMoney(GMoney(P,12)-Clr));
 End;
 
 Procedure ReconFill(P: PWin);
@@ -3843,12 +4098,16 @@ Begin
  Bn:=BankComboNum(P,10);D:=DateOrToday(GT(P,11));N:=0;
  If Bn<>0 Then
   For J:=1 To NJ Do
-   If (Jl^[J].Acc=Bn) And (Not Jl^[J].Rec) And (Jl^[J].Dt<=D) And (N<MAXROW) Then Begin
+   If (Jl^[J].Acc=Bn) And (Not Jl^[J].Rec) And (Jl^[J].Dt<=D)
+       And (N<MAXROW) Then Begin
     Inc(N);RcMap[N]:=J;RcOn[N]:=False;
-    P^.GCell[N,1]:=' ';P^.GCell[N,2]:=FmtDate(Jl^[J].Dt);P^.GCell[N,3]:=Jl^[J].Src;
+    P^.GCell[N,1]:=' ';P^.GCell[N,2]:=FmtDate(Jl^[J].Dt);
+    P^.GCell[N,3]:=Jl^[J].Src;
     P^.GCell[N,4]:=Jl^[J].Cm;
-    If Jl^[J].Dr<>0 Then P^.GCell[N,5]:=FmtMoney(Jl^[J].Dr) Else P^.GCell[N,5]:='';
-    If Jl^[J].Cr<>0 Then P^.GCell[N,6]:=FmtMoney(Jl^[J].Cr) Else P^.GCell[N,6]:='';
+    If Jl^[J].Dr<>0 Then P^.GCell[N,5]:=FmtMoney(Jl^[J].Dr) Else
+      P^.GCell[N,5]:='';
+    If Jl^[J].Cr<>0 Then P^.GCell[N,6]:=FmtMoney(Jl^[J].Cr) Else
+      P^.GCell[N,6]:='';
    End;
  P^.GN:=N;
  ReconTotals(P);
@@ -3872,16 +4131,21 @@ Begin
     RcOn[A]:=Not RcOn[A];ReconMark(P,A);ReconTotals(P);
    End;
   evButton: Case A Of
-   32: Begin For R:=1 To P^.GN Do Begin RcOn[R]:=True;ReconMark(P,R);End;ReconTotals(P);End;
-   33: Begin For R:=1 To P^.GN Do Begin RcOn[R]:=False;ReconMark(P,R);End;ReconTotals(P);End;
+   32: Begin For R:=1 To P^.GN Do Begin
+     RcOn[R]:=True;ReconMark(P,R);End;ReconTotals(P);End;
+   33: Begin For R:=1 To P^.GN Do Begin
+     RcOn[R]:=False;ReconMark(P,R);End;ReconTotals(P);End;
    31: Begin
      Diff:=GMoney(P,12)-ParseMoney(GT(P,21));
      If Diff<>0 Then
-      Info(T3('Le rapprochement ne balance pas.|Diff@erence : ','The reconciliation does not balance.|Difference: ','Der Abgleich stimmt nicht.|Differenz: ')+FmtMoney(Diff))
+      Info(T3('Le rapprochement ne balance pas.|Diff@erence : ',
+          'The reconciliation does not balance.|Difference: ',
+          'Der Abgleich stimmt nicht.|Differenz: ')+FmtMoney(Diff))
      Else Begin
       For R:=1 To P^.GN Do If RcOn[R] Then Jl^[RcMap[R]].Rec:=True;
       Modified:=True;
-      Info(T3('Rapprochement termin@e.','Reconciliation completed.','Kontoabstimmung abgeschlossen.'));
+      Info(T3('Rapprochement termin@e.','Reconciliation completed.',
+          'Kontoabstimmung abgeschlossen.'));
       ReconFill(P);
      End;
     End;
@@ -3894,11 +4158,17 @@ End;
 Procedure OpenRecon;
 Var P: PWin;
 Begin
- If BankCount=0 Then Begin Info(T3('Aucun compte bancaire n''est d@efini.','No bank account is defined.','Kein Bankkonto definiert.'));Exit;End;
- P:=NewWin(wkRecon,T3('Rapprochement bancaire','Account Reconciliation','Kontoabstimmung'),600,372);
- AddLbl(P,0,8,14,T3('Compte','Account','Konto'));AddCombo(P,10,70,10,300,srcBank);
- AddLbl(P,0,384,14,T3('Relev@e au','Statement','Auszug'));AddEdit(P,11,470,10,100,12,2,'');
- AddLbl(P,0,8,40,T3('Solde du relev@e :','Statement balance:','Kontoauszugssaldo:'));AddEdit(P,12,160,36,110,14,1,'');
+ If BankCount=0 Then Begin
+   Info(T3('Aucun compte bancaire n''est d@efini.',
+     'No bank account is defined.','Kein Bankkonto definiert.'));Exit;End;
+ P:=NewWin(wkRecon,T3('Rapprochement bancaire','Account Reconciliation',
+     'Kontoabstimmung'),600,372);
+ AddLbl(P,0,8,14,T3('Compte','Account','Konto'));
+ AddCombo(P,10,70,10,300,srcBank);
+ AddLbl(P,0,384,14,T3('Relev@e au','Statement','Auszug'));
+ AddEdit(P,11,470,10,100,12,2,'');
+ AddLbl(P,0,8,40,T3('Solde du relev@e :','Statement balance:',
+     'Kontoauszugssaldo:'));AddEdit(P,12,160,36,110,14,1,'');
  AddGrid(P,100,8,64,10,2,0);
  GridCol(P,30,2,'',False);
  GridCol(P,88,2,'Date',False);
@@ -3906,11 +4176,15 @@ Begin
  GridCol(P,150,2,T3('Description','Description','Beschreibung'),False);
  GridCol(P,100,3,T3('D@ebit','Debit','Soll'),False);
  GridCol(P,100,3,T3('Cr@edit','Credit','Haben'),False);
- AddLbl(P,0,300,232,T3('Solde rapproch@e pr@ec@edent','Previously reconciled','Zuvor abgestimmt'));AddLblW(P,20,460,232,110,'',True,False);
- AddLbl(P,0,300,246,T3('Solde point@e','Cleared balance','Abgestimmter Saldo'));AddLblW(P,21,460,246,110,'',True,False);
- AddLbl(P,0,300,260,T3('Diff@erence','Difference','Differenz'));AddLblW(P,22,460,260,110,'',True,True);
+ AddLbl(P,0,300,232,T3('Solde rapproch@e pr@ec@edent','Previously reconciled',
+     'Zuvor abgestimmt'));AddLblW(P,20,460,232,110,'',True,False);
+ AddLbl(P,0,300,246,T3('Solde point@e','Cleared balance','Abgestimmter Saldo'));
+ AddLblW(P,21,460,246,110,'',True,False);
+ AddLbl(P,0,300,260,T3('Diff@erence','Difference','Differenz'));
+ AddLblW(P,22,460,260,110,'',True,True);
  AddBtn(P,32,8,282,110,T3('Tout pointer','Select all','Alle w@1hlen'),False);
- AddBtn(P,33,126,282,110,T3('Tout d@epointer','Clear all','Alle l@2schen'),False);
+ AddBtn(P,33,126,282,110,T3('Tout d@epointer','Clear all','Alle l@2schen'),
+     False);
  AddBtn(P,31,368,282,110,T3('Rapprocher','Reconcile','Abstimmen'),True);
  AddBtn(P,2,486,282,100,T3('Fermer','Close','Schlie@7en'),False);
  RunWin(P);
@@ -3931,20 +4205,30 @@ Begin
   evChange: If A=10 Then Begin
     I:=GS(P,10);
     If (I>=1) And (I<=NI) Then Begin
-     If It^[I].Svc Then ST(P,11,T3('(service)','(service)','(Dienst)')) Else ST(P,11,FmtQty(It^[I].Qty));
+     If It^[I].Svc Then ST(P,11,T3('(service)','(service)','(Dienst)')) Else
+       ST(P,11,FmtQty(It^[I].Qty));
      SMoney(P,13,It^[I].Cost);
     End;
    End;
   evButton: Case A Of
    31: Begin
      I:=GS(P,10);
-     If (I<1) Or (I>NI) Then Begin Info(T3('Choisissez un article.','Select an item.','W@1hlen Sie einen Artikel.'));Exit;End;
-     If It^[I].Svc Then Begin Info(T3('Un service n''a pas de stock.','A service has no stock.','Eine Dienstleistung hat keinen Bestand.'));Exit;End;
-     If Not ParseDate(GT(P,15),D) Then Begin Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
+     If (I<1) Or (I>NI) Then Begin
+       Info(T3('Choisissez un article.','Select an item.',
+         'W@1hlen Sie einen Artikel.'));Exit;End;
+     If It^[I].Svc Then Begin
+       Info(T3('Un service n''a pas de stock.','A service has no stock.',
+         'Eine Dienstleistung hat keinen Bestand.'));Exit;End;
+     If Not ParseDate(GT(P,15),D) Then Begin
+       Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
      Q:=ParseMoney(GT(P,12));
-     If Q=0 Then Begin Info(T3('Quantit@e nulle.','Zero quantity.','Menge null.'));Exit;End;
+     If Q=0 Then Begin
+       Info(T3('Quantit@e nulle.','Zero quantity.','Menge null.'));Exit;End;
      NQ:=It^[I].Qty+Q;
-     If NQ<0 Then Begin Info(T3('Le stock ne peut pas @etre n@egatif.','Stock cannot be negative.','Der Bestand kann nicht negativ sein.'));Exit;End;
+     If NQ<0 Then Begin
+       Info(T3('Le stock ne peut pas @etre n@egatif.',
+         'Stock cannot be negative.','Der Bestand kann nicht negativ sein.'));
+         Exit;End;
      Ac_:=AcctComboNum(P,14,LinkAcc(LK_ADJ));
      PClear;
      If Q>0 Then Begin
@@ -3962,7 +4246,9 @@ Begin
        If NQ>0 Then It^[I].Cost:=Round(V/(NQ/100.0));
       End;
       It^[I].Qty:=NQ;
-      Info(T3('Ajustement enregistr@e. Nouveau stock : ','Adjustment recorded. New stock: ','Anpassung gebucht. Neuer Bestand: ')+FmtQty(NQ));
+      Info(T3('Ajustement enregistr@e. Nouveau stock : ',
+          'Adjustment recorded. New stock: ',
+          'Anpassung gebucht. Neuer Bestand: ')+FmtQty(NQ));
       ST(P,11,FmtQty(NQ));ST(P,12,'0');
      End Else Info(ErrMsg);
     End;
@@ -3975,13 +4261,21 @@ End;
 Procedure OpenAdjust;
 Var P: PWin;
 Begin
- If NI=0 Then Begin Info(T3('Aucun article n''est d@efini.','No item is defined.','Kein Artikel definiert.'));Exit;End;
- P:=NewWin(wkAdjust,T3('Ajustements d''inventaire','Inventory Adjustments','Bestandskorrekturen'),460,262);
- AddLbl(P,0,8,14,T3('Article','Item','Artikel'));AddCombo(P,10,150,10,290,srcItem);
- AddLbl(P,0,8,40,T3('Stock actuel','Quantity on hand','Aktueller Bestand'));AddLblW(P,11,150,40,120,'',False,True);
- AddLbl(P,0,8,64,T3('Variation (+/-)','Adjustment (+/-)','Anpassung (+/-)'));AddEdit(P,12,150,60,100,10,5,'');
- AddLbl(P,0,8,88,T3('Co@ut unitaire','Unit cost','St@3ckkosten'));AddEdit(P,13,150,84,100,12,1,'');
- AddLbl(P,0,8,112,T3('Compte d''ajust.','Adjustment acct','Korrekturkonto'));AddCombo(P,14,150,108,290,srcAcct);
+ If NI=0 Then Begin
+   Info(T3('Aucun article n''est d@efini.','No item is defined.',
+     'Kein Artikel definiert.'));Exit;End;
+ P:=NewWin(wkAdjust,T3('Ajustements d''inventaire','Inventory Adjustments',
+     'Bestandskorrekturen'),460,262);
+ AddLbl(P,0,8,14,T3('Article','Item','Artikel'));
+ AddCombo(P,10,150,10,290,srcItem);
+ AddLbl(P,0,8,40,T3('Stock actuel','Quantity on hand','Aktueller Bestand'));
+ AddLblW(P,11,150,40,120,'',False,True);
+ AddLbl(P,0,8,64,T3('Variation (+/-)','Adjustment (+/-)','Anpassung (+/-)'));
+ AddEdit(P,12,150,60,100,10,5,'');
+ AddLbl(P,0,8,88,T3('Co@ut unitaire','Unit cost','St@3ckkosten'));
+ AddEdit(P,13,150,84,100,12,1,'');
+ AddLbl(P,0,8,112,T3('Compte d''ajust.','Adjustment acct','Korrekturkonto'));
+ AddCombo(P,14,150,108,290,srcAcct);
  AddLbl(P,0,8,136,'Date');AddEdit(P,15,150,132,100,12,2,'');
  AddLbl(P,0,8,160,'Source');AddEdit(P,16,150,156,120,12,0,'');
  AddBtn(P,31,240,190,96,T3('Traiter','Process','Verarbeiten'),True);
@@ -3990,7 +4284,8 @@ Begin
 End;
 
 Procedure HAssem(P: PWin; Ev,A,B: Integer);
-Var F,R,C,N,Cnt: Integer; Bq,Need,Tot,Cst: LongInt; D: LongInt; V: Real; S: String;
+Var F,R,C,N,Cnt: Integer; Bq,Need,Tot,Cst: LongInt; D: LongInt; V: Real;
+S: String;
     CI: Array[1..6] Of Integer; CQ: Array[1..6] Of LongInt;
 Begin
  Case Ev Of
@@ -4009,23 +4304,34 @@ Begin
   evButton: Case A Of
    31: Begin
      F:=GS(P,10);
-     If (F<1) Or (F>NI) Or It^[F].Svc Then Begin Info(T3('Choisissez l''article assembl@e.','Select the assembled item.','W@1hlen Sie den Baugruppenartikel.'));Exit;End;
+     If (F<1) Or (F>NI) Or It^[F].Svc Then Begin
+       Info(T3('Choisissez l''article assembl@e.','Select the assembled item.',
+         'W@1hlen Sie den Baugruppenartikel.'));Exit;End;
      Bq:=ParseMoney(GT(P,11));
-     If Bq<=0 Then Begin Info(T3('Quantit@e invalide.','Invalid quantity.','Ung@3ltige Menge.'));Exit;End;
-     If Not ParseDate(GT(P,12),D) Then Begin Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
+     If Bq<=0 Then Begin
+       Info(T3('Quantit@e invalide.','Invalid quantity.','Ung@3ltige Menge.'));
+       Exit;End;
+     If Not ParseDate(GT(P,12),D) Then Begin
+       Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));Exit;End;
      Cnt:=0;Tot:=0;PClear;
      For R:=1 To 6 Do Begin
       C:=FindItem(P^.GCell[R,1]);
       If C>0 Then Begin
-       If (C=F) Or It^[C].Svc Then Begin Info(T3('Composant invalide : ','Invalid component: ','Ung@3ltige Komponente: ')+It^[C].Code);Exit;End;
+       If (C=F) Or It^[C].Svc Then Begin
+         Info(T3('Composant invalide : ','Invalid component: ',
+           'Ung@3ltige Komponente: ')+It^[C].Code);Exit;End;
        V:=ParseMoney(P^.GCell[R,2]);V:=V*Bq/100.0;Need:=Round(V);
-       If It^[C].Qty<Need Then Begin Info(T3('Stock insuffisant : ','Insufficient stock: ','Bestand unzureichend: ')+It^[C].Code);Exit;End;
+       If It^[C].Qty<Need Then Begin
+         Info(T3('Stock insuffisant : ','Insufficient stock: ',
+           'Bestand unzureichend: ')+It^[C].Code);Exit;End;
        Inc(Cnt);CI[Cnt]:=C;CQ[Cnt]:=Need;
        Cst:=MulQ(Need,It^[C].Cost);Tot:=Tot+Cst;
        PCr(It^[C].AAcc,Cst);
       End;
      End;
-     If Cnt=0 Then Begin Info(T3('Aucun composant.','No components.','Keine Komponenten.'));Exit;End;
+     If Cnt=0 Then Begin
+       Info(T3('Aucun composant.','No components.','Keine Komponenten.'));Exit;
+       End;
      PDr(It^[F].AAcc,Tot);
      If PN>0 Then Begin
       S:='ASM-'+It^[F].Code;
@@ -4036,7 +4342,8 @@ Begin
      It^[F].Qty:=It^[F].Qty+Bq;
      It^[F].Cost:=Round(V/(It^[F].Qty/100.0));
      Modified:=True;
-     Info(T3('Assemblage termin@e.','Assembly completed.','Montage abgeschlossen.'));
+     Info(T3('Assemblage termin@e.','Assembly completed.',
+         'Montage abgeschlossen.'));
      P^.Res:=1;P^.Done:=True;
     End;
    2: Begin P^.Res:=0;P^.Done:=True;End;
@@ -4048,10 +4355,15 @@ End;
 Procedure OpenAssem;
 Var P: PWin;
 Begin
- If NI=0 Then Begin Info(T3('Aucun article n''est d@efini.','No item is defined.','Kein Artikel definiert.'));Exit;End;
- P:=NewWin(wkAssem,T3('Assemblage d''articles','Item Assembly','Artikelmontage'),430,306);
- AddLbl(P,0,8,14,T3('Article assembl@e','Assembled item','Baugruppe'));AddCombo(P,10,140,10,270,srcItem);
- AddLbl(P,0,8,40,T3('Quantit@e @a produire','Quantity to build','Zu fertigende Menge'));AddEdit(P,11,200,36,100,10,5,'');
+ If NI=0 Then Begin
+   Info(T3('Aucun article n''est d@efini.','No item is defined.',
+     'Kein Artikel definiert.'));Exit;End;
+ P:=NewWin(wkAssem,T3('Assemblage d''articles','Item Assembly',
+     'Artikelmontage'),430,306);
+ AddLbl(P,0,8,14,T3('Article assembl@e','Assembled item','Baugruppe'));
+ AddCombo(P,10,140,10,270,srcItem);
+ AddLbl(P,0,8,40,T3('Quantit@e @a produire','Quantity to build',
+     'Zu fertigende Menge'));AddEdit(P,11,200,36,100,10,5,'');
  AddLbl(P,0,8,64,'Date');AddEdit(P,12,200,60,100,12,2,'');
  AddGrid(P,100,8,90,6,0,6);
  GridCol(P,110,0,T3('Composant','Component','Komponente'),True);
@@ -4098,7 +4410,8 @@ Begin
     End;
     For K:=1 To 3 Do ST(P,30+K,SU.Msg[K]);
     For L:=1 To NLINK Do SetAcctCombo(P,40+L,SU.Link[L]);
-    ST(P,61,FmtPct(SU.Gst));ST(P,62,FmtPct(SU.IncT));ST(P,63,FmtPct(SU.Pen));ST(P,64,FmtPct(SU.UI));
+    ST(P,61,FmtPct(SU.Gst));ST(P,62,FmtPct(SU.IncT));ST(P,63,FmtPct(SU.Pen));
+    ST(P,64,FmtPct(SU.UI));
     ST(P,71,SU.Co);ST(P,72,SU.Ad1);ST(P,73,SU.Ad2);
     P^.CurTab:=P^.Aux;
    End;
@@ -4111,7 +4424,11 @@ Begin
       PrevHi:=Hi;
      End;
      If Not Ok Then Begin
-      Info(T3('Les plages de num@eros sont invalides.|Elles doivent @etre croissantes et distinctes.','The number ranges are invalid.|They must be ascending and distinct.','Die Nummernbereiche sind ung@3ltig.|Sie m@3ssen aufsteigend und getrennt sein.'));
+      Info(T3('Les plages de num@eros sont invalides.|Elles doivent @etre '+
+          'croissantes et distinctes.',
+          'The number ranges are invalid.|They must be ascending and distinct.',
+          'Die Nummernbereiche sind ung@3ltig.|Sie m@3ssen aufsteigend und '+
+          'getrennt sein.'));
       Exit;
      End;
      For K:=1 To 6 Do Begin
@@ -4119,8 +4436,10 @@ Begin
      End;
      For K:=1 To 3 Do SU.Msg[K]:=GT(P,30+K);
      For L:=1 To NLINK Do SU.Link[L]:=AcctComboNum(P,40+L,SU.Link[L]);
-     SU.Gst:=ParsePct(GT(P,61));SU.IncT:=ParsePct(GT(P,62));SU.Pen:=ParsePct(GT(P,63));SU.UI:=ParsePct(GT(P,64));
-     SU.Co:=TrimStr(GT(P,71));SU.Ad1:=TrimStr(GT(P,72));SU.Ad2:=TrimStr(GT(P,73));
+     SU.Gst:=ParsePct(GT(P,61));SU.IncT:=ParsePct(GT(P,62));
+     SU.Pen:=ParsePct(GT(P,63));SU.UI:=ParsePct(GT(P,64));
+     SU.Co:=TrimStr(GT(P,71));SU.Ad1:=TrimStr(GT(P,72));
+     SU.Ad2:=TrimStr(GT(P,73));
      For I:=1 To NA Do Begin
       K:=KindOfNum(Ac^[I].Num);
       If K>0 Then Ac^[I].Kind:=K;
@@ -4138,17 +4457,21 @@ End;
 Procedure OpenSetup(Tab: Integer);
 Var P: PWin; K,L,Col,Row: Integer;
 Begin
- P:=NewWin(wkSetup,T3('Param@etres de la soci@et@e','Company Settings','Firmeneinstellungen'),600,372);
+ P:=NewWin(wkSetup,T3('Param@etres de la soci@et@e','Company Settings',
+     'Firmeneinstellungen'),600,372);
  P^.Aux:=Tab;
  NewTab(P,T3('Num@eros de compte','Account Numbers','Kontonummern'));
- AddLbl(P,0,16,34,T3('Plage de num@eros pour chaque cat@egorie.','Number range for each account category.','Nummernbereich je Kontoklasse.'));
+ AddLbl(P,0,16,34,T3('Plage de num@eros pour chaque cat@egorie.',
+     'Number range for each account category.',
+     'Nummernbereich je Kontoklasse.'));
  For K:=1 To 6 Do Begin
   AddLbl(P,0,16,62+(K-1)*24,KindName(K));
   AddEdit(P,10+K,150,58+(K-1)*24,60,4,3,'');
   AddLbl(P,0,218,62+(K-1)*24,'-');
   AddEdit(P,20+K,236,58+(K-1)*24,60,4,3,'');
  End;
- AddBox(P,8,212,578,92,T3('Message au bas des factures','Message at the bottom of invoices','Meldung am Ende der Rechnungen'));
+ AddBox(P,8,212,578,92,T3('Message au bas des factures',
+     'Message at the bottom of invoices','Meldung am Ende der Rechnungen'));
  AddLbl(P,0,16,232,'F');AddEdit(P,31,34,228,530,100,0,'');
  AddLbl(P,0,16,256,'A');AddEdit(P,32,34,252,530,100,0,'');
  AddLbl(P,0,16,280,'D');AddEdit(P,33,34,276,530,100,0,'');
@@ -4159,13 +4482,20 @@ Begin
   AddCombo(P,40+L,126+Col*292,38+Row*26,170,srcAcct);
  End;
  NewTab(P,T3('Taxes et paie','Taxes and Payroll','Steuern und Lohn'));
- AddLbl(P,0,16,44,T3('Taux de TPS / taxe de vente (%)','GST / sales tax rate (%)','Umsatzsteuersatz (%)'));AddEdit(P,61,330,40,80,8,4,'');
- AddLbl(P,0,16,72,T3('Imp@ot sur le revenu retenu (%)','Income tax withheld (%)','Einbehaltene Lohnsteuer (%)'));AddEdit(P,62,330,68,80,8,4,'');
- AddLbl(P,0,16,100,T3('R@egime de pension (%)','Pension plan (%)','Rentenversicherung (%)'));AddEdit(P,63,330,96,80,8,4,'');
- AddLbl(P,0,16,128,T3('Assurance-emploi (%)','Unemployment insurance (%)','Arbeitslosenvers. (%)'));AddEdit(P,64,330,124,80,8,4,'');
+ AddLbl(P,0,16,44,T3('Taux de TPS / taxe de vente (%)',
+     'GST / sales tax rate (%)','Umsatzsteuersatz (%)'));
+     AddEdit(P,61,330,40,80,8,4,'');
+ AddLbl(P,0,16,72,T3('Imp@ot sur le revenu retenu (%)',
+     'Income tax withheld (%)','Einbehaltene Lohnsteuer (%)'));
+     AddEdit(P,62,330,68,80,8,4,'');
+ AddLbl(P,0,16,100,T3('R@egime de pension (%)','Pension plan (%)',
+     'Rentenversicherung (%)'));AddEdit(P,63,330,96,80,8,4,'');
+ AddLbl(P,0,16,128,T3('Assurance-emploi (%)','Unemployment insurance (%)',
+     'Arbeitslosenvers. (%)'));AddEdit(P,64,330,124,80,8,4,'');
  NewTab(P,T3('Soci@et@e','Company','Firma'));
  AddLbl(P,0,16,44,T3('Nom :','Name:','Name:'));AddEdit(P,71,120,40,300,34,0,'');
- AddLbl(P,0,16,72,T3('Adresse :','Address:','Adresse:'));AddEdit(P,72,120,68,300,34,0,'');
+ AddLbl(P,0,16,72,T3('Adresse :','Address:','Adresse:'));
+ AddEdit(P,72,120,68,300,34,0,'');
  AddEdit(P,73,120,92,300,34,0,'');
  P^.BTab:=0;
  AddBtn(P,1,400,306,86,'OK',True);
@@ -4215,7 +4545,8 @@ Begin
   '+': CalcAcc:=CalcAcc+V;
   '-': CalcAcc:=CalcAcc-V;
   '*': CalcAcc:=CalcAcc*V;
-  '/': If V=0 Then Begin CalcAcc:=0;CalcStr:='Err';Exit;End Else CalcAcc:=CalcAcc/V;
+  '/': If V=0 Then Begin CalcAcc:=0;CalcStr:='Err';Exit;End Else
+    CalcAcc:=CalcAcc/V;
   Else CalcAcc:=V;
  End;
  CalcStr:=RealStr(CalcAcc);
@@ -4225,7 +4556,8 @@ Procedure HCalc(P: PWin; Ev,A,B: Integer);
 Var Op: Char;
 Begin
  Case Ev Of
-  evInit: Begin CalcAcc:=0;CalcOp:=' ';CalcStr:='0';CalcFresh:=True;ST(P,10,'0');End;
+  evInit: Begin
+    CalcAcc:=0;CalcOp:=' ';CalcStr:='0';CalcFresh:=True;ST(P,10,'0');End;
   evButton: Begin
     Case A Of
      100..109: Begin
@@ -4271,10 +4603,14 @@ Begin
  { rangee 1 : C, +/-, /, * }
  AddBtn(P,116,8,36,44,'C',False);AddBtn(P,117,56,36,44,'+/-',False);
  AddBtn(P,114,104,36,44,'/',False);AddBtn(P,113,152,36,44,'*',False);
- AddBtn(P,107,8,68,44,'7',False);AddBtn(P,108,56,68,44,'8',False);AddBtn(P,109,104,68,44,'9',False);AddBtn(P,112,152,68,44,'-',False);
- AddBtn(P,104,8,100,44,'4',False);AddBtn(P,105,56,100,44,'5',False);AddBtn(P,106,104,100,44,'6',False);AddBtn(P,111,152,100,44,'+',False);
- AddBtn(P,101,8,132,44,'1',False);AddBtn(P,102,56,132,44,'2',False);AddBtn(P,103,104,132,44,'3',False);AddBtn(P,115,152,132,44,'=',True);
- AddBtn(P,100,8,164,92,'0',False);AddBtn(P,110,104,164,44,'.',False);AddBtn(P,2,152,164,44,'Esc',False);
+ AddBtn(P,107,8,68,44,'7',False);AddBtn(P,108,56,68,44,'8',False);
+ AddBtn(P,109,104,68,44,'9',False);AddBtn(P,112,152,68,44,'-',False);
+ AddBtn(P,104,8,100,44,'4',False);AddBtn(P,105,56,100,44,'5',False);
+ AddBtn(P,106,104,100,44,'6',False);AddBtn(P,111,152,100,44,'+',False);
+ AddBtn(P,101,8,132,44,'1',False);AddBtn(P,102,56,132,44,'2',False);
+ AddBtn(P,103,104,132,44,'3',False);AddBtn(P,115,152,132,44,'=',True);
+ AddBtn(P,100,8,164,92,'0',False);AddBtn(P,110,104,164,44,'.',False);
+ AddBtn(P,2,152,164,44,'Esc',False);
  RunWin(P);
 End;
 
@@ -4351,7 +4687,8 @@ Begin
 End;
 
 { Ligne a deux colonnes de montants (col. 38..51 et 52..67) }
-Procedure RRow(Bold: Boolean; Const Nm: String; Sh1,Sh2: Boolean; A1,A2: LongInt);
+Procedure RRow(Bold: Boolean; Const Nm: String; Sh1,Sh2: Boolean; A1,
+    A2: LongInt);
 Var S: String;
 Begin
  S:=Pad(Nm,38);
@@ -4392,7 +4729,8 @@ Begin
  S:=0;
  For I:=1 To NA Do
   If (Ac^[I].Kind=K) And (Ac^[I].Num>=Lo) And (Ac^[I].Num<=Hi) Then Begin
-   RRow(False,'    '+IntStr(Ac^[I].Num)+' '+Ac^[I].Name,True,False,DispBal(I),0);
+   RRow(False,'    '+IntStr(Ac^[I].Num)+' '+Ac^[I].Name,True,False,DispBal(I),
+       0);
    S:=S+DispBal(I);
   End;
  RAccGroup:=S;
@@ -4406,68 +4744,87 @@ Begin
  M:=MidNum(K_ASSET);
  RAdd(True,'  '+T3('ACTIF A COURT TERME','CURRENT ASSETS','UMLAUFVERM@2GEN'));
  T1:=RAccGroup(K_ASSET,0,M-1);
- RRow(True,'  '+T3('TOTAL ACTIF A COURT TERME','TOTAL CURRENT ASSETS','SUMME UMLAUFVERM@2GEN'),False,True,0,T1);
+ RRow(True,'  '+T3('TOTAL ACTIF A COURT TERME','TOTAL CURRENT ASSETS',
+     'SUMME UMLAUFVERM@2GEN'),False,True,0,T1);
  RAdd(False,'');
  RAdd(True,'  '+T3('IMMOBILISATIONS','FIXED ASSETS','ANLAGEVERM@2GEN'));
  T2:=RAccGroup(K_ASSET,M,9999);
- RRow(True,'  '+T3('TOTAL IMMOBILISATIONS','TOTAL FIXED ASSETS','SUMME ANLAGEVERM@2GEN'),False,True,0,T2);
+ RRow(True,'  '+T3('TOTAL IMMOBILISATIONS','TOTAL FIXED ASSETS',
+     'SUMME ANLAGEVERM@2GEN'),False,True,0,T2);
  RAdd(False,'');
  TA:=T1+T2;
  RRow(True,T3('TOTAL ACTIF','TOTAL ASSETS','SUMME AKTIVA'),False,True,0,TA);
  RAdd(False,'');
  RAdd(True,T3('PASSIF','LIABILITIES','PASSIVA'));
  M:=MidNum(K_LIAB);
- RAdd(True,'  '+T3('PASSIF A COURT TERME','CURRENT LIABILITIES','KURZFR. VERBINDLICHKEITEN'));
+ RAdd(True,'  '+T3('PASSIF A COURT TERME','CURRENT LIABILITIES',
+     'KURZFR. VERBINDLICHKEITEN'));
  T1:=RAccGroup(K_LIAB,0,M-1);
- RRow(True,'  '+T3('TOTAL PASSIF A COURT TERME','TOTAL CURRENT LIABILITIES','SUMME KURZFR. VERB.'),False,True,0,T1);
- RAdd(True,'  '+T3('PASSIF A LONG TERME','LONG TERM LIABILITIES','LANGFR. VERBINDLICHKEITEN'));
+ RRow(True,'  '+T3('TOTAL PASSIF A COURT TERME','TOTAL CURRENT LIABILITIES',
+     'SUMME KURZFR. VERB.'),False,True,0,T1);
+ RAdd(True,'  '+T3('PASSIF A LONG TERME','LONG TERM LIABILITIES',
+     'LANGFR. VERBINDLICHKEITEN'));
  T2:=RAccGroup(K_LIAB,M,9999);
- RRow(True,'  '+T3('TOTAL PASSIF A LONG TERME','TOTAL LONG TERM LIABILITIES','SUMME LANGFR. VERB.'),False,True,0,T2);
+ RRow(True,'  '+T3('TOTAL PASSIF A LONG TERME','TOTAL LONG TERM LIABILITIES',
+     'SUMME LANGFR. VERB.'),False,True,0,T2);
  TL:=T1+T2;
- RRow(True,T3('TOTAL PASSIF','TOTAL LIABILITIES','SUMME PASSIVA'),False,True,0,TL);
+ RRow(True,T3('TOTAL PASSIF','TOTAL LIABILITIES','SUMME PASSIVA'),False,True,0,
+     TL);
  RAdd(False,'');
  RAdd(True,T3('CAPITAL','EQUITY','EIGENKAPITAL'));
  TE:=RAccGroup(K_EQUITY,0,9999);
  Ne:=NetIncome;
- RRow(False,'    '+T3('B@en@efice de l''exercice','Current earnings','Laufender Gewinn'),True,False,Ne,0);
+ RRow(False,'    '+T3('B@en@efice de l''exercice','Current earnings',
+     'Laufender Gewinn'),True,False,Ne,0);
  TE:=TE+Ne;
- RRow(True,T3('TOTAL CAPITAL','TOTAL EQUITY','SUMME EIGENKAPITAL'),False,True,0,TE);
+ RRow(True,T3('TOTAL CAPITAL','TOTAL EQUITY','SUMME EIGENKAPITAL'),False,True,0,
+     TE);
  RAdd(False,'');
- RRow(True,T3('TOTAL PASSIF ET CAPITAL','TOTAL LIABILITIES AND EQUITY','SUMME PASSIVA UND EIGENKAPITAL'),False,True,0,TL+TE);
+ RRow(True,T3('TOTAL PASSIF ET CAPITAL','TOTAL LIABILITIES AND EQUITY',
+     'SUMME PASSIVA UND EIGENKAPITAL'),False,True,0,TL+TE);
 End;
 
 Procedure RepIncome;
 Var TR,TC,TE: LongInt;
 Begin
- RHeader(T3('@Etat des r@esultats','Income Statement','Gewinn- und Verlustrechnung'));
+ RHeader(T3('@Etat des r@esultats','Income Statement',
+     'Gewinn- und Verlustrechnung'));
  RAdd(True,T3('REVENUS','REVENUE','ERTR@1GE'));
  TR:=RAccGroup(K_REV,0,9999);
- RRow(True,T3('TOTAL REVENUS','TOTAL REVENUE','SUMME ERTR@1GE'),False,True,0,TR);
+ RRow(True,T3('TOTAL REVENUS','TOTAL REVENUE','SUMME ERTR@1GE'),False,True,0,
+     TR);
  RAdd(False,'');
  RAdd(True,T3('COUTS DIRECTS','DIRECT COSTS','WARENKOSTEN'));
  TC:=RAccGroup(K_COGS,0,9999);
- RRow(True,T3('TOTAL COUTS DIRECTS','TOTAL DIRECT COSTS','SUMME WARENKOSTEN'),False,True,0,TC);
+ RRow(True,T3('TOTAL COUTS DIRECTS','TOTAL DIRECT COSTS','SUMME WARENKOSTEN'),
+     False,True,0,TC);
  RAdd(False,'');
  RRow(True,T3('B@EN@EFICE BRUT','GROSS PROFIT','ROHGEWINN'),False,True,0,TR-TC);
  RAdd(False,'');
  RAdd(True,T3('D@EPENSES','EXPENSES','AUFWAND'));
  TE:=RAccGroup(K_EXP,0,9999);
- RRow(True,T3('TOTAL D@EPENSES','TOTAL EXPENSES','SUMME AUFWAND'),False,True,0,TE);
+ RRow(True,T3('TOTAL D@EPENSES','TOTAL EXPENSES','SUMME AUFWAND'),False,True,0,
+     TE);
  RAdd(False,'');
- RRow(True,T3('B@EN@EFICE NET','NET INCOME','REINGEWINN'),False,True,0,TR-TC-TE);
+ RRow(True,T3('B@EN@EFICE NET','NET INCOME','REINGEWINN'),False,True,0,
+     TR-TC-TE);
 End;
 
 Procedure RepTrial;
 Var I: Integer; TD,TC: LongInt; S: String;
 Begin
  RHeader(T3('Balance de v@erification','Trial Balance','Saldenbilanz'));
- RAdd(True,Pad(T3('Compte','Account','Konto'),6)+Pad(' '+T3('Nom','Name','Name'),34)+PadL(T3('D@ebit','Debit','Soll'),14)+PadL(T3('Cr@edit','Credit','Haben'),14));
+ RAdd(True,Pad(T3('Compte','Account','Konto'),6)+Pad(' '+T3('Nom','Name',
+     'Name'),34)+PadL(T3('D@ebit','Debit','Soll'),14)+PadL(T3('Cr@edit',
+     'Credit','Haben'),14));
  RRule;
  TD:=0;TC:=0;
  For I:=1 To NA Do Begin
   S:=Pad(IntStr(Ac^[I].Num),6)+Pad(' '+Ac^[I].Name,34);
-  If Ac^[I].Bal>=0 Then Begin S:=S+PadL(FmtMoney(Ac^[I].Bal),14);TD:=TD+Ac^[I].Bal;End
-  Else Begin S:=S+'              '+PadL(FmtMoney(-Ac^[I].Bal),14);TC:=TC-Ac^[I].Bal;End;
+  If Ac^[I].Bal>=0 Then Begin
+    S:=S+PadL(FmtMoney(Ac^[I].Bal),14);TD:=TD+Ac^[I].Bal;End
+  Else Begin
+    S:=S+'              '+PadL(FmtMoney(-Ac^[I].Bal),14);TC:=TC-Ac^[I].Bal;End;
   RAdd(False,S);
  End;
  RRule;
@@ -4482,24 +4839,29 @@ Begin
  For J:=1 To NJ Do Begin
   If Jl^[J].Id<>Id Then Begin
    Id:=Jl^[J].Id;
-   RAdd(True,'#'+IntStr(Id)+'  '+FmtDate(Jl^[J].Dt)+'  '+Jl^[J].Src+'  '+Jl^[J].Cm);
+   RAdd(True,
+       '#'+IntStr(Id)+'  '+FmtDate(Jl^[J].Dt)+'  '+Jl^[J].Src+'  '+Jl^[J].Cm);
   End;
   S:='   '+Pad(IntStr(Jl^[J].Acc),6)+Pad(AccName(Jl^[J].Acc),30);
-  If Jl^[J].Dr<>0 Then S:=S+PadL(FmtMoney(Jl^[J].Dr),14) Else S:=S+'              ';
+  If Jl^[J].Dr<>0 Then S:=S+PadL(FmtMoney(Jl^[J].Dr),14) Else
+    S:=S+'              ';
   If Jl^[J].Cr<>0 Then S:=S+PadL(FmtMoney(Jl^[J].Cr),14);
   RAdd(False,S);
  End;
- If NJ=0 Then RAdd(False,T3('(aucune @ecriture)','(no entries)','(keine Buchungen)'));
+ If NJ=0 Then
+   RAdd(False,T3('(aucune @ecriture)','(no entries)','(keine Buchungen)'));
 End;
 
 Procedure RepChart;
 Var I: Integer;
 Begin
  RHeader(T3('Plan comptable','Chart of Accounts','Kontenplan'));
- RAdd(True,Pad(T3('Compte','Account','Konto'),8)+Pad(T3('Nom','Name','Name'),34)+Pad('Type',12)+PadL(T3('Solde','Balance','Saldo'),14));
+ RAdd(True,Pad(T3('Compte','Account','Konto'),8)+Pad(T3('Nom','Name','Name'),
+     34)+Pad('Type',12)+PadL(T3('Solde','Balance','Saldo'),14));
  RRule;
  For I:=1 To NA Do
-  RAdd(False,Pad(IntStr(Ac^[I].Num),8)+Pad(Ac^[I].Name,34)+Pad(KindName(Ac^[I].Kind),12)+PadL(FmtMoney(DispBal(I)),14));
+  RAdd(False,Pad(IntStr(Ac^[I].Num),8)+Pad(Ac^[I].Name,
+      34)+Pad(KindName(Ac^[I].Kind),12)+PadL(FmtMoney(DispBal(I)),14));
 End;
 
 Function AgeBucket(I: Integer): Integer;
@@ -4513,15 +4875,19 @@ Begin
 End;
 
 Procedure RepAged(Typ: Integer);
-Var P,I,B,N: Integer; Tot: Array[1..4] Of LongInt; GT_: Array[1..4] Of LongInt; S: String;
+Var P,I,B,N: Integer; Tot: Array[1..4] Of LongInt; GT_: Array[1..4] Of
+  LongInt; S: String;
     PA: PPartyArr; Any: Boolean; O: LongInt;
 Begin
  If Typ=1 Then Begin
-  RHeader(T3('Fournisseurs - factures impay@ees','Aged Payables Detail','Offene Lieferantenrechnungen'));PA:=Vn;N:=NV;
+  RHeader(T3('Fournisseurs - factures impay@ees','Aged Payables Detail',
+      'Offene Lieferantenrechnungen'));PA:=Vn;N:=NV;
  End Else Begin
-  RHeader(T3('Clients - factures impay@ees','Aged Receivables Detail','Offene Kundenrechnungen'));PA:=Cu;N:=NC_;
+  RHeader(T3('Clients - factures impay@ees','Aged Receivables Detail',
+      'Offene Kundenrechnungen'));PA:=Cu;N:=NC_;
  End;
- RAdd(True,Pad(T3('Facture','Invoice','Rechnung'),12)+Pad('Date',11)+PadL(T3('Courant','Current','Aktuell'),11)
+ RAdd(True,Pad(T3('Facture','Invoice','Rechnung'),12)+Pad('Date',
+     11)+PadL(T3('Courant','Current','Aktuell'),11)
   +PadL('1-30',11)+PadL('31-60',11)+PadL('61+',11));
  RRule;
  For B:=1 To 4 Do GT_[B]:=0;
@@ -4538,39 +4904,51 @@ Begin
     Tot[B]:=Tot[B]+O;GT_[B]:=GT_[B]+O;
    End;
   If Any Then
-   RAdd(True,'  '+Pad(T3('Total','Total','Summe'),21)+PadL(FmtMoney(Tot[1]),11)+PadL(FmtMoney(Tot[2]),11)+PadL(FmtMoney(Tot[3]),11)+PadL(FmtMoney(Tot[4]),11));
+   RAdd(True,'  '+Pad(T3('Total','Total','Summe'),21)+PadL(FmtMoney(Tot[1]),
+       11)+PadL(FmtMoney(Tot[2]),11)+PadL(FmtMoney(Tot[3]),
+       11)+PadL(FmtMoney(Tot[4]),11));
  End;
  RRule;
- RAdd(True,Pad(T3('TOTAL G@EN@ERAL','GRAND TOTAL','GESAMTSUMME'),23)+PadL(FmtMoney(GT_[1]),11)+PadL(FmtMoney(GT_[2]),11)+PadL(FmtMoney(GT_[3]),11)+PadL(FmtMoney(GT_[4]),11));
+ RAdd(True,Pad(T3('TOTAL G@EN@ERAL','GRAND TOTAL','GESAMTSUMME'),
+     23)+PadL(FmtMoney(GT_[1]),11)+PadL(FmtMoney(GT_[2]),
+     11)+PadL(FmtMoney(GT_[3]),11)+PadL(FmtMoney(GT_[4]),11));
 End;
 
 Procedure RepEmployees;
 Var I: Integer;
 Begin
  RHeader(T3('Liste des employ@es','Employee List','Mitarbeiterliste'));
- RAdd(True,Pad(T3('Nom','Name','Name'),32)+PadL(T3('Taux','Rate','Satz'),12)+PadL(T3('Heures','Hours','Stunden'),10)+PadL(T3('Cumul','YTD','Summe'),14));
+ RAdd(True,Pad(T3('Nom','Name','Name'),32)+PadL(T3('Taux','Rate','Satz'),
+     12)+PadL(T3('Heures','Hours','Stunden'),10)+PadL(T3('Cumul','YTD','Summe'),
+     14));
  RRule;
  For I:=1 To NE Do
-  RAdd(False,Pad(Em^[I].Name,32)+PadL(FmtMoney(Em^[I].Rate),12)+PadL(FmtQty(Em^[I].Hrs),10)+PadL(FmtMoney(Em^[I].Ytd),14));
+  RAdd(False,Pad(Em^[I].Name,32)+PadL(FmtMoney(Em^[I].Rate),
+      12)+PadL(FmtQty(Em^[I].Hrs),10)+PadL(FmtMoney(Em^[I].Ytd),14));
 End;
 
 Procedure RepInventory;
 Var I: Integer; V,T: LongInt;
 Begin
  RHeader(T3('Liste d''inventaire','Inventory List','Lagerliste'));
- RAdd(True,Pad(T3('Code','Code','Code'),11)+Pad('Description',25)+PadL(T3('Qt@e','Qty','Menge'),9)+PadL(T3('Co@ut','Cost','Kosten'),11)+PadL(T3('Valeur','Value','Wert'),12));
+ RAdd(True,Pad(T3('Code','Code','Code'),11)+Pad('Description',
+     25)+PadL(T3('Qt@e','Qty','Menge'),9)+PadL(T3('Co@ut','Cost','Kosten'),
+     11)+PadL(T3('Valeur','Value','Wert'),12));
  RRule;
  T:=0;
  For I:=1 To NI Do Begin
   If It^[I].Svc Then
-   RAdd(False,Pad(It^[I].Code,11)+Pad(It^[I].Desc,25)+PadL('-',9)+PadL(FmtMoney(It^[I].Price),11)+PadL('',12))
+   RAdd(False,Pad(It^[I].Code,11)+Pad(It^[I].Desc,25)+PadL('-',
+       9)+PadL(FmtMoney(It^[I].Price),11)+PadL('',12))
   Else Begin
    V:=MulQ(It^[I].Qty,It^[I].Cost);T:=T+V;
-   RAdd(False,Pad(It^[I].Code,11)+Pad(It^[I].Desc,25)+PadL(FmtQty(It^[I].Qty),9)+PadL(FmtMoney(It^[I].Cost),11)+PadL(FmtMoney(V),12));
+   RAdd(False,Pad(It^[I].Code,11)+Pad(It^[I].Desc,25)+PadL(FmtQty(It^[I].Qty),
+       9)+PadL(FmtMoney(It^[I].Cost),11)+PadL(FmtMoney(V),12));
   End;
  End;
  RRule;
- RAdd(True,Pad(T3('Valeur totale','Total value','Gesamtwert'),45)+PadL('',9)+PadL(FmtMoney(T),23));
+ RAdd(True,Pad(T3('Valeur totale','Total value','Gesamtwert'),45)+PadL('',
+     9)+PadL(FmtMoney(T),23));
 End;
 
 Procedure RepSummary;
@@ -4579,22 +4957,29 @@ Begin
  RHeader(T3('R@esum@e de la soci@et@e','Company Summary','Firmen@3bersicht'));
  RAdd(True,T3('Comptes bancaires','Bank accounts','Bankkonten'));
  For I:=1 To NA Do If Ac^[I].Bank Then
-  RAdd(False,'  '+Pad(IntStr(Ac^[I].Num)+' '+Ac^[I].Name,40)+PadL(FmtMoney(DispBal(I)),16));
+  RAdd(False,'  '+Pad(IntStr(Ac^[I].Num)+' '+Ac^[I].Name,
+      40)+PadL(FmtMoney(DispBal(I)),16));
  Ar:=0;Ap:=0;Od:=0;
  For I:=1 To NIv Do Begin
   If Iv^[I].Typ=2 Then Ar:=Ar+Owing(I) Else Ap:=Ap+Owing(I);
   If (Owing(I)>0) And (DueDate(I)<SessDate) Then Inc(Od);
  End;
  RAdd(False,'');
- RAdd(False,Pad(T3('Comptes clients','Receivables','Forderungen'),42)+PadL(FmtMoney(Ar),16));
- RAdd(False,Pad(T3('Comptes fournisseurs','Payables','Verbindlichkeiten'),42)+PadL(FmtMoney(Ap),16));
- RAdd(False,Pad(T3('B@en@efice net de l''exercice','Net income to date','Reingewinn bisher'),42)+PadL(FmtMoney(NetIncome),16));
+ RAdd(False,Pad(T3('Comptes clients','Receivables','Forderungen'),
+     42)+PadL(FmtMoney(Ar),16));
+ RAdd(False,Pad(T3('Comptes fournisseurs','Payables','Verbindlichkeiten'),
+     42)+PadL(FmtMoney(Ap),16));
+ RAdd(False,Pad(T3('B@en@efice net de l''exercice','Net income to date',
+     'Reingewinn bisher'),42)+PadL(FmtMoney(NetIncome),16));
  Ar:=0;
  For I:=1 To NI Do If Not It^[I].Svc Then Ar:=Ar+MulQ(It^[I].Qty,It^[I].Cost);
- RAdd(False,Pad(T3('Valeur de l''inventaire','Inventory value','Lagerwert'),42)+PadL(FmtMoney(Ar),16));
+ RAdd(False,Pad(T3('Valeur de l''inventaire','Inventory value','Lagerwert'),
+     42)+PadL(FmtMoney(Ar),16));
  RAdd(False,'');
- RAdd(False,Pad(T3('Factures en retard','Overdue invoices','F@1llige Rechnungen'),42)+PadL(IntStr(Od),16));
- RAdd(False,Pad(T3('Nombre d''@ecritures','Journal entries','Buchungen'),42)+PadL(IntStr(SU.NextJ),16));
+ RAdd(False,Pad(T3('Factures en retard','Overdue invoices',
+     'F@1llige Rechnungen'),42)+PadL(IntStr(Od),16));
+ RAdd(False,Pad(T3('Nombre d''@ecritures','Journal entries','Buchungen'),
+     42)+PadL(IntStr(SU.NextJ),16));
 End;
 
 Procedure RepReminders;
@@ -4606,32 +4991,51 @@ Begin
   If (Owing(I)>0) And (DayNum(DueDate(I))<=DayNum(SessDate)+7) Then Begin
    If Iv^[I].Typ=1 Then S:=T3('Payer ','Pay ','Zahlen: ')+Vn^[Iv^[I].Party].Name
    Else S:=T3('Relancer ','Collect from ','Mahnen: ')+Cu^[Iv^[I].Party].Name;
-   RAdd(False,Pad(S,40)+Pad(Iv^[I].No,10)+Pad(FmtDate(DueDate(I)),12)+PadL(FmtMoney(Owing(I)),12));
+   RAdd(False,Pad(S,40)+Pad(Iv^[I].No,10)+Pad(FmtDate(DueDate(I)),
+       12)+PadL(FmtMoney(Owing(I)),12));
    Inc(Cnt);
   End;
- If Cnt=0 Then RAdd(False,T3('Aucun rappel.','No reminders.','Keine Erinnerungen.'));
+ If Cnt=0 Then
+   RAdd(False,T3('Aucun rappel.','No reminders.','Keine Erinnerungen.'));
 End;
 
 Procedure RepVerify;
 Var J,I: Integer; D,C,Sv: LongInt;
 Begin
- RHeader(T3('V@erification des donn@ees','Data Integrity Check','Datenpr@3fung'));
+ RHeader(T3('V@erification des donn@ees','Data Integrity Check',
+     'Datenpr@3fung'));
  D:=0;C:=0;
  For J:=1 To NJ Do Begin D:=D+Jl^[J].Dr;C:=C+Jl^[J].Cr;End;
- If D=C Then RAdd(False,'OK  '+T3('Le journal est @equilibr@e : ','The journal is balanced: ','Das Journal ist ausgeglichen: ')+FmtMoney(D))
- Else RAdd(True,'ERR '+T3('Journal d@es@equilibr@e : ','Journal out of balance: ','Journal nicht ausgeglichen: ')+FmtMoney(D-C));
+ If D=C Then
+   RAdd(False,'OK  '+T3('Le journal est @equilibr@e : ',
+     'The journal is balanced: ','Das Journal ist ausgeglichen: ')+FmtMoney(D))
+ Else
+   RAdd(True,'ERR '+T3('Journal d@es@equilibr@e : ','Journal out of balance: ',
+     'Journal nicht ausgeglichen: ')+FmtMoney(D-C));
  Sv:=0;For I:=1 To NIv Do If Iv^[I].Typ=1 Then Sv:=Sv+Owing(I);
  I:=FindAcc(LinkAcc(LK_AP));
- If (I>0) And (DispBal(I)=Sv) Then RAdd(False,'OK  '+T3('Fournisseurs = compte g@en@eral','Vendors = general ledger','Lieferanten = Hauptbuch'))
- Else RAdd(True,'ERR '+T3('Fournisseurs @ differ@e du compte g@en@eral','Vendors differ from general ledger','Lieferanten weichen vom Hauptbuch ab'));
+ If (I>0) And (DispBal(I)=Sv) Then
+   RAdd(False,'OK  '+T3('Fournisseurs = compte g@en@eral',
+     'Vendors = general ledger','Lieferanten = Hauptbuch'))
+ Else
+   RAdd(True,'ERR '+T3('Fournisseurs @ differ@e du compte g@en@eral',
+     'Vendors differ from general ledger',
+     'Lieferanten weichen vom Hauptbuch ab'));
  Sv:=0;For I:=1 To NIv Do If Iv^[I].Typ=2 Then Sv:=Sv+Owing(I);
  I:=FindAcc(LinkAcc(LK_AR));
- If (I>0) And (DispBal(I)=Sv) Then RAdd(False,'OK  '+T3('Clients = compte g@en@eral','Customers = general ledger','Kunden = Hauptbuch'))
- Else RAdd(True,'ERR '+T3('Clients diff@erent du compte g@en@eral','Customers differ from general ledger','Kunden weichen vom Hauptbuch ab'));
+ If (I>0) And (DispBal(I)=Sv) Then
+   RAdd(False,'OK  '+T3('Clients = compte g@en@eral',
+     'Customers = general ledger','Kunden = Hauptbuch'))
+ Else
+   RAdd(True,'ERR '+T3('Clients diff@erent du compte g@en@eral',
+     'Customers differ from general ledger','Kunden weichen vom Hauptbuch ab'));
  C:=0;
  For I:=1 To NI Do If Not It^[I].Svc Then C:=C+MulQ(It^[I].Qty,It^[I].Cost);
- RAdd(False,'    '+T3('Valeur de l''inventaire (info) : ','Inventory value (info): ','Lagerwert (Info): ')+FmtMoney(C));
- RAdd(False,'    '+IntStr(NA)+' '+T3('comptes, ','accounts, ','Konten, ')+IntStr(NJ)+' '+T3('lignes de journal','journal lines','Journalzeilen'));
+ RAdd(False,'    '+T3('Valeur de l''inventaire (info) : ',
+     'Inventory value (info): ','Lagerwert (Info): ')+FmtMoney(C));
+ RAdd(False,'    '+IntStr(NA)+' '+T3('comptes, ','accounts, ',
+     'Konten, ')+IntStr(NJ)+' '+T3('lignes de journal','journal lines',
+     'Journalzeilen'));
 End;
 
 Procedure RepHelp;
@@ -4640,22 +5044,47 @@ Begin
  RTitle:=T3('Aide','Help','Hilfe');
  RAdd(True,'Simply Accounting - '+T3('Aide','Help','Hilfe'));
  RAdd(False,'');
- RAdd(False,T3('Cliquez sur une ic@one de la fen@etre principale pour ouvrir un module.','Click an icon in the main window to open a module.','Klicken Sie auf ein Symbol im Hauptfenster, um ein Modul zu @2ffnen.'));
+ RAdd(False,
+     T3('Cliquez sur une ic@one de la fen@etre principale pour ouvrir un '+
+     'module.','Click an icon in the main window to open a module.',
+     'Klicken Sie auf ein Symbol im Hauptfenster, um ein Modul zu @2ffnen.'));
  RAdd(False,'');
  RAdd(True,T3('Clavier','Keyboard','Tastatur'));
- RAdd(False,T3('  Alt+lettre / F10  Ouvre un menu','  Alt+letter / F10  Opens a menu','  Alt+Buchstabe / F10  @5ffnet ein Men@3'));
- RAdd(False,T3('  Fl@eches / Entr@ee Se d@eplacer dans les ic@ones','  Arrows / Enter    Move through the icons','  Pfeile / Eingabe     In den Symbolen navigieren'));
- RAdd(False,T3('  Tab / Maj+Tab     Champ suivant / pr@ec@edent','  Tab / Shift+Tab   Next / previous field','  Tab / Umschalt+Tab   N@1chstes / voriges Feld'));
- RAdd(False,T3('  F4 ou double-clic Liste de choix (compte, article)','  F4 or double-click  Lookup (account, item)','  F4 oder Doppelklick  Auswahl (Konto, Artikel)'));
- RAdd(False,T3('  F2                Modifier la cellule','  F2                Edit the cell','  F2                Zelle bearbeiten'));
- RAdd(False,T3('  Ctrl+S / Ctrl+O   Enregistrer / Ouvrir','  Ctrl+S / Ctrl+O   Save / Open','  Strg+S / Strg+O   Speichern / @5ffnen'));
+ RAdd(False,T3('  Alt+lettre / F10  Ouvre un menu',
+     '  Alt+letter / F10  Opens a menu',
+     '  Alt+Buchstabe / F10  @5ffnet ein Men@3'));
+ RAdd(False,T3('  Fl@eches / Entr@ee Se d@eplacer dans les ic@ones',
+     '  Arrows / Enter    Move through the icons',
+     '  Pfeile / Eingabe     In den Symbolen navigieren'));
+ RAdd(False,T3('  Tab / Maj+Tab     Champ suivant / pr@ec@edent',
+     '  Tab / Shift+Tab   Next / previous field',
+     '  Tab / Umschalt+Tab   N@1chstes / voriges Feld'));
+ RAdd(False,T3('  F4 ou double-clic Liste de choix (compte, article)',
+     '  F4 or double-click  Lookup (account, item)',
+     '  F4 oder Doppelklick  Auswahl (Konto, Artikel)'));
+ RAdd(False,T3('  F2                Modifier la cellule',
+     '  F2                Edit the cell',
+     '  F2                Zelle bearbeiten'));
+ RAdd(False,T3('  Ctrl+S / Ctrl+O   Enregistrer / Ouvrir',
+     '  Ctrl+S / Ctrl+O   Save / Open',
+     '  Strg+S / Strg+O   Speichern / @5ffnen'));
  RAdd(False,'');
  RAdd(True,T3('Comptabilit@e','Accounting','Buchhaltung'));
- RAdd(False,T3('  Toute transaction passe par le journal g@en@eral : chaque','  Every transaction goes through the general journal: each','  Jede Buchung l@1uft @3ber das Hauptjournal: jede'));
- RAdd(False,T3('  @ecriture doit @etre @equilibr@ee (d@ebits = cr@edits).','  entry must balance (debits = credits).','  Buchung muss ausgeglichen sein (Soll = Haben).'));
- RAdd(False,T3('  Les factures cr@eent des soldes de fournisseurs/clients','  Invoices create vendor/customer balances that are','  Rechnungen erzeugen Lieferanten-/Kundensalden, die'));
- RAdd(False,T3('  r@egl@es par les modules Paiements et Encaissements.','  settled by the Payments and Receipts modules.','  durch Zahlungen und Zahlungseing@1nge beglichen werden.'));
- RAdd(False,T3('  Les comptes d''int@egration se r@eglent dans Param@etres.','  Linked accounts are set up in Setup.','  Verkn@3pfte Konten werden in den Einstellungen festgelegt.'));
+ RAdd(False,T3('  Toute transaction passe par le journal g@en@eral : chaque',
+     '  Every transaction goes through the general journal: each',
+     '  Jede Buchung l@1uft @3ber das Hauptjournal: jede'));
+ RAdd(False,T3('  @ecriture doit @etre @equilibr@ee (d@ebits = cr@edits).',
+     '  entry must balance (debits = credits).',
+     '  Buchung muss ausgeglichen sein (Soll = Haben).'));
+ RAdd(False,T3('  Les factures cr@eent des soldes de fournisseurs/clients',
+     '  Invoices create vendor/customer balances that are',
+     '  Rechnungen erzeugen Lieferanten-/Kundensalden, die'));
+ RAdd(False,T3('  r@egl@es par les modules Paiements et Encaissements.',
+     '  settled by the Payments and Receipts modules.',
+     '  durch Zahlungen und Zahlungseing@1nge beglichen werden.'));
+ RAdd(False,T3('  Les comptes d''int@egration se r@eglent dans Param@etres.',
+     '  Linked accounts are set up in Setup.',
+     '  Verkn@3pfte Konten werden in den Einstellungen festgelegt.'));
 End;
 
 { apercu de l'ecriture (bouton Distribuer) }
@@ -4664,13 +5093,17 @@ Var I: Integer; S: String;
 Begin
  RN:=0;
  RTitle:=T3('Distribution','Distribution','Verteilung');
- RAdd(True,T3('Distribution de la transaction','Transaction distribution','Verteilung der Buchung'));
+ RAdd(True,T3('Distribution de la transaction','Transaction distribution',
+     'Verteilung der Buchung'));
  RAdd(False,'');
- RAdd(True,Pad(T3('Compte','Account','Konto'),8)+Pad(T3('Nom','Name','Name'),30)+PadL(T3('D@ebit','Debit','Soll'),14)+PadL(T3('Cr@edit','Credit','Haben'),14));
+ RAdd(True,Pad(T3('Compte','Account','Konto'),8)+Pad(T3('Nom','Name','Name'),
+     30)+PadL(T3('D@ebit','Debit','Soll'),14)+PadL(T3('Cr@edit','Credit',
+     'Haben'),14));
  RRule;
  For I:=1 To PN Do Begin
   S:=Pad(IntStr(PL[I].Acc),8)+Pad(AccName(PL[I].Acc),30);
-  If PL[I].Dr<>0 Then S:=S+PadL(FmtMoney(PL[I].Dr),14) Else S:=S+'              ';
+  If PL[I].Dr<>0 Then S:=S+PadL(FmtMoney(PL[I].Dr),14) Else
+    S:=S+'              ';
   If PL[I].Cr<>0 Then S:=S+PadL(FmtMoney(PL[I].Cr),14);
   RAdd(False,S);
  End;
@@ -4696,28 +5129,36 @@ Procedure PrintInv(P: PWin);
 Var D,Tot: LongInt; Pt,R: Integer; S: String; Sub,Frt,Tax: LongInt;
 Begin
  Pt:=GS(P,10);
- If (Pt<1) Or (Pt>NC_) Then Begin Info(T3('Choisissez un client.','Select a customer.','W@1hlen Sie einen Kunden.'));Exit;End;
+ If (Pt<1) Or (Pt>NC_) Then Begin
+   Info(T3('Choisissez un client.','Select a customer.',
+     'W@1hlen Sie einen Kunden.'));Exit;End;
  D:=DateOrToday(GT(P,13));
  RN:=0;RTitle:=T3('Facture','Invoice','Rechnung');
  RAdd(True,SU.Co);RAdd(False,SU.Ad1);RAdd(False,SU.Ad2);RAdd(False,'');
- RAdd(True,T3('FACTURE no ','INVOICE No. ','RECHNUNG Nr. ')+GT(P,12)+'     '+FmtDate(D));
+ RAdd(True,T3('FACTURE no ','INVOICE No. ','RECHNUNG Nr. ')+GT(P,
+     12)+'     '+FmtDate(D));
  RAdd(False,'');
  RAdd(False,T3('Factur@e @a :','Bill to:','Rechnung an:'));
- RAdd(False,'  '+Cu^[Pt].Name);RAdd(False,'  '+Cu^[Pt].Ad1);RAdd(False,'  '+Cu^[Pt].Ad2);
+ RAdd(False,'  '+Cu^[Pt].Name);RAdd(False,'  '+Cu^[Pt].Ad1);
+ RAdd(False,'  '+Cu^[Pt].Ad2);
  RAdd(False,'');
- RAdd(True,Pad(T3('Article','Item','Artikel'),10)+PadL(T3('Qt@e','Qty','Menge'),8)+' '+Pad('Description',26)+PadL(T3('Prix','Price','Preis'),10)+PadL(T3('Montant','Amount','Betrag'),12));
+ RAdd(True,Pad(T3('Article','Item','Artikel'),10)+PadL(T3('Qt@e','Qty','Menge'),
+     8)+' '+Pad('Description',26)+PadL(T3('Prix','Price','Preis'),
+     10)+PadL(T3('Montant','Amount','Betrag'),12));
  RRule;
  Sub:=0;
  For R:=1 To P^.GN Do
   If ParseMoney(P^.GCell[R,6])<>0 Then Begin
-   RAdd(False,Pad(P^.GCell[R,1],10)+PadL(P^.GCell[R,2],8)+' '+Pad(P^.GCell[R,4],26)+PadL(P^.GCell[R,5],10)+PadL(P^.GCell[R,6],12));
+   RAdd(False,Pad(P^.GCell[R,1],10)+PadL(P^.GCell[R,2],8)+' '+Pad(P^.GCell[R,4],
+       26)+PadL(P^.GCell[R,5],10)+PadL(P^.GCell[R,6],12));
    Sub:=Sub+ParseMoney(P^.GCell[R,6]);
   End;
  RRule;
  Frt:=GMoney(P,20);Tax:=0;
  If Cu^[Pt].Tax Then Tax:=PctOf(Sub+Frt,SU.Gst);
  Tot:=Sub+Frt+Tax;
- RAdd(False,Pad(T3('Sous-total','Subtotal','Zwischensumme'),50)+PadL(FmtMoney(Sub),16));
+ RAdd(False,Pad(T3('Sous-total','Subtotal','Zwischensumme'),
+     50)+PadL(FmtMoney(Sub),16));
  RAdd(False,Pad(T3('Transport','Freight','Fracht'),50)+PadL(FmtMoney(Frt),16));
  RAdd(False,Pad(T3('TPS','GST','USt'),50)+PadL(FmtMoney(Tax),16));
  RAdd(True,Pad('Total',50)+PadL(FmtMoney(Tot),16));
@@ -4799,7 +5240,9 @@ Begin
   evButton: Case A Of
    31: Begin
      S:='REPORT.TXT';
-     If InputBox(T3('Enregistrer le rapport','Save report','Bericht speichern'),T3('Nom du fichier texte :','Text file name:','Name der Textdatei:'),S,40,0) Then Begin
+     If InputBox(T3('Enregistrer le rapport','Save report','Bericht speichern'),
+         T3('Nom du fichier texte :','Text file name:','Name der Textdatei:'),S,
+         40,0) Then Begin
       Assign(F,S);
       {$I-}
       Rewrite(F);
@@ -4807,12 +5250,18 @@ Begin
       Ok:=IOResult=0;
       If Ok Then Begin
        For I:=1 To RN Do Begin
-        If RL^[I]='-' Then WriteLn(F,'------------------------------------------------------------------')
+        If RL^[I]='-' Then
+          WriteLn(F,
+            '---------------------------------'+
+            '---------------------------------')
         Else WriteLn(F,Copy(RL^[I],2,255));
        End;
        Close(F);
-       Info(T3('Rapport enregistr@e dans ','Report saved to ','Bericht gespeichert in ')+S);
-      End Else Info(T3('Impossible d''@ecrire le fichier.','Cannot write the file.','Datei kann nicht geschrieben werden.'));
+       Info(T3('Rapport enregistr@e dans ','Report saved to ',
+           'Bericht gespeichert in ')+S);
+      End Else
+        Info(T3('Impossible d''@ecrire le fichier.','Cannot write the file.',
+          'Datei kann nicht geschrieben werden.'));
      End;
     End;
    2: Begin P^.Res:=0;P^.Done:=True;End;
@@ -4826,7 +5275,8 @@ Var P: PWin; I: Integer;
 Begin
  P:=NewWin(wkRep,Ti,616,440);
  I:=AddCtl(P,ckText,10,8,8,586,350,'');
- AddBtn(P,31,8,364,270,T3('Enregistrer en fichier texte...','Save as text file...','Als Textdatei speichern...'),False);
+ AddBtn(P,31,8,364,270,T3('Enregistrer en fichier texte...',
+     'Save as text file...','Als Textdatei speichern...'),False);
  AddBtn(P,2,494,364,100,T3('Fermer','Close','Schlie@7en'),True);
  RunWin(P);
 End;
@@ -4840,7 +5290,8 @@ Begin
  Sunken(AX,AY,AX+Wd-1,AY+Ht-1,cWht);
  TxB(AX+10,AY+8,GBTitle,cBlk);
  If GBN<1 Then Begin
-  Tx(AX+10,AY+40,T3('Aucune donn@ee @a afficher.','No data to display.','Keine Daten vorhanden.'),cDGr);Exit;
+  Tx(AX+10,AY+40,T3('Aucune donn@ee @a afficher.','No data to display.',
+      'Keine Daten vorhanden.'),cDGr);Exit;
  End;
  Mx:=0;Mn:=0;
  For I:=1 To GBN Do Begin
@@ -4913,7 +5364,8 @@ Begin
  GBLbl[2]:=Copy(KindName(K_COGS),1,10);GBVal[2]:=C;
  GBLbl[3]:=Copy(KindName(K_EXP),1,10);GBVal[3]:=E;
  GBLbl[4]:=Copy(T3('B@en@efice','Net income','Gewinn'),1,10);GBVal[4]:=R-C-E;
- ShowGraph(T3('Revenus et d@epenses','Revenues and Expenses','Ertr@1ge und Aufwand'));
+ ShowGraph(T3('Revenus et d@epenses','Revenues and Expenses',
+     'Ertr@1ge und Aufwand'));
 End;
 
 Procedure GraphByKind(Kd1,Kd2: Integer; Const Ti: String);
@@ -4924,11 +5376,13 @@ Begin
  For K:=1 To 10 Do Begin
   Best:=0;Bv:=0;
   For I:=1 To NA Do
-   If (Not Used[I]) And ((Ac^[I].Kind=Kd1) Or (Ac^[I].Kind=Kd2)) And (DispBal(I)>Bv) Then Begin
+   If (Not Used[I]) And ((Ac^[I].Kind=Kd1) Or (Ac^[I].Kind=Kd2))
+       And (DispBal(I)>Bv) Then Begin
     Best:=I;Bv:=DispBal(I);
    End;
   If Best>0 Then Begin
-   Used[Best]:=True;Inc(GBN);GBLbl[GBN]:=Copy(Ac^[Best].Name,1,10);GBVal[GBN]:=Bv;
+   Used[Best]:=True;Inc(GBN);GBLbl[GBN]:=Copy(Ac^[Best].Name,1,10);
+   GBVal[GBN]:=Bv;
   End;
  End;
  ShowGraph(Ti);
@@ -4979,31 +5433,37 @@ Begin
  MAdd(1,T3('Ouvrir...|Ctrl+O','Open...|Ctrl+O','@5ffnen...|Strg+O'),2);
  MAdd(1,T3('Enregistrer|Ctrl+S','Save|Ctrl+S','Speichern|Strg+S'),3);
  MAdd(1,T3('Enregistrer sous...','Save as...','Speichern unter...'),4);
- MAdd(1,T3('Copie de s@ecurit@e (.BAK)','Backup copy (.BAK)','Sicherungskopie (.BAK)'),5);
+ MAdd(1,T3('Copie de s@ecurit@e (.BAK)','Backup copy (.BAK)',
+     'Sicherungskopie (.BAK)'),5);
  MAdd(1,'-',0);
  MAdd(1,T3('Quitter','Exit','Beenden'),6);
  MAdd(2,T3('Comptes...','Accounts...','Konten...'),10);
  MAdd(2,T3('Fournisseurs...','Vendors...','Lieferanten...'),13);
  MAdd(2,T3('Clients...','Customers...','Kunden...'),16);
  MAdd(2,T3('Employ@es...','Employees...','Mitarbeiter...'),19);
- MAdd(2,T3('Inventaire et services...','Inventory & Services...','Lager und Dienste...'),22);
+ MAdd(2,T3('Inventaire et services...','Inventory & Services...',
+     'Lager und Dienste...'),22);
  MAdd(2,T3('Projets...','Projects...','Projekte...'),25);
  MAdd(3,T3('Barre d''outils','Toolbar','Symbolleiste'),30);
  MAdd(3,T3('Barre d''@etat','Status bar','Statusleiste'),31);
  MAdd(3,'-',0);
  MAdd(3,T3('Date de session...','Session date...','Sitzungsdatum...'),32);
  MAdd(4,T3('Num@eros de compte...','Account numbers...','Kontonummern...'),40);
- MAdd(4,T3('Comptes d''int@egration...','Linked accounts...','Verkn@3pfte Konten...'),41);
+ MAdd(4,T3('Comptes d''int@egration...','Linked accounts...',
+     'Verkn@3pfte Konten...'),41);
  MAdd(4,T3('Taxes et paie...','Taxes and payroll...','Steuern und Lohn...'),42);
  MAdd(4,T3('Soci@et@e...','Company...','Firma...'),43);
  MAdd(5,T3('R@esum@e de la soci@et@e','Company summary','Firmen@3bersicht'),50);
  MAdd(5,T3('Rappels','Reminders','Erinnerungen'),52);
  MAdd(5,T3('Calculatrice','Calculator','Rechner'),51);
  MAdd(6,T3('V@erifier les donn@ees','Check data integrity','Daten pr@3fen'),60);
- MAdd(6,T3('Cl@oturer l''exercice...','Close fiscal year...','Gesch@1ftsjahr abschlie@7en...'),61);
+ MAdd(6,T3('Cl@oturer l''exercice...','Close fiscal year...',
+     'Gesch@1ftsjahr abschlie@7en...'),61);
  MAdd(6,'-',0);
- MAdd(6,T3('Copie de s@ecurit@e (.BAK)','Backup copy (.BAK)','Sicherungskopie (.BAK)'),5);
- MAdd(7,T3('Revenus et d@epenses','Revenues and expenses','Ertr@1ge und Aufwand'),70);
+ MAdd(6,T3('Copie de s@ecurit@e (.BAK)','Backup copy (.BAK)',
+     'Sicherungskopie (.BAK)'),5);
+ MAdd(7,T3('Revenus et d@epenses','Revenues and expenses',
+     'Ertr@1ge und Aufwand'),70);
  MAdd(7,T3('D@epenses par compte','Expenses by account','Aufwand je Konto'),71);
  MAdd(7,T3('Actif par compte','Assets by account','Aktiva je Konto'),72);
  MAdd(8,T3('Bilan','Balance Sheet','Bilanz'),80);
@@ -5020,7 +5480,8 @@ Begin
  MAdd(9,T3('Aide|F1','Contents|F1','Inhalt|F1'),90);
  MAdd(9,T3('Raccourcis clavier','Keyboard shortcuts','Tastenk@3rzel'),90);
  MAdd(9,'-',0);
- MAdd(9,T3('A propos de Simply Accounting...','About Simply Accounting...','@3ber Simply Accounting...'),92);
+ MAdd(9,T3('A propos de Simply Accounting...','About Simply Accounting...',
+     '@3ber Simply Accounting...'),92);
 End;
 
 Function MenuChecked(Cm: Integer): Boolean;
@@ -5034,7 +5495,8 @@ Function MenuMnem(M: Integer): Char;
 Var P: Integer;
 Begin
  P:=Pos('&',MT[M]);
- If (P>0) And (P<Length(MT[M])) Then MenuMnem:=UpCase(MT[M][P+1]) Else MenuMnem:=#0;
+ If (P>0) And (P<Length(MT[M])) Then MenuMnem:=UpCase(MT[M][P+1]) Else
+   MenuMnem:=#0;
 End;
 
 Function MenuX(M: Integer): Integer;
@@ -5122,7 +5584,8 @@ Begin
    Ln(X1+3,Y+3,X2-3,Y+3,cDGr);Ln(X1+3,Y+4,X2-3,Y+4,cWht);
   End Else Begin
    P:=Pos('|',S);
-   If P>0 Then Begin Lb:=Copy(S,1,P-1);Sc:=Copy(S,P+1,20);End Else Begin Lb:=S;Sc:='';End;
+   If P>0 Then Begin Lb:=Copy(S,1,P-1);Sc:=Copy(S,P+1,20);End Else Begin
+     Lb:=S;Sc:='';End;
    Hi:=(I=MenuHi);
    If Hi Then Bx(X1+3,Y,X2-3,Y+17,cNavy);
    If MenuChecked(MCm[MenuOpen,I]) Then Begin
@@ -5155,11 +5618,15 @@ Begin
   11: Begin
     Bx(X+2,Y+8,X+15,Y+27,cWht);Bx(X+16,Y+8,X+30,Y+27,cWht);
     SetColor(cBlk);Rectangle(X+2,Y+8,X+15,Y+27);Rectangle(X+16,Y+8,X+30,Y+27);
-    For I:=0 To 3 Do Begin Ln(X+4,Y+12+I*4,X+13,Y+12+I*4,cDGr);Ln(X+18,Y+12+I*4,X+28,Y+12+I*4,cDGr);End;
-    Ln(X+6,Y+6,X+24,Y+4,cRed);Ln(X+24,Y+4,X+20,Y+1,cRed);Ln(X+24,Y+4,X+20,Y+8,cRed);
+    For I:=0 To 3 Do Begin
+      Ln(X+4,Y+12+I*4,X+13,Y+12+I*4,cDGr);Ln(X+18,Y+12+I*4,X+28,Y+12+I*4,cDGr);
+      End;
+    Ln(X+6,Y+6,X+24,Y+4,cRed);Ln(X+24,Y+4,X+20,Y+1,cRed);
+    Ln(X+24,Y+4,X+20,Y+8,cRed);
    End;
   12: Begin
-    Pt[1].X:=X+16;Pt[1].Y:=Y+3;Pt[2].X:=X+2;Pt[2].Y:=Y+12;Pt[3].X:=X+30;Pt[3].Y:=Y+12;
+    Pt[1].X:=X+16;Pt[1].Y:=Y+3;Pt[2].X:=X+2;Pt[2].Y:=Y+12;Pt[3].X:=X+30;
+    Pt[3].Y:=Y+12;
     SetFillStyle(SolidFill,cRed);SetColor(cBlk);FillPoly(3,Pt);
     For I:=0 To 3 Do Bx(X+4+I*7,Y+14,X+8+I*7,Y+24,cLGr);
     Bx(X+2,Y+25,X+30,Y+29,cBrn);
@@ -5170,19 +5637,24 @@ Begin
     For I:=0 To 3 Do Ln(X+9,Y+12+I*4,X+22,Y+12+I*4,cDGr);
    End;
   14: Begin
-    Ln(X+2,Y+5,X+7,Y+5,cBlk);Ln(X+7,Y+5,X+10,Y+20,cBlk);Ln(X+10,Y+20,X+27,Y+20,cBlk);
+    Ln(X+2,Y+5,X+7,Y+5,cBlk);Ln(X+7,Y+5,X+10,Y+20,cBlk);
+    Ln(X+10,Y+20,X+27,Y+20,cBlk);
     Bx(X+9,Y+8,X+28,Y+17,cLBl);Bx(X+9,Y+8,X+28,Y+9,cWht);
-    SetFillStyle(SolidFill,cBlk);FillEllipse(X+13,Y+25,3,3);FillEllipse(X+24,Y+25,3,3);
+    SetFillStyle(SolidFill,cBlk);FillEllipse(X+13,Y+25,3,3);
+    FillEllipse(X+24,Y+25,3,3);
     Tx(X+15,Y+10,'$',cYel);
    End;
   15: Begin
     Bx(X+2,Y+9,X+30,Y+25,cLBl);SetColor(cBlk);Rectangle(X+2,Y+9,X+30,Y+25);
-    Ln(X+5,Y+14,X+18,Y+14,cBlk);Ln(X+5,Y+18,X+14,Y+18,cBlk);Bx(X+20,Y+17,X+27,Y+22,cYel);
-    Ln(X+8,Y+3,X+24,Y+6,cRed);Ln(X+24,Y+6,X+20,Y+2,cRed);Ln(X+24,Y+6,X+19,Y+8,cRed);
+    Ln(X+5,Y+14,X+18,Y+14,cBlk);Ln(X+5,Y+18,X+14,Y+18,cBlk);
+    Bx(X+20,Y+17,X+27,Y+22,cYel);
+    Ln(X+8,Y+3,X+24,Y+6,cRed);Ln(X+24,Y+6,X+20,Y+2,cRed);
+    Ln(X+24,Y+6,X+19,Y+8,cRed);
    End;
   16: Begin
     For I:=0 To 3 Do Begin
-     SetFillStyle(SolidFill,cYel);SetColor(cBrn);FillEllipse(X+16,Y+25-I*5,12,4);
+     SetFillStyle(SolidFill,cYel);SetColor(cBrn);
+     FillEllipse(X+16,Y+25-I*5,12,4);
      Bx(X+4,Y+21-I*5,X+28,Y+25-I*5,cYel);
      Ln(X+4,Y+21-I*5,X+4,Y+25-I*5,cBrn);Ln(X+28,Y+21-I*5,X+28,Y+25-I*5,cBrn);
     End;
@@ -5191,12 +5663,15 @@ Begin
   17: Begin
     Bx(X+3,Y+14,X+29,Y+28,cDGr);Bx(X+3,Y+14,X+29,Y+16,cLGr);
     Bx(X+8,Y+4,X+24,Y+13,cLCy);SetColor(cBlk);Rectangle(X+8,Y+4,X+24,Y+13);
-    For I:=0 To 3 Do Begin Bx(X+6+I*6,Y+19,X+9+I*6,Y+21,cWht);Bx(X+6+I*6,Y+23,X+9+I*6,Y+25,cWht);End;
+    For I:=0 To 3 Do Begin
+      Bx(X+6+I*6,Y+19,X+9+I*6,Y+21,cWht);Bx(X+6+I*6,Y+23,X+9+I*6,Y+25,cWht);End;
    End;
   18: Begin
     Bx(X+2,Y+9,X+30,Y+25,cLCy);SetColor(cBlk);Rectangle(X+2,Y+9,X+30,Y+25);
-    Ln(X+5,Y+14,X+18,Y+14,cBlk);Ln(X+5,Y+18,X+14,Y+18,cBlk);Bx(X+20,Y+17,X+27,Y+22,cYel);
-    Ln(X+24,Y+3,X+8,Y+6,cGrn);Ln(X+8,Y+6,X+12,Y+2,cGrn);Ln(X+8,Y+6,X+13,Y+8,cGrn);
+    Ln(X+5,Y+14,X+18,Y+14,cBlk);Ln(X+5,Y+18,X+14,Y+18,cBlk);
+    Bx(X+20,Y+17,X+27,Y+22,cYel);
+    Ln(X+24,Y+3,X+8,Y+6,cGrn);Ln(X+8,Y+6,X+12,Y+2,cGrn);
+    Ln(X+8,Y+6,X+13,Y+8,cGrn);
    End;
   19: Begin
     Bx(X+1,Y+2,X+31,Y+28,cWht);SetColor(cRed);Rectangle(X+1,Y+2,X+31,Y+28);
@@ -5207,28 +5682,35 @@ Begin
    End;
   20: Begin
     Bx(X+3,Y+4,X+29,Y+28,cWht);SetColor(cBlk);Rectangle(X+3,Y+4,X+29,Y+28);
-    SetFillStyle(SolidFill,cBrn);FillEllipse(X+10,Y+12,3,3);Bx(X+6,Y+16,X+14,Y+24,cLBl);
+    SetFillStyle(SolidFill,cBrn);FillEllipse(X+10,Y+12,3,3);
+    Bx(X+6,Y+16,X+14,Y+24,cLBl);
     For I:=0 To 3 Do Ln(X+17,Y+9+I*5,X+27,Y+9+I*5,cDGr);
    End;
   21: Begin
     For I:=0 To 2 Do Begin
-     Bx(X+2+I*3,Y+4+I*5,X+24+I*3,Y+14+I*5,cWht);SetColor(cBlk);Rectangle(X+2+I*3,Y+4+I*5,X+24+I*3,Y+14+I*5);
+     Bx(X+2+I*3,Y+4+I*5,X+24+I*3,Y+14+I*5,cWht);SetColor(cBlk);
+     Rectangle(X+2+I*3,Y+4+I*5,X+24+I*3,Y+14+I*5);
      Ln(X+5+I*3,Y+9+I*5,X+20+I*3,Y+9+I*5,cDGr);
     End;
    End;
   22: Begin
     Bx(X+3,Y+2,X+17,Y+26,cBrn);Bx(X+5,Y+5,X+15,Y+24,cWht);
     For I:=0 To 3 Do Ln(X+7,Y+9+I*4,X+13,Y+9+I*4,cDGr);
-    Bx(X+17,Y+14,X+30,Y+28,cYel);SetColor(cBrn);Rectangle(X+17,Y+14,X+30,Y+28);Ln(X+17,Y+20,X+30,Y+20,cBrn);
+    Bx(X+17,Y+14,X+30,Y+28,cYel);SetColor(cBrn);Rectangle(X+17,Y+14,X+30,Y+28);
+    Ln(X+17,Y+20,X+30,Y+20,cBrn);
    End;
   23: Begin
-    Bx(X+8,Y+10,X+24,Y+26,cYel);SetColor(cBrn);Rectangle(X+8,Y+10,X+24,Y+26);Ln(X+8,Y+16,X+24,Y+16,cBrn);
+    Bx(X+8,Y+10,X+24,Y+26,cYel);SetColor(cBrn);Rectangle(X+8,Y+10,X+24,Y+26);
+    Ln(X+8,Y+16,X+24,Y+16,cBrn);
     Arw(X+16,Y+4,2,cRed);Arw(X+4,Y+18,4,cRed);Arw(X+28,Y+18,3,cRed);
    End;
   24: Begin
-    Ln(X+16,Y+4,X+16,Y+26,cBlk);Ln(X+5,Y+8,X+27,Y+8,cBlk);Bx(X+8,Y+26,X+24,Y+28,cBlk);
-    Ln(X+5,Y+8,X+2,Y+18,cBlk);Ln(X+5,Y+8,X+8,Y+18,cBlk);Ln(X+2,Y+18,X+8,Y+18,cBlk);
-    Ln(X+27,Y+8,X+24,Y+18,cBlk);Ln(X+27,Y+8,X+30,Y+18,cBlk);Ln(X+24,Y+18,X+30,Y+18,cBlk);
+    Ln(X+16,Y+4,X+16,Y+26,cBlk);Ln(X+5,Y+8,X+27,Y+8,cBlk);
+    Bx(X+8,Y+26,X+24,Y+28,cBlk);
+    Ln(X+5,Y+8,X+2,Y+18,cBlk);Ln(X+5,Y+8,X+8,Y+18,cBlk);
+    Ln(X+2,Y+18,X+8,Y+18,cBlk);
+    Ln(X+27,Y+8,X+24,Y+18,cBlk);Ln(X+27,Y+8,X+30,Y+18,cBlk);
+    Ln(X+24,Y+18,X+30,Y+18,cBlk);
     Bx(X+2,Y+19,X+8,Y+21,cBrn);Bx(X+24,Y+19,X+30,Y+21,cBrn);
    End;
   25: Begin
@@ -5242,19 +5724,25 @@ Function IconLabel(Cm: Integer): String;
 Begin
  Case Cm Of
   10: IconLabel:=T3('Comptes','Accounts','Konten');
-  11: IconLabel:=T3('Transactions|diverses','Miscellaneous|Transactions','Sonstige|Buchungen');
-  12: IconLabel:=T3('Conciliation|bancaire','Account|Reconcile','Konto-|abstimmung');
+  11: IconLabel:=T3('Transactions|diverses','Miscellaneous|Transactions',
+      'Sonstige|Buchungen');
+  12: IconLabel:=T3('Conciliation|bancaire','Account|Reconcile',
+      'Konto-|abstimmung');
   13: IconLabel:=T3('Fournisseurs','Vendors','Lieferanten');
-  14: IconLabel:=T3('Achats,|commandes','Purchases,|Orders & Quotes','Eink@1ufe,|Bestellungen');
+  14: IconLabel:=T3('Achats,|commandes','Purchases,|Orders & Quotes',
+      'Eink@1ufe,|Bestellungen');
   15: IconLabel:=T3('Paiements','Payments','Zahlungen');
   16: IconLabel:=T3('Clients','Customers','Kunden');
-  17: IconLabel:=T3('Ventes,|commandes','Sales, Orders|& Quotes','Verk@1ufe,|Auftr@1ge');
+  17: IconLabel:=T3('Ventes,|commandes','Sales, Orders|& Quotes',
+      'Verk@1ufe,|Auftr@1ge');
   18: IconLabel:=T3('Encaissements','Receipts','Zahlungs-|eing@1nge');
   19: IconLabel:=T3('Employ@es','Employees','Mitarbeiter');
   20: IconLabel:=T3('Ch@eques|de paie','Paycheques','Gehalts-|schecks');
   21: IconLabel:=T3('Passage|de la paie','Payroll|Cheque Run','Gehaltslauf');
-  22: IconLabel:=T3('Inventaire|et services','Inventory &|Services','Lager und|Dienste');
-  23: IconLabel:=T3('Assemblage|d''articles','Item|Assembly','Artikel-|montage');
+  22: IconLabel:=T3('Inventaire|et services','Inventory &|Services',
+      'Lager und|Dienste');
+  23: IconLabel:=T3('Assemblage|d''articles','Item|Assembly',
+      'Artikel-|montage');
   24: IconLabel:=T3('Ajustements','Adjustments','Korrekturen');
   25: IconLabel:=T3('Projet','Project','Projekt');
   Else IconLabel:='';
@@ -5265,10 +5753,13 @@ Function HeadLabel(C: Integer): String;
 Begin
  Case C Of
   1: HeadLabel:=T3('G@en@eral','General','Allgemein');
-  2: HeadLabel:=T3('Fournisseurs|et achats','Vendors &|Purchases','Lieferanten|& Eink@1ufe');
-  3: HeadLabel:=T3('Clients|et ventes','Customers|& Sales','Kunden|& Verk@1ufe');
+  2: HeadLabel:=T3('Fournisseurs|et achats','Vendors &|Purchases',
+      'Lieferanten|& Eink@1ufe');
+  3: HeadLabel:=T3('Clients|et ventes','Customers|& Sales',
+      'Kunden|& Verk@1ufe');
   4: HeadLabel:=T3('Paie','Payroll','Lohn');
-  5: HeadLabel:=T3('Inventaire|et services','Inventory|& Services','Lager &|Dienste');
+  5: HeadLabel:=T3('Inventaire|et services','Inventory|& Services',
+      'Lager &|Dienste');
   6: HeadLabel:=T3('Projet','Project','Projekt');
   Else HeadLabel:='';
  End;
@@ -5290,7 +5781,8 @@ Begin
  If ToolBarOn Then PanelTop:=TOOL_Y+26+22 Else PanelTop:=TOOL_Y+22;
 End;
 
-Procedure CenterLines(CX,Y: Integer; Const S: String; Col: Integer; Bold: Boolean);
+Procedure CenterLines(CX,
+    Y: Integer; Const S: String; Col: Integer; Bold: Boolean);
 Var P: Integer; L,R: String;
 Begin
  P:=Pos('|',S);
@@ -5319,7 +5811,8 @@ Begin
   Else CenterLines(X1+PCOLW Div 2,PT+16,S,cWht,True);
   For R:=1 To 3 Do Begin
    Y1:=PT+36+(R-1)*PROWH;
-   If R=1 Then Bx(X1,Y1,X1+PCOLW-2,Y1+PROWH-1,cLGr) Else Bx(X1,Y1,X1+PCOLW-2,Y1+PROWH-1,cWht);
+   If R=1 Then Bx(X1,Y1,X1+PCOLW-2,Y1+PROWH-1,cLGr) Else
+     Bx(X1,Y1,X1+PCOLW-2,Y1+PROWH-1,cWht);
    Ln(X1+PCOLW-1,Y1,X1+PCOLW-1,Y1+PROWH-1,cDGr);
    Cm:=IconCmd(C,R);
    If Cm>0 Then Begin
@@ -5339,14 +5832,26 @@ End;
 Procedure DrawTbIcon(K,X,Y: Integer);
 Begin
  Case K Of
-  1: Begin Bx(X+2,Y+6,X+14,Y+14,cYel);Bx(X+2,Y+4,X+7,Y+7,cYel);SetColor(cBrn);Rectangle(X+2,Y+6,X+14,Y+14);End;
-  2: Begin Bx(X+2,Y+2,X+14,Y+14,cNavy);Bx(X+5,Y+2,X+11,Y+6,cWht);Bx(X+5,Y+9,X+11,Y+14,cLGr);End;
-  3: Begin Bx(X+3,Y+2,X+13,Y+14,cWht);SetColor(cBlk);Rectangle(X+3,Y+2,X+13,Y+14);
-     Ln(X+5,Y+5,X+11,Y+5,cDGr);Ln(X+5,Y+8,X+11,Y+8,cDGr);Ln(X+5,Y+11,X+11,Y+11,cDGr);End;
-  4: Begin Bx(X+2,Y+9,X+5,Y+14,cRed);Bx(X+7,Y+5,X+10,Y+14,cLBl);Bx(X+12,Y+2,X+15,Y+14,cGrn);End;
-  5: Begin Bx(X+2,Y+2,X+14,Y+14,cLGr);SetColor(cBlk);Rectangle(X+2,Y+2,X+14,Y+14);
-     Bx(X+4,Y+4,X+12,Y+6,cLCy);Bx(X+4,Y+8,X+6,Y+10,cBlk);Bx(X+8,Y+8,X+10,Y+10,cBlk);Bx(X+4,Y+11,X+6,Y+13,cBlk);Bx(X+8,Y+11,X+10,Y+13,cBlk);End;
-  6: Begin Bx(X+2,Y+2,X+14,Y+14,cLBl);SetColor(cBlk);Rectangle(X+2,Y+2,X+14,Y+14);
+  1: Begin
+    Bx(X+2,Y+6,X+14,Y+14,cYel);Bx(X+2,Y+4,X+7,Y+7,cYel);SetColor(cBrn);
+    Rectangle(X+2,Y+6,X+14,Y+14);End;
+  2: Begin
+    Bx(X+2,Y+2,X+14,Y+14,cNavy);Bx(X+5,Y+2,X+11,Y+6,cWht);
+    Bx(X+5,Y+9,X+11,Y+14,cLGr);End;
+  3: Begin
+    Bx(X+3,Y+2,X+13,Y+14,cWht);SetColor(cBlk);Rectangle(X+3,Y+2,X+13,Y+14);
+     Ln(X+5,Y+5,X+11,Y+5,cDGr);Ln(X+5,Y+8,X+11,Y+8,cDGr);
+     Ln(X+5,Y+11,X+11,Y+11,cDGr);End;
+  4: Begin
+    Bx(X+2,Y+9,X+5,Y+14,cRed);Bx(X+7,Y+5,X+10,Y+14,cLBl);
+    Bx(X+12,Y+2,X+15,Y+14,cGrn);End;
+  5: Begin
+    Bx(X+2,Y+2,X+14,Y+14,cLGr);SetColor(cBlk);Rectangle(X+2,Y+2,X+14,Y+14);
+     Bx(X+4,Y+4,X+12,Y+6,cLCy);Bx(X+4,Y+8,X+6,Y+10,cBlk);
+     Bx(X+8,Y+8,X+10,Y+10,cBlk);Bx(X+4,Y+11,X+6,Y+13,cBlk);
+     Bx(X+8,Y+11,X+10,Y+13,cBlk);End;
+  6: Begin
+    Bx(X+2,Y+2,X+14,Y+14,cLBl);SetColor(cBlk);Rectangle(X+2,Y+2,X+14,Y+14);
      Tx(X+5,Y+5,'?',cWht);End;
  End;
 End;
@@ -5365,8 +5870,10 @@ Begin
   Raised(TbX[I],TOOL_Y+2,TbX[I]+21,TOOL_Y+23);
   DrawTbIcon(TbIcon[I],TbX[I]+3,TOOL_Y+4);
  End;
- Ln(TbX[2]+25,TOOL_Y+4,TbX[2]+25,TOOL_Y+22,cDGr);Ln(TbX[2]+26,TOOL_Y+4,TbX[2]+26,TOOL_Y+22,cWht);
- Ln(TbX[5]+25,TOOL_Y+4,TbX[5]+25,TOOL_Y+22,cDGr);Ln(TbX[5]+26,TOOL_Y+4,TbX[5]+26,TOOL_Y+22,cWht);
+ Ln(TbX[2]+25,TOOL_Y+4,TbX[2]+25,TOOL_Y+22,cDGr);
+ Ln(TbX[2]+26,TOOL_Y+4,TbX[2]+26,TOOL_Y+22,cWht);
+ Ln(TbX[5]+25,TOOL_Y+4,TbX[5]+25,TOOL_Y+22,cDGr);
+ Ln(TbX[5]+26,TOOL_Y+4,TbX[5]+26,TOOL_Y+22,cWht);
  TxB(SCR_W-22,TOOL_Y+9,'?',cRed);
 End;
 
@@ -5401,9 +5908,11 @@ Begin
  { barre de titre }
  Bx(0,0,SCR_W-1,MENU_H-1,cNavy);
  Bx(3,3,13,14,cWht);Bx(4,4,12,8,cLRd);Ln(4,10,12,10,cDGr);
- If Named Or (FileN<>'') Then S:=ShortName(FileN) Else S:=T3('(sans titre)','(untitled)','(unbenannt)');
+ If Named Or (FileN<>'') Then S:=ShortName(FileN) Else
+   S:=T3('(sans titre)','(untitled)','(unbenannt)');
  TxB(22,5,'Simply Accounting - '+Upper(S),cWht);
- Raised(SCR_W-52,2,SCR_W-38,15);Raised(SCR_W-37,2,SCR_W-23,15);Raised(SCR_W-20,2,SCR_W-4,15);
+ Raised(SCR_W-52,2,SCR_W-38,15);Raised(SCR_W-37,2,SCR_W-23,15);
+ Raised(SCR_W-20,2,SCR_W-4,15);
  Ln(SCR_W-49,12,SCR_W-42,12,cBlk);Rectangle(SCR_W-34,5,SCR_W-27,12);
  Ln(SCR_W-16,5,SCR_W-8,12,cBlk);Ln(SCR_W-16,12,SCR_W-8,5,cBlk);
  DrawMenuBar;
@@ -5422,7 +5931,8 @@ Begin
  Bx(0,TASK_Y,SCR_W-1,SCR_H-1,cLGr);
  Ln(0,TASK_Y,SCR_W-1,TASK_Y,cWht);
  Raised(2,TASK_Y+3,70,SCR_H-3);
- Bx(7,TASK_Y+7,15,TASK_Y+14,cLRd);Bx(16,TASK_Y+7,24,TASK_Y+14,cLGn);Bx(7,TASK_Y+15,15,TASK_Y+20,cLBl);Bx(16,TASK_Y+15,24,TASK_Y+20,cYel);
+ Bx(7,TASK_Y+7,15,TASK_Y+14,cLRd);Bx(16,TASK_Y+7,24,TASK_Y+14,cLGn);
+ Bx(7,TASK_Y+15,15,TASK_Y+20,cLBl);Bx(16,TASK_Y+15,24,TASK_Y+20,cYel);
  TxB(28,TASK_Y+9,'Start',cBlk);
  Sunken(76,TASK_Y+3,244,SCR_H-3,cLGr);
  Dither(77,TASK_Y+4,243,SCR_H-4,cWht,cLGr);
@@ -5440,7 +5950,8 @@ End;
 Function ConfirmSave: Integer;     { 1 oui, 2 non, 3 annuler }
 Begin
  If Not Modified Then Begin ConfirmSave:=2;Exit;End;
- ConfirmSave:=MsgBox(T3('Enregistrer les modifications ?','Save changes?','@4nderungen speichern?'),3);
+ ConfirmSave:=MsgBox(T3('Enregistrer les modifications ?','Save changes?',
+     '@4nderungen speichern?'),3);
 End;
 
 Function DoSaveAs: Boolean;
@@ -5448,11 +5959,14 @@ Var S: String;
 Begin
  DoSaveAs:=False;
  If FileN<>'' Then S:=FileN Else S:='UNIVERSL.SDB';
- If InputBox(T3('Enregistrer sous','Save as','Speichern unter'),T3('Nom du fichier :','File name:','Dateiname:'),S,40,0) Then Begin
+ If InputBox(T3('Enregistrer sous','Save as','Speichern unter'),
+     T3('Nom du fichier :','File name:','Dateiname:'),S,40,0) Then Begin
   S:=AddExt(TrimStr(S),'SDB');
   If SaveCo(S) Then Begin
    FileN:=S;Named:=True;Modified:=False;DoSaveAs:=True;
-  End Else Info(T3('Impossible d''enregistrer le fichier.','Cannot save the file.','Datei kann nicht gespeichert werden.'));
+  End Else
+    Info(T3('Impossible d''enregistrer le fichier.','Cannot save the file.',
+      'Datei kann nicht gespeichert werden.'));
  End;
 End;
 
@@ -5461,7 +5975,8 @@ Begin
  If (Not Named) Or (FileN='') Then DoSave:=DoSaveAs
  Else If SaveCo(FileN) Then Begin Modified:=False;DoSave:=True;End
  Else Begin
-  Info(T3('Impossible d''enregistrer le fichier.','Cannot save the file.','Datei kann nicht gespeichert werden.'));
+  Info(T3('Impossible d''enregistrer le fichier.','Cannot save the file.',
+      'Datei kann nicht gespeichert werden.'));
   DoSave:=False;
  End;
 End;
@@ -5473,7 +5988,9 @@ Begin
  If C=3 Then Exit;
  If C=1 Then If Not DoSave Then Exit;
  S:='';
- If InputBox(T3('Nouvelle soci@et@e','New company','Neue Firma'),T3('Nom de la soci@et@e :','Company name:','Firmenname:'),S,34,0) Then Begin
+ If InputBox(T3('Nouvelle soci@et@e','New company','Neue Firma'),
+     T3('Nom de la soci@et@e :','Company name:','Firmenname:'),S,34,0) Then
+   Begin
   If TrimStr(S)='' Then Exit;
   InitNewCompany;
   SU.Co:=TrimStr(S);
@@ -5488,11 +6005,14 @@ Begin
  If C=3 Then Exit;
  If C=1 Then If Not DoSave Then Exit;
  S:='UNIVERSL.SDB';
- If InputBox(T3('Ouvrir','Open','@5ffnen'),T3('Nom du fichier :','File name:','Dateiname:'),S,40,0) Then Begin
+ If InputBox(T3('Ouvrir','Open','@5ffnen'),T3('Nom du fichier :','File name:',
+     'Dateiname:'),S,40,0) Then Begin
   S:=AddExt(TrimStr(S),'SDB');
-  If Not FileExists(S) Then Info(T3('Fichier introuvable.','File not found.','Datei nicht gefunden.'))
+  If Not FileExists(S) Then
+    Info(T3('Fichier introuvable.','File not found.','Datei nicht gefunden.'))
   Else If Not LoadCo(S) Then Begin
-   Info(T3('Fichier invalide ou endommag@e.','Invalid or damaged file.','Ung@3ltige oder besch@1digte Datei.'));
+   Info(T3('Fichier invalide ou endommag@e.','Invalid or damaged file.',
+       'Ung@3ltige oder besch@1digte Datei.'));
    InitNewCompany;
   End;
  End;
@@ -5511,31 +6031,49 @@ Procedure CmdBackup;
 Var S: String;
 Begin
  If FileN='' Then S:='UNIVERSL.BAK' Else S:=ChangeExt(FileN,'BAK');
- If SaveCo(S) Then Info(T3('Copie de s@ecurit@e cr@e@ee : ','Backup created: ','Sicherung erstellt: ')+S)
- Else Info(T3('Impossible de cr@eer la copie.','Cannot create the backup.','Sicherung kann nicht erstellt werden.'));
+ If SaveCo(S) Then
+   Info(T3('Copie de s@ecurit@e cr@e@ee : ','Backup created: ',
+     'Sicherung erstellt: ')+S)
+ Else
+   Info(T3('Impossible de cr@eer la copie.','Cannot create the backup.',
+     'Sicherung kann nicht erstellt werden.'));
 End;
 
 Procedure CmdSessDate;
 Var S: String; D: LongInt;
 Begin
  S:=FmtDate(SessDate);
- If InputBox(T3('Date de session','Session date','Sitzungsdatum'),T3('Nouvelle date :','New date:','Neues Datum:'),S,12,2) Then Begin
-  If ParseDate(S,D) Then SessDate:=D Else Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));
+ If InputBox(T3('Date de session','Session date','Sitzungsdatum'),
+     T3('Nouvelle date :','New date:','Neues Datum:'),S,12,2) Then Begin
+  If ParseDate(S,D) Then SessDate:=D Else
+    Info(T3('Date invalide.','Invalid date.','Ung@3ltiges Datum.'));
  End;
 End;
 
 Procedure CmdCloseYear;
 Var I: Integer; Net: LongInt;
 Begin
- If Not Ask(T3('Cl@oturer l''exercice ?|Les comptes de revenus et de d@epenses seront|ramen@es @a z@ero dans les b@en@efices non r@epartis.','Close the fiscal year?|Revenue and expense accounts will be|reset to zero into retained earnings.','Gesch@1ftsjahr abschlie@7en?|Ertrags- und Aufwandskonten werden auf|den Gewinnvortrag gebucht.')) Then Exit;
+ If Not
+     Ask(T3('Cl@oturer l''exercice ?|Les comptes de revenus et de d@epenses '+
+     'seront|ramen@es @a z@ero dans les b@en@efices non r@epartis.',
+     'Close the fiscal year?|Revenue and expense accounts will be|reset to '+
+     'zero into retained earnings.',
+     'Gesch@1ftsjahr abschlie@7en?|Ertrags- und Aufwandskonten werden auf|'+
+     'den Gewinnvortrag gebucht.')) Then Exit;
  PClear;
  For I:=1 To NA Do
-  If (Ac^[I].Kind In [K_REV,K_COGS,K_EXP]) And (Ac^[I].Bal<>0) Then PAdd(Ac^[I].Num,-Ac^[I].Bal,0);
- If PN=0 Then Begin Info(T3('Rien @a cl@oturer.','Nothing to close.','Nichts abzuschlie@7en.'));Exit;End;
+  If (Ac^[I].Kind In [K_REV,K_COGS,K_EXP]) And (Ac^[I].Bal<>0) Then
+    PAdd(Ac^[I].Num,-Ac^[I].Bal,0);
+ If PN=0 Then Begin
+   Info(T3('Rien @a cl@oturer.','Nothing to close.','Nichts abzuschlie@7en.'));
+   Exit;End;
  Net:=PSumDr-PSumCr;
- If Net>0 Then PCr(LinkAcc(LK_RET),Net) Else If Net<0 Then PDr(LinkAcc(LK_RET),-Net);
- If Commit(SessDate,'CLOT',T3('Cl@oture de l''exercice','Year-end closing','Jahresabschluss')) Then
-  Info(T3('Exercice cl@otur@e.','Fiscal year closed.','Gesch@1ftsjahr abgeschlossen.'))
+ If Net>0 Then PCr(LinkAcc(LK_RET),Net) Else If Net<0 Then
+   PDr(LinkAcc(LK_RET),-Net);
+ If Commit(SessDate,'CLOT',T3('Cl@oture de l''exercice','Year-end closing',
+     'Jahresabschluss')) Then
+  Info(T3('Exercice cl@otur@e.','Fiscal year closed.',
+      'Gesch@1ftsjahr abgeschlossen.'))
  Else Info(ErrMsg);
 End;
 
@@ -5577,8 +6115,10 @@ Begin
   60: Begin RepVerify;ShowReportNow;End;
   61: CmdCloseYear;
   70: GraphRevExp;
-  71: GraphByKind(K_EXP,K_COGS,T3('D@epenses par compte','Expenses by account','Aufwand je Konto'));
-  72: GraphByKind(K_ASSET,K_ASSET,T3('Actif par compte','Assets by account','Aktiva je Konto'));
+  71: GraphByKind(K_EXP,K_COGS,T3('D@epenses par compte','Expenses by account',
+      'Aufwand je Konto'));
+  72: GraphByKind(K_ASSET,K_ASSET,T3('Actif par compte','Assets by account',
+      'Aktiva je Konto'));
   80: Begin RepBalance;ShowReportNow;End;
   81: Begin RepIncome;ShowReportNow;End;
   82: Begin RepTrial;ShowReportNow;End;
@@ -5589,7 +6129,11 @@ Begin
   87: Begin RepEmployees;ShowReportNow;End;
   88: Begin RepInventory;ShowReportNow;End;
   90: Begin RepHelp;ShowReportNow;End;
-  92: Info('Simply Accounting - '+T3('clone','clone','Klon')+' v'+VERSION_TEXT+'|'+T3('Programme de comptabilit@e en Pascal','Accounting program in Pascal','Buchhaltungsprogramm in Pascal')+'|OFFICE-0 - https://www.gladir.com/office-0');
+  92: Info('Simply Accounting - '+T3('clone','clone',
+      'Klon')+' v'+VERSION_TEXT+'|'+T3('Programme de comptabilit@e en Pascal',
+      'Accounting program in Pascal',
+      'Buchhaltungsprogramm in Pascal')+
+      '|OFFICE-0 - https://www.gladir.com/office-0');
  End;
  Dirty:=True;
 End;
@@ -5640,12 +6184,15 @@ Begin
         End;
    3: Begin
        H:=DropHit(M,E.X,E.Y);
-       If (H<>0) And (Hi=H) And (MLb[M,H]<>'-') Then Begin Pick:=True;Done:=True;End;
+       If (H<>0) And (Hi=H) And (MLb[M,H]<>'-') Then Begin
+         Pick:=True;Done:=True;End;
       End;
    1: Case E.Key Of
        K_ESC: Done:=True;
-       K_LEFT: Begin Dec(M);If M<1 Then M:=NMENU;Hi:=NextItem(M,0,1);Redraw:=True;End;
-       K_RIGHT: Begin Inc(M);If M>NMENU Then M:=1;Hi:=NextItem(M,0,1);Redraw:=True;End;
+       K_LEFT: Begin Dec(M);If M<1 Then
+         M:=NMENU;Hi:=NextItem(M,0,1);Redraw:=True;End;
+       K_RIGHT: Begin Inc(M);If M>NMENU Then
+         M:=1;Hi:=NextItem(M,0,1);Redraw:=True;End;
        K_UP: Begin Hi:=NextItem(M,Hi,-1);Redraw:=True;End;
        K_DOWN: Begin Hi:=NextItem(M,Hi,1);Redraw:=True;End;
        K_ENTER: If Hi<>0 Then Begin Pick:=True;Done:=True;End;
