@@ -42,6 +42,10 @@ Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
 
+Aperçu du clone de News Master :
+
+<img width="634" height="483" alt="image" src="https://github.com/user-attachments/assets/99604335-4d50-4773-97ed-1252c13f6677" />
+
 Aperçu du clone de Notator SL :
 
 <img width="642" height="480" alt="image" src="https://github.com/user-attachments/assets/b33d59ba-8bec-417b-bdce-f960986da2cd" />
@@ -145,6 +149,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td><b>LOTUS123.PAS</b></td>
       <td>Cette commande permet de lancer un clone graphique de Lotus 1-2-3 (menus, formules, graphiques 2D/3D).</td>
     </tr>
+	<tr>
+		<td><b>NEWS.PAS</b></td>
+		<td>CFette commande permet de lancer le programme de publication de journaux News Master.</td>
+	</tr>
     <tr>
       <td><b>NOTATOR.PAS</b></td>
       <td>Cette commande permet de lancer un clone graphique de Notator SL (séquenceur MIDI / éditeur de partition et impression de l'Atari ST : page d'arrangement, partition, matrice, liste d'événements, quantification, groove).</td>
