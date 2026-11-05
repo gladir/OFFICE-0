@@ -5450,33 +5450,44 @@ Begin
 End;
 
 Procedure ShowSplash;
-Var F,FB,Y,I: Integer; E: TEvent; T0: LongInt; Ln: Array[1..4] Of String;
+Var F,FB,Y,I,W,X1,X2,Y2,LH,PW: Integer; E: TEvent; T0: LongInt; Ln: Array[1..4] Of String;
+    Pr: String;
 Begin
  SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  PatBar(0,0,SCR_W-1,SCR_H-1,PatStripe);
  If UseFLB Then Begin F:=FontOr('Park 12 bold',DefBody);FB:=FontOr('News 18 bold',DefHead);End
  Else Begin F:=FontOr('Systeme 16 gras',DefBody);FB:=FontOr('Titre 32',DefHead);End;
- Box(60+5,90+5,580+5,270+5,INK);
- Box(60,90,580,270,PAPER);
- Frame(60,90,580,270);Frame(64,94,576,266);
  Ln[1]:=Tr('NEWSMASTER - CLONE VERSION ')+VERSION_TEXT;
  Ln[2]:=Tr('PROGRAMME DE PUBLICATION DE JOURNAUX');
  Ln[3]:=Tr('D''APRES NEWS MASTER (UNISON WORLD, 1986)');
  Ln[4]:=Tr('OFFICE-0 - WWW.GLADIR.COM');
- CenterText(FB,108,60,580,'NEWSMASTER');
+ { la boite s'adapte a la largeur du texte le plus long }
+ W:=StrWidthF(FB,'NEWSMASTER');
+ For I:=1 To 4 Do If StrWidthF(F,Ln[I])>W Then W:=StrWidthF(F,Ln[I]);
+ W:=W+80;
+ If W<360 Then W:=360;
+ If W>SCR_W-16 Then W:=SCR_W-16;
+ X1:=(SCR_W-W) Div 2;X2:=X1+W;
+ LH:=FAsc[F]+FDsc[F]+6;
  Y:=108+FAsc[FB]+FDsc[FB]+14;
+ Y2:=Y+4*LH+16;
+ Box(X1+5,90+5,X2+5,Y2+5,INK);
+ Box(X1,90,X2,Y2,PAPER);
+ Frame(X1,90,X2,Y2);Frame(X1+4,94,X2-4,Y2-4);
+ CenterText(FB,108,X1,X2,'NEWSMASTER');
  For I:=1 To 4 Do Begin
-  CenterText(F,Y,60,580,Ln[I]);
-  Y:=Y+FAsc[F]+FDsc[F]+6;
+  CenterText(F,Y,X1,X2,Ln[I]);
+  Y:=Y+LH;
  End;
- LabelBox(150,310,490,334,Tr('APPUYEZ SUR ESPACE POUR CONTINUER'));
+ Pr:=Tr('APPUYEZ SUR ESPACE POUR CONTINUER');
+ PW:=TextW(Pr)+60;
+ LabelBox((SCR_W-PW) Div 2,Y2+40,(SCR_W+PW) Div 2,Y2+64,Pr);
  T0:=Tick;
  Repeat
   PollEvent(E);
  Until ((E.Kind=1)) Or (E.Kind=2) Or (Abs(Tick-T0)>1500);
 End;
 
-{ Menu principal : retourne quand l'utilisateur choisit de continuer }
 Procedure MainMenuLoop;
 Var Sel,I,X0,Y0,W,H,N: Integer; E: TEvent; Done,Redraw: Boolean;
 Begin
