@@ -39,9 +39,9 @@ Const
  PGW      = 960;
  PGH      = 760;
  PGGAP    = 16;
- MAXPG    = 8;
+ MAXPG    = 4;
  MAXCOL   = 4;
- MRG      = 4;
+ MRG      = 0;
  HEADH    = 152;
  COLGAP   = 30;
  MINSLOT  = 60;
@@ -304,7 +304,39 @@ Const
  PatGrid   : FillPatternType = ($FF,$88,$88,$88,$FF,$88,$88,$88);
  PatBrick  : FillPatternType = ($FF,$80,$80,$80,$FF,$08,$08,$08);
  PatDots   : FillPatternType = ($80,$00,$08,$00,$80,$00,$08,$00);
- NPAT      = 12;
+ NPAT      = 30;
+ OPat : Array[0..29] Of FillPatternType = (
+  ($FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF),
+  ($7F,$FF,$FF,$FF,$7F,$FF,$FF,$FF),
+  ($7F,$FF,$F7,$FF,$7F,$FF,$F7,$FF),
+  ($3F,$FF,$F3,$FF,$3F,$FF,$F3,$FF),
+  ($7F,$EF,$FD,$DF,$FE,$F7,$BF,$FB),
+  ($33,$FF,$CC,$FF,$33,$FF,$CC,$FF),
+  ($33,$CC,$33,$CC,$33,$CC,$33,$CC),
+  ($55,$55,$55,$55,$55,$55,$55,$55),
+  ($44,$11,$44,$11,$44,$11,$44,$11),
+  ($CC,$00,$33,$00,$CC,$00,$33,$00),
+  ($80,$10,$02,$20,$01,$08,$40,$04),
+  ($C0,$00,$0C,$00,$C0,$00,$0C,$00),
+  ($80,$00,$08,$00,$80,$00,$08,$00),
+  ($80,$00,$00,$00,$80,$00,$00,$00),
+  ($00,$00,$00,$00,$00,$00,$00,$00),
+  ($33,$33,$33,$33,$33,$33,$33,$33),
+  ($00,$FF,$00,$FF,$00,$FF,$00,$FF),
+  ($0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F),
+  ($00,$00,$FF,$FF,$00,$00,$FF,$FF),
+  ($1F,$C7,$F1,$7C,$1F,$C7,$F1,$7C),
+  ($E0,$38,$0E,$83,$E0,$38,$0E,$83),
+  ($F8,$E3,$8F,$3E,$F8,$E3,$8F,$3E),
+  ($07,$1C,$70,$C1,$07,$1C,$70,$C1),
+  ($7F,$BF,$DF,$FF,$FD,$FB,$F7,$FF),
+  ($80,$40,$20,$00,$02,$04,$08,$00),
+  ($7F,$BE,$DD,$EB,$F7,$EB,$DD,$BE),
+  ($80,$41,$22,$14,$08,$14,$22,$41),
+  ($00,$3F,$3F,$3F,$00,$F3,$F3,$F3),
+  ($4C,$7C,$7C,$BB,$C4,$C7,$C7,$BB),
+  ($F8,$74,$22,$47,$8F,$17,$22,$71));
+
 
 { ====================================================================== }
 {                  GRAPHIQUE / SOURIS (squelette)                        }
@@ -700,10 +732,10 @@ Begin
    Then Begin
    TrEN:='Graphical clone of the News Master newsletter publishing program.';
    Exit;End;
- If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin
-   TrEN:='Usage: NEWS [file.NWC] [/?]';Exit;End;
- If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin
-   TrEN:='file.NWC     Newsletter to open.';Exit;End;
+ If S='Utilisation : NEWS [fichier.NWS] [/?]' Then Begin
+   TrEN:='Usage: NEWS [file.NWS] [/?]';Exit;End;
+ If S='fichier.NWS  Journal '#133' ouvrir.' Then Begin
+   TrEN:='file.NWS     Newsletter to open.';Exit;End;
  If S='/?           Affiche cette aide.' Then Begin
    TrEN:='/?           Show this help.';Exit;End;
  If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
@@ -921,7 +953,7 @@ Begin
    TrEN:='ENTER: START POINT';Exit;End;
  If S='Motif de remplissage' Then Begin TrEN:='Fill Pattern';Exit;End;
  If S=#144'paisseur' Then Begin TrEN:='Thickness';Exit;End;
- If S='Epaisseur du trait (1-12) :' Then Begin TrEN:='Line thickness (1-12):';
+ If S='Epaisseur du trait (1-30) :' Then Begin TrEN:='Line thickness (1-30):';
    Exit;End;
  If S='MAXIMUM : ' Then Begin TrEN:='MAXIMUM: ';Exit;End;
  If S='UNE COLONNE MINIMUM' Then Begin TrEN:='AT LEAST ONE COLUMN';Exit;End;
@@ -1059,10 +1091,10 @@ Begin
  If S='Clone graphique du programme de publication de journaux News Master.'
    Then Begin TrDE:='Grafischer Klon des Zeitungsprogramms News Master.';Exit;
    End;
- If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin
-   TrDE:='Aufruf: NEWS [datei.NWC] [/?]';Exit;End;
- If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin
-   TrDE:='datei.NWC    Zu '#148'ffnende Zeitung.';Exit;End;
+ If S='Utilisation : NEWS [fichier.NWS] [/?]' Then Begin
+   TrDE:='Aufruf: NEWS [datei.NWS] [/?]';Exit;End;
+ If S='fichier.NWS  Journal '#133' ouvrir.' Then Begin
+   TrDE:='datei.NWS    Zu '#148'ffnende Zeitung.';Exit;End;
  If S='/?           Affiche cette aide.' Then Begin
    TrDE:='/?           Diese Hilfe anzeigen.';Exit;End;
  If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
@@ -1287,8 +1319,8 @@ Begin
    TrDE:='EINGABE: STARTPUNKT';Exit;End;
  If S='Motif de remplissage' Then Begin TrDE:='F'#129'llmuster';Exit;End;
  If S=#144'paisseur' Then Begin TrDE:='St'#132'rke';Exit;End;
- If S='Epaisseur du trait (1-12) :' Then Begin
-   TrDE:='Linienst'#132'rke (1-12):';Exit;End;
+ If S='Epaisseur du trait (1-30) :' Then Begin
+   TrDE:='Linienst'#132'rke (1-30):';Exit;End;
  If S='MAXIMUM : ' Then Begin TrDE:='MAXIMAL: ';Exit;End;
  If S='UNE COLONNE MINIMUM' Then Begin TrDE:='MINDESTENS EINE SPALTE';Exit;End;
  If S='TITRE D'#144'J'#133' PR'#144'SENT' Then Begin
@@ -2348,24 +2380,13 @@ Begin
  Close(F);
 End;
 
-{ Motif de remplissage numero I (0 aucun, 1 blanc, 11 noir) }
+{ Motif de remplissage numero I (palette de 30 motifs de News Master) }
 Procedure FillPat(I: Integer; X1,Y1,X2,Y2: Integer);
 Begin
- If I=0 Then Exit;
- If I=1 Then Begin Box(X1,Y1,X2,Y2,PAPER);Exit;End;
- If I=11 Then Begin Box(X1,Y1,X2,Y2,INK);Exit;End;
- Case I Of
-  2: SetPat(PatDots);
-  3: SetPat(PatLight);
-  4: SetPat(PatGrey);
-  5: SetPat(PatDark);
-  6: SetPat(PatHatch);
-  7: SetPat(PatHatch2);
-  8: SetPat(PatHoriz);
-  9: SetPat(PatVert);
-  10: SetPat(PatGrid);
- End;
+ If (I<0) Or (I>29) Then I:=14;
+ SetPat(OPat[I]);
  Bar(X1,Y1,X2,Y2);
+ LastFill:=-1;
 End;
 
 { ====================================================================== }
@@ -2476,7 +2497,6 @@ End;
 { ====================================================================== }
 
 Const
- LEAD   = 1;
  MAXIV  = 8;
  MAXLX  = 520;
 
@@ -2489,6 +2509,12 @@ Var
  LX        : Array[0..MAXLX] Of Integer;
  LXn       : Integer;
 
+{ hauteur d'une ligne : hauteur de la police + 10 % (mesure sur l'original) }
+Function Pitch(AD: Integer): Integer;
+Begin
+ Pitch:=(AD*11+5) Div 10;
+End;
+
 Procedure BuildRegions;
 Var P,C,N,CW,Y0: Integer;
 Begin
@@ -2500,7 +2526,7 @@ Begin
   For C:=0 To N-1 Do Begin
    Inc(NReg);
    RegPg[NReg]:=P;RegX[NReg]:=MRG+C*(CW+COLGAP);RegY[NReg]:=Y0;
-   RegW[NReg]:=CW;RegH[NReg]:=PGH-MRG-Y0;
+   RegW[NReg]:=CW;RegH[NReg]:=PGH-4-Y0;
   End;
  End;
 End;
@@ -2649,18 +2675,30 @@ Begin
 End;
 
 Procedure LayoutHead(P: Integer);
-Var Ps,Y,E,Nx,Lw,Ns,Asc,Dsc,H,First,I,Tot: Integer; PEnd: Boolean;
+Var Ps,Y,E,Nx,Lw,Ns,Asc,Dsc,H,First,I,Tot,NewY,SX,SW,Guard: Integer;
+    PEnd: Boolean;
 Begin
- Ps:=0;Y:=0;First:=NLn;
+ Ps:=0;Y:=0;First:=NLn;Guard:=0;
  While (Ps<=St[P].Len) And (NLn<MAXLINE) Do Begin
-  FillLine(P,Ps,PGW-2*MRG,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
-  H:=Asc+Dsc+LEAD;
-  If (Y+H>HEADH) And (NLn>First) Then Break;
-  AddLine(P,P,Ps,E,Nx,MRG,Y,PGW-2*MRG,H,Asc,Lw,Ns,PEnd);
+  Inc(Guard);
+  If Guard>200 Then Break;
+  SX:=0;SW:=PGW;
+  FillLine(P,Ps,PGW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
+  H:=Pitch(Asc+Dsc);
+  NewY:=Y+4;
+  If Not BandIntervals(P,0,PGW,Y,H,NewY) Then Begin
+   If NewY<=Y Then NewY:=Y+1;
+   Y:=NewY;Continue;
+  End;
+  SX:=IvA[1];SW:=IvB[1]-IvA[1];
+  If SW<PGW Then FillLine(P,Ps,SW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
+  H:=Pitch(Asc+Dsc);
+  If Y+H>HEADH Then Break;
+  AddLine(P,P,Ps,E,Nx,SX,Y,SW,H,Asc,Lw,Ns,PEnd);
   Y:=Y+H;Ps:=Nx;
  End;
  Tot:=Y;
- If Tot<HEADH Then
+ If (Tot<HEADH) And (NLn>First) Then
   For I:=First To NLn-1 Do Lines^[I].Y:=Lines^[I].Y+(HEADH-Tot) Div 2;
 End;
 
@@ -2679,20 +2717,20 @@ Begin
   End Else Begin
    If BandOn Then Y:=BandY+BandH;
    BandOn:=False;
-   Hd:=FAsc[F0]+FDsc[F0]+LEAD;
+   Hd:=Pitch(FAsc[F0]+FDsc[F0]);
    Tries:=0;
    Repeat
     Ok:=FindBand(R,Y,Hd);
     If Not Ok Then Break;
     SX:=BandA[1];SW:=BandB[1]-SX;
     FillLine(0,Ps,SW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
-    H2:=Asc+Dsc+LEAD;
+    H2:=Pitch(Asc+Dsc);
     Inc(Tries);
     If (H2>Hd) And (Tries<4) Then Begin Hd:=H2;BandOn:=False;End
     Else Break;
    Until False;
    If Not Ok Then Begin Overflow:=True;Break;End;
-   LY:=BandY;LH:=Integer(Max2(BandH,Asc+Dsc+LEAD));
+   LY:=BandY;LH:=Integer(Max2(BandH,Pitch(Asc+Dsc)));
   End;
   AddLine(0,RegPg[BandR],Ps,E,Nx,SX,LY,SW,LH,Asc,Lw,Ns,PEnd);
   Ps:=Nx;
@@ -2700,27 +2738,14 @@ Begin
  If Ps<=St[0].Len Then Overflow:=True;
 End;
 
-Procedure AddPageAuto;
-Begin
- If NPg>=MAXPG Then Exit;
- Inc(NPg);
- NCol[NPg]:=NCol[NPg-1];HasHead[NPg]:=False;
- StClear(NPg,DefHead,AL_CENTER);
-End;
-
 Procedure LayoutAll;
-Var P,Guard: Integer;
+Var P: Integer;
 Begin
- Guard:=0;
- Repeat
-  NLn:=0;
-  BuildRegions;
-  For P:=1 To NPg Do If HasHead[P] Then LayoutHead(P);
-  LayoutFlow;
-  Inc(Guard);
-  If Overflow And (NPg<MAXPG) And (Guard<MAXPG+2) Then AddPageAuto
-  Else Break;
- Until False;
+ NPg:=MAXPG;
+ NLn:=0;
+ BuildRegions;
+ For P:=1 To NPg Do If HasHead[P] Then LayoutHead(P);
+ LayoutFlow;
 End;
 
 Procedure Relayout;
@@ -2999,42 +3024,84 @@ Begin
   End;
 End;
 
+{ Epaisseur en points ecran d'une ligne / d'une bordure (unites d'origine) }
+Function LinePx(Th: Integer): LongInt;
+Var T: LongInt;
+Begin
+ T:=Sc((Th+1) Div 2);
+ If T<1 Then T:=1;
+ LinePx:=T;
+End;
+
+Function BorderPx(Th: Integer): LongInt;
+Var T: LongInt;
+Begin
+ T:=Sc((Th+2) Div 3);
+ If T<1 Then T:=1;
+ BorderPx:=T;
+End;
+
 Procedure DrawArtItem(I: Integer; X0,Y0: LongInt; Sel: Boolean);
-Var SX,SY,SW,SH,T,J,TT: LongInt;
+Var SX,SY,SW,SH,T,H1,H2: LongInt; Pt: Array[1..4] Of PointType;
+    X1,Y1,X2,Y2: LongInt;
 Begin
  SX:=X0+Sc(Arts[I].X);SY:=Y0+Sc(Arts[I].Y);
  SW:=Sc(Arts[I].W);SH:=Sc(Arts[I].H);
- If SW<1 Then SW:=1;
- If SH<1 Then SH:=1;
  Case Arts[I].Kind Of
-  AR_ART: DrawPiece(Arts[I].Lib,Arts[I].SX1,Arts[I].SY1,Arts[I].SX2,Arts[I].SY2,
-                    Arts[I].FH<>0,Arts[I].FV<>0,SX,SY,SW,SH);
+  AR_ART: Begin
+    If SW<1 Then SW:=1;
+    If SH<1 Then SH:=1;
+    DrawPiece(Arts[I].Lib,Arts[I].SX1,Arts[I].SY1,Arts[I].SX2,Arts[I].SY2,
+              Arts[I].FH<>0,Arts[I].FV<>0,SX,SY,SW,SH);
+   End;
   AR_BOX: Begin
-    FillPat(Arts[I].Pat,SX,SY,SX+SW-1,SY+SH-1);
-    T:=Sc(Arts[I].Th);
-    If (T<1) And (Arts[I].Th>0) Then T:=1;
-    SetColor(INK);SetLineStyle(SolidLn,0,1);
-    For J:=0 To T-1 Do
-     If (SW-1-2*J>0) And (SH-1-2*J>0) Then Rectangle(SX+J,SY+J,SX+SW-1-J,
-       SY+SH-1-J);
+    T:=BorderPx(Arts[I].Th);
+    If (SW<T) Or (SH<T) Then
+     { boite degeneree : simple barre remplie du motif }
+     FillPat(Arts[I].Pat,Integer(SX),Integer(SY),Integer(SX+Max2(SW,T)-1),
+       Integer(SY+Max2(SH,T)-1))
+    Else Begin
+     FillPat(Arts[I].Pat,Integer(SX),Integer(SY),Integer(SX+SW),Integer(SY+SH));
+     Box(Integer(SX),Integer(SY),Integer(SX+SW),Integer(SY+T-1),INK);
+     Box(Integer(SX),Integer(SY+SH-T+1),Integer(SX+SW),Integer(SY+SH),INK);
+     Box(Integer(SX),Integer(SY),Integer(SX+T-1),Integer(SY+SH),INK);
+     Box(Integer(SX+SW-T+1),Integer(SY),Integer(SX+SW),Integer(SY+SH),INK);
+    End;
    End;
   AR_LINE: Begin
-    T:=Sc(Arts[I].Th);
-    If T<1 Then T:=1;
-    SetColor(INK);SetLineStyle(SolidLn,0,1);
-    For J:=0 To T-1 Do Begin
-     TT:=J-T Div 2;
+    T:=LinePx(Arts[I].Th);
+    X1:=SX;X2:=SX+SW;
+    If Arts[I].FV=0 Then Begin Y1:=SY;Y2:=SY+SH;End
+    Else Begin Y1:=SY+SH;Y2:=SY;End;
+    H1:=T Div 2;H2:=T-H1;
+    If SH=0 Then
+     FillPat(Arts[I].Pat,Integer(X1),Integer(Y1-H1),Integer(X2),
+       Integer(Y1+H2-1))
+    Else If SW=0 Then
+     FillPat(Arts[I].Pat,Integer(X1-H1),Integer(Y1),Integer(X1+H2-1),
+       Integer(Y2))
+    Else Begin
      If SW>=SH Then Begin
-      If Arts[I].FV=0 Then Line(SX,SY+TT,SX+SW-1,SY+SH-1+TT)
-      Else Line(SX,SY+SH-1+TT,SX+SW-1,SY+TT);
+      Pt[1].X:=Integer(X1);Pt[1].Y:=Integer(Y1-H1);
+      Pt[2].X:=Integer(X2);Pt[2].Y:=Integer(Y2-H1);
+      Pt[3].X:=Integer(X2);Pt[3].Y:=Integer(Y2+H2);
+      Pt[4].X:=Integer(X1);Pt[4].Y:=Integer(Y1+H2);
      End Else Begin
-      If Arts[I].FV=0 Then Line(SX+TT,SY,SX+SW-1+TT,SY+SH-1)
-      Else Line(SX+TT,SY+SH-1,SX+SW-1+TT,SY);
+      Pt[1].X:=Integer(X1-H1);Pt[1].Y:=Integer(Y1);
+      Pt[2].X:=Integer(X2-H1);Pt[2].Y:=Integer(Y2);
+      Pt[3].X:=Integer(X2+H2);Pt[3].Y:=Integer(Y2);
+      Pt[4].X:=Integer(X1+H2);Pt[4].Y:=Integer(Y1);
      End;
+     SetPat(OPat[Arts[I].Pat Mod 30]);
+     FillPoly(4,Pt);
+     LastFill:=-1;
     End;
    End;
  End;
- If Sel Then DotRect(SX-2,SY-2,SX+SW+1,SY+SH+1);
+ If SW<1 Then SW:=1;
+ If SH<1 Then SH:=1;
+ If Sel Then DotRect(Integer(SX)-2,Integer(SY)-2,Integer(SX+SW)+1,
+   Integer(SY+SH)+1);
 End;
 
 Procedure DrawColumnGuides(P: Integer; X0,Y0: LongInt);
@@ -3054,9 +3121,14 @@ Var I: Integer;
 Begin
  DrawPageBase(X0,Y0);
  If Guides Then DrawColumnGuides(P,X0,Y0);
+ { lignes et boites sous le texte, images par-dessus }
+ For I:=1 To NArt Do
+  If (Arts[I].Pg=P) And (Arts[I].Kind<>AR_ART) Then
+   DrawArtItem(I,X0,Y0,(I=SelArt) And (Mode=MD_ART));
  DrawLinesOfPage(P,X0,Y0);
  For I:=1 To NArt Do
-  If Arts[I].Pg=P Then DrawArtItem(I,X0,Y0,(I=SelArt) And (Mode=MD_ART));
+  If (Arts[I].Pg=P) And (Arts[I].Kind=AR_ART) Then
+   DrawArtItem(I,X0,Y0,(I=SelArt) And (Mode=MD_ART));
 End;
 
 { ---- curseur de texte et d'images ---- }
@@ -3628,7 +3700,7 @@ Begin
   3: MCount:=10;
   4: MCount:=11;
   5: MCount:=24;
-  6: MCount:=13;
+  6: MCount:=10;
   7: MCount:=8;
   8: MCount:=3;
   Else MCount:=0;
@@ -3720,12 +3792,9 @@ Begin
       5: MLabelFr:='Ajouter un titre';
       6: MLabelFr:='Supprimer le titre';
       7: MLabelFr:='-';
-      8: MLabelFr:='Ajouter une page';
-      9: MLabelFr:='Supprimer la page';
-      10: MLabelFr:='-';
-      11: MLabelFr:='Page pr'#130'c'#130'dente|PgHaut';
-      12: MLabelFr:='Page suivante|PgBas';
-      13: MLabelFr:=#133' la page...';
+      8: MLabelFr:='Page pr'#130'c'#130'dente|PgHaut';
+      9: MLabelFr:='Page suivante|PgBas';
+      10: MLabelFr:=#133' la page...';
      End;
   7: Case I Of
       1: MLabelFr:='Zoom avant (x2)';
@@ -4023,7 +4092,7 @@ Begin
   MD_LAYOUT: Begin
     PanelTitle:='MODIFIER LA MISE EN PAGE';
     AddPB('AJOUT|COLONNE',0);AddPB('SUPPR.|COLONNE',0);AddPB('AJOUT|TITRE',0);
-    AddPB('SUPPR.|TITRE',0);AddPB('AJOUT|PAGE',0);AddPB('SUPPR.|PAGE',0);
+    AddPB('SUPPR.|TITRE',0);
    End;
   MD_FILE: Begin
     PanelTitle:='CHARGER ET ENREGISTRER';
@@ -4946,6 +5015,7 @@ Begin
  R:=PopupAt(8+8*62,PANEL_Y-50,100,4,DrawKind-1);
  If R>0 Then Begin
   DrawKind:=R+1;
+  If DrawKind=AR_LINE Then DrawPat:=0 Else DrawPat:=14;
   ArtSub:=3;DrawStep:=0;HeldOn:=False;
   SetStatus('ENTR'#144'E : POINT DE D'#144'PART');
  End;
@@ -4955,7 +5025,7 @@ Procedure CmdPattern;
 Var Sel,I,X0,Y0,W,H,CX,CY: Integer; E: TEvent; Done,Redraw: Boolean;
 Begin
  Sel:=DrawPat;
- W:=6*50+24;H:=2*50+TBH+64;
+ W:=6*50+24;H:=5*50+TBH+64;
  X0:=(SCR_W-W) Div 2;Y0:=(SCR_H-H) Div 2-6;
  Done:=False;Redraw:=True;
  Repeat
@@ -4999,7 +5069,9 @@ Begin
    If InBox(E.X,E.Y,X0+W-96,Y0+H-34,X0+W-16,Y0+H-14) Then Done:=True;
   End;
  Until Done;
- If (SelArt>0) And (Arts[SelArt].Kind=AR_BOX) Then Arts[SelArt].Pat:=DrawPat;
+ If (SelArt>0) And (Arts[SelArt].Kind<>AR_ART) Then Begin
+  Arts[SelArt].Pat:=DrawPat;Modified:=True;
+ End;
  NeedDraw:=True;
 End;
 
@@ -5007,10 +5079,10 @@ Procedure CmdThickness;
 Var S: String; V: LongInt;
 Begin
  S:=IntStr(DrawTh);
- If InputBox(#144'paisseur','Epaisseur du trait (1-12) :',S,3) Then Begin
+ If InputBox(#144'paisseur','Epaisseur du trait (1-30) :',S,3) Then Begin
   V:=ValInt(S,DrawTh);
   If V<1 Then V:=1;
-  If V>12 Then V:=12;
+  If V>30 Then V:=30;
   DrawTh:=V;
   If (SelArt>0) And (Arts[SelArt].Kind<>AR_ART) Then Begin
    Arts[SelArt].Th:=V;Modified:=True;
@@ -5069,44 +5141,8 @@ Begin
  Modified:=True;Relayout;
 End;
 
-Procedure CmdAddPage;
-Begin
- If NPg>=MAXPG Then Begin
-   SetStatus(Tr('MAXIMUM : ')+IntStr(MAXPG)+Tr(' PAGES'));Exit;End;
- Inc(NPg);
- NCol[NPg]:=NCol[CurPage];HasHead[NPg]:=False;
- StClear(NPg,DefHead,AL_CENTER);
- CurPage:=NPg;
- Modified:=True;Relayout;
-End;
-
-Procedure CmdDelPage;
-Var I,K: Integer; Sv: TStory;
-Begin
- If NPg<=1 Then Begin SetStatus('IMPOSSIBLE : UNE PAGE');Exit;End;
- I:=NArt;
- While I>=1 Do Begin
-  If Arts[I].Pg=CurPage Then Begin
-   For K:=I To NArt-1 Do Arts[K]:=Arts[K+1];
-   Dec(NArt);
-  End Else If Arts[I].Pg>CurPage Then Dec(Arts[I].Pg);
-  Dec(I);
- End;
- Sv:=St[CurPage];
- For K:=CurPage To NPg-1 Do Begin
-  St[K]:=St[K+1];NCol[K]:=NCol[K+1];HasHead[K]:=HasHead[K+1];
- End;
- St[NPg]:=Sv;
- StClear(NPg,DefHead,AL_CENTER);
- Dec(NPg);
- If ASt>NPg Then ASt:=0;
- If CurPage>NPg Then CurPage:=NPg;
- SelArt:=0;
- Modified:=True;Relayout;
-End;
-
 { ====================================================================== }
-{                         FICHIERS (.NWC)                                }
+{                     OUTILS DE LECTURE / ECRITURE                       }
 { ====================================================================== }
 
 Var
@@ -5142,136 +5178,6 @@ Begin
  V:=V+LongInt(RB)*256;
  If V>32767 Then V:=V-65536;
  RW:=Integer(V);
-End;
-
-Function SaveNWC(Const Name: String): Boolean;
-Var P,I,N: Integer; S: String;
-Begin
- FileOk:=True;
- {$I-}
- Assign(OutF,Name);Rewrite(OutF,1);
- {$I+}
- If IOResult<>0 Then Begin SaveNWC:=False;Exit;End;
- S:='NWC2';
- BlockWrite(OutF,S[1],4);
- WW(NPg);
- For P:=1 To NPg Do Begin WB(NCol[P]);WB(Ord(HasHead[P]));End;
- WB(NFont);
- For I:=0 To NFont-1 Do Begin
-  S:=FName[I];
-  WB(Length(S));
-  BlockWrite(OutF,S[1],Length(S));
-  WW(FontHt(I));
- End;
- For P:=0 To NPg Do Begin
-  N:=St[P].Len;
-  WW(N);
-  BlockWrite(OutF,St[P].T^,N+1);
-  BlockWrite(OutF,St[P].F^,N+1);
-  BlockWrite(OutF,St[P].A^,N+1);
- End;
- WW(NLib);
- For I:=1 To NLib Do Begin
-  S:=Lib[I].Name;
-  WB(Length(S));
-  BlockWrite(OutF,S[1],Length(S));
-  WW(Lib[I].W);WW(Lib[I].H);
-  BlockWrite(OutF,Lib[I].B^,((Lib[I].W+7) Shr 3)*Lib[I].H);
- End;
- WW(NArt);
- For I:=1 To NArt Do Begin
-  WB(Arts[I].Kind);WB(Arts[I].Flow);WB(Arts[I].FH);WB(Arts[I].FV);
-  WB(Arts[I].Pat);WB(Arts[I].Th);
-  WW(Arts[I].Lib);WW(Arts[I].Pg);WW(Arts[I].X);WW(Arts[I].Y);
-  WW(Arts[I].W);WW(Arts[I].H);
-  WW(Arts[I].SX1);WW(Arts[I].SY1);WW(Arts[I].SX2);WW(Arts[I].SY2);
- End;
- {$I-}Close(OutF);{$I+}
- If IOResult<>0 Then FileOk:=False;
- SaveNWC:=FileOk;
-End;
-
-Function LoadNWC(Const Name: String): Boolean;
-Var P,I,N,NP,NF,L,K: Integer; S: String; Mg: String[4]; FMap: Array[0..MAXFONT]
-  Of Byte;
-    Nm: String; Ht: Integer; A: TArt; Legacy: Boolean; Pc: TPiece; Bp: Integer;
-Begin
- LoadNWC:=False;
- FileOk:=True;
- {$I-}
- Assign(OutF,Name);Reset(OutF,1);
- {$I+}
- If IOResult<>0 Then Exit;
- Mg[0]:=#4;
- {$I-}BlockRead(OutF,Mg[1],4);{$I+}
- Legacy:=Mg='NWC1';
- If (IOResult<>0) Or ((Mg<>'NWC2') And Not Legacy) Then Begin
-  Close(OutF);Exit;End;
- NP:=RW;
- If (NP<1) Or (NP>MAXPG) Then Begin Close(OutF);Exit;End;
- For P:=1 To NP Do Begin NCol[P]:=RB;HasHead[P]:=RB<>0;If (NCol[P]<1) Or
-   (NCol[P]>MAXCOL) Then NCol[P]:=1;End;
- NF:=RB;
- For I:=0 To NF-1 Do Begin
-  L:=RB;
-  If L>26 Then L:=26;
-  Nm[0]:=Chr(L);
-  If L>0 Then BlockRead(OutF,Nm[1],L);
-  Ht:=RW;
-  If I<=MAXFONT Then FMap[I]:=NearestFont(Nm,Ht);
- End;
- For P:=0 To NP Do Begin
-  N:=RW;
-  If (N<0) Or (N>St[P].Cap) Or Not FileOk Then Begin Close(OutF);Exit;End;
-  {$I-}
-  BlockRead(OutF,St[P].T^,N+1);
-  BlockRead(OutF,St[P].F^,N+1);
-  BlockRead(OutF,St[P].A^,N+1);
-  {$I+}
-  If IOResult<>0 Then Begin Close(OutF);Exit;End;
-  St[P].Len:=N;
-  For K:=0 To N Do If St[P].F^[K]<=MAXFONT Then St[P].F^[K]:=FMap[St[P].F^[K]];
- End;
- For P:=NP+1 To MAXPG Do StClear(P,DefHead,AL_CENTER);
- NPg:=NP;
- FreePool;
- If Not Legacy Then Begin
-  N:=RW;
-  If (N<0) Or (N>MAXLIB) Then N:=0;
-  For I:=1 To N Do Begin
-   L:=RB;If L>16 Then L:=16;
-   Pc.Name[0]:=Chr(L);
-   If L>0 Then BlockRead(OutF,Pc.Name[1],L);
-   Pc.W:=RW;Pc.H:=RW;
-   If (Pc.W<1) Or (Pc.H<1) Or (Pc.W>400) Or (Pc.H>400) Then Begin
-    Close(OutF);Exit;
-   End;
-   GetMem(Pc.B,((Pc.W+7) Shr 3)*Pc.H);
-   BlockRead(OutF,Pc.B^,((Pc.W+7) Shr 3)*Pc.H);
-   Inc(NLib);Lib[NLib]:=Pc;
-  End;
- End;
- N:=RW;
- If (N<0) Or (N>MAXART) Then N:=0;
- NArt:=0;
- For I:=1 To N Do Begin
-  FillChar(A,SizeOf(A),0);
-  A.Kind:=RB;A.Flow:=RB;A.FH:=RB;A.FV:=RB;A.Pat:=RB;A.Th:=RB;
-  A.Lib:=RW;A.Pg:=RW;A.X:=RW;A.Y:=RW;A.W:=RW;A.H:=RW;
-  A.SX1:=RW;A.SY1:=RW;A.SX2:=RW;A.SY2:=RW;
-  If Legacy And (A.Kind=AR_ART) Then Begin
-   Bp:=0;
-   If (A.Lib>=1) And (A.Lib<=NBLib) Then Bp:=PoolAdd(BLib[A.Lib]);
-   A.Lib:=Bp;
-  End;
-  If (A.Pg>=1) And (A.Pg<=NPg) And ((A.Kind<>AR_ART) Or ((A.Lib>=1) And
-    (A.Lib<=NLib))) Then Begin
-   Inc(NArt);Arts[NArt]:=A;
-  End;
- End;
- {$I-}Close(OutF);{$I+}
- If IOResult<>0 Then FileOk:=False;
- LoadNWC:=FileOk;
 End;
 
 { ====================================================================== }
@@ -5345,6 +5251,8 @@ Begin
  St[S].T^[St[S].Len]:=13;St[S].F^[St[S].Len]:=Fn;St[S].A^[St[S].Len]:=AL_LEFT;
 End;
 
+{ Segment d'un tableau de paires (caractere, attribut) -> histoire S.
+  Un CR final (fin de paragraphe) est represente par le CR implicite. }
 Procedure PairsToStory(S: Integer; Base,Cnt: LongInt; Var FMapO: Array Of Byte);
 Var I: LongInt; C,At: Byte; L: Integer;
 Begin
@@ -5354,21 +5262,29 @@ Begin
   If C=10 Then C:=13;
   If (C>=32) Or (C=13) Then AppendCh(S,C,FMapO[At And 63],At Shr 6);
  End;
- { le dernier CR est represente par le CR final implicite }
  L:=St[S].Len;
  If (S<>0) And (L>0) Then
-  If St[S].T^[L-1]=13 Then Begin
-   Dec(St[S].Len);
-   St[S].A^[St[S].Len]:=St[S].A^[St[S].Len];
-  End;
+  If St[S].T^[L-1]=13 Then Dec(St[S].Len);
+End;
+
+Procedure AddObj(Kind: Byte; Th,Pt: Integer; RX1,RY1,RX2,RY2: LongInt; Pg:
+  Integer);
+Var A: TArt;
+Begin
+ FillChar(A,SizeOf(A),0);
+ A.Kind:=Kind;A.Pg:=Pg;A.Th:=Byte(Th);A.Pat:=Byte(Pt);A.Flow:=FL_OVER;
+ A.X:=Integer(Min2(RX1,RX2));A.Y:=Integer(Min2(RY1,RY2));
+ A.W:=Integer(Abs(RX2-RX1));A.H:=Integer(Abs(RY2-RY1));
+ If (Kind=AR_LINE) And (((RX2-RX1)*(RY2-RY1))<0) Then A.FV:=1;
+ AddArt(A);
 End;
 
 Function LoadNWS(Const Name: String): Boolean;
-Var F: File; Fs,O,T,Q,Qc,Qr,Nx,N,M,L,Sz,Bpr: LongInt;
-    NPics,NPF,I,K,J,Ix,Aux,Nc,NcR,Np,Hf1,MaxPg,Bp: Integer;
+Var F: File; Fs,O,T,Q,Qc,Qr,Nx,N,M,L,Sz,Bpr,HS,HE: LongInt;
+    NPics,NPF,I,K,J,Ix,Aux,Nc,NcR,Np,N1,N2: Integer;
     PIdx: Array[1..MAXLIB] Of Integer; Pc: TPiece; Ok: Boolean;
     X1,Y1,X2,Y2,RX1,RY1,RX2,RY2,Fw,Fh,Pw,Ph: LongInt; A: TArt;
-    FMapO: Array[0..63] Of Byte; Hdl: Boolean;
+    FMapO: Array[0..63] Of Byte; HF: Array[1..8] Of Integer;
 Begin
  LoadNWS:=False;
  {$I-}
@@ -5384,7 +5300,7 @@ Begin
  Repeat
   If (NW(0)<>0) Or (NW(2)>MAXLIB) Then Break;
   NPics:=Integer(NW(2));
-  { tableau final : (5,0,N,N,M,M,...) puis M paires }
+  { tableau final : (5,0,N,N,M1,M1,...) puis M paires }
   T:=-1;O:=4;
   Q:=4;
   While Q<=Fs-30 Do Begin
@@ -5419,13 +5335,22 @@ Begin
   NPF:=Integer(NW(O));
   If (NPF<1) Or (NPF>8) Then Break;
   O:=O+6;
-  { polices }
   For I:=0 To 63 Do FMapO[I]:=Byte(MapOrigFont(I));
+  If N>STCAP Then N:=STCAP;
+  If M<N Then M:=N;
+  PairsToStory(0,T+26,N,FMapO);
+  St[0].A^[St[0].Len]:=AL_LEFT;
+  For K:=1 To MAXPG Do Begin HasHead[K]:=False;StClear(K,DefHead,AL_CENTER);End;
   { pages }
-  Q:=O;MaxPg:=1;Hf1:=0;
+  Q:=O;
   For K:=1 To NPF Do Begin
    If (NW(Q)<>2) Or (Q>=T) Then Break;
-   If K=1 Then Hf1:=Integer(NW(Q+4));
+   If K>MAXPG Then Break;
+   HF[K]:=Integer(NW(Q+4));
+   HasHead[K]:=HF[K]<>0;
+   HS:=NW(Q+10);HE:=NW(Q+12);
+   If (HE>HS) And (HE<=M) And (HE-HS<=HCAP) Then
+    PairsToStory(K,T+26+2*HS,HE-HS,FMapO);
    NcR:=Integer(NW(Q+36));
    If (NcR<1) Or (NcR>6) Then Break;
    Nc:=NcR;If Nc>MAXCOL Then Nc:=MAXCOL;
@@ -5456,48 +5381,59 @@ Begin
      End;
      If Aux=2 Then A.Flow:=FL_OVER Else A.Flow:=FL_BOTH;
      AddArt(A);
-     If K>MaxPg Then MaxPg:=K;
     End;
    End;
-   If K<NPF Then Begin
-    Nx:=Qr;
-    While (Nx<T-40) And Not ((NW(Nx)=2) And (NW(Nx+2)=0) And
-       (NW(Nx+6)=K+1) And (NW(Nx+20)=960) And (NW(Nx+22)=152)) Do Nx:=Nx+1;
-    If Nx>=T-40 Then Break;
-    Q:=Nx;
+   { lignes puis boites : [type][epaisseur][motif][0][R1][R2] }
+   N1:=Integer(NW(Qr));Qr:=Qr+2;
+   If (N1<0) Or (N1>40) Then Break;
+   For J:=1 To N1 Do Begin
+    AddObj(AR_LINE,Integer(NW(Qr+2)),Integer(NW(Qr+4)),NW(Qr+16),NW(Qr+18),
+       NW(Qr+20),NW(Qr+22),K);
+    Qr:=Qr+24;
    End;
+   N2:=Integer(NW(Qr));Qr:=Qr+2;
+   If (N2<0) Or (N2>40) Then Break;
+   For J:=1 To N2 Do Begin
+    AddObj(AR_BOX,Integer(NW(Qr+2)),Integer(NW(Qr+4)),NW(Qr+8),NW(Qr+10),
+       NW(Qr+12),NW(Qr+14),K);
+    Qr:=Qr+24;
+   End;
+   Q:=Qr;
   End;
-  If MaxPg>MAXPG Then MaxPg:=MAXPG;
-  NPg:=MaxPg;
-  For K:=2 To MAXPG Do If NCol[K]=0 Then NCol[K]:=NCol[1];
-  For K:=1 To MAXPG Do If (NCol[K]<1) Or (NCol[K]>MAXCOL) Then NCol[K]:=2;
-  If N>STCAP Then N:=STCAP;
-  If M-N>HCAP Then M:=N+HCAP;
-  PairsToStory(0,T+26,N,FMapO);
-  If M>N Then PairsToStory(1,T+26+2*N,M-N,FMapO);
-  St[0].A^[St[0].Len]:=AL_LEFT;
-  For K:=1 To MAXPG Do HasHead[K]:=False;
-  Hdl:=(Hf1<>0) And (M>N);
-  HasHead[1]:=Hdl;
-  If M=N Then StClear(1,DefHead,AL_CENTER);
+  NPg:=MAXPG;
+  If NCol[1]=0 Then NCol[1]:=2;
+  For K:=2 To MAXPG Do If (NCol[K]<1) Or (NCol[K]>MAXCOL) Then NCol[K]:=NCol[1];
   Ok:=True;
  Until True;
  FreeMem(NB,NBSz);NB:=Nil;
  LoadNWS:=Ok;
 End;
 
+Procedure WriteObj(Kind,Th,Pt: Integer; X1,Y1,X2,Y2,T2: LongInt);
+Var EX,EY: LongInt;
+Begin
+ WW(Kind);WW(Th);WW(Pt);WW(0);
+ If Kind=1 Then Begin
+  EX:=0;EY:=0;
+  If Y1=Y2 Then EY:=T2;
+  If X1=X2 Then EX:=T2;
+  If (Y1<>Y2) And (X1<>X2) Then Begin EX:=T2;EY:=T2;End;
+  WW(Integer(Min2(X1,X2)-EX Div 2));WW(Integer(Min2(Y1,Y2)-EY Div 2));
+  WW(Integer(Max2(X1,X2)-EX Div 2+EX));WW(Integer(Max2(Y1,Y2)-EY Div 2+EY));
+  WW(Integer(X1));WW(Integer(Y1));WW(Integer(X2));WW(Integer(Y2));
+ End Else Begin
+  WW(Integer(X1));WW(Integer(Y1));WW(Integer(X2));WW(Integer(Y2));
+  WW(Integer(X1));WW(Integer(Y1));WW(Integer(X2));WW(Integer(Y2));
+ End;
+End;
+
 Function SaveNWS(Const Name: String): Boolean;
 Var Used: Array[1..MAXLIB] Of Integer; PicOf: Array[1..MAXLIB] Of Integer;
-    NU,I,K,P,PE,Nn,Hd,Mt,Ln,Bpr: Integer; S: String;
-    PStart,PEnd,Cur0: Array[0..8] Of Integer; Al,At: Byte;
-    Fw,Fh,X1,Y1,X2,Y2,RX1,RY1,RX2,RY2,Pw,Ph: LongInt; Ent,Y,Ctop: Integer;
-    Np: Integer;
+    NU,I,K,P,PE,Nn,Mt,Bpr,Ent,Y,Ctop,Np,NL,NB_: Integer; S: String;
+    PStart,PEnd,HS,HE: Array[0..8] Of Integer; Al,At: Byte;
+    Fw,Fh,X1,Y1,X2,Y2,RX1,RY1,RX2,RY2,Pw,Ph: LongInt;
 Begin
  SaveNWS:=False;
- If NPg>4 Then Begin
-  MsgBox('Enregistrer','Le format NWS est limit'#130' '#133' 4 pages.');
-  Exit;
- End;
  FileOk:=True;
  {$I-}
  Assign(OutF,Name);Rewrite(OutF,1);
@@ -5506,8 +5442,9 @@ Begin
  FillChar(Used,SizeOf(Used),0);NU:=0;
  For I:=1 To NArt Do
   If (Arts[I].Kind=AR_ART) And (Arts[I].Lib>=1) And (Arts[I].Lib<=NLib) Then
-   If Used[Arts[I].Lib]=0 Then Begin Inc(NU);Used[Arts[I].Lib]:=NU;
-     PicOf[NU]:=Arts[I].Lib;End;
+   If Used[Arts[I].Lib]=0 Then Begin
+    Inc(NU);Used[Arts[I].Lib]:=NU;PicOf[NU]:=Arts[I].Lib;
+   End;
  WW(0);WW(NU);
  For I:=1 To NU Do Begin
   S:=Lib[PicOf[I]].Name;
@@ -5517,13 +5454,16 @@ Begin
   BlockWrite(OutF,Lib[PicOf[I]].B^,Bpr*Lib[PicOf[I]].H);
  End;
  Nn:=St[0].Len;
- Hd:=0;
- If (St[1].Len>0) Or HasHead[1] Then Hd:=St[1].Len+1;
- Mt:=Nn+Hd;
+ { segments de titre : un par page, a la suite du texte principal }
+ Mt:=Nn;
+ For P:=1 To 4 Do Begin
+  HS[P]:=Mt;
+  If St[P].Len>0 Then Mt:=Mt+St[P].Len+1;
+  HE[P]:=Mt;
+ End;
  { plages de texte par page }
- For P:=1 To 4 Do Begin PStart[P]:=Nn;PEnd[P]:=Nn;End;
- For P:=1 To NPg Do Begin
-  PStart[P]:=-1;PEnd[P]:=-1;
+ For P:=1 To 4 Do Begin PStart[P]:=-1;PEnd[P]:=-1;End;
+ For P:=1 To 4 Do Begin
   For I:=0 To NLn-1 Do
    If (Lines^[I].Sty=0) And (Lines^[I].Pg=P) Then Begin
     If PStart[P]<0 Then PStart[P]:=Lines^[I].S;
@@ -5531,22 +5471,21 @@ Begin
     If PEnd[P]>Nn Then PEnd[P]:=Nn;
    End;
  End;
- Cur0[0]:=0;
+ PEnd[0]:=0;
  For P:=1 To 4 Do Begin
-  If P>NPg Then Begin PStart[P]:=Cur0[P-1];PEnd[P]:=Cur0[P-1];End
-  Else If PStart[P]<0 Then Begin PStart[P]:=Cur0[P-1];PEnd[P]:=Cur0[P-1];End;
+  If PStart[P]<0 Then Begin PStart[P]:=PEnd[P-1];PEnd[P]:=PEnd[P-1];End;
   If P=1 Then PStart[P]:=0;
-  Cur0[P]:=PEnd[P];
+  If PEnd[P]<PStart[P] Then PEnd[P]:=PStart[P];
  End;
  WW(4);WW(0);WW(1);
  For P:=1 To 4 Do Begin
   WW(2);WW(0);
-  If (P=1) And Not HasHead[1] Then WW(0) Else WW(1);
+  WW(Ord(HasHead[P]));
   WW(P);WW(0);
-  If P=1 Then Begin WW(Nn);WW(Mt);End Else Begin WW(Mt);WW(Mt);End;
+  WW(HS[P]);WW(HE[P]);
   WW(1);WW(0);WW(0);WW(PGW);WW(HEADH);WW(1);WW(1);WW(0);WW(0);
   WW(PStart[P]);WW(PEnd[P]);
-  If P<=NPg Then Ent:=NCol[P] Else Ent:=NCol[1];
+  Ent:=NCol[P];
   WW(Ent);WW(0);
   If HasHead[P] Then Ctop:=167 Else Ctop:=0;
   For K:=1 To Ent-1 Do Begin
@@ -5554,13 +5493,16 @@ Begin
    WW(Ctop);WW(Y);WW(PGH);WW(Y+30);
   End;
   WW(Ctop);WW(PGW);WW(PGH);
-  Np:=0;
-  For I:=1 To NArt Do If (Arts[I].Pg=P) And (Arts[I].Kind=AR_ART) And
-    (Used[Arts[I].Lib]>0) Then Inc(Np);
+  Np:=0;NL:=0;NB_:=0;
+  For I:=1 To NArt Do If Arts[I].Pg=P Then Begin
+   If (Arts[I].Kind=AR_ART) And (Used[Arts[I].Lib]>0) Then Inc(Np);
+   If Arts[I].Kind=AR_LINE Then Inc(NL);
+   If Arts[I].Kind=AR_BOX Then Inc(NB_);
+  End;
   WW(Np);
   For I:=1 To NArt Do
    If (Arts[I].Pg=P) And (Arts[I].Kind=AR_ART) And (Used[Arts[I].Lib]>0) Then
-     Begin
+   Begin
     WW(0);WW(Used[Arts[I].Lib]-1);WW(3);
     If Arts[I].Flow=FL_OVER Then WW(2) Else WW(0);
     X1:=Arts[I].X;Y1:=Arts[I].Y;X2:=X1+Arts[I].W;Y2:=Y1+Arts[I].H;
@@ -5575,16 +5517,28 @@ Begin
     WW(Integer(X1));WW(Integer(Y1));WW(Integer(X2));WW(Integer(Y2));
     WW(Integer(RX1));WW(Integer(RY1));WW(Integer(RX2));WW(Integer(RY2));
    End;
-  WW(0);WW(0);
+  WW(NL);
+  For I:=1 To NArt Do
+   If (Arts[I].Pg=P) And (Arts[I].Kind=AR_LINE) Then Begin
+    X1:=Arts[I].X;X2:=X1+Arts[I].W;
+    If Arts[I].FV=0 Then Begin Y1:=Arts[I].Y;Y2:=Y1+Arts[I].H;End
+    Else Begin Y2:=Arts[I].Y;Y1:=Y2+Arts[I].H;End;
+    WriteObj(1,Arts[I].Th,Arts[I].Pat,X1,Y1,X2,Y2,(Arts[I].Th+1) Div 2);
+   End;
+  WW(NB_);
+  For I:=1 To NArt Do
+   If (Arts[I].Pg=P) And (Arts[I].Kind=AR_BOX) Then
+    WriteObj(2,Arts[I].Th,Arts[I].Pat,Arts[I].X,Arts[I].Y,
+      Arts[I].X+Arts[I].W,Arts[I].Y+Arts[I].H,0);
  End;
  { tableau final }
  WW(5);WW(0);WW(Nn);WW(Nn);
  For I:=1 To 7 Do WW(Mt);
- WW(0);WW(Mt);
- { texte principal puis texte du titre }
- For K:=0 To 1 Do Begin
-  If K=0 Then P:=0 Else P:=1;
-  If (K=0) Or (Hd>0) Then Begin
+ WW(ToOrigFont(CurFont));WW(Mt);
+ { texte principal puis un titre par page }
+ For K:=0 To 4 Do Begin
+  P:=K;
+  If (K=0) Or (St[P].Len>0) Then Begin
    I:=0;
    While I<=St[P].Len Do Begin
     PE:=ParaEndPos(P,I);
@@ -5594,7 +5548,7 @@ Begin
      WB(St[P].T^[I]);WB(At);
      Inc(I);
     End;
-    If (PE<St[P].Len) Or (K=1) Then Begin
+    If (PE<St[P].Len) Or (K>0) Then Begin
      At:=Byte((ToOrigFont(St[P].F^[PE]) And 63) Or (Al Shl 6));
      WB(10);WB(At);
     End;
@@ -5867,12 +5821,10 @@ Procedure ResetDoc;
 Var P: Integer;
 Begin
  FreePool;
- NPg:=1;
- For P:=1 To MAXPG Do Begin NCol[P]:=2;HasHead[P]:=False;End;
- HasHead[1]:=True;
+ NPg:=MAXPG;
+ For P:=1 To MAXPG Do Begin NCol[P]:=2;HasHead[P]:=True;End;
  For P:=0 To MAXPG Do StClear(P,DefHead,AL_CENTER);
  StClear(0,DefBody,AL_LEFT);
- StAppend(1,Tr('Titre du journal'),DefHead);
  NArt:=0;SelArt:=0;HeldOn:=False;ArtSub:=0;DrawStep:=0;
  DocName:='';Named:=False;Modified:=False;
  ASt:=0;Cur:=0;SelA:=-1;MarkMode:=False;CurFont:=DefBody;TypRun:=False;
@@ -5964,28 +5916,16 @@ Begin
  SetView(2);
 End;
 
-Function IsExt(Const N,Ext: String): Boolean;
-Begin
- IsExt:=Upper(Copy(N,Length(N)-Length(Ext)+1,Length(Ext)))=Ext;
-End;
-
-Function SaveAny(Const N: String): Boolean;
-Begin
- If IsExt(N,'.NWC') Then SaveAny:=SaveNWC(N) Else SaveAny:=SaveNWS(N);
-End;
-
 Procedure CmdOpen;
-Var N: String; Ok: Boolean;
+Var N: String;
 Begin
  If Not ConfirmLose Then Exit;
  N:='';
- If Not FilePicker('Ouvrir un journal','*.NWS;*.NWC',N,False) Then Exit;
+ If Not FilePicker('Ouvrir un journal','*.NWS',N,False) Then Exit;
  If Not FileExists(N) Then N:=AddExt(N,'NWS');
- If Not FileExists(N) Then N:=NoExt(N)+'.NWC';
  If Not FileExists(N) Then Begin MsgBox('Ouvrir',
    Tr('Fichier introuvable : ')+N);Exit;End;
- If IsExt(N,'.NWC') Then Ok:=LoadNWC(N) Else Ok:=LoadNWS(N);
- If Ok Then Begin
+ If LoadNWS(N) Then Begin
   DocName:=N;Named:=True;Modified:=False;
   ASt:=0;Cur:=0;SelA:=-1;SelArt:=0;HeldOn:=False;UndoOK:=False;CurPage:=1;
     ScrX:=0;ScrY:=0;
@@ -6003,12 +5943,12 @@ Procedure CmdSaveAs;
 Var N: String;
 Begin
  N:=DocName;
- If Not FilePicker('Enregistrer le journal','*.NWS;*.NWC',N,True) Then Exit;
- If IsExt(DocName,'.NWC') Then N:=AddExt(N,'NWC') Else N:=AddExt(N,'NWS');
+ If Not FilePicker('Enregistrer le journal','*.NWS',N,True) Then Exit;
+ N:=AddExt(N,'NWS');
  If FileExists(N) Then
   If Not ConfirmBox(Tr('Le fichier ')+ShortName(N)+Tr(' existe. Le remplacer '+
     '?')) Then Exit;
- If SaveAny(N) Then Begin
+ If SaveNWS(N) Then Begin
   DocName:=N;Named:=True;Modified:=False;
   SetStatus('JOURNAL ENREGISTR'#144);
  End Else MsgBox('Enregistrer','Erreur d'''#130'criture du fichier.');
@@ -6017,7 +5957,7 @@ End;
 Procedure CmdSave;
 Begin
  If Not Named Then Begin CmdSaveAs;Exit;End;
- If SaveAny(DocName) Then Begin
+ If SaveNWS(DocName) Then Begin
   Modified:=False;SetStatus('JOURNAL ENREGISTR'#144);
  End Else MsgBox('Enregistrer','Erreur d'''#130'criture du fichier.');
 End;
@@ -6181,8 +6121,6 @@ Begin
     2: CmdDelCol;
     3: CmdAddHead;
     4: CmdDelHead;
-    5: CmdAddPage;
-    6: CmdDelPage;
    End;
   MD_FILE: Case N Of
     1: CmdNew;
@@ -6253,9 +6191,11 @@ Begin
       17: ArtResetSize;
       18: ArtFlip(True);
       19: ArtFlip(False);
-      21: Begin DrawKind:=AR_LINE;ArtSub:=3;DrawStep:=0;HeldOn:=False;
+      21: Begin DrawKind:=AR_LINE;DrawPat:=0;ArtSub:=3;DrawStep:=0;
+        HeldOn:=False;
            If Mode<>MD_ART Then SetPanel(MD_ART);NeedDraw:=True;End;
-      22: Begin DrawKind:=AR_BOX;ArtSub:=3;DrawStep:=0;HeldOn:=False;
+      22: Begin DrawKind:=AR_BOX;DrawPat:=14;ArtSub:=3;DrawStep:=0;
+        HeldOn:=False;
            If Mode<>MD_ART Then SetPanel(MD_ART);NeedDraw:=True;End;
       23: CmdPattern;
       24: CmdThickness;
@@ -6266,11 +6206,9 @@ Begin
       4: CmdDelCol;
       5: CmdAddHead;
       6: CmdDelHead;
-      8: CmdAddPage;
-      9: CmdDelPage;
-      11: GotoPage(CurPage-1);
-      12: GotoPage(CurPage+1);
-      13: CmdGoto;
+      8: GotoPage(CurPage-1);
+      9: GotoPage(CurPage+1);
+      10: CmdGoto;
      End;
   7: Case I Of
       1..4: SetView(I);
@@ -6735,14 +6673,14 @@ Begin
  GetMem(UndoT,STCAP+2);GetMem(UndoF,STCAP+2);GetMem(UndoA,STCAP+2);
  StInit(0,STCAP,DefBody,AL_LEFT);
  For P:=1 To MAXPG Do StInit(P,HCAP,DefHead,AL_CENTER);
- NPg:=1;NArt:=0;ClipN:=0;UndoOK:=False;
+ NPg:=MAXPG;NArt:=0;ClipN:=0;UndoOK:=False;
  ZN:=1;ZD:=1;ViewNo:=2;ScrX:=0;ScrY:=0;
  GuidesOn:=False;
  Mode:=MD_MAIN;CurPage:=1;
  ASt:=0;Cur:=0;SelA:=-1;MarkMode:=False;CurFont:=DefBody;WantX:=-1;
    TypRun:=False;
  ACStep:=4;ACx:=100;ACy:=100;SelArt:=0;HeldOn:=False;ArtSub:=0;CropEnd:=0;
- DrawKind:=AR_BOX;DrawPat:=0;DrawTh:=2;DrawStep:=0;LastPiece:=1;
+ DrawKind:=AR_BOX;DrawPat:=14;DrawTh:=6;DrawStep:=0;LastPiece:=1;
  Quit:=False;NeedDraw:=True;Dragging:=0;MenuOpen:=0;MenuHi:=0;
  MX:=0;MY:=0;MB:=0;LastB:=0;LastFill:=-1;
  CaretOn:=False;CaretT:=0;PBDown:=0;StatusMsg:='';StatusT:=0;
@@ -6778,9 +6716,9 @@ Begin
  WriteLn('NEWS - ',
    Tr('Clone graphique du programme de publication de journaux News Master.'));
  WriteLn;
- WriteLn(Tr('Utilisation : NEWS [fichier.NWC] [/?]'));
+ WriteLn(Tr('Utilisation : NEWS [fichier.NWS] [/?]'));
  WriteLn;
- WriteLn('  ',Tr('fichier.NWC  Journal '#133' ouvrir.'));
+ WriteLn('  ',Tr('fichier.NWS  Journal '#133' ouvrir.'));
  WriteLn('  ',Tr('/?           Affiche cette aide.'));
  WriteLn;
  WriteLn(Tr('Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
@@ -6827,11 +6765,7 @@ BEGIN
  If ParamCount>=1 Then Begin
   StartName:=ParamStr(1);
   If Not FileExists(StartName) Then StartName:=AddExt(StartName,'NWS');
-  If Not FileExists(StartName) Then StartName:=NoExt(StartName)+'.NWC';
-  If FileExists(StartName) Then Begin
-   If IsExt(StartName,'.NWC') Then StartOk:=LoadNWC(StartName)
-   Else StartOk:=LoadNWS(StartName);
-  End;
+  If FileExists(StartName) Then StartOk:=LoadNWS(StartName);
  End;
  If StartOk Then Begin
   DocName:=StartName;Named:=True;Modified:=False;
