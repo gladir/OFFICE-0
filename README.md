@@ -373,6 +373,24 @@ sous DOS, haut-parleur du PC ou carte MPU-401.</li>
 <li>Exemples de musique dans <code>SAMPLES/NOTATOR/</code> ; <code>NOTATOR /?</code> : aide.</li>
 </ul>
 
+<h2>NEWS : publication de journaux (clone de News Master)</h2>
+
+<ul>
+<li><code>NEWS [fichier.NWC] [/?]</code> : clone graphique du programme de publication de journaux News Master (Unison World, 1986),
+en français par défaut, en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code> ; tout le code est dans
+<code>NEWS.PAS</code> (Turbo Pascal 7 / Free Pascal), avec les menus déroulants de <code>PAPYRUS.PAS</code>.</li>
+<li>Écrans d'origine : écran de titre, menu principal, menu d'édition à touches de fonction F1..F6 (vue, texte, images, mise en page,
+fichier, impression) et écran de mise en page en miniature (ajout / suppression de colonnes, de titres et de pages).</li>
+<li>Texte : une histoire qui coule de colonne en colonne et de page en page, alignement gauche / droite / centré / justifié,
+choix de la police par caractère, sélection, couper / copier / coller, annulation, recherche, import / export ASCII.</li>
+<li>Images : bibliothèque intégrée de 14 images, prendre / poser / copier, taille, rognage, retournement, lignes et boîtes avec
+motifs de remplissage et habillage du texte (par-dessus, deux côtés, gauche, droite, zone dégagée).</li>
+<li>Vues : zoom x2, normale, largeur de page, page entière. Fichiers <code>.NWC</code> ; impression d'une page ou de toutes les pages
+en bitmap PBM.</li>
+<li>Polices : si <code>NEWS.FLB</code> (bibliothèque de polices originale de News Master) est dans le répertoire courant, ses 34 polices
+sont lues directement ; sinon des polices intégrées sont produites à partir de la police 8x8 du BGI.</li>
+</ul>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
