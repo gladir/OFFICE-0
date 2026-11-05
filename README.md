@@ -96,6 +96,10 @@ Aperçu du clone de Quattro :
 	</tr>
 </table>
 
+Aperçu du clone de Simply Accounting :
+
+<img width="642" height="484" alt="image" src="https://github.com/user-attachments/assets/5c732dbb-452c-46ed-bb6d-c8849fefd947" />
+
 Aperçu du clone de Visio :
 
 <img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
@@ -169,6 +173,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td><b>QUATTRO.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Quattro Pro.</td>
     </tr>
+	<tr>
+		<td><b>SIMPLY.PAS</b></td>
+		<td>Cette commande permet de lancer un clone de Simply Accounting.</td>
+	</tr>
     <tr>
       <td><b>VISIO.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Visio.</td>
@@ -373,6 +381,7 @@ sous DOS, haut-parleur du PC ou carte MPU-401.</li>
 <li>Exemples de musique dans <code>SAMPLES/NOTATOR/</code> ; <code>NOTATOR /?</code> : aide.</li>
 </ul>
 
+
 <h2>NEWS : publication de journaux (clone de News Master)</h2>
 
 <ul>
@@ -396,6 +405,23 @@ ou de toutes les pages : en bitmap PBM, et, si le programme est compilé avec Fr
 vers l'imprimante par défaut de Windows (API <code>gdi32</code> / <code>winspool</code> déclarées dans <code>NEWS.PAS</code>, sans
 unité supplémentaire ; page tournée automatiquement sur une imprimante en portrait, repli sur le PBM s'il n'y a pas d'imprimante).</li>
 <li>Sans <code>NEWS.FLB</code>, des polices intégrées sont produites à partir de la police 8x8 du BGI.</li>
+=======
+<h2>SIMPLY : comptabilité</h2>
+
+<ul>
+<li><code>SIMPLY [fichier.SDB]</code> : clone graphique de Simply Accounting (fenêtre principale à la Windows 95), en français par défaut,
+en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code> ; tout le code est dans <code>SIMPLY.PAS</code>
+(Turbo Pascal 7 / Free Pascal), les menus déroulants proviennent de <code>PAPYRUS.PAS</code>.</li>
+<li>Général : plan comptable (numérotation par catégorie : actif, passif, capital, revenus, coûts directs, dépenses), transactions
+diverses au journal général (écritures équilibrées), rapprochement bancaire.</li>
+<li>Fournisseurs / clients : journaux d'achats et de ventes (articles, quantités, transport, taxe), factures comptant ou à crédit,
+paiements et encaissements avec escomptes et prépaiements, impression de la facture avec le message du bas de page.</li>
+<li>Paie (chèques individuels et passage de la paie avec retenues), inventaire et services (coût moyen, ajustements, assemblage),
+projets.</li>
+<li>Rapports (bilan, état des résultats, balance de vérification, journal général, plan comptable, âge des fournisseurs / clients,
+employés, inventaire), graphiques, résumé de la société, rappels, vérification des données, clôture de l'exercice, calculatrice.</li>
+<li>Fichiers : société enregistrée dans un fichier <code>.SDB</code> (<code>UNIVERSL.SDB</code> par défaut, créé avec des données
+d'exemple), copie de sécurité <code>.BAK</code>, rapports exportables en texte ; <code>SIMPLY /?</code> : aide.</li>
 </ul>
 
 <h2>Licence</h2>
