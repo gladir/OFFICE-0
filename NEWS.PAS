@@ -664,24 +664,45 @@ End;
 Function TrEN(Const S: String): String;
 Begin
  TrEN:='';
- If S='NEWSMASTER - CLONE VERSION ' Then Begin TrEN:='NEWSMASTER - CLONE VERSION ';Exit;End;
- If S='PROGRAMME DE PUBLICATION DE JOURNAUX' Then Begin TrEN:='NEWSLETTER PUBLISHING PROGRAM';Exit;End;
- If S='D''APRES NEWS MASTER (UNISON WORLD, 1986)' Then Begin TrEN:='BASED ON NEWS MASTER (UNISON WORLD, 1986)';Exit;End;
- If S='APPUYEZ SUR ESPACE POUR CONTINUER' Then Begin TrEN:='PRESS SPACE TO CONTINUE';Exit;End;
- If S='NewsMaster : Menu principal' Then Begin TrEN:='NewsMaster: Main Menu';Exit;End;
- If S='Choisissez une activit'#130' :' Then Begin TrEN:='Choose an activity:';Exit;End;
- If S='Commencer un nouveau journal' Then Begin TrEN:='Start work on a new newsletter';Exit;End;
- If S='Continuer le journal courant' Then Begin TrEN:='Continue working on the current newsletter';Exit;End;
- If S='Choisir un journal enregistr'#130 Then Begin TrEN:='Select a saved newsletter to work on';Exit;End;
+ If S='NEWSMASTER - CLONE VERSION ' Then Begin
+   TrEN:='NEWSMASTER - CLONE VERSION ';Exit;End;
+ If S='PROGRAMME DE PUBLICATION DE JOURNAUX' Then Begin
+   TrEN:='NEWSLETTER PUBLISHING PROGRAM';Exit;End;
+ If S='D''APRES NEWS MASTER (UNISON WORLD, 1986)' Then Begin
+   TrEN:='BASED ON NEWS MASTER (UNISON WORLD, 1986)';Exit;End;
+ If S='APPUYEZ SUR ESPACE POUR CONTINUER' Then Begin
+   TrEN:='PRESS SPACE TO CONTINUE';Exit;End;
+ If S='NewsMaster : Menu principal' Then Begin TrEN:='NewsMaster: Main Menu';
+   Exit;End;
+ If S='Choisissez une activit'#130' :' Then Begin TrEN:='Choose an activity:';
+   Exit;End;
+ If S='Commencer un nouveau journal' Then Begin
+   TrEN:='Start work on a new newsletter';Exit;End;
+ If S='Continuer le journal courant' Then Begin
+   TrEN:='Continue working on the current newsletter';Exit;End;
+ If S='Choisir un journal enregistr'#130 Then Begin
+   TrEN:='Select a saved newsletter to work on';Exit;End;
  If S='Quitter NewsMaster' Then Begin TrEN:='Quit NewsMaster';Exit;End;
  If S='ENTR'#144'E : POINT FINAL' Then Begin TrEN:='ENTER: END POINT';Exit;End;
  If S='OBJET AJOUT'#144 Then Begin TrEN:='OBJECT ADDED';Exit;End;
- If S='Clone graphique du programme de publication de journaux News Master.' Then Begin TrEN:='Graphical clone of the News Master newsletter publishing program.';Exit;End;
- If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin TrEN:='Usage: NEWS [file.NWC] [/?]';Exit;End;
- If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin TrEN:='file.NWC     Newsletter to open.';Exit;End;
- If S='/?           Affiche cette aide.' Then Begin TrEN:='/?           Show this help.';Exit;End;
- If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, LANGUAGE=GR : allemand.' Then Begin TrEN:='Language: French by default. LANGUAGE=EN: English, LANGUAGE=GR: German.';Exit;End;
- If S='Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les polices originales.' Then Begin TrEN:='Put NEWS.FLB in the current directory to use the original fonts.';Exit;End;
+ If S='Clone graphique du programme de publication de journaux News Master.'
+   Then Begin
+   TrEN:='Graphical clone of the News Master newsletter publishing program.';
+   Exit;End;
+ If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin
+   TrEN:='Usage: NEWS [file.NWC] [/?]';Exit;End;
+ If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin
+   TrEN:='file.NWC     Newsletter to open.';Exit;End;
+ If S='/?           Affiche cette aide.' Then Begin
+   TrEN:='/?           Show this help.';Exit;End;
+ If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
+   'LANGUAGE=GR : allemand.' Then Begin
+   TrEN:='Language: French by default. LANGUAGE=EN: English, LANGUAGE=GR: '+
+   'German.';Exit;End;
+ If S='Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les '+
+   'polices originales.' Then Begin
+   TrEN:='Put NEWS.FLB in the current directory to use the original fonts.';
+   Exit;End;
  If S='Couverts' Then Begin TrEN:='Cutlery';Exit;End;
  If S='Poisson' Then Begin TrEN:='Fish';Exit;End;
  If S='Etoile' Then Begin TrEN:='Star';Exit;End;
@@ -701,7 +722,8 @@ Begin
  If S='Centr'#130 Then Begin TrEN:='Centered';Exit;End;
  If S='Justifi'#130 Then Begin TrEN:='Justified';Exit;End;
  If S='Texte par-dessus' Then Begin TrEN:='Text over art';Exit;End;
- If S='Texte des deux c'#147't'#130's' Then Begin TrEN:='Text on both sides';Exit;End;
+ If S='Texte des deux c'#147't'#130's' Then Begin TrEN:='Text on both sides';
+   Exit;End;
  If S='Texte '#133' gauche seul' Then Begin TrEN:='Text on left only';Exit;End;
  If S='Texte '#133' droite seul' Then Begin TrEN:='Text on right only';Exit;End;
  If S='Zone d'#130'gag'#130'e' Then Begin TrEN:='Keep clear';Exit;End;
@@ -722,7 +744,8 @@ Begin
  If S='Page' Then Begin TrEN:='Page';Exit;End;
  If S='Vue' Then Begin TrEN:='View';Exit;End;
  If S='Options' Then Begin TrEN:='Options';Exit;End;
- If S=#192' propos de NewsMaster...' Then Begin TrEN:='About NewsMaster...';Exit;End;
+ If S=#192' propos de NewsMaster...' Then Begin TrEN:='About NewsMaster...';
+   Exit;End;
  If S='Statistiques...' Then Begin TrEN:='Statistics...';Exit;End;
  If S='M'#130'moire libre' Then Begin TrEN:='Free memory';Exit;End;
  If S='Menu principal...' Then Begin TrEN:='Main menu...';Exit;End;
@@ -730,9 +753,12 @@ Begin
  If S='Ouvrir...|^O' Then Begin TrEN:='Open...|^O';Exit;End;
  If S='Enregistrer|^S' Then Begin TrEN:='Save|^S';Exit;End;
  If S='Enregistrer sous...' Then Begin TrEN:='Save as...';Exit;End;
- If S='Importer texte ASCII...' Then Begin TrEN:='Import ASCII text...';Exit;End;
- If S='Exporter texte ASCII...' Then Begin TrEN:='Export ASCII text...';Exit;End;
- If S='Imprimer la page (PBM)...' Then Begin TrEN:='Print page (PBM)...';Exit;End;
+ If S='Importer texte ASCII...' Then Begin TrEN:='Import ASCII text...';Exit;
+   End;
+ If S='Exporter texte ASCII...' Then Begin TrEN:='Export ASCII text...';Exit;
+   End;
+ If S='Imprimer la page (PBM)...' Then Begin TrEN:='Print page (PBM)...';Exit;
+   End;
  If S='Imprimer tout (PBM)...' Then Begin TrEN:='Print all (PBM)...';Exit;End;
  If S='Quitter|^Q' Then Begin TrEN:='Quit|^Q';Exit;End;
  If S='Annuler|^Z' Then Begin TrEN:='Undo|^Z';Exit;End;
@@ -751,9 +777,12 @@ Begin
  If S='Centrer|^E' Then Begin TrEN:='Center|^E';Exit;End;
  If S='Justifier|^J' Then Begin TrEN:='Justify|^J';Exit;End;
  If S='Marquer la s'#130'lection' Then Begin TrEN:='Mark selection';Exit;End;
- If S='Mode '#130'dition du texte|F2' Then Begin TrEN:='Text edit mode|F2';Exit;End;
- If S='Mode '#130'dition d''images|F3' Then Begin TrEN:='Artwork edit mode|F3';Exit;End;
- If S='Choisir une image...|F1' Then Begin TrEN:='Choose artwork...|F1';Exit;End;
+ If S='Mode '#130'dition du texte|F2' Then Begin TrEN:='Text edit mode|F2';Exit;
+   End;
+ If S='Mode '#130'dition d''images|F3' Then Begin TrEN:='Artwork edit mode|F3';
+   Exit;End;
+ If S='Choisir une image...|F1' Then Begin TrEN:='Choose artwork...|F1';Exit;
+   End;
  If S='Prendre|F2' Then Begin TrEN:='Pick up|F2';Exit;End;
  If S='Prendre une copie|F3' Then Begin TrEN:='Pick up a copy|F3';Exit;End;
  If S='Poser|Entr'#130'e' Then Begin TrEN:='Stamp down|Enter';Exit;End;
@@ -774,7 +803,8 @@ Begin
  If S='Supprimer le titre' Then Begin TrEN:='Delete the headline';Exit;End;
  If S='Ajouter une page' Then Begin TrEN:='Add a page';Exit;End;
  If S='Supprimer la page' Then Begin TrEN:='Delete the page';Exit;End;
- If S='Page pr'#130'c'#130'dente|PgHaut' Then Begin TrEN:='Previous page|PgUp';Exit;End;
+ If S='Page pr'#130'c'#130'dente|PgHaut' Then Begin TrEN:='Previous page|PgUp';
+   Exit;End;
  If S='Page suivante|PgBas' Then Begin TrEN:='Next page|PgDn';Exit;End;
  If S=#133' la page...' Then Begin TrEN:='Go to page...';Exit;End;
  If S='Zoom avant (x2)' Then Begin TrEN:='Zoom in (x2)';Exit;End;
@@ -787,14 +817,16 @@ Begin
  If S='Polices de NEWS.FLB' Then Begin TrEN:='Fonts from NEWS.FLB';Exit;End;
  If S='Guides de colonnes' Then Begin TrEN:='Column guides';Exit;End;
  If S='Afficher les infos...' Then Begin TrEN:='About...';Exit;End;
- If S='MENU D'''#144'DITION PRINCIPAL' Then Begin TrEN:='MAIN EDIT MENU';Exit;End;
+ If S='MENU D'''#144'DITION PRINCIPAL' Then Begin TrEN:='MAIN EDIT MENU';Exit;
+   End;
  If S='VUE' Then Begin TrEN:='VIEW';Exit;End;
  If S='TEXTE' Then Begin TrEN:='TEXT';Exit;End;
  If S='IMAGES' Then Begin TrEN:='ART';Exit;End;
  If S='PAGE' Then Begin TrEN:='PAGE';Exit;End;
  If S='FICHIER' Then Begin TrEN:='FILE';Exit;End;
  If S='IMPRIM.' Then Begin TrEN:='PRINT';Exit;End;
- If S='CHANGER LA VUE DU JOURNAL' Then Begin TrEN:='CHANGE THE PAGE VIEW';Exit;End;
+ If S='CHANGER LA VUE DU JOURNAL' Then Begin TrEN:='CHANGE THE PAGE VIEW';Exit;
+   End;
  If S='ZOOM|AVANT' Then Begin TrEN:='ZOOM|IN';Exit;End;
  If S='VUE|NORMALE' Then Begin TrEN:='NORMAL|VIEW';Exit;End;
  If S='LARGEUR|DE PAGE' Then Begin TrEN:='PAGE|WIDTH';Exit;End;
@@ -821,14 +853,16 @@ Begin
  If S='RETOUR-|NER' Then Begin TrEN:='FLIP';Exit;End;
  If S='LIGNE|BO'#139'TE' Then Begin TrEN:='LINE|BOX';Exit;End;
  If S='SUPPR.' Then Begin TrEN:='DELETE';Exit;End;
- If S='MODIFIER LA MISE EN PAGE' Then Begin TrEN:='EDIT THE PAGE LAYOUT';Exit;End;
+ If S='MODIFIER LA MISE EN PAGE' Then Begin TrEN:='EDIT THE PAGE LAYOUT';Exit;
+   End;
  If S='AJOUT|COLONNE' Then Begin TrEN:='ADD|COLUMN';Exit;End;
  If S='SUPPR.|COLONNE' Then Begin TrEN:='DELETE|COLUMN';Exit;End;
  If S='AJOUT|TITRE' Then Begin TrEN:='ADD|HEAD|LINE';Exit;End;
  If S='SUPPR.|TITRE' Then Begin TrEN:='DELETE|HEAD|LINE';Exit;End;
  If S='AJOUT|PAGE' Then Begin TrEN:='ADD|PAGE';Exit;End;
  If S='SUPPR.|PAGE' Then Begin TrEN:='DELETE|PAGE';Exit;End;
- If S='CHARGER ET ENREGISTRER' Then Begin TrEN:='LOAD AND SAVE NEWSLETTER';Exit;End;
+ If S='CHARGER ET ENREGISTRER' Then Begin TrEN:='LOAD AND SAVE NEWSLETTER';Exit;
+   End;
  If S='NOUVEAU' Then Begin TrEN:='NEW';Exit;End;
  If S='OUVRIR' Then Begin TrEN:='LOAD';Exit;End;
  If S='ENREG.' Then Begin TrEN:='SAVE';Exit;End;
@@ -854,8 +888,10 @@ Begin
  If S=' COLONNE' Then Begin TrEN:=' COLUMN';Exit;End;
  If S=' + TITRE' Then Begin TrEN:=' + HEADLINE';Exit;End;
  If S='TEXTE TROP LONG' Then Begin TrEN:='TEXT TOO LONG';Exit;End;
- If S=' CARACT'#138'RES COPI'#144'S' Then Begin TrEN:=' CHARACTERS COPIED';Exit;End;
- If S='MARQUEZ AVEC LES FL'#138'CHES' Then Begin TrEN:='MARK WITH THE ARROW KEYS';Exit;End;
+ If S=' CARACT'#138'RES COPI'#144'S' Then Begin TrEN:=' CHARACTERS COPIED';Exit;
+   End;
+ If S='MARQUEZ AVEC LES FL'#138'CHES' Then Begin
+   TrEN:='MARK WITH THE ARROW KEYS';Exit;End;
  If S='S'#144'LECTION FIX'#144'E' Then Begin TrEN:='SELECTION FIXED';Exit;End;
  If S='Choisir une police' Then Begin TrEN:='Choose Font';Exit;End;
  If S=' polices' Then Begin TrEN:=' fonts';Exit;End;
@@ -867,18 +903,23 @@ Begin
  If S='RIEN A POSER' Then Begin TrEN:='NOTHING TO STAMP';Exit;End;
  If S='AUCUNE IMAGE ICI' Then Begin TrEN:='NO ARTWORK HERE';Exit;End;
  If S='Choisir une image' Then Begin TrEN:='Choose Artwork';Exit;End;
- If S='Fl'#138'ches : choisir  Entr'#130'e : valider' Then Begin TrEN:='Arrows: choose  Enter: accept';Exit;End;
+ If S='Fl'#138'ches : choisir  Entr'#130'e : valider' Then Begin
+   TrEN:='Arrows: choose  Enter: accept';Exit;End;
  If S='M'#138'ME PAGE SVP' Then Begin TrEN:='SAME PAGE PLEASE';Exit;End;
- If S='ENTR'#144'E : POINT DE D'#144'PART' Then Begin TrEN:='ENTER: START POINT';Exit;End;
+ If S='ENTR'#144'E : POINT DE D'#144'PART' Then Begin
+   TrEN:='ENTER: START POINT';Exit;End;
  If S='Motif de remplissage' Then Begin TrEN:='Fill Pattern';Exit;End;
  If S=#144'paisseur' Then Begin TrEN:='Thickness';Exit;End;
- If S='Epaisseur du trait (1-12) :' Then Begin TrEN:='Line thickness (1-12):';Exit;End;
+ If S='Epaisseur du trait (1-12) :' Then Begin TrEN:='Line thickness (1-12):';
+   Exit;End;
  If S='MAXIMUM : ' Then Begin TrEN:='MAXIMUM: ';Exit;End;
  If S='UNE COLONNE MINIMUM' Then Begin TrEN:='AT LEAST ONE COLUMN';Exit;End;
- If S='TITRE D'#144'J'#133' PR'#144'SENT' Then Begin TrEN:='HEADLINE ALREADY THERE';Exit;End;
+ If S='TITRE D'#144'J'#133' PR'#144'SENT' Then Begin
+   TrEN:='HEADLINE ALREADY THERE';Exit;End;
  If S='Titre' Then Begin TrEN:='Headline';Exit;End;
  If S=' PAGES' Then Begin TrEN:=' PAGES';Exit;End;
- If S='IMPOSSIBLE : UNE PAGE' Then Begin TrEN:='IMPOSSIBLE: ONE PAGE ONLY';Exit;End;
+ If S='IMPOSSIBLE : UNE PAGE' Then Begin TrEN:='IMPOSSIBLE: ONE PAGE ONLY';Exit;
+   End;
  If S='TEXTE TRONQU'#144 Then Begin TrEN:='TEXT TRUNCATED';Exit;End;
  If S='Fichier :' Then Begin TrEN:='File:';Exit;End;
  If S='(aucun fichier ' Then Begin TrEN:='(no file ';Exit;End;
@@ -888,18 +929,22 @@ Begin
  If S=' enregistr'#130'e dans ' Then Begin TrEN:=' saved in ';Exit;End;
  If S='Pages enregistr'#130'es : ' Then Begin TrEN:='Pages saved: ';Exit;End;
  If S='Format : bitmap PBM ' Then Begin TrEN:='Format: PBM bitmap ';Exit;End;
- If S='Erreur d'''#130'criture du fichier.' Then Begin TrEN:='File write error.';Exit;End;
+ If S='Erreur d'''#130'criture du fichier.' Then Begin
+   TrEN:='File write error.';Exit;End;
  If S='Titre du journal' Then Begin TrEN:='Newsletter headline';Exit;End;
- If S='Les changements non enregistr'#130's seront perdus. Continuer ?' Then Begin TrEN:='Unsaved changes will be lost. Continue?';Exit;End;
+ If S='Les changements non enregistr'#130's seront perdus. Continuer ?' Then
+   Begin TrEN:='Unsaved changes will be lost. Continue?';Exit;End;
  If S='Ouvrir un journal' Then Begin TrEN:='Open a Newsletter';Exit;End;
  If S='Ouvrir' Then Begin TrEN:='Open';Exit;End;
  If S='Fichier introuvable : ' Then Begin TrEN:='File not found: ';Exit;End;
  If S='JOURNAL CHARG'#144 Then Begin TrEN:='NEWSLETTER LOADED';Exit;End;
- If S='Ce fichier n''est pas un journal NewsMaster valide.' Then Begin TrEN:='This file is not a valid NewsMaster newsletter.';Exit;End;
+ If S='Ce fichier n''est pas un journal NewsMaster valide.' Then Begin
+   TrEN:='This file is not a valid NewsMaster newsletter.';Exit;End;
  If S='Enregistrer le journal' Then Begin TrEN:='Save the Newsletter';Exit;End;
  If S='Enregistrer' Then Begin TrEN:='Save';Exit;End;
  If S='Le fichier ' Then Begin TrEN:='The file ';Exit;End;
- If S=' existe. Le remplacer ?' Then Begin TrEN:=' exists. Replace it?';Exit;End;
+ If S=' existe. Le remplacer ?' Then Begin TrEN:=' exists. Replace it?';Exit;
+   End;
  If S='JOURNAL ENREGISTR'#144 Then Begin TrEN:='NEWSLETTER SAVED';Exit;End;
  If S='Importer du texte ASCII' Then Begin TrEN:='Import ASCII Text';Exit;End;
  If S='Importer' Then Begin TrEN:='Import';Exit;End;
@@ -907,62 +952,111 @@ Begin
  If S='Exporter le texte ASCII' Then Begin TrEN:='Export ASCII Text';Exit;End;
  If S='TEXTE EXPORT'#144 Then Begin TrEN:='TEXT EXPORTED';Exit;End;
  If S='Exporter' Then Begin TrEN:='Export';Exit;End;
- If S='Quitter NewsMaster ? Les changements seront perdus.' Then Begin TrEN:='Quit NewsMaster? Changes will be lost.';Exit;End;
+ If S='Quitter NewsMaster ? Les changements seront perdus.' Then Begin
+   TrEN:='Quit NewsMaster? Changes will be lost.';Exit;End;
  If S='Quitter NewsMaster ?' Then Begin TrEN:='Quit NewsMaster?';Exit;End;
  If S=#133' la page' Then Begin TrEN:='Go to Page';Exit;End;
  If S='Num'#130'ro de page :' Then Begin TrEN:='Page number:';Exit;End;
  If S=#192' propos de NewsMaster' Then Begin TrEN:='About NewsMaster';Exit;End;
- If S='NewsMaster - Clone Pascal' Then Begin TrEN:='NewsMaster - Pascal clone';Exit;End;
- If S='Programme de publication de journaux' Then Begin TrEN:='Newsletter publishing program';Exit;End;
- If S='Inspir'#130' de News Master (Unison World, 1986)' Then Begin TrEN:='Inspired by News Master (Unison World, 1986)';Exit;End;
+ If S='NewsMaster - Clone Pascal' Then Begin TrEN:='NewsMaster - Pascal clone';
+   Exit;End;
+ If S='Programme de publication de journaux' Then Begin
+   TrEN:='Newsletter publishing program';Exit;End;
+ If S='Inspir'#130' de News Master (Unison World, 1986)' Then Begin
+   TrEN:='Inspired by News Master (Unison World, 1986)';Exit;End;
  If S='Pages : ' Then Begin TrEN:='Pages: ';Exit;End;
  If S='Texte principal : ' Then Begin TrEN:='Main text: ';Exit;End;
  If S=' caract'#138'res' Then Begin TrEN:=' characters';Exit;End;
  If S='Images et traits : ' Then Begin TrEN:='Artwork and lines: ';Exit;End;
  If S='Polices disponibles : ' Then Begin TrEN:='Available fonts: ';Exit;End;
  If S=' (int'#130'gr'#130'es)' Then Begin TrEN:=' (built-in)';Exit;End;
- If S='ATTENTION : du texte d'#130'passe la mise en page' Then Begin TrEN:='WARNING: text overflows the layout';Exit;End;
+ If S='ATTENTION : du texte d'#130'passe la mise en page' Then Begin
+   TrEN:='WARNING: text overflows the layout';Exit;End;
  If S='Statistiques' Then Begin TrEN:='Statistics';Exit;End;
  If S='M'#130'moire' Then Begin TrEN:='Memory';Exit;End;
- If S='M'#130'moire g'#130'r'#130'e par Free Pascal.' Then Begin TrEN:='Memory managed by Free Pascal.';Exit;End;
- If S='Plus grand bloc libre : ' Then Begin TrEN:='Largest free block: ';Exit;End;
+ If S='M'#130'moire g'#130'r'#130'e par Free Pascal.' Then Begin
+   TrEN:='Memory managed by Free Pascal.';Exit;End;
+ If S='Plus grand bloc libre : ' Then Begin TrEN:='Largest free block: ';Exit;
+   End;
  If S='M'#130'moire libre : ' Then Begin TrEN:='Free memory: ';Exit;End;
- If S='CRAZY JOE''S FISH SHACK' Then Begin TrEN:='CRAZY JOE''S FISH SHACK';Exit;End;
- If S='Attrapez nos portions de taille BALEINE '#133' prix de sardine !' Then Begin TrEN:='Catch our WHALE size portions at sardine prices!';Exit;End;
+ If S='CRAZY JOE''S FISH SHACK' Then Begin TrEN:='CRAZY JOE''S FISH SHACK';Exit;
+   End;
+ If S='Attrapez nos portions de taille BALEINE '#133' prix de sardine !' Then
+   Begin TrEN:='Catch our WHALE size portions at sardine prices!';Exit;End;
  If S='Sp'#130'cial du jour' Then Begin TrEN:='Today''s special';Exit;End;
- If S='Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, ' Then Begin TrEN:='Fried flounder: $5.25. Our cook, a former sailor with a heart of gold, ';Exit;End;
- If S='pr'#130'pare chaque matin le poisson le plus frais du port. ' Then Begin TrEN:='prepares the freshest fish from the harbor every morning. ';Exit;End;
- If S='Servi avec des frites maison, une salade croquante et la fameuse sauce secr'#138'te de la maison.' Then Begin TrEN:='Served with homemade fries, a crisp salad and the famous secret house sauce.';Exit;End;
- If S='Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la cr'#138'me, ' Then Begin TrEN:='Clam chowder: $3.95. A smooth, creamy soup, ';Exit;End;
- If S='garnie de palourdes, de pommes de terre et de lard fum'#130'. Id'#130'ale ' Then Begin TrEN:='topped with clams, potatoes and smoked bacon. Perfect ';Exit;End;
- If S='pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.' Then Begin TrEN:='for warming up winter days on the dock.';Exit;End;
- If S='Plateau de fruits de mer : 7,99 $. ' Then Begin TrEN:='Seafood platter: $7.99. ';Exit;End;
- If S='Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de citron et de beurre fondu. ' Then Begin TrEN:='Shrimp, scallops, squid and mussels, served with lemon and melted butter. ';Exit;End;
- If S='Le plateau est servi sur glace pour garder toute la fra'#139'cheur de la mer. ' Then Begin TrEN:='The platter is served on ice to keep all the freshness of the sea. ';Exit;End;
- If S='Venez nombreux, la maison offre le caf'#130' !' Then Begin TrEN:='Come one, come all, coffee is on the house!';Exit;End;
+ If S='Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, '
+   Then Begin
+   TrEN:='Fried flounder: $5.25. Our cook, a former sailor with a heart of '+
+   'gold, ';Exit;End;
+ If S='pr'#130'pare chaque matin le poisson le plus frais du port. ' Then Begin
+   TrEN:='prepares the freshest fish from the harbor every morning. ';Exit;End;
+ If S='Servi avec des frites maison, une salade croquante et la fameuse sauce '+
+   'secr'#138'te de la maison.' Then Begin
+   TrEN:='Served with homemade fries, a crisp salad and the famous secret '+
+   'house sauce.';Exit;End;
+ If S='Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la '+
+   'cr'#138'me, ' Then Begin
+   TrEN:='Clam chowder: $3.95. A smooth, creamy soup, ';Exit;End;
+ If S='garnie de palourdes, de pommes de terre et de lard fum'#130'. '+
+   'Id'#130'ale ' Then Begin
+   TrEN:='topped with clams, potatoes and smoked bacon. Perfect ';Exit;End;
+ If S='pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.' Then Begin
+   TrEN:='for warming up winter days on the dock.';Exit;End;
+ If S='Plateau de fruits de mer : 7,99 $. ' Then Begin
+   TrEN:='Seafood platter: $7.99. ';Exit;End;
+ If S='Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de '+
+   'citron et de beurre fondu. ' Then Begin
+   TrEN:='Shrimp, scallops, squid and mussels, served with lemon and melted '+
+   'butter. ';Exit;End;
+ If S='Le plateau est servi sur glace pour garder toute la fra'#139'cheur de '+
+   'la mer. ' Then Begin
+   TrEN:='The platter is served on ice to keep all the freshness of the sea. ';
+   Exit;End;
+ If S='Venez nombreux, la maison offre le caf'#130' !' Then Begin
+   TrEN:='Come one, come all, coffee is on the house!';Exit;End;
 End;
 
 Function TrDE(Const S: String): String;
 Begin
  TrDE:='';
- If S='NEWSMASTER - CLONE VERSION ' Then Begin TrDE:='NEWSMASTER - KLON VERSION ';Exit;End;
- If S='PROGRAMME DE PUBLICATION DE JOURNAUX' Then Begin TrDE:='PROGRAMM ZUR ZEITUNGSGESTALTUNG';Exit;End;
- If S='D''APRES NEWS MASTER (UNISON WORLD, 1986)' Then Begin TrDE:='NACH NEWS MASTER (UNISON WORLD, 1986)';Exit;End;
- If S='APPUYEZ SUR ESPACE POUR CONTINUER' Then Begin TrDE:='LEERTASTE ZUM FORTFAHREN DR'#154'CKEN';Exit;End;
- If S='NewsMaster : Menu principal' Then Begin TrDE:='NewsMaster: Hauptmen'#129;Exit;End;
- If S='Choisissez une activit'#130' :' Then Begin TrDE:='W'#132'hlen Sie eine Aktivit'#132't:';Exit;End;
- If S='Commencer un nouveau journal' Then Begin TrDE:='Neue Zeitung beginnen';Exit;End;
- If S='Continuer le journal courant' Then Begin TrDE:='Aktuelle Zeitung weiterbearbeiten';Exit;End;
- If S='Choisir un journal enregistr'#130 Then Begin TrDE:='Gespeicherte Zeitung ausw'#132'hlen';Exit;End;
+ If S='NEWSMASTER - CLONE VERSION ' Then Begin
+   TrDE:='NEWSMASTER - KLON VERSION ';Exit;End;
+ If S='PROGRAMME DE PUBLICATION DE JOURNAUX' Then Begin
+   TrDE:='PROGRAMM ZUR ZEITUNGSGESTALTUNG';Exit;End;
+ If S='D''APRES NEWS MASTER (UNISON WORLD, 1986)' Then Begin
+   TrDE:='NACH NEWS MASTER (UNISON WORLD, 1986)';Exit;End;
+ If S='APPUYEZ SUR ESPACE POUR CONTINUER' Then Begin
+   TrDE:='LEERTASTE ZUM FORTFAHREN DR'#154'CKEN';Exit;End;
+ If S='NewsMaster : Menu principal' Then Begin TrDE:='NewsMaster: Hauptmen'#129;
+   Exit;End;
+ If S='Choisissez une activit'#130' :' Then Begin
+   TrDE:='W'#132'hlen Sie eine Aktivit'#132't:';Exit;End;
+ If S='Commencer un nouveau journal' Then Begin TrDE:='Neue Zeitung beginnen';
+   Exit;End;
+ If S='Continuer le journal courant' Then Begin
+   TrDE:='Aktuelle Zeitung weiterbearbeiten';Exit;End;
+ If S='Choisir un journal enregistr'#130 Then Begin
+   TrDE:='Gespeicherte Zeitung ausw'#132'hlen';Exit;End;
  If S='Quitter NewsMaster' Then Begin TrDE:='NewsMaster beenden';Exit;End;
  If S='ENTR'#144'E : POINT FINAL' Then Begin TrDE:='EINGABE: ENDPUNKT';Exit;End;
  If S='OBJET AJOUT'#144 Then Begin TrDE:='OBJEKT HINZUGEF'#154'GT';Exit;End;
- If S='Clone graphique du programme de publication de journaux News Master.' Then Begin TrDE:='Grafischer Klon des Zeitungsprogramms News Master.';Exit;End;
- If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin TrDE:='Aufruf: NEWS [datei.NWC] [/?]';Exit;End;
- If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin TrDE:='datei.NWC    Zu '#148'ffnende Zeitung.';Exit;End;
- If S='/?           Affiche cette aide.' Then Begin TrDE:='/?           Diese Hilfe anzeigen.';Exit;End;
- If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, LANGUAGE=GR : allemand.' Then Begin TrDE:='Sprache: Franz'#148'sisch als Standard. LANGUAGE=EN: Englisch, LANGUAGE=GR: Deutsch.';Exit;End;
- If S='Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les polices originales.' Then Begin TrDE:='NEWS.FLB ins aktuelle Verzeichnis legen, um die Originalschriften zu nutzen.';Exit;End;
+ If S='Clone graphique du programme de publication de journaux News Master.'
+   Then Begin TrDE:='Grafischer Klon des Zeitungsprogramms News Master.';Exit;
+   End;
+ If S='Utilisation : NEWS [fichier.NWC] [/?]' Then Begin
+   TrDE:='Aufruf: NEWS [datei.NWC] [/?]';Exit;End;
+ If S='fichier.NWC  Journal '#133' ouvrir.' Then Begin
+   TrDE:='datei.NWC    Zu '#148'ffnende Zeitung.';Exit;End;
+ If S='/?           Affiche cette aide.' Then Begin
+   TrDE:='/?           Diese Hilfe anzeigen.';Exit;End;
+ If S='Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
+   'LANGUAGE=GR : allemand.' Then Begin
+   TrDE:='Sprache: Franz'#148'sisch als Standard. LANGUAGE=EN: Englisch, '+
+   'LANGUAGE=GR: Deutsch.';Exit;End;
+ If S='Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les '+
+   'polices originales.' Then Begin
+   TrDE:='NEWS.FLB ins aktuelle Verzeichnis legen, um die Originalschriften '+
+   'zu nutzen.';Exit;End;
  If S='Couverts' Then Begin TrDE:='Besteck';Exit;End;
  If S='Poisson' Then Begin TrDE:='Fisch';Exit;End;
  If S='Etoile' Then Begin TrDE:='Stern';Exit;End;
@@ -982,7 +1076,8 @@ Begin
  If S='Centr'#130 Then Begin TrDE:='Zentriert';Exit;End;
  If S='Justifi'#130 Then Begin TrDE:='Blocksatz';Exit;End;
  If S='Texte par-dessus' Then Begin TrDE:='Text '#129'ber Bild';Exit;End;
- If S='Texte des deux c'#147't'#130's' Then Begin TrDE:='Text auf beiden Seiten';Exit;End;
+ If S='Texte des deux c'#147't'#130's' Then Begin
+   TrDE:='Text auf beiden Seiten';Exit;End;
  If S='Texte '#133' gauche seul' Then Begin TrDE:='Text nur links';Exit;End;
  If S='Texte '#133' droite seul' Then Begin TrDE:='Text nur rechts';Exit;End;
  If S='Zone d'#130'gag'#130'e' Then Begin TrDE:='Freihalten';Exit;End;
@@ -1003,7 +1098,8 @@ Begin
  If S='Page' Then Begin TrDE:='Seite';Exit;End;
  If S='Vue' Then Begin TrDE:='Ansicht';Exit;End;
  If S='Options' Then Begin TrDE:='Optionen';Exit;End;
- If S=#192' propos de NewsMaster...' Then Begin TrDE:=#154'ber NewsMaster...';Exit;End;
+ If S=#192' propos de NewsMaster...' Then Begin TrDE:=#154'ber NewsMaster...';
+   Exit;End;
  If S='Statistiques...' Then Begin TrDE:='Statistik...';Exit;End;
  If S='M'#130'moire libre' Then Begin TrDE:='Freier Speicher';Exit;End;
  If S='Menu principal...' Then Begin TrDE:='Hauptmen'#129'...';Exit;End;
@@ -1011,30 +1107,40 @@ Begin
  If S='Ouvrir...|^O' Then Begin TrDE:=#153'ffnen...|^O';Exit;End;
  If S='Enregistrer|^S' Then Begin TrDE:='Speichern|^S';Exit;End;
  If S='Enregistrer sous...' Then Begin TrDE:='Speichern unter...';Exit;End;
- If S='Importer texte ASCII...' Then Begin TrDE:='ASCII-Text importieren...';Exit;End;
- If S='Exporter texte ASCII...' Then Begin TrDE:='ASCII-Text exportieren...';Exit;End;
- If S='Imprimer la page (PBM)...' Then Begin TrDE:='Seite drucken (PBM)...';Exit;End;
- If S='Imprimer tout (PBM)...' Then Begin TrDE:='Alles drucken (PBM)...';Exit;End;
+ If S='Importer texte ASCII...' Then Begin TrDE:='ASCII-Text importieren...';
+   Exit;End;
+ If S='Exporter texte ASCII...' Then Begin TrDE:='ASCII-Text exportieren...';
+   Exit;End;
+ If S='Imprimer la page (PBM)...' Then Begin TrDE:='Seite drucken (PBM)...';
+   Exit;End;
+ If S='Imprimer tout (PBM)...' Then Begin TrDE:='Alles drucken (PBM)...';Exit;
+   End;
  If S='Quitter|^Q' Then Begin TrDE:='Beenden|^Q';Exit;End;
  If S='Annuler|^Z' Then Begin TrDE:='R'#129'ckg'#132'ngig|^Z';Exit;End;
  If S='Couper|^X' Then Begin TrDE:='Ausschneiden|^X';Exit;End;
  If S='Copier|^C' Then Begin TrDE:='Kopieren|^C';Exit;End;
  If S='Coller|^V' Then Begin TrDE:='Einf'#129'gen|^V';Exit;End;
  If S='Effacer|Suppr' Then Begin TrDE:='L'#148'schen|Entf';Exit;End;
- If S='Tout s'#130'lectionner|^A' Then Begin TrDE:='Alles markieren|^A';Exit;End;
+ If S='Tout s'#130'lectionner|^A' Then Begin TrDE:='Alles markieren|^A';Exit;
+   End;
  If S='Chercher...|^F' Then Begin TrDE:='Suchen...|^F';Exit;End;
  If S='Chercher suivant|^G' Then Begin TrDE:='Weitersuchen|^G';Exit;End;
- If S='Choisir la police...|^T' Then Begin TrDE:='Schrift w'#132'hlen...|^T';Exit;End;
- If S='Police pr'#130'c'#130'dente' Then Begin TrDE:='Vorherige Schrift';Exit;End;
+ If S='Choisir la police...|^T' Then Begin TrDE:='Schrift w'#132'hlen...|^T';
+   Exit;End;
+ If S='Police pr'#130'c'#130'dente' Then Begin TrDE:='Vorherige Schrift';Exit;
+   End;
  If S='Police suivante' Then Begin TrDE:='N'#132'chste Schrift';Exit;End;
- If S='Aligner '#133' gauche|^L' Then Begin TrDE:='Linksb'#129'ndig|^L';Exit;End;
- If S='Aligner '#133' droite|^R' Then Begin TrDE:='Rechtsb'#129'ndig|^R';Exit;End;
+ If S='Aligner '#133' gauche|^L' Then Begin TrDE:='Linksb'#129'ndig|^L';Exit;
+   End;
+ If S='Aligner '#133' droite|^R' Then Begin TrDE:='Rechtsb'#129'ndig|^R';Exit;
+   End;
  If S='Centrer|^E' Then Begin TrDE:='Zentrieren|^E';Exit;End;
  If S='Justifier|^J' Then Begin TrDE:='Blocksatz|^J';Exit;End;
  If S='Marquer la s'#130'lection' Then Begin TrDE:='Auswahl markieren';Exit;End;
  If S='Mode '#130'dition du texte|F2' Then Begin TrDE:='Textmodus|F2';Exit;End;
  If S='Mode '#130'dition d''images|F3' Then Begin TrDE:='Bildmodus|F3';Exit;End;
- If S='Choisir une image...|F1' Then Begin TrDE:='Bild w'#132'hlen...|F1';Exit;End;
+ If S='Choisir une image...|F1' Then Begin TrDE:='Bild w'#132'hlen...|F1';Exit;
+   End;
  If S='Prendre|F2' Then Begin TrDE:='Aufnehmen|F2';Exit;End;
  If S='Prendre une copie|F3' Then Begin TrDE:='Kopie aufnehmen|F3';Exit;End;
  If S='Poser|Entr'#130'e' Then Begin TrDE:='Ablegen|Eingabe';Exit;End;
@@ -1047,7 +1153,8 @@ Begin
  If S='Tracer une ligne' Then Begin TrDE:='Linie zeichnen';Exit;End;
  If S='Tracer une bo'#140'te' Then Begin TrDE:='Rahmen zeichnen';Exit;End;
  If S='Motif de remplissage...' Then Begin TrDE:='F'#129'llmuster...';Exit;End;
- If S=#144'paisseur du trait...' Then Begin TrDE:='Linienst'#132'rke...';Exit;End;
+ If S=#144'paisseur du trait...' Then Begin TrDE:='Linienst'#132'rke...';Exit;
+   End;
  If S='Mode mise en page|F4' Then Begin TrDE:='Layoutmodus|F4';Exit;End;
  If S='Ajouter une colonne' Then Begin TrDE:='Spalte hinzuf'#129'gen';Exit;End;
  If S='Supprimer une colonne' Then Begin TrDE:='Spalte l'#148'schen';Exit;End;
@@ -1055,27 +1162,33 @@ Begin
  If S='Supprimer le titre' Then Begin TrDE:='Titel l'#148'schen';Exit;End;
  If S='Ajouter une page' Then Begin TrDE:='Seite hinzuf'#129'gen';Exit;End;
  If S='Supprimer la page' Then Begin TrDE:='Seite l'#148'schen';Exit;End;
- If S='Page pr'#130'c'#130'dente|PgHaut' Then Begin TrDE:='Vorherige Seite|BildAuf';Exit;End;
- If S='Page suivante|PgBas' Then Begin TrDE:='N'#132'chste Seite|BildAb';Exit;End;
+ If S='Page pr'#130'c'#130'dente|PgHaut' Then Begin
+   TrDE:='Vorherige Seite|BildAuf';Exit;End;
+ If S='Page suivante|PgBas' Then Begin TrDE:='N'#132'chste Seite|BildAb';Exit;
+   End;
  If S=#133' la page...' Then Begin TrDE:='Gehe zu Seite...';Exit;End;
  If S='Zoom avant (x2)' Then Begin TrDE:='Vergr'#148#225'ern (x2)';Exit;End;
  If S='Vue normale' Then Begin TrDE:='Normalansicht';Exit;End;
  If S='Largeur de la page' Then Begin TrDE:='Seitenbreite';Exit;End;
  If S='Page enti'#138're' Then Begin TrDE:='Ganze Seite';Exit;End;
- If S='Pas du curseur : grand' Then Begin TrDE:='Cursorschritt: gro'#225;Exit;End;
- If S='Pas du curseur : moyen' Then Begin TrDE:='Cursorschritt: mittel';Exit;End;
+ If S='Pas du curseur : grand' Then Begin TrDE:='Cursorschritt: gro'#225;Exit;
+   End;
+ If S='Pas du curseur : moyen' Then Begin TrDE:='Cursorschritt: mittel';Exit;
+   End;
  If S='Pas du curseur : point' Then Begin TrDE:='Cursorschritt: Punkt';Exit;End;
  If S='Polices de NEWS.FLB' Then Begin TrDE:='Schriften aus NEWS.FLB';Exit;End;
  If S='Guides de colonnes' Then Begin TrDE:='Spaltenf'#129'hrung';Exit;End;
  If S='Afficher les infos...' Then Begin TrDE:='Info...';Exit;End;
- If S='MENU D'''#144'DITION PRINCIPAL' Then Begin TrDE:='HAUPTMEN'#154' BEARBEITEN';Exit;End;
+ If S='MENU D'''#144'DITION PRINCIPAL' Then Begin
+   TrDE:='HAUPTMEN'#154' BEARBEITEN';Exit;End;
  If S='VUE' Then Begin TrDE:='ANSICHT';Exit;End;
  If S='TEXTE' Then Begin TrDE:='TEXT';Exit;End;
  If S='IMAGES' Then Begin TrDE:='BILDER';Exit;End;
  If S='PAGE' Then Begin TrDE:='SEITE';Exit;End;
  If S='FICHIER' Then Begin TrDE:='DATEI';Exit;End;
  If S='IMPRIM.' Then Begin TrDE:='DRUCK';Exit;End;
- If S='CHANGER LA VUE DU JOURNAL' Then Begin TrDE:='SEITENANSICHT '#142'NDERN';Exit;End;
+ If S='CHANGER LA VUE DU JOURNAL' Then Begin TrDE:='SEITENANSICHT '#142'NDERN';
+   Exit;End;
  If S='ZOOM|AVANT' Then Begin TrDE:='ZOOM|GROSS';Exit;End;
  If S='VUE|NORMALE' Then Begin TrDE:='NORMAL|ANSICHT';Exit;End;
  If S='LARGEUR|DE PAGE' Then Begin TrDE:='SEITEN-|BREITE';Exit;End;
@@ -1102,7 +1215,8 @@ Begin
  If S='RETOUR-|NER' Then Begin TrDE:='SPIEGEL';Exit;End;
  If S='LIGNE|BO'#139'TE' Then Begin TrDE:='LINIE|RAHMEN';Exit;End;
  If S='SUPPR.' Then Begin TrDE:='L'#153'SCHEN';Exit;End;
- If S='MODIFIER LA MISE EN PAGE' Then Begin TrDE:='SEITENLAYOUT '#142'NDERN';Exit;End;
+ If S='MODIFIER LA MISE EN PAGE' Then Begin TrDE:='SEITENLAYOUT '#142'NDERN';
+   Exit;End;
  If S='AJOUT|COLONNE' Then Begin TrDE:='SPALTE|NEU';Exit;End;
  If S='SUPPR.|COLONNE' Then Begin TrDE:='SPALTE|L'#153'SCHEN';Exit;End;
  If S='AJOUT|TITRE' Then Begin TrDE:='TITEL|NEU';Exit;End;
@@ -1135,8 +1249,10 @@ Begin
  If S=' COLONNE' Then Begin TrDE:=' SPALTE';Exit;End;
  If S=' + TITRE' Then Begin TrDE:=' + TITEL';Exit;End;
  If S='TEXTE TROP LONG' Then Begin TrDE:='TEXT ZU LANG';Exit;End;
- If S=' CARACT'#138'RES COPI'#144'S' Then Begin TrDE:=' ZEICHEN KOPIERT';Exit;End;
- If S='MARQUEZ AVEC LES FL'#138'CHES' Then Begin TrDE:='MIT PFEILTASTEN MARKIEREN';Exit;End;
+ If S=' CARACT'#138'RES COPI'#144'S' Then Begin TrDE:=' ZEICHEN KOPIERT';Exit;
+   End;
+ If S='MARQUEZ AVEC LES FL'#138'CHES' Then Begin
+   TrDE:='MIT PFEILTASTEN MARKIEREN';Exit;End;
  If S='S'#144'LECTION FIX'#144'E' Then Begin TrDE:='AUSWAHL FIXIERT';Exit;End;
  If S='Choisir une police' Then Begin TrDE:='Schrift w'#132'hlen';Exit;End;
  If S=' polices' Then Begin TrDE:=' Schriften';Exit;End;
@@ -1148,18 +1264,23 @@ Begin
  If S='RIEN A POSER' Then Begin TrDE:='NICHTS ZUM ABLEGEN';Exit;End;
  If S='AUCUNE IMAGE ICI' Then Begin TrDE:='KEIN BILD HIER';Exit;End;
  If S='Choisir une image' Then Begin TrDE:='Bild w'#132'hlen';Exit;End;
- If S='Fl'#138'ches : choisir  Entr'#130'e : valider' Then Begin TrDE:='Pfeile: w'#132'hlen  Eingabe: OK';Exit;End;
+ If S='Fl'#138'ches : choisir  Entr'#130'e : valider' Then Begin
+   TrDE:='Pfeile: w'#132'hlen  Eingabe: OK';Exit;End;
  If S='M'#138'ME PAGE SVP' Then Begin TrDE:='BITTE GLEICHE SEITE';Exit;End;
- If S='ENTR'#144'E : POINT DE D'#144'PART' Then Begin TrDE:='EINGABE: STARTPUNKT';Exit;End;
+ If S='ENTR'#144'E : POINT DE D'#144'PART' Then Begin
+   TrDE:='EINGABE: STARTPUNKT';Exit;End;
  If S='Motif de remplissage' Then Begin TrDE:='F'#129'llmuster';Exit;End;
  If S=#144'paisseur' Then Begin TrDE:='St'#132'rke';Exit;End;
- If S='Epaisseur du trait (1-12) :' Then Begin TrDE:='Linienst'#132'rke (1-12):';Exit;End;
+ If S='Epaisseur du trait (1-12) :' Then Begin
+   TrDE:='Linienst'#132'rke (1-12):';Exit;End;
  If S='MAXIMUM : ' Then Begin TrDE:='MAXIMAL: ';Exit;End;
  If S='UNE COLONNE MINIMUM' Then Begin TrDE:='MINDESTENS EINE SPALTE';Exit;End;
- If S='TITRE D'#144'J'#133' PR'#144'SENT' Then Begin TrDE:='TITEL SCHON VORHANDEN';Exit;End;
+ If S='TITRE D'#144'J'#133' PR'#144'SENT' Then Begin
+   TrDE:='TITEL SCHON VORHANDEN';Exit;End;
  If S='Titre' Then Begin TrDE:='Titel';Exit;End;
  If S=' PAGES' Then Begin TrDE:=' SEITEN';Exit;End;
- If S='IMPOSSIBLE : UNE PAGE' Then Begin TrDE:='UNM'#153'GLICH: NUR EINE SEITE';Exit;End;
+ If S='IMPOSSIBLE : UNE PAGE' Then Begin TrDE:='UNM'#153'GLICH: NUR EINE SEITE';
+   Exit;End;
  If S='TEXTE TRONQU'#144 Then Begin TrDE:='TEXT GEK'#154'RZT';Exit;End;
  If S='Fichier :' Then Begin TrDE:='Datei:';Exit;End;
  If S='(aucun fichier ' Then Begin TrDE:='(keine Datei ';Exit;End;
@@ -1167,60 +1288,101 @@ Begin
  If S='Impression' Then Begin TrDE:='Drucken';Exit;End;
  If S='Page ' Then Begin TrDE:='Seite ';Exit;End;
  If S=' enregistr'#130'e dans ' Then Begin TrDE:=' gespeichert in ';Exit;End;
- If S='Pages enregistr'#130'es : ' Then Begin TrDE:='Gespeicherte Seiten: ';Exit;End;
+ If S='Pages enregistr'#130'es : ' Then Begin TrDE:='Gespeicherte Seiten: ';
+   Exit;End;
  If S='Format : bitmap PBM ' Then Begin TrDE:='Format: PBM-Bitmap ';Exit;End;
- If S='Erreur d'''#130'criture du fichier.' Then Begin TrDE:='Fehler beim Schreiben der Datei.';Exit;End;
+ If S='Erreur d'''#130'criture du fichier.' Then Begin
+   TrDE:='Fehler beim Schreiben der Datei.';Exit;End;
  If S='Titre du journal' Then Begin TrDE:='Titel der Zeitung';Exit;End;
- If S='Les changements non enregistr'#130's seront perdus. Continuer ?' Then Begin TrDE:='Nicht gespeicherte '#142'nderungen gehen verloren. Fortfahren?';Exit;End;
+ If S='Les changements non enregistr'#130's seront perdus. Continuer ?' Then
+   Begin TrDE:='Nicht gespeicherte '#142'nderungen gehen verloren. Fortfahren?';
+   Exit;End;
  If S='Ouvrir un journal' Then Begin TrDE:='Zeitung '#148'ffnen';Exit;End;
  If S='Ouvrir' Then Begin TrDE:=#153'ffnen';Exit;End;
- If S='Fichier introuvable : ' Then Begin TrDE:='Datei nicht gefunden: ';Exit;End;
+ If S='Fichier introuvable : ' Then Begin TrDE:='Datei nicht gefunden: ';Exit;
+   End;
  If S='JOURNAL CHARG'#144 Then Begin TrDE:='ZEITUNG GELADEN';Exit;End;
- If S='Ce fichier n''est pas un journal NewsMaster valide.' Then Begin TrDE:='Diese Datei ist keine g'#129'ltige NewsMaster-Zeitung.';Exit;End;
+ If S='Ce fichier n''est pas un journal NewsMaster valide.' Then Begin
+   TrDE:='Diese Datei ist keine g'#129'ltige NewsMaster-Zeitung.';Exit;End;
  If S='Enregistrer le journal' Then Begin TrDE:='Zeitung speichern';Exit;End;
  If S='Enregistrer' Then Begin TrDE:='Speichern';Exit;End;
  If S='Le fichier ' Then Begin TrDE:='Die Datei ';Exit;End;
- If S=' existe. Le remplacer ?' Then Begin TrDE:=' existiert. Ersetzen?';Exit;End;
+ If S=' existe. Le remplacer ?' Then Begin TrDE:=' existiert. Ersetzen?';Exit;
+   End;
  If S='JOURNAL ENREGISTR'#144 Then Begin TrDE:='ZEITUNG GESPEICHERT';Exit;End;
- If S='Importer du texte ASCII' Then Begin TrDE:='ASCII-Text importieren';Exit;End;
+ If S='Importer du texte ASCII' Then Begin TrDE:='ASCII-Text importieren';Exit;
+   End;
  If S='Importer' Then Begin TrDE:='Importieren';Exit;End;
  If S='Impossible de lire ' Then Begin TrDE:='Kann nicht lesen: ';Exit;End;
- If S='Exporter le texte ASCII' Then Begin TrDE:='ASCII-Text exportieren';Exit;End;
+ If S='Exporter le texte ASCII' Then Begin TrDE:='ASCII-Text exportieren';Exit;
+   End;
  If S='TEXTE EXPORT'#144 Then Begin TrDE:='TEXT EXPORTIERT';Exit;End;
  If S='Exporter' Then Begin TrDE:='Exportieren';Exit;End;
- If S='Quitter NewsMaster ? Les changements seront perdus.' Then Begin TrDE:='NewsMaster beenden? '#142'nderungen gehen verloren.';Exit;End;
+ If S='Quitter NewsMaster ? Les changements seront perdus.' Then Begin
+   TrDE:='NewsMaster beenden? '#142'nderungen gehen verloren.';Exit;End;
  If S='Quitter NewsMaster ?' Then Begin TrDE:='NewsMaster beenden?';Exit;End;
  If S=#133' la page' Then Begin TrDE:='Gehe zu Seite';Exit;End;
  If S='Num'#130'ro de page :' Then Begin TrDE:='Seitennummer:';Exit;End;
- If S=#192' propos de NewsMaster' Then Begin TrDE:=#154'ber NewsMaster';Exit;End;
- If S='NewsMaster - Clone Pascal' Then Begin TrDE:='NewsMaster - Pascal-Klon';Exit;End;
- If S='Programme de publication de journaux' Then Begin TrDE:='Programm zur Zeitungsgestaltung';Exit;End;
- If S='Inspir'#130' de News Master (Unison World, 1986)' Then Begin TrDE:='Inspiriert von News Master (Unison World, 1986)';Exit;End;
+ If S=#192' propos de NewsMaster' Then Begin TrDE:=#154'ber NewsMaster';Exit;
+   End;
+ If S='NewsMaster - Clone Pascal' Then Begin TrDE:='NewsMaster - Pascal-Klon';
+   Exit;End;
+ If S='Programme de publication de journaux' Then Begin
+   TrDE:='Programm zur Zeitungsgestaltung';Exit;End;
+ If S='Inspir'#130' de News Master (Unison World, 1986)' Then Begin
+   TrDE:='Inspiriert von News Master (Unison World, 1986)';Exit;End;
  If S='Pages : ' Then Begin TrDE:='Seiten: ';Exit;End;
  If S='Texte principal : ' Then Begin TrDE:='Haupttext: ';Exit;End;
  If S=' caract'#138'res' Then Begin TrDE:=' Zeichen';Exit;End;
  If S='Images et traits : ' Then Begin TrDE:='Bilder und Linien: ';Exit;End;
- If S='Polices disponibles : ' Then Begin TrDE:='Verf'#129'gbare Schriften: ';Exit;End;
+ If S='Polices disponibles : ' Then Begin TrDE:='Verf'#129'gbare Schriften: ';
+   Exit;End;
  If S=' (int'#130'gr'#130'es)' Then Begin TrDE:=' (eingebaut)';Exit;End;
- If S='ATTENTION : du texte d'#130'passe la mise en page' Then Begin TrDE:='ACHTUNG: Text passt nicht ins Layout';Exit;End;
+ If S='ATTENTION : du texte d'#130'passe la mise en page' Then Begin
+   TrDE:='ACHTUNG: Text passt nicht ins Layout';Exit;End;
  If S='Statistiques' Then Begin TrDE:='Statistik';Exit;End;
  If S='M'#130'moire' Then Begin TrDE:='Speicher';Exit;End;
- If S='M'#130'moire g'#130'r'#130'e par Free Pascal.' Then Begin TrDE:='Speicher wird von Free Pascal verwaltet.';Exit;End;
- If S='Plus grand bloc libre : ' Then Begin TrDE:='Gr'#148#225'ter freier Block: ';Exit;End;
+ If S='M'#130'moire g'#130'r'#130'e par Free Pascal.' Then Begin
+   TrDE:='Speicher wird von Free Pascal verwaltet.';Exit;End;
+ If S='Plus grand bloc libre : ' Then Begin
+   TrDE:='Gr'#148#225'ter freier Block: ';Exit;End;
  If S='M'#130'moire libre : ' Then Begin TrDE:='Freier Speicher: ';Exit;End;
- If S='CRAZY JOE''S FISH SHACK' Then Begin TrDE:='CRAZY JOE''S FISCHBUDE';Exit;End;
- If S='Attrapez nos portions de taille BALEINE '#133' prix de sardine !' Then Begin TrDE:='Schnappen Sie sich unsere WAL-Portionen zum Sardinenpreis!';Exit;End;
+ If S='CRAZY JOE''S FISH SHACK' Then Begin TrDE:='CRAZY JOE''S FISCHBUDE';Exit;
+   End;
+ If S='Attrapez nos portions de taille BALEINE '#133' prix de sardine !' Then
+   Begin TrDE:='Schnappen Sie sich unsere WAL-Portionen zum Sardinenpreis!';
+   Exit;End;
  If S='Sp'#130'cial du jour' Then Begin TrDE:='Tagesangebot';Exit;End;
- If S='Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, ' Then Begin TrDE:='Gebratene Flunder: 5,25 $. Unser Koch, ein ehemaliger Seemann mit gro'#225'em Herz, ';Exit;End;
- If S='pr'#130'pare chaque matin le poisson le plus frais du port. ' Then Begin TrDE:='bereitet jeden Morgen den frischesten Fisch des Hafens zu. ';Exit;End;
- If S='Servi avec des frites maison, une salade croquante et la fameuse sauce secr'#138'te de la maison.' Then Begin TrDE:='Serviert mit hausgemachten Pommes, knackigem Salat und der ber'#129'hmten geheimen Hausso'#225'e.';Exit;End;
- If S='Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la cr'#138'me, ' Then Begin TrDE:='Muschelsuppe: 3,95 $. Eine s'#132'mige Suppe mit Sahne, ';Exit;End;
- If S='garnie de palourdes, de pommes de terre et de lard fum'#130'. Id'#130'ale ' Then Begin TrDE:='mit Muscheln, Kartoffeln und R'#132'ucherspeck. Ideal ';Exit;End;
- If S='pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.' Then Begin TrDE:='um kalte Wintertage am Kai zu erw'#132'rmen.';Exit;End;
- If S='Plateau de fruits de mer : 7,99 $. ' Then Begin TrDE:='Meeresfr'#129'chteplatte: 7,99 $. ';Exit;End;
- If S='Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de citron et de beurre fondu. ' Then Begin TrDE:='Garnelen, Jakobsmuscheln, Tintenfisch und Miesmuscheln mit Zitrone und zerlassener Butter. ';Exit;End;
- If S='Le plateau est servi sur glace pour garder toute la fra'#139'cheur de la mer. ' Then Begin TrDE:='Die Platte wird auf Eis serviert, damit die Frische des Meeres erhalten bleibt. ';Exit;End;
- If S='Venez nombreux, la maison offre le caf'#130' !' Then Begin TrDE:='Kommen Sie zahlreich, der Kaffee geht aufs Haus!';Exit;End;
+ If S='Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, '
+   Then Begin
+   TrDE:='Gebratene Flunder: 5,25 $. Unser Koch, ein ehemaliger Seemann mit '+
+   'gro'#225'em Herz, ';Exit;End;
+ If S='pr'#130'pare chaque matin le poisson le plus frais du port. ' Then Begin
+   TrDE:='bereitet jeden Morgen den frischesten Fisch des Hafens zu. ';Exit;End;
+ If S='Servi avec des frites maison, une salade croquante et la fameuse sauce '+
+   'secr'#138'te de la maison.' Then Begin
+   TrDE:='Serviert mit hausgemachten Pommes, knackigem Salat und der '+
+   'ber'#129'hmten geheimen Hausso'#225'e.';Exit;End;
+ If S='Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la '+
+   'cr'#138'me, ' Then Begin
+   TrDE:='Muschelsuppe: 3,95 $. Eine s'#132'mige Suppe mit Sahne, ';Exit;End;
+ If S='garnie de palourdes, de pommes de terre et de lard fum'#130'. '+
+   'Id'#130'ale ' Then Begin
+   TrDE:='mit Muscheln, Kartoffeln und R'#132'ucherspeck. Ideal ';Exit;End;
+ If S='pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.' Then Begin
+   TrDE:='um kalte Wintertage am Kai zu erw'#132'rmen.';Exit;End;
+ If S='Plateau de fruits de mer : 7,99 $. ' Then Begin
+   TrDE:='Meeresfr'#129'chteplatte: 7,99 $. ';Exit;End;
+ If S='Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de '+
+   'citron et de beurre fondu. ' Then Begin
+   TrDE:='Garnelen, Jakobsmuscheln, Tintenfisch und Miesmuscheln mit Zitrone '+
+   'und zerlassener Butter. ';Exit;End;
+ If S='Le plateau est servi sur glace pour garder toute la fra'#139'cheur de '+
+   'la mer. ' Then Begin
+   TrDE:='Die Platte wird auf Eis serviert, damit die Frische des Meeres '+
+   'erhalten bleibt. ';Exit;End;
+ If S='Venez nombreux, la maison offre le caf'#130' !' Then Begin
+   TrDE:='Kommen Sie zahlreich, der Kaffee geht aufs Haus!';Exit;End;
 End;
 
 Function Tr(Const S: String): String;
@@ -1370,7 +1532,8 @@ Begin
        SX:=L*K+X-ShRow-J;
        If SysBit(C,K,SX,Y)=1 Then Bit:=True;
       End;
-      If Bit Then Buf^[O+4+Y*Bpr+(X Shr 3)]:=Buf^[O+4+Y*Bpr+(X Shr 3)] Or ($80 Shr (X And 7));
+      If Bit Then Buf^[O+4+Y*Bpr+(X Shr 3)]:=Buf^[O+4+Y*Bpr+(X Shr 3)] Or ($80
+        Shr (X And 7));
      End;
     End;
    End;
@@ -1428,7 +1591,8 @@ Begin
  FLBFile:='news.flb';
  If FileExists(FLBFile) Then Exit;
  D:=ParamStr(0);
- While (Length(D)>0) And (D[Length(D)]<>'\') And (D[Length(D)]<>'/') Do Dec(D[0]);
+ While (Length(D)>0) And (D[Length(D)]<>'\') And (D[Length(D)]<>'/') Do
+   Dec(D[0]);
  FLBFile:=D+'NEWS.FLB';
  If FileExists(FLBFile) Then Exit;
  FLBFile:=D+'news.flb';
@@ -1720,13 +1884,15 @@ Begin
  For Y:=0 To H-1 Do
   For X:=0 To W-1 Do
    If GetPixel(X,Y)=INK Then
-    Lib[NLib].B^[Y*Bpr+(X Shr 3)]:=Lib[NLib].B^[Y*Bpr+(X Shr 3)] Or ($80 Shr (X And 7));
+    Lib[NLib].B^[Y*Bpr+(X Shr 3)]:=Lib[NLib].B^[Y*Bpr+(X Shr 3)] Or ($80 Shr (X
+      And 7));
  SetLineStyle(SolidLn,0,1);
 End;
 
 Procedure Thick(T: Integer);
 Begin
- If T>1 Then SetLineStyle(SolidLn,0,ThickWidth) Else SetLineStyle(SolidLn,0,NormWidth);
+ If T>1 Then SetLineStyle(SolidLn,0,ThickWidth) Else SetLineStyle(SolidLn,0,
+   NormWidth);
 End;
 
 Procedure MakeCouverts;
@@ -1944,9 +2110,11 @@ Var P: Array[1..4] Of PointType; I: Integer;
 Begin
  PBegin;
  SetLineStyle(SolidLn,0,NormWidth);
- P[1].X:=4;P[1].Y:=14;P[2].X:=32;P[2].Y:=20;P[3].X:=32;P[3].Y:=58;P[4].X:=4;P[4].Y:=52;
+ P[1].X:=4;P[1].Y:=14;P[2].X:=32;P[2].Y:=20;P[3].X:=32;P[3].Y:=58;P[4].X:=4;
+   P[4].Y:=52;
  DrawPoly(4,P);Line(4,52,4,14);
- P[1].X:=60;P[1].Y:=14;P[2].X:=32;P[2].Y:=20;P[3].X:=32;P[3].Y:=58;P[4].X:=60;P[4].Y:=52;
+ P[1].X:=60;P[1].Y:=14;P[2].X:=32;P[2].Y:=20;P[3].X:=32;P[3].Y:=58;P[4].X:=60;
+   P[4].Y:=52;
  DrawPoly(4,P);Line(60,52,60,14);
  For I:=0 To 4 Do Begin
   Line(8,24+I*6,28,28+I*6);Line(56,24+I*6,36,28+I*6);
@@ -2036,7 +2204,8 @@ Procedure StInit(I,ACap,Fn,Al: Integer);
 Begin
  St[I].Cap:=ACap;
  GetMem(St[I].T,ACap+2);GetMem(St[I].F,ACap+2);GetMem(St[I].A,ACap+2);
- FillChar(St[I].T^,ACap+2,0);FillChar(St[I].F^,ACap+2,0);FillChar(St[I].A^,ACap+2,0);
+ FillChar(St[I].T^,ACap+2,0);FillChar(St[I].F^,ACap+2,0);FillChar(St[I].A^,
+   ACap+2,0);
  St[I].Len:=0;
  St[I].T^[0]:=13;St[I].F^[0]:=Fn;St[I].A^[0]:=Al;
 End;
@@ -2119,7 +2288,8 @@ Var N: Integer;
 Begin
  If Not UndoOK Then Exit;
  N:=UndoLen+1;
- Move(UndoT^,St[UndoSt].T^,N);Move(UndoF^,St[UndoSt].F^,N);Move(UndoA^,St[UndoSt].A^,N);
+ Move(UndoT^,St[UndoSt].T^,N);Move(UndoF^,St[UndoSt].F^,N);Move(UndoA^,
+   St[UndoSt].A^,N);
  St[UndoSt].Len:=UndoLen;
  ASt:=UndoSt;Cur:=UndoCur;SelA:=-1;
  UndoOK:=False;
@@ -2251,7 +2421,8 @@ Begin
 End;
 
 { Remplit une ligne a partir de Ps dans une largeur W }
-Procedure FillLine(S,Ps,W: Integer; Var E,Nx,Lw,Ns,Asc,Dsc: Integer; Var ParaEnd: Boolean);
+Procedure FillLine(S,Ps,W: Integer; Var E,Nx,Lw,Ns,Asc,Dsc: Integer; Var
+  ParaEnd: Boolean);
 Var I,X,Adv,LastSp,F,K: Integer; C: Byte;
 Begin
  I:=Ps;X:=0;LastSp:=-1;ParaEnd:=False;
@@ -2320,7 +2491,8 @@ Begin
 End;
 
 Procedure LayoutFlow;
-Var Ps,R,Y,E,Nx,Lw,Ns,Asc,Dsc,Hd,H2,Tries,SX,SW,LY,LH,F0: Integer; PEnd,Ok: Boolean;
+Var Ps,R,Y,E,Nx,Lw,Ns,Asc,Dsc,Hd,H2,Tries,SX,SW,LY,LH,F0: Integer; PEnd,Ok:
+  Boolean;
 Begin
  Ps:=0;R:=1;Y:=RegY[1];BandOn:=False;Overflow:=False;
  SX:=0;SW:=100;LY:=0;LH:=10;
@@ -2592,7 +2764,8 @@ Begin
   XS:=Lines^[I].X;
  End;
  XE:=XS+Lines^[I].Lw;
- If (Lines^[I].Al=AL_BOTH) And (Lines^[I].Fl=0) Then Begin XS:=Lines^[I].X;XE:=XS+Lines^[I].W;End;
+ If (Lines^[I].Al=AL_BOTH) And (Lines^[I].Fl=0) Then Begin XS:=Lines^[I].X;
+   XE:=XS+Lines^[I].W;End;
  F:=St[Lines^[I].Sty].F^[Lines^[I].S];
  Fh:=FAsc[F]+FDsc[F];
  YT:=Y0+Sc(Lines^[I].Y+Lines^[I].Asc-FAsc[F]*7 Div 10);
@@ -2668,7 +2841,8 @@ Begin
     If (T<1) And (Arts[I].Th>0) Then T:=1;
     SetColor(INK);SetLineStyle(SolidLn,0,1);
     For J:=0 To T-1 Do
-     If (SW-1-2*J>0) And (SH-1-2*J>0) Then Rectangle(SX+J,SY+J,SX+SW-1-J,SY+SH-1-J);
+     If (SW-1-2*J>0) And (SH-1-2*J>0) Then Rectangle(SX+J,SY+J,SX+SW-1-J,
+       SY+SH-1-J);
    End;
   AR_LINE: Begin
     T:=Sc(Arts[I].Th);
@@ -2694,7 +2868,8 @@ Var R: Integer;
 Begin
  For R:=1 To NReg Do
   If RegPg[R]=P Then
-   DotRect(X0+Sc(RegX[R]),Y0+Sc(RegY[R]),X0+Sc(RegX[R]+RegW[R]),Y0+Sc(RegY[R]+RegH[R]));
+   DotRect(X0+Sc(RegX[R]),Y0+Sc(RegY[R]),X0+Sc(RegX[R]+RegW[R]),
+     Y0+Sc(RegY[R]+RegH[R]));
  If HasHead[P] Then
   DotRect(X0+Sc(MRG),Y0+Sc(MRG),X0+Sc(PGW-MRG),Y0+Sc(MRG+HEADH));
 End;
@@ -2762,7 +2937,8 @@ Begin
  If HeldOn Then Begin
   HW:=Sc(Held.W);HH:=Sc(Held.H);
   If Held.Kind=AR_ART Then
-   DrawPiece(Held.Lib,Held.SX1,Held.SY1,Held.SX2,Held.SY2,Held.FH<>0,Held.FV<>0,SX,SY,HW,HH);
+   DrawPiece(Held.Lib,Held.SX1,Held.SY1,Held.SX2,Held.SY2,Held.FH<>0,Held.FV<>0,
+     SX,SY,HW,HH);
   If Held.Kind=AR_BOX Then Begin
    SetColor(INK);Rectangle(SX,SY,SX+HW-1,SY+HH-1);
   End;
@@ -2930,7 +3106,8 @@ Begin
   Case E.Kind Of
    4: Begin
        Armed:=True;
-       If InBox(E.X,E.Y,X,Y+2,X+W,Y+H-2) Then I:=Integer((E.Y-Y-2) Div 16+1) Else I:=0;
+       If InBox(E.X,E.Y,X,Y+2,X+W,Y+H-2) Then I:=Integer((E.Y-Y-2) Div 16+1)
+         Else I:=0;
        If I>N Then I:=N;
        If I<>Hi Then Begin Hi:=I;Redraw:=True;End;
       End;
@@ -2939,11 +3116,13 @@ Begin
        If Res>N Then Res:=N;
        Done:=True;
       End;
-   3: If Armed And InBox(E.X,E.Y,X,Y+2,X+W,Y+H-2) And (Hi>0) Then Begin Res:=Hi;Done:=True;End;
+   3: If Armed And InBox(E.X,E.Y,X,Y+2,X+W,Y+H-2) And (Hi>0) Then Begin Res:=Hi;
+     Done:=True;End;
    1: Case E.Key Of
        K_ESC: Done:=True;
        K_UP: Begin If Hi>1 Then Dec(Hi) Else Hi:=N;Redraw:=True;End;
-       K_DOWN: Begin If (Hi<N) And (Hi>0) Then Inc(Hi) Else Hi:=1;Redraw:=True;End;
+       K_DOWN: Begin If (Hi<N) And (Hi>0) Then Inc(Hi) Else Hi:=1;Redraw:=True;
+         End;
        K_ENTER: Begin Res:=Hi;Done:=True;End;
       End;
   End;
@@ -3023,7 +3202,8 @@ Function CtlIdx(Id: Integer): Integer;
 Var I: Integer;
 Begin
  CtlIdx:=0;
- For I:=1 To NDC Do If (DC[I].Id=Id) And (DC[I].Kind<>C_BTN) Then Begin CtlIdx:=I;Exit;End;
+ For I:=1 To NDC Do If (DC[I].Id=Id) And (DC[I].Kind<>C_BTN) Then Begin
+   CtlIdx:=I;Exit;End;
 End;
 
 Function CStr(Id: Integer): String;
@@ -3174,7 +3354,8 @@ Begin
      End;
    End;
   End Else If E.Kind=2 Then Begin
-   If InBox(E.X,E.Y,DlgX+3,DlgY+3,DlgX+22,DlgY+TBH) Then Begin Res:=2;Done:=True;End
+   If InBox(E.X,E.Y,DlgX+3,DlgY+3,DlgX+22,DlgY+TBH) Then Begin Res:=2;
+     Done:=True;End
    Else For I:=1 To NDC Do Begin
     X:=DlgX+DC[I].X;Y:=DlgY+DC[I].Y;
     If (DC[I].Kind In [C_EDIT,C_CHECK,C_RADIO,C_BTN,C_POP]) And
@@ -3237,7 +3418,8 @@ Begin
  ConfirmBox:=RunDialog=1;
 End;
 
-Function InputBox(Const Title0,Prompt0: String; Var S: String; MaxLen: Integer): Boolean;
+Function InputBox(Const Title0,Prompt0: String; Var S: String; MaxLen: Integer):
+  Boolean;
 Var W: Integer; Title,Prompt: String;
 Begin
  Title:=Tr(Title0);Prompt:=Tr(Prompt0);
@@ -3598,8 +3780,10 @@ Begin
       End;
    1: Case E.Key Of
        K_ESC: Done:=True;
-       K_LEFT: Begin Dec(M);If M<1 Then M:=NMENU;Hi:=NextItem(M,0,1);Redraw:=True;End;
-       K_RIGHT: Begin Inc(M);If M>NMENU Then M:=1;Hi:=NextItem(M,0,1);Redraw:=True;End;
+       K_LEFT: Begin Dec(M);If M<1 Then M:=NMENU;Hi:=NextItem(M,0,1);
+         Redraw:=True;End;
+       K_RIGHT: Begin Inc(M);If M>NMENU Then M:=1;Hi:=NextItem(M,0,1);
+         Redraw:=True;End;
        K_UP: Begin Hi:=NextItem(M,Hi,-1);Redraw:=True;End;
        K_DOWN: Begin Hi:=NextItem(M,Hi,1);Redraw:=True;End;
        K_ENTER: If Hi<>0 Then Begin Pick:=True;Done:=True;End;
@@ -3646,11 +3830,13 @@ Begin
   MD_VIEW: Begin
     PanelTitle:='CHANGER LA VUE DU JOURNAL';
     AddPB('ZOOM|AVANT',0);AddPB('VUE|NORMALE',0);AddPB('LARGEUR|DE PAGE',0);
-    AddPB('PAGE|ENTI'#138'RE',0);AddPB('PAGE|PR'#144'C.',0);AddPB('PAGE|SUIV.',0);
+    AddPB('PAGE|ENTI'#138'RE',0);AddPB('PAGE|PR'#144'C.',0);AddPB('PAGE|SUIV.',
+      0);
    End;
   MD_TEXT: Begin
     PanelTitle:='MODIFIER LE TEXTE';
-    AddPB('CHOISIR|POLICE',0);AddPB('ALIGNE-|MENT',0);AddPB('S'#144'LEC-|TION',0);
+    AddPB('CHOISIR|POLICE',0);AddPB('ALIGNE-|MENT',0);AddPB('S'#144'LEC-|TION',
+      0);
     AddPB('COUPER',0);AddPB('COPIER',0);AddPB('COLLER',0);
     AddPB('IMPORT|ASCII',0);AddPB('ANNULER',0);
    End;
@@ -3686,7 +3872,8 @@ Begin
  Case N Of
   1: Begin
     Circle(X+13,Y+12,10);Circle(X+13,Y+12,9);
-    Line(X+21,Y+20,X+30,Y+29);Line(X+22,Y+19,X+31,Y+28);Line(X+20,Y+21,X+29,Y+30);
+    Line(X+21,Y+20,X+30,Y+29);Line(X+22,Y+19,X+31,Y+28);Line(X+20,Y+21,X+29,
+      Y+30);
     Line(X+8,Y+9,X+18,Y+9);Line(X+7,Y+12,X+19,Y+12);Line(X+8,Y+15,X+16,Y+15);
    End;
   2: Begin
@@ -3718,7 +3905,8 @@ Begin
     Line(X+11,Y+4,X+21,Y+4);Line(X+11,Y+7,X+21,Y+7);
     Bar(X+3,Y+10,X+29,Y+20);
     Rectangle(X+9,Y+17,X+23,Y+28);
-    SetColor(PAPER);Line(X+11,Y+21,X+21,Y+21);Line(X+11,Y+24,X+21,Y+24);SetColor(INK);
+    SetColor(PAPER);Line(X+11,Y+21,X+21,Y+21);Line(X+11,Y+24,X+21,Y+24);
+      SetColor(INK);
     SetColor(PAPER);Line(X+5,Y+13,X+8,Y+13);SetColor(INK);
    End;
  End;
@@ -3791,7 +3979,8 @@ Begin
     IndicatorText:=S;
    End;
   MD_FILE,MD_PRINT: Begin
-    If DocName='' Then IndicatorText:=Tr('SANS NOM') Else IndicatorText:=Upper(ShortName(DocName));
+    If DocName='' Then IndicatorText:=Tr('SANS NOM') Else
+      IndicatorText:=Upper(ShortName(DocName));
    End;
  Else IndicatorText:='';
  End;
@@ -3828,7 +4017,8 @@ Begin
   W:=TextW(S)+20;
   If W<80 Then W:=80;
   If NPB>8 Then Begin
-   If Not ((StatusMsg<>'') And (Tick>=StatusT) And (Tick-StatusT<500)) And Not (Overflow And (Mode=MD_TEXT)) Then
+   If Not ((StatusMsg<>'') And (Tick>=StatusT) And (Tick-StatusT<500)) And Not
+     (Overflow And (Mode=MD_TEXT)) Then
     LabelBox(SCR_W-14-W,PANEL_Y+8,SCR_W-14,PANEL_Y+26,S);
   End Else
    LabelBox(SCR_W-14-W,PANEL_Y+64,SCR_W-14,PANEL_Y+82,S);
@@ -3850,7 +4040,8 @@ Begin
  DrawPageFull(CurPage,X0,Y0,True);
  Yb:=Y0+Sc(PGH)+20;
  ZN:=SvN;ZD:=SvD;
- S:=Tr('MISE EN PAGE - PAGE ')+IntStr(CurPage)+'/'+IntStr(NPg)+' - '+IntStr(NCol[CurPage]);
+ S:=Tr('MISE EN PAGE - PAGE ')+IntStr(CurPage)+'/'+IntStr(NPg)+' '+
+   '- '+IntStr(NCol[CurPage]);
  If NCol[CurPage]>1 Then S:=S+Tr(' COLONNES') Else S:=S+Tr(' COLONNE');
  If HasHead[CurPage] Then S:=S+Tr(' + TITRE');
  W:=TextW(S)+30;
@@ -4141,14 +4332,17 @@ Begin
    Y:=4;
    S:='Journal NewsMaster';
    DrawStrF(Sel,6,Y,S);Y:=Y+N+4;
-   If Y+N<Rows*RowH-4 Then Begin DrawStrF(Sel,6,Y,'ABCDEFGHIJKLMNOPQRSTU');Y:=Y+N+4;End;
-   If Y+N<Rows*RowH-4 Then Begin DrawStrF(Sel,6,Y,'abcdefghijklmnopqrstu');Y:=Y+N+4;End;
+   If Y+N<Rows*RowH-4 Then Begin DrawStrF(Sel,6,Y,'ABCDEFGHIJKLMNOPQRSTU');
+     Y:=Y+N+4;End;
+   If Y+N<Rows*RowH-4 Then Begin DrawStrF(Sel,6,Y,'abcdefghijklmnopqrstu');
+     Y:=Y+N+4;End;
    If Y+N<Rows*RowH-4 Then DrawStrF(Sel,6,Y,'0123456789 !?&%$.,;:()');
    SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
    Button(X0+W-190,Y0+H-34,X0+W-110,Y0+H-14,'OK',True,True);
    Button(X0+W-96,Y0+H-34,X0+W-16,Y0+H-14,'&Annuler',False,True);
    PText(X0+14,Y0+H-30,IntStr(NFont)+Tr(' polices'));
-   If UseFLB Then PText(X0+14,Y0+H-20,'NEWS.FLB') Else PText(X0+14,Y0+H-20,Tr('int'#130'gr'#130'es'));
+   If UseFLB Then PText(X0+14,Y0+H-20,'NEWS.FLB') Else PText(X0+14,Y0+H-20,
+     Tr('int'#130'gr'#130'es'));
    ShowMouse;
    Redraw:=False;
   End;
@@ -4160,7 +4354,8 @@ Begin
     K_UP: If Sel>0 Then Begin Dec(Sel);Redraw:=True;End;
     K_DOWN: If Sel<NFont-1 Then Begin Inc(Sel);Redraw:=True;End;
     K_PGUP: Begin Sel:=Sel-Rows;If Sel<0 Then Sel:=0;Redraw:=True;End;
-    K_PGDN: Begin Sel:=Sel+Rows;If Sel>NFont-1 Then Sel:=NFont-1;Redraw:=True;End;
+    K_PGDN: Begin Sel:=Sel+Rows;If Sel>NFont-1 Then Sel:=NFont-1;Redraw:=True;
+      End;
     K_HOME: Begin Sel:=0;Redraw:=True;End;
     K_END: Begin Sel:=NFont-1;Redraw:=True;End;
    End;
@@ -4368,7 +4563,8 @@ Begin
      Else Begin Sel:=I;Redraw:=True;End;
     End;
    End;
-   If InBox(E.X,E.Y,X0+W-190,Y0+H-34,X0+W-110,Y0+H-14) Then Begin ArtPicker:=Sel;Done:=True;End;
+   If InBox(E.X,E.Y,X0+W-190,Y0+H-34,X0+W-110,Y0+H-14) Then Begin
+     ArtPicker:=Sel;Done:=True;End;
    If InBox(E.X,E.Y,X0+W-96,Y0+H-34,X0+W-16,Y0+H-14) Then Done:=True;
    If InBox(E.X,E.Y,X0+3,Y0+3,X0+22,Y0+TBH) Then Done:=True;
   End;
@@ -4412,7 +4608,8 @@ Begin
  If HeldOn Then Begin
   If Horiz Then Held.FH:=1-Held.FH Else Held.FV:=1-Held.FV;
  End Else If SelArt>0 Then Begin
-  If Horiz Then Arts[SelArt].FH:=1-Arts[SelArt].FH Else Arts[SelArt].FV:=1-Arts[SelArt].FV;
+  If Horiz Then Arts[SelArt].FH:=1-Arts[SelArt].FH Else
+    Arts[SelArt].FV:=1-Arts[SelArt].FV;
  End Else Exit;
  Modified:=True;
  NeedDraw:=True;
@@ -4543,7 +4740,8 @@ Begin
     FillPat(I,CX+1,CY+1,CX+43,CY+43);
     If I=0 Then PText(CX+16,CY+18,'0');
     Frame(CX,CY,CX+44,CY+44);
-    If I=Sel Then Begin Frame(CX-2,CY-2,CX+46,CY+46);Frame(CX-3,CY-3,CX+47,CY+47);End;
+    If I=Sel Then Begin Frame(CX-2,CY-2,CX+46,CY+46);Frame(CX-3,CY-3,CX+47,
+      CY+47);End;
    End;
    Button(X0+W-190,Y0+H-34,X0+W-110,Y0+H-14,'OK',True,True);
    Button(X0+W-96,Y0+H-34,X0+W-16,Y0+H-14,'&Annuler',False,True);
@@ -4564,10 +4762,12 @@ Begin
    For I:=0 To NPAT-1 Do Begin
     CX:=X0+12+(I Mod 6)*50;CY:=Y0+TBH+8+(I Div 6)*50;
     If InBox(E.X,E.Y,CX,CY,CX+44,CY+44) Then Begin
-     If I=Sel Then Begin DrawPat:=Sel;Done:=True;End Else Begin Sel:=I;Redraw:=True;End;
+     If I=Sel Then Begin DrawPat:=Sel;Done:=True;End Else Begin Sel:=I;
+       Redraw:=True;End;
     End;
    End;
-   If InBox(E.X,E.Y,X0+W-190,Y0+H-34,X0+W-110,Y0+H-14) Then Begin DrawPat:=Sel;Done:=True;End;
+   If InBox(E.X,E.Y,X0+W-190,Y0+H-34,X0+W-110,Y0+H-14) Then Begin DrawPat:=Sel;
+     Done:=True;End;
    If InBox(E.X,E.Y,X0+W-96,Y0+H-34,X0+W-16,Y0+H-14) Then Done:=True;
   End;
  Until Done;
@@ -4612,7 +4812,8 @@ End;
 
 Procedure CmdAddCol;
 Begin
- If NCol[CurPage]>=MAXCOL Then Begin SetStatus(Tr('MAXIMUM : ')+IntStr(MAXCOL)+Tr(' COLONNES'));Exit;End;
+ If NCol[CurPage]>=MAXCOL Then Begin
+   SetStatus(Tr('MAXIMUM : ')+IntStr(MAXCOL)+Tr(' COLONNES'));Exit;End;
  Inc(NCol[CurPage]);Modified:=True;Relayout;
 End;
 
@@ -4624,7 +4825,8 @@ End;
 
 Procedure CmdAddHead;
 Begin
- If HasHead[CurPage] Then Begin SetStatus('TITRE D'#144'J'#133' PR'#144'SENT');Exit;End;
+ If HasHead[CurPage] Then Begin SetStatus('TITRE D'#144'J'#133' PR'#144'SENT');
+   Exit;End;
  HasHead[CurPage]:=True;
  If St[CurPage].Len=0 Then StAppend(CurPage,Tr('Titre'),DefHead);
  St[CurPage].A^[St[CurPage].Len]:=AL_CENTER;
@@ -4641,7 +4843,8 @@ End;
 
 Procedure CmdAddPage;
 Begin
- If NPg>=MAXPG Then Begin SetStatus(Tr('MAXIMUM : ')+IntStr(MAXPG)+Tr(' PAGES'));Exit;End;
+ If NPg>=MAXPG Then Begin
+   SetStatus(Tr('MAXIMUM : ')+IntStr(MAXPG)+Tr(' PAGES'));Exit;End;
  Inc(NPg);
  NCol[NPg]:=NCol[CurPage];HasHead[NPg]:=False;
  StClear(NPg,DefHead,AL_CENTER);
@@ -4753,7 +4956,8 @@ Begin
 End;
 
 Function LoadNWC(Const Name: String): Boolean;
-Var P,I,N,NP,NF,L,K: Integer; S: String; Mg: String[4]; FMap: Array[0..MAXFONT] Of Byte;
+Var P,I,N,NP,NF,L,K: Integer; S: String; Mg: String[4]; FMap: Array[0..MAXFONT]
+  Of Byte;
     Nm: String; Ht: Integer; A: TArt;
 Begin
  LoadNWC:=False;
@@ -4767,7 +4971,8 @@ Begin
  If (IOResult<>0) Or (Mg<>'NWC1') Then Begin Close(OutF);Exit;End;
  NP:=RW;
  If (NP<1) Or (NP>MAXPG) Then Begin Close(OutF);Exit;End;
- For P:=1 To NP Do Begin NCol[P]:=RB;HasHead[P]:=RB<>0;If (NCol[P]<1) Or (NCol[P]>MAXCOL) Then NCol[P]:=1;End;
+ For P:=1 To NP Do Begin NCol[P]:=RB;HasHead[P]:=RB<>0;If (NCol[P]<1) Or
+   (NCol[P]>MAXCOL) Then NCol[P]:=1;End;
  NF:=RB;
  For I:=0 To NF-1 Do Begin
   L:=RB;
@@ -4799,7 +5004,8 @@ Begin
   A.Kind:=RB;A.Flow:=RB;A.FH:=RB;A.FV:=RB;A.Pat:=RB;A.Th:=RB;
   A.Lib:=RW;A.Pg:=RW;A.X:=RW;A.Y:=RW;A.W:=RW;A.H:=RW;
   A.SX1:=RW;A.SY1:=RW;A.SX2:=RW;A.SY2:=RW;
-  If (A.Pg>=1) And (A.Pg<=NPg) And ((A.Kind<>AR_ART) Or ((A.Lib>=1) And (A.Lib<=NLib))) Then Begin
+  If (A.Pg>=1) And (A.Pg<=NPg) And ((A.Kind<>AR_ART) Or ((A.Lib>=1) And
+    (A.Lib<=NLib))) Then Begin
    Inc(NArt);Arts[NArt]:=A;
   End;
  End;
@@ -4883,9 +5089,12 @@ Begin
 End;
 
 { ---- selecteur de fichier ---- }
-Function FilePicker(Const Title,Mask: String; Var Name: String; Save: Boolean): Boolean;
-Var Names: Array[1..80] Of String[12]; N,Sel,Top,I,J,X0,Y0,W,H,Rows,RowH: Integer;
-    SR: SearchRec; E: TEvent; Done,Redraw: Boolean; S,T: String; LastT: LongInt; Ml: String;
+Function FilePicker(Const Title,Mask: String; Var Name: String; Save: Boolean):
+  Boolean;
+Var Names: Array[1..80] Of String[12]; N,Sel,Top,I,J,X0,Y0,W,H,Rows,RowH:
+  Integer;
+    SR: SearchRec; E: TEvent; Done,Redraw: Boolean; S,T: String; LastT: LongInt;
+      Ml: String;
 Begin
  FilePicker:=False;
  FillChar(Names,SizeOf(Names),0);
@@ -4908,7 +5117,8 @@ Begin
  End;
  For I:=1 To N-1 Do
   For J:=I+1 To N Do
-   If Names[J]<Names[I] Then Begin T:=Names[I];Names[I]:=Names[J];Names[J]:=T;End;
+   If Names[J]<Names[I] Then Begin T:=Names[I];Names[I]:=Names[J];Names[J]:=T;
+     End;
  Sel:=0;Top:=0;Rows:=10;RowH:=13;
  W:=360;H:=Rows*RowH+TBH+86;
  X0:=(SCR_W-W) Div 2;Y0:=(SCR_H-H) Div 2-6;
@@ -4948,8 +5158,10 @@ Begin
     K_ENTER: If S<>'' Then Begin Name:=Upper(S);FilePicker:=True;Done:=True;End;
     K_UP: If Sel>1 Then Begin Dec(Sel);S:=Names[Sel];Redraw:=True;End;
     K_DOWN: If Sel<N Then Begin Inc(Sel);S:=Names[Sel];Redraw:=True;End;
-    K_PGUP: If N>0 Then Begin Sel:=Sel-Rows;If Sel<1 Then Sel:=1;S:=Names[Sel];Redraw:=True;End;
-    K_PGDN: If N>0 Then Begin Sel:=Sel+Rows;If Sel>N Then Sel:=N;S:=Names[Sel];Redraw:=True;End;
+    K_PGUP: If N>0 Then Begin Sel:=Sel-Rows;If Sel<1 Then Sel:=1;S:=Names[Sel];
+      Redraw:=True;End;
+    K_PGDN: If N>0 Then Begin Sel:=Sel+Rows;If Sel>N Then Sel:=N;S:=Names[Sel];
+      Redraw:=True;End;
     K_BKSP: If Length(S)>0 Then Begin Dec(S[0]);Sel:=0;Redraw:=True;End;
     33..126: If Length(S)<40 Then Begin S:=S+Chr(E.Key);Sel:=0;Redraw:=True;End;
    End;
@@ -4957,7 +5169,8 @@ Begin
    If InBox(E.X,E.Y,X0+14,Y0+TBH+31,X0+W-14,Y0+TBH+31+Rows*RowH) Then Begin
     I:=Top+Integer((E.Y-(Y0+TBH+31)) Div RowH)+1;
     If (I>=1) And (I<=N) Then Begin
-     If (I=Sel) And (Tick-LastT<40) Then Begin Name:=Names[I];FilePicker:=True;Done:=True;End;
+     If (I=Sel) And (Tick-LastT<40) Then Begin Name:=Names[I];FilePicker:=True;
+       Done:=True;End;
      Sel:=I;S:=Names[I];Redraw:=True;LastT:=Tick;
     End;
    End Else If InBox(E.X,E.Y,X0+W-190,Y0+H-34,X0+W-110,Y0+H-14) Then Begin
@@ -5004,7 +5217,8 @@ Begin
     For X:=0 To VW-1 Do
      If TX*VW+X<PGW Then
       If GetPixel(X,Y)=INK Then
-       Buf^[Y*BPR+((TX*VW+X) Shr 3)]:=Buf^[Y*BPR+((TX*VW+X) Shr 3)] Or ($80 Shr ((TX*VW+X) And 7));
+       Buf^[Y*BPR+((TX*VW+X) Shr 3)]:=Buf^[Y*BPR+((TX*VW+X) Shr 3)] Or ($80 Shr
+         ((TX*VW+X) And 7));
   End;
   BlockWrite(F,Buf^,BPR*R);
   BandY:=BandY+VH;
@@ -5032,8 +5246,11 @@ Begin
  End;
  NeedDraw:=True;
  If Ok Then Begin
-  If P1=P2 Then MsgBox('Impression',Tr('Page ')+IntStr(P1)+Tr(' enregistr'#130'e dans ')+Copy(Base,1,6)+Chr(48+P1 Div 10)+Chr(48+P1 Mod 10)+'.PBM')
-  Else MsgBox('Impression',Tr('Pages enregistr'#130'es : ')+Copy(Base,1,6)+'01.PBM ...|'+Tr('Format : bitmap PBM ')+IntStr(PGW)+' x '+IntStr(PGH))
+  If P1=P2 Then MsgBox('Impression',
+    Tr('Page ')+IntStr(P1)+Tr(' enregistr'#130'e dans ')+Copy(Base,1,
+    6)+Chr(48+P1 Div 10)+Chr(48+P1 Mod 10)+'.PBM')
+  Else MsgBox('Impression',Tr('Pages enregistr'#130'es : ')+Copy(Base,1,
+    6)+'01.PBM ...|'+Tr('Format : bitmap PBM ')+IntStr(PGW)+' x '+IntStr(PGH))
  End Else MsgBox('Impression','Erreur d'''#130'criture du fichier.');
 End;
 
@@ -5081,21 +5298,37 @@ Begin
  End;
  StClear(1,FH,AL_CENTER);
  StAppend(1,Tr('CRAZY JOE''S FISH SHACK'),FH);
- StAppend(0,Tr('Attrapez nos portions de taille BALEINE '#133' prix de sardine !')+#13,FT);
+ StAppend(0,
+   Tr('Attrapez nos portions de taille BALEINE '#133' prix de sardine !')+#13,
+   FT);
  St[0].A^[St[0].Len-1]:=AL_CENTER;
  StAppend(0,#13,FB);
  StAppend(0,Tr('Sp'#130'cial du jour')+#13,FT);
- StAppend(0,Tr('Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, '),FB);
- StAppend(0,Tr('pr'#130'pare chaque matin le poisson le plus frais du port. '),FB);
- StAppend(0,Tr('Servi avec des frites maison, une salade croquante et la fameuse sauce secr'#138'te de la maison.')+#13,FB);
+ StAppend(0,
+   Tr('Flet frit : 5,25 $. Notre cuisinier, un ancien marin au grand coeur, '),
+   FB);
+ StAppend(0,Tr('pr'#130'pare chaque matin le poisson le plus frais du port. '),
+   FB);
+ StAppend(0,
+   Tr('Servi avec des frites maison, une salade croquante et la fameuse sauce '+
+   'secr'#138'te de la maison.')+#13,FB);
  StAppend(0,#13,FB);
- StAppend(0,Tr('Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la cr'#138'me, '),FB);
- StAppend(0,Tr('garnie de palourdes, de pommes de terre et de lard fum'#130'. Id'#130'ale '),FB);
- StAppend(0,Tr('pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.')+#13,FB);
+ StAppend(0,
+   Tr('Chaudr'#130'e de palourdes : 3,95 $. Une soupe onctueuse '#133' la '+
+   'cr'#138'me, '),FB);
+ StAppend(0,
+   Tr('garnie de palourdes, de pommes de terre et de lard fum'#130'. '+
+   'Id'#130'ale '),FB);
+ StAppend(0,
+   Tr('pour r'#130'chauffer les journ'#130'es d''hiver sur le quai.')+#13,FB);
  StAppend(0,#13,FB);
  StAppend(0,Tr('Plateau de fruits de mer : 7,99 $. '),FB);
- StAppend(0,Tr('Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de citron et de beurre fondu. '),FB);
- StAppend(0,Tr('Le plateau est servi sur glace pour garder toute la fra'#139'cheur de la mer. '),FB);
+ StAppend(0,
+   Tr('Crevettes, p'#130'tonles, calmars et moules, accompagn'#130's de '+
+   'citron et de beurre fondu. '),FB);
+ StAppend(0,
+   Tr('Le plateau est servi sur glace pour garder toute la fra'#139'cheur de '+
+   'la mer. '),FB);
  StAppend(0,Tr('Venez nombreux, la maison offre le caf'#130' !')+#13,FB);
  St[0].A^[St[0].Len]:=AL_LEFT;
  FillChar(A,SizeOf(A),0);
@@ -5113,7 +5346,8 @@ End;
 Function ConfirmLose: Boolean;
 Begin
  If Not Modified Then ConfirmLose:=True
- Else ConfirmLose:=ConfirmBox('Les changements non enregistr'#130's seront perdus. Continuer ?');
+ Else ConfirmLose:=ConfirmBox('Les changements non enregistr'#130's seront '+
+   'perdus. Continuer ?');
 End;
 
 Procedure CmdNew;
@@ -5131,10 +5365,12 @@ Begin
  N:='';
  If Not FilePicker('Ouvrir un journal','*.NWC',N,False) Then Exit;
  N:=AddExt(N,'NWC');
- If Not FileExists(N) Then Begin MsgBox('Ouvrir',Tr('Fichier introuvable : ')+N);Exit;End;
+ If Not FileExists(N) Then Begin MsgBox('Ouvrir',
+   Tr('Fichier introuvable : ')+N);Exit;End;
  If LoadNWC(N) Then Begin
   DocName:=N;Named:=True;Modified:=False;
-  ASt:=0;Cur:=0;SelA:=-1;SelArt:=0;HeldOn:=False;UndoOK:=False;CurPage:=1;ScrX:=0;ScrY:=0;
+  ASt:=0;Cur:=0;SelA:=-1;SelArt:=0;HeldOn:=False;UndoOK:=False;CurPage:=1;
+    ScrX:=0;ScrY:=0;
   CurFont:=St[0].F^[0];
   Relayout;
   SetView(ViewNo);
@@ -5152,7 +5388,8 @@ Begin
  If Not FilePicker('Enregistrer le journal','*.NWC',N,True) Then Exit;
  N:=AddExt(N,'NWC');
  If FileExists(N) Then
-  If Not ConfirmBox(Tr('Le fichier ')+ShortName(N)+Tr(' existe. Le remplacer ?')) Then Exit;
+  If Not ConfirmBox(Tr('Le fichier ')+ShortName(N)+Tr(' existe. Le remplacer '+
+    '?')) Then Exit;
  If SaveNWC(N) Then Begin
   DocName:=N;Named:=True;Modified:=False;
   SetStatus('JOURNAL ENREGISTR'#144);
@@ -5162,7 +5399,8 @@ End;
 Procedure CmdSave;
 Begin
  If Not Named Then Begin CmdSaveAs;Exit;End;
- If SaveNWC(DocName) Then Begin Modified:=False;SetStatus('JOURNAL ENREGISTR'#144);End
+ If SaveNWC(DocName) Then Begin Modified:=False;
+   SetStatus('JOURNAL ENREGISTR'#144);End
  Else MsgBox('Enregistrer','Erreur d'''#130'criture du fichier.');
 End;
 
@@ -5172,7 +5410,8 @@ Begin
  N:='';
  If Not FilePicker('Importer du texte ASCII','*.TXT',N,False) Then Exit;
  If Not FileExists(N) Then N:=AddExt(N,'TXT');
- If Not FileExists(N) Then Begin MsgBox('Importer',Tr('Fichier introuvable : ')+N);Exit;End;
+ If Not FileExists(N) Then Begin MsgBox('Importer',
+   Tr('Fichier introuvable : ')+N);Exit;End;
  If Mode<>MD_TEXT Then SetPanel(MD_TEXT);
  If Not ImportASCII(N) Then MsgBox('Importer',Tr('Impossible de lire ')+N);
 End;
@@ -5183,13 +5422,15 @@ Begin
  N:='NEWS.TXT';
  If Not FilePicker('Exporter le texte ASCII','*.TXT',N,True) Then Exit;
  N:=AddExt(N,'TXT');
- If ExportASCII(N) Then SetStatus('TEXTE EXPORT'#144) Else MsgBox('Exporter','Erreur d'''#130'criture du fichier.');
+ If ExportASCII(N) Then SetStatus('TEXTE EXPORT'#144) Else
+   MsgBox('Exporter','Erreur d'''#130'criture du fichier.');
 End;
 
 Procedure CmdQuit;
 Begin
  If Modified Then Begin
-  If ConfirmBox('Quitter NewsMaster ? Les changements seront perdus.') Then Quit:=True;
+  If ConfirmBox('Quitter NewsMaster ? Les changements seront perdus.') Then
+    Quit:=True;
  End Else If ConfirmBox('Quitter NewsMaster ?') Then Quit:=True;
  NeedDraw:=True;
 End;
@@ -5206,7 +5447,10 @@ End;
 
 Procedure CmdAbout;
 Begin
- MsgBox(#192' propos de NewsMaster',Tr('NewsMaster - Clone Pascal')+'|'+Tr('Programme de publication de journaux')+'|Version '+VERSION_TEXT+' - OFFICE-0|'+Tr('Inspir'#130' de News Master (Unison World, 1986)')+'|https://www.gladir.com/office-0');
+ MsgBox(#192' propos de NewsMaster',
+   Tr('NewsMaster - Clone Pascal')+'|'+Tr('Programme de publication de '+
+   'journaux')+'|Version '+VERSION_TEXT+' - OFFICE-0|'+Tr('Inspir'#130' de '+
+   'News Master (Unison World, 1986)')+'|https://www.gladir.com/office-0');
 End;
 
 Procedure CmdStats;
@@ -5214,10 +5458,13 @@ Var I,Tx,Ar: LongInt; S: String;
 Begin
  Tx:=St[0].Len;
  Ar:=NArt;
- S:=Tr('Pages : ')+IntStr(NPg)+'|'+Tr('Texte principal : ')+IntStr(Tx)+Tr(' caract'#138'res')+'|';
- S:=S+Tr('Images et traits : ')+IntStr(Ar)+'|'+Tr('Polices disponibles : ')+IntStr(NFont);
+ S:=Tr('Pages : ')+IntStr(NPg)+'|'+Tr('Texte principal : ')+IntStr(Tx)+Tr(' '+
+   'caract'#138'res')+'|';
+ S:=S+Tr('Images et traits : ')+IntStr(Ar)+'|'+Tr('Polices disponibles '+
+   ': ')+IntStr(NFont);
  If UseFLB Then S:=S+' (NEWS.FLB)' Else S:=S+Tr(' (int'#130'gr'#130'es)');
- If Overflow Then S:=S+'|'+Tr('ATTENTION : du texte d'#130'passe la mise en page');
+ If Overflow Then
+   S:=S+'|'+Tr('ATTENTION : du texte d'#130'passe la mise en page');
  MsgBox('Statistiques',S);
 End;
 
@@ -5226,7 +5473,8 @@ Begin
  {$IFDEF FPC}
  MsgBox('M'#130'moire','M'#130'moire g'#130'r'#130'e par Free Pascal.');
  {$ELSE}
- MsgBox('M'#130'moire',Tr('Plus grand bloc libre : ')+IntStr(MaxAvail Div 1024)+' Ko|'+Tr('M'#130'moire libre : ')+IntStr(MemAvail Div 1024)+' Ko');
+ MsgBox('M'#130'moire',Tr('Plus grand bloc libre : ')+IntStr(MaxAvail Div
+   1024)+' Ko|'+Tr('M'#130'moire libre : ')+IntStr(MemAvail Div 1024)+' Ko');
  {$ENDIF}
 End;
 
@@ -5242,7 +5490,8 @@ Begin
  For I:=0 To OldN-1 Do Map[I]:=NearestFont(OldName[I],OldHt[I]);
  For S:=0 To MAXPG Do
   For K:=0 To St[S].Len Do
-   If St[S].F^[K]<OldN Then St[S].F^[K]:=Map[St[S].F^[K]] Else St[S].F^[K]:=DefBody;
+   If St[S].F^[K]<OldN Then St[S].F^[K]:=Map[St[S].F^[K]] Else
+     St[S].F^[K]:=DefBody;
  For K:=0 To ClipN-1 Do
   If ClipF^[K]<OldN Then ClipF^[K]:=Map[ClipF^[K]] Else ClipF^[K]:=DefBody;
  If CurFont<OldN Then CurFont:=Map[CurFont] Else CurFont:=DefBody;
@@ -5306,7 +5555,8 @@ Begin
         If N>0 Then ArtFlip(N=1);
        End;
     9: CmdDrawTool;
-    10: If SelArt>0 Then DelArt(SelArt) Else If HeldOn Then Begin HeldOn:=False;NeedDraw:=True;End;
+    10: If SelArt>0 Then DelArt(SelArt) Else If HeldOn Then Begin HeldOn:=False;
+      NeedDraw:=True;End;
    End;
   MD_LAYOUT: Case N Of
     1: CmdAddCol;
@@ -5450,13 +5700,16 @@ Begin
 End;
 
 Procedure ShowSplash;
-Var F,FB,Y,I,W,X1,X2,Y2,LH,PW: Integer; E: TEvent; T0: LongInt; Ln: Array[1..4] Of String;
+Var F,FB,Y,I,W,X1,X2,Y2,LH,PW: Integer; E: TEvent; T0: LongInt; Ln: Array[1..4]
+  Of String;
     Pr: String;
 Begin
  SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  PatBar(0,0,SCR_W-1,SCR_H-1,PatStripe);
- If UseFLB Then Begin F:=FontOr('Park 12 bold',DefBody);FB:=FontOr('News 18 bold',DefHead);End
- Else Begin F:=FontOr('Systeme 16 gras',DefBody);FB:=FontOr('Titre 32',DefHead);End;
+ If UseFLB Then Begin F:=FontOr('Park 12 bold',DefBody);
+   FB:=FontOr('News 18 bold',DefHead);End
+ Else Begin F:=FontOr('Systeme 16 gras',DefBody);FB:=FontOr('Titre 32',DefHead);
+   End;
  Ln[1]:=Tr('NEWSMASTER - CLONE VERSION ')+VERSION_TEXT;
  Ln[2]:=Tr('PROGRAMME DE PUBLICATION DE JOURNAUX');
  Ln[3]:=Tr('D''APRES NEWS MASTER (UNISON WORLD, 1986)');
@@ -5535,10 +5788,12 @@ Begin
   End Else If E.Kind=2 Then Begin
    If E.Y<MENU_H Then Begin
     I:=TitleHit(E.X,E.Y);
-    If I>0 Then Begin RunMenu(I,True);Redraw:=True;If Mode<>MD_MAIN Then Done:=True;End;
+    If I>0 Then Begin RunMenu(I,True);Redraw:=True;If Mode<>MD_MAIN Then
+      Done:=True;End;
    End;
    For I:=1 To N Do
-    If InBox(E.X,E.Y,X0+20,Y0+TBH+34+(I-1)*30,X0+W-20,Y0+TBH+58+(I-1)*30) Then Begin
+    If InBox(E.X,E.Y,X0+20,Y0+TBH+34+(I-1)*30,X0+W-20,Y0+TBH+58+(I-1)*30) Then
+      Begin
      Sel:=I;
      Case Sel Of
       1: If ConfirmLose Then Begin ResetDoc;Done:=True;End;
@@ -5707,7 +5962,8 @@ Begin
    5: Begin SetAlign(AL_CENTER);Exit;End;
    10: Begin SetAlign(AL_BOTH);Exit;End;
    K_ESC: Begin
-     If (SelA>=0) Or MarkMode Then Begin SelA:=-1;MarkMode:=False;NeedDraw:=True;End
+     If (SelA>=0) Or MarkMode Then Begin SelA:=-1;MarkMode:=False;
+       NeedDraw:=True;End
      Else SetPanel(MD_MAIN);
      Exit;
     End;
@@ -5726,8 +5982,10 @@ Begin
  Case Mode Of
   MD_ART: ArtKey(K);
   MD_LAYOUT: Case K Of
-     K_PGUP,K_UP,K_LEFT: Begin If CurPage>1 Then Dec(CurPage);NeedDraw:=True;End;
-     K_PGDN,K_DOWN,K_RIGHT: Begin If CurPage<NPg Then Inc(CurPage);NeedDraw:=True;End;
+     K_PGUP,K_UP,K_LEFT: Begin If CurPage>1 Then Dec(CurPage);NeedDraw:=True;
+       End;
+     K_PGDN,K_DOWN,K_RIGHT: Begin If CurPage<NPg Then Inc(CurPage);
+       NeedDraw:=True;End;
     End;
  Else ScrollKeys(K);
  End;
@@ -5811,7 +6069,8 @@ Begin
       If Y<MENU_H+1 Then ScrollBy(0,-8) Else If Y>PANEL_Y-1 Then ScrollBy(0,8);
       OldCur:=Cur;
       If SelA<0 Then SelA:=Cur;
-      If HitText(Max2(0,Min2(X,VW-1)),Max2(MENU_H+1,Min2(Y,PANEL_Y-1))) Then Begin
+      If HitText(Max2(0,Min2(X,VW-1)),Max2(MENU_H+1,Min2(Y,PANEL_Y-1))) Then
+        Begin
        If Cur<>OldCur Then Begin SyncFont;NeedDraw:=True;End;
       End;
      End;
@@ -5862,7 +6121,8 @@ Begin
  ZN:=1;ZD:=1;ViewNo:=2;ScrX:=0;ScrY:=0;
  GuidesOn:=False;
  Mode:=MD_MAIN;CurPage:=1;
- ASt:=0;Cur:=0;SelA:=-1;MarkMode:=False;CurFont:=DefBody;WantX:=-1;TypRun:=False;
+ ASt:=0;Cur:=0;SelA:=-1;MarkMode:=False;CurFont:=DefBody;WantX:=-1;
+   TypRun:=False;
  ACStep:=4;ACx:=100;ACy:=100;SelArt:=0;HeldOn:=False;ArtSub:=0;CropEnd:=0;
  DrawKind:=AR_BOX;DrawPat:=0;DrawTh:=2;DrawStep:=0;LastPiece:=1;
  Quit:=False;NeedDraw:=True;Dragging:=0;MenuOpen:=0;MenuHi:=0;
@@ -5897,15 +6157,18 @@ End;
 
 Procedure ShowHelpLine;
 Begin
- WriteLn('NEWS - ',Tr('Clone graphique du programme de publication de journaux News Master.'));
+ WriteLn('NEWS - ',
+   Tr('Clone graphique du programme de publication de journaux News Master.'));
  WriteLn;
  WriteLn(Tr('Utilisation : NEWS [fichier.NWC] [/?]'));
  WriteLn;
  WriteLn('  ',Tr('fichier.NWC  Journal '#133' ouvrir.'));
  WriteLn('  ',Tr('/?           Affiche cette aide.'));
  WriteLn;
- WriteLn(Tr('Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, LANGUAGE=GR : allemand.'));
- WriteLn(Tr('Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les polices originales.'));
+ WriteLn(Tr('Langue : fran'#135'ais par d'#130'faut. LANGUAGE=EN : anglais, '+
+   'LANGUAGE=GR : allemand.'));
+ WriteLn(Tr('Place NEWS.FLB dans le r'#130'pertoire courant pour utiliser les '+
+   'polices originales.'));
 End;
 
 Var Dummy: Boolean;
@@ -5941,7 +6204,8 @@ BEGIN
  {$ENDIF}
  SetPanel(MD_MAIN);
  ShowSplash;
- If (ParamCount>=1) And FileExists(AddExt(ParamStr(1),'NWC')) And LoadNWC(AddExt(ParamStr(1),'NWC')) Then Begin
+ If (ParamCount>=1) And FileExists(AddExt(ParamStr(1),'NWC')) And
+   LoadNWC(AddExt(ParamStr(1),'NWC')) Then Begin
   DocName:=AddExt(ParamStr(1),'NWC');Named:=True;Modified:=False;
   CurFont:=St[0].F^[0];
   Relayout;
