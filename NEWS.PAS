@@ -8,6 +8,14 @@
 
 Program NEWS;
 
+{ Impression Windows : active seulement avec Free Pascal pour Windows. }
+{$IFDEF FPC}
+ {$IFDEF WINDOWS}{$DEFINE WINPRINT}{$ENDIF}
+ {$IFDEF MSWINDOWS}{$DEFINE WINPRINT}{$ENDIF}
+ {$IFDEF WIN32}{$DEFINE WINPRINT}{$ENDIF}
+ {$IFDEF WIN64}{$DEFINE WINPRINT}{$ENDIF}
+{$ENDIF}
+
 {$IFNDEF FPC}
  {$M 16384,0,655360}
 {$ENDIF}
@@ -971,7 +979,15 @@ Begin
  If S='Page ' Then Begin TrEN:='Page ';Exit;End;
  If S=' enregistr'#130'e dans ' Then Begin TrEN:=' saved in ';Exit;End;
  If S='Pages enregistr'#130'es : ' Then Begin TrEN:='Pages saved: ';Exit;End;
- If S='Format : bitmap PBM ' Then Begin TrEN:='Format: PBM bitmap ';Exit;End;
+  If S='Imprimer la page...' Then Begin TrEN:='Print page...';Exit;End;
+ If S='Imprimer tout...' Then Begin TrEN:='Print all...';Exit;End;
+ If S='Envoi '#133' l''imprimante ...' Then Begin
+   TrEN:='Sending to the printer ...';Exit;End;
+ If S='Imprim'#130' sur : ' Then Begin TrEN:='Printed on: ';Exit;End;
+ If S='Page(s) : ' Then Begin TrEN:='Page(s): ';Exit;End;
+ If S='Erreur d''impression Windows.' Then Begin
+   TrEN:='Windows printing error.';Exit;End;
+If S='Format : bitmap PBM ' Then Begin TrEN:='Format: PBM bitmap ';Exit;End;
  If S='Erreur d'''#130'criture du fichier.' Then Begin
    TrEN:='File write error.';Exit;End;
  If S='Titre du journal' Then Begin TrEN:='Newsletter headline';Exit;End;
@@ -1338,7 +1354,15 @@ Begin
  If S=' enregistr'#130'e dans ' Then Begin TrDE:=' gespeichert in ';Exit;End;
  If S='Pages enregistr'#130'es : ' Then Begin TrDE:='Gespeicherte Seiten: ';
    Exit;End;
- If S='Format : bitmap PBM ' Then Begin TrDE:='Format: PBM-Bitmap ';Exit;End;
+  If S='Imprimer la page...' Then Begin TrDE:='Seite drucken...';Exit;End;
+ If S='Imprimer tout...' Then Begin TrDE:='Alles drucken...';Exit;End;
+ If S='Envoi '#133' l''imprimante ...' Then Begin
+   TrDE:='Senden an den Drucker ...';Exit;End;
+ If S='Imprim'#130' sur : ' Then Begin TrDE:='Gedruckt auf: ';Exit;End;
+ If S='Page(s) : ' Then Begin TrDE:='Seite(n): ';Exit;End;
+ If S='Erreur d''impression Windows.' Then Begin
+   TrDE:='Windows-Druckfehler.';Exit;End;
+If S='Format : bitmap PBM ' Then Begin TrDE:='Format: PBM-Bitmap ';Exit;End;
  If S='Erreur d'''#130'criture du fichier.' Then Begin
    TrDE:='Fehler beim Schreiben der Datei.';Exit;End;
  If S='Titre du journal' Then Begin TrDE:='Titel der Zeitung';Exit;End;
@@ -3728,8 +3752,13 @@ Begin
       7: MLabelFr:='Importer texte ASCII...';
       8: MLabelFr:='Exporter texte ASCII...';
       9: MLabelFr:='-';
+      {$IFDEF WINPRINT}
+      10: MLabelFr:='Imprimer la page...';
+      11: MLabelFr:='Imprimer tout...';
+      {$ELSE}
       10: MLabelFr:='Imprimer la page (PBM)...';
       11: MLabelFr:='Imprimer tout (PBM)...';
+      {$ENDIF}
       12: MLabelFr:='-';
       13: MLabelFr:='Quitter|^Q';
      End;
@@ -5745,9 +5774,32 @@ End;
 {                  IMPRESSION : EXPORT D'UNE PAGE EN PBM                 }
 { ====================================================================== }
 
+{ Dessine la bande de page P commencant a BandY (VH rangees au plus) en
+  bitmap monochrome : BPR octets par rangee, bit a 1 = encre.        }
+Procedure RenderBand(P,BandY,R,BPR: Integer; Buf: PBytes);
+Var TX,X,Y,I: Integer; X0,Y0: LongInt;
+Begin
+ FillChar(Buf^,BPR*VH,0);
+ For TX:=0 To 1 Do Begin
+  SetViewPort(0,0,VW-1,VH-1,True);
+  SetFillStyle(SolidFill,PAPER);LastFill:=-1;
+  Bar(0,0,VW-1,VH-1);
+  X0:=-TX*VW;Y0:=-BandY;
+  DrawLinesOfPage(P,X0,Y0);
+  For I:=1 To NArt Do
+   If Arts[I].Pg=P Then DrawArtItem(I,X0,Y0,False);
+  For Y:=0 To R-1 Do
+   For X:=0 To VW-1 Do
+    If TX*VW+X<PGW Then
+     If GetPixel(X,Y)=INK Then
+      Buf^[Y*BPR+((TX*VW+X) Shr 3)]:=Buf^[Y*BPR+((TX*VW+X) Shr 3)] Or ($80 Shr
+        ((TX*VW+X) And 7));
+ End;
+End;
+
 Function ExportPagePBM(P: Integer; Const FN: String): Boolean;
-Var F: File; Hdr: String; BandY,R,Y,X,TX,BPR: Integer; Buf: PBytes;
-    SvN,SvD: Integer; I: Integer; X0,Y0: LongInt;
+Var F: File; Hdr: String; BandY,R,BPR: Integer; Buf: PBytes;
+    SvN,SvD: Integer;
 Begin
  ExportPagePBM:=False;
  BPR:=(PGW+7) Div 8;
@@ -5763,22 +5815,7 @@ Begin
  While BandY<PGH Do Begin
   R:=VH;
   If BandY+R>PGH Then R:=PGH-BandY;
-  FillChar(Buf^,BPR*VH,0);
-  For TX:=0 To 1 Do Begin
-   SetViewPort(0,0,VW-1,VH-1,True);
-   SetFillStyle(SolidFill,PAPER);LastFill:=-1;
-   Bar(0,0,VW-1,VH-1);
-   X0:=-TX*VW;Y0:=-BandY;
-   DrawLinesOfPage(P,X0,Y0);
-   For I:=1 To NArt Do
-    If Arts[I].Pg=P Then DrawArtItem(I,X0,Y0,False);
-   For Y:=0 To R-1 Do
-    For X:=0 To VW-1 Do
-     If TX*VW+X<PGW Then
-      If GetPixel(X,Y)=INK Then
-       Buf^[Y*BPR+((TX*VW+X) Shr 3)]:=Buf^[Y*BPR+((TX*VW+X) Shr 3)] Or ($80 Shr
-         ((TX*VW+X) And 7));
-  End;
+  RenderBand(P,BandY,R,BPR,Buf);
   BlockWrite(F,Buf^,BPR*R);
   BandY:=BandY+VH;
  End;
@@ -5789,11 +5826,175 @@ Begin
  ExportPagePBM:=IOResult=0;
 End;
 
+{$IFDEF WINPRINT}
+{ ---------------------------------------------------------------------- }
+{ Impression sous Windows : les fonctions de l'API sont declarees ici     }
+{ (gdi32 et winspool) pour ne pas ajouter d'unite au programme.          }
+{ ---------------------------------------------------------------------- }
+Type
+ TWDocInfo = Record
+  cbSize: LongInt;
+  lpszDocName,lpszOutput,lpszDatatype: PChar;
+  fwType: LongInt;
+ End;
+ TWBmpInfo = Record
+  biSize: LongInt;
+  biWidth,biHeight: LongInt;
+  biPlanes,biBitCount: Word;
+  biCompression,biSizeImage: LongInt;
+  biXPels,biYPels: LongInt;
+  biClrUsed,biClrImportant: LongInt;
+  Pal: Array[0..1] Of LongInt;
+ End;
+ TBigBytes = Array[0..4194303] Of Byte;
+ PBigBytes = ^TBigBytes;
+
+Function WGetDefaultPrinter(Buf: PChar; Var Sz: LongInt): LongInt;
+ stdcall; external 'winspool.drv' name 'GetDefaultPrinterA';
+Function WCreateDC(Drv,Dev,Port: PChar; Mode: Pointer): PtrUInt;
+ stdcall; external 'gdi32' name 'CreateDCA';
+Function WDeleteDC(Dc: PtrUInt): LongInt;
+ stdcall; external 'gdi32' name 'DeleteDC';
+Function WGetDeviceCaps(Dc: PtrUInt; Idx: LongInt): LongInt;
+ stdcall; external 'gdi32' name 'GetDeviceCaps';
+Function WStartDoc(Dc: PtrUInt; Var DI: TWDocInfo): LongInt;
+ stdcall; external 'gdi32' name 'StartDocA';
+Function WEndDoc(Dc: PtrUInt): LongInt;
+ stdcall; external 'gdi32' name 'EndDoc';
+Function WAbortDoc(Dc: PtrUInt): LongInt;
+ stdcall; external 'gdi32' name 'AbortDoc';
+Function WStartPage(Dc: PtrUInt): LongInt;
+ stdcall; external 'gdi32' name 'StartPage';
+Function WEndPage(Dc: PtrUInt): LongInt;
+ stdcall; external 'gdi32' name 'EndPage';
+Function WStretchDIBits(Dc: PtrUInt; XD,YD,WD,HD,XS,YS,WS,HS: LongInt;
+ Bits: Pointer; Var BI: TWBmpInfo; Usage,Rop: LongInt): LongInt;
+ stdcall; external 'gdi32' name 'StretchDIBits';
+
+{ Dessine la page P entiere dans Pg (PGW x PGH, 120 octets par rangee). }
+Procedure RenderWholePage(P: Integer; Pg: PBigBytes);
+Var BandY,R,BPR: Integer; Buf: PBytes; SvN,SvD: Integer; O: LongInt;
+Begin
+ BPR:=(PGW+7) Div 8;
+ GetMem(Buf,BPR*VH);
+ SvN:=ZN;SvD:=ZD;ZN:=1;ZD:=1;
+ BandY:=0;
+ While BandY<PGH Do Begin
+  R:=VH;
+  If BandY+R>PGH Then R:=PGH-BandY;
+  RenderBand(P,BandY,R,BPR,Buf);
+  O:=BandY;O:=O*BPR;
+  Move(Buf^,Pg^[O],BPR*R);
+  BandY:=BandY+VH;
+ End;
+ ZN:=SvN;ZD:=SvD;
+ SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
+ FreeMem(Buf,BPR*VH);
+End;
+
+{ Envoie les pages P1..P2 a l'imprimante par defaut de Windows.
+  Retour : 0 = imprime, 1 = aucune imprimante, 2 = erreur.         }
+Function PrintPagesWin(P1,P2: Integer; Var PName: String): Integer;
+Var Sz: LongInt; Nm: Array[0..259] Of Char; Dn: Array[0..15] Of Char;
+    Dc: PtrUInt; DI: TWDocInfo; BI: TWBmpInfo; Pg,Rot,Out: PBigBytes;
+    PgSz,I,X,Y,PBPR,W,H,RBPR,HR,VR,S,DW,DH,DX,DY: LongInt; P: Integer;
+    Turn,Ok: Boolean; Title: String;
+Begin
+ PrintPagesWin:=1;
+ Sz:=260;
+ If WGetDefaultPrinter(@Nm,Sz)=0 Then Exit;
+ If Nm[0]=#0 Then Exit;
+ PName:='';
+ I:=0;
+ While (I<260) And (Nm[I]<>#0) Do Begin PName:=PName+Nm[I];Inc(I);End;
+ Dc:=WCreateDC('WINSPOOL',@Nm,Nil,Nil);
+ If Dc=0 Then Begin PrintPagesWin:=2;Exit;End;
+ HR:=WGetDeviceCaps(Dc,8);      { HORZRES }
+ VR:=WGetDeviceCaps(Dc,10);     { VERTRES }
+ Turn:=VR>HR;                   { imprimante portrait : page tournee }
+ PBPR:=(PGW+7) Div 8;
+ PgSz:=PBPR*PGH;
+ GetMem(Pg,PgSz);GetMem(Rot,PgSz+64);
+ If Turn Then Begin W:=PGH;H:=PGW;End Else Begin W:=PGW;H:=PGH;End;
+ RBPR:=((W+31) Shr 5) Shl 2;
+ FillChar(DI,SizeOf(DI),0);
+ DI.cbSize:=SizeOf(DI);
+ Title:='NEWSMASTER';
+ For I:=1 To Length(Title) Do Dn[I-1]:=Title[I];
+ Dn[Length(Title)]:=#0;
+ DI.lpszDocName:=@Dn;
+ FillChar(BI,SizeOf(BI),0);
+ BI.biSize:=40;BI.biWidth:=W;BI.biHeight:=-H;
+ BI.biPlanes:=1;BI.biBitCount:=1;BI.biClrUsed:=2;
+ BI.Pal[0]:=$00FFFFFF;          { bit a 0 : blanc }
+ BI.Pal[1]:=0;                  { bit a 1 : noir (encre) }
+ { echelle entiere si possible, sinon ajustement a la page }
+ S:=HR Div W;
+ If (VR Div H)<S Then S:=VR Div H;
+ If S>=1 Then Begin DW:=W*S;DH:=H*S;End
+ Else If W*VR>H*HR Then Begin
+  DW:=HR;DH:=(H*HR) Div W;
+ End Else Begin
+  DH:=VR;DW:=(W*VR) Div H;
+ End;
+ DX:=(HR-DW) Div 2;DY:=(VR-DH) Div 2;
+ Ok:=WStartDoc(Dc,DI)>0;
+ P:=P1;
+ While Ok And (P<=P2) Do Begin
+  RenderWholePage(P,Pg);
+  Out:=Pg;
+  If Turn Then Begin
+   FillChar(Rot^,PgSz+64,0);
+   For Y:=0 To PGH-1 Do
+    For X:=0 To PGW-1 Do
+     If (Pg^[Y*PBPR+(X Shr 3)] And ($80 Shr (X And 7)))<>0 Then Begin
+      { rotation de 90 degres : (X,Y) -> (PGH-1-Y,X) }
+      I:=X*RBPR+((PGH-1-Y) Shr 3);
+      Rot^[I]:=Rot^[I] Or ($80 Shr ((PGH-1-Y) And 7));
+     End;
+   Out:=Rot;
+  End;
+  If WStartPage(Dc)<=0 Then Ok:=False
+  Else Begin
+   If WStretchDIBits(Dc,DX,DY,DW,DH,0,0,W,H,Out,BI,0,$00CC0020)=0 Then
+    Ok:=False;
+   If WEndPage(Dc)<=0 Then Ok:=False;
+  End;
+  Inc(P);
+ End;
+ If Ok Then WEndDoc(Dc) Else WAbortDoc(Dc);
+ WDeleteDC(Dc);
+ FreeMem(Pg,PgSz);FreeMem(Rot,PgSz+64);
+ If Ok Then PrintPagesWin:=0 Else PrintPagesWin:=2;
+End;
+{$ENDIF}
+
 Procedure CmdPrint(All: Boolean);
 Var P1,P2,P: Integer; Base,FN: String; Ok: Boolean;
+    {$IFDEF WINPRINT}PName: String;{$ENDIF}
 Begin
  If DocName<>'' Then Base:=NoExt(ShortName(DocName)) Else Base:='NEWS';
  If All Then Begin P1:=1;P2:=NPg;End Else Begin P1:=CurPage;P2:=CurPage;End;
+ {$IFDEF WINPRINT}
+ HideMouse;
+ Box(160,200,480,250,PAPER);Frame(160,200,480,250);Frame(162,202,478,248);
+ BText(180,220,Tr('Envoi '#133' l''imprimante ...'));
+ ShowMouse;
+ Case PrintPagesWin(P1,P2,PName) Of
+  0: Begin
+      NeedDraw:=True;
+      MsgBox('Impression',Tr('Imprim'#130' sur : ')+PName+'|'+
+        Tr('Page(s) : ')+IntStr(P1)+' - '+IntStr(P2));
+      Exit;
+     End;
+  2: Begin
+      NeedDraw:=True;
+      MsgBox('Impression','Erreur d''impression Windows.');
+      Exit;
+     End;
+ End;
+ { aucune imprimante par defaut : repli sur l'export PBM }
+ {$ENDIF}
  Ok:=True;
  For P:=P1 To P2 Do Begin
   FN:=Copy(Base,1,6)+Chr(48+P Div 10)+Chr(48+P Mod 10)+'.PBM';

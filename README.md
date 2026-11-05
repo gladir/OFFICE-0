@@ -390,7 +390,9 @@ choix de la police par caractère, sélection, couper / copier / coller, annulat
 <li>Images : 14 images intégrées et celles des bibliothèques d'origine (touche Tab pour changer de bibliothèque), prendre / poser /
 copier, taille, rognage, retournement, lignes et boîtes avec motifs de remplissage et habillage du texte.</li>
 <li>Vues : zoom x2, normale, largeur de page, page entière. Impression d'une page
-ou de toutes les pages en bitmap PBM.</li>
+ou de toutes les pages : en bitmap PBM, et, si le programme est compilé avec Free Pascal pour Windows,
+vers l'imprimante par défaut de Windows (API <code>gdi32</code> / <code>winspool</code> déclarées dans <code>NEWS.PAS</code>, sans
+unité supplémentaire ; page tournée automatiquement sur une imprimante en portrait, repli sur le PBM s'il n'y a pas d'imprimante).</li>
 <li>Sans <code>NEWS.FLB</code>, des polices intégrées sont produites à partir de la police 8x8 du BGI.</li>
 </ul>
 
