@@ -384,7 +384,7 @@ fichier, impression) et écran de mise en page en miniature (ajout / suppression
 <li>Fichiers d'origine : lecture et écriture des journaux <code>.NWS</code> de News Master (page paysage de 960 x 760, images
 incorporées, texte principal et titre, polices et justification), lecture des bibliothèques d'images <code>.SDR</code> / <code>.SDX</code> /
 <code>.SHP</code> (NEWS, BUSINESS, FANCYABC, SPORTS, TRAVEL...) et des polices <code>NEWS.FLB</code> si les fichiers sont dans le
-répertoire courant. Quatre pages fixes, un titre par page, lignes et boîtes d'origine (épaisseur et motif) conservées à l'enregistrement. Les journaux enregistrés relisent correctement dans <code>NEWS.EXE</code> d'origine.</li>
+répertoire courant. Quatre pages fixes, un titre par page, lignes et boîtes d'origine (épaisseur et motif) conservées à l'enregistrement. Mise en page calée sur News Master (hauteur de ligne, largeur des espaces, coupures, habillage autour des images : aucun / gauche / droite / les deux, titres en plusieurs zones) : les pages d'exemple de l'archive se découpent comme dans le programme d'origine. Les journaux enregistrés relisent correctement dans <code>NEWS.EXE</code> d'origine.</li>
 <li>Texte : une histoire qui coule de colonne en colonne et de page en page, alignement gauche / droite / centré / justifié,
 choix de la police par caractère, sélection, couper / copier / coller, annulation, recherche, import / export ASCII.</li>
 <li>Images : 14 images intégrées et celles des bibliothèques d'origine (touche Tab pour changer de bibliothèque), prendre / poser /

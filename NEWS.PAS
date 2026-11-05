@@ -54,7 +54,7 @@ Const
  HEADH    = 152;
  COLGAP   = 30;
  MINSLOT  = 60;
- PAD      = 6;
+ PAD      = 0;
 
  MAXFONT  = 40;
  MAXLINE  = 900;
@@ -65,7 +65,7 @@ Const
  MAXSRC   = 12;
  MAXSH    = 170;
  STCAP    = 12000;
- HCAP     = 240;
+ HCAP     = 1200;
  CLIPCAP  = 6000;
  MAXCTL   = 24;
 
@@ -137,6 +137,7 @@ Type
   S,E,Nx   : Integer;     { debut, fin (exclue), debut de la ligne suivante }
   X,Y,W,H  : Integer;     { emplacement sur la page (points) }
   Asc,Lw   : Integer;     { ligne de base, largeur naturelle }
+  Hg       : Integer;     { largeur des espaces terminales (centrage) }
   Ns       : Integer;     { nombre d'espaces }
   Sty,Pg,Al,Fl : Byte;    { histoire, page, alignement, 1 = fin de paragraphe }
  End;
@@ -1758,6 +1759,12 @@ Begin
  LoadFLBIndex:=True;
 End;
 
+{ Largeur d'une espace dans NEWS.FLB (mesuree sur News Master : elle ne
+  se deduit pas de l'en-tete des polices) ; 0 = en-tete }
+Const
+ FlbSpace : Array[0..33] Of Byte = (7,7,8,10,10,10,13,12,7,9,11,11,10,10,11,
+   11,13,13,13,13,18,19,20,16,0,0,0,0,4,37,13,4,20,9);
+
 Procedure LoadFLBFont(F: Integer);
 Var Fh: File; C,J: Integer; Tb: Array[0..255] Of Byte; W: Word; Got: LongInt;
 Begin
@@ -1780,7 +1787,11 @@ Begin
    FAdv[F]^[C]:=FBuf[F]^[W+256+1]+FGap[F];
   End;
  End;
- If FOff[F]^[32]=$FFFF Then FAdv[F]^[32]:=FSpc[F];
+ If FOff[F]^[32]=$FFFF Then Begin
+  FAdv[F]^[32]:=FSpc[F];
+  If (F<=33) And (NFont=34) Then
+   If FlbSpace[F]>0 Then FAdv[F]^[32]:=FlbSpace[F];
+ End;
  For C:=128 To 255 Do Begin
   J:=FoldCh(C);
   FOff[F]^[C]:=FOff[F]^[J];
@@ -2598,7 +2609,9 @@ Var
 { hauteur d'une ligne : hauteur de la police + 10 % (mesure sur l'original) }
 Function Pitch(AD: Integer): Integer;
 Begin
- Pitch:=(AD*11+5) Div 10;
+ { News 60 (60 points) mesure 67 sur l'original }
+ If AD>=60 Then Pitch:=(AD*11+9) Div 10+1
+ Else Pitch:=(AD*11+9) Div 10;
 End;
 
 Procedure BuildRegions;
@@ -2612,7 +2625,7 @@ Begin
   For C:=0 To N-1 Do Begin
    Inc(NReg);
    RegPg[NReg]:=P;RegX[NReg]:=MRG+C*(CW+COLGAP);RegY[NReg]:=Y0;
-   RegW[NReg]:=CW;RegH[NReg]:=PGH-4-Y0;
+   RegW[NReg]:=CW;RegH[NReg]:=PGH-Y0;
   End;
  End;
 End;
@@ -2707,6 +2720,8 @@ Begin
 End;
 
 { Remplit une ligne a partir de Ps dans une largeur W }
+Var LastHang: Integer;
+
 Procedure FillLine(S,Ps,W: Integer; Var E,Nx,Lw,Ns,Asc,Dsc: Integer; Var
   ParaEnd: Boolean);
 Var I,X,Adv,LastSp,F,K: Integer; C: Byte;
@@ -2719,19 +2734,28 @@ Begin
    E:=I;Nx:=I+1;ParaEnd:=True;Break;
   End;
   Adv:=CharAdv(St[S].F^[I],C);
+  { la coupure ne consomme qu'une espace : celle qui deborde, ou la premiere
+    d'une suite d'espaces ; les suivantes commencent la ligne suivante }
+  If (C=32) And ((I=Ps) Or (St[S].T^[I-1]<>32)) Then LastSp:=I;
   If (X+Adv>W) And (I>Ps) Then Begin
-   If LastSp>=Ps Then Begin E:=LastSp;Nx:=LastSp+1;End
+   If C=32 Then Begin E:=I;Nx:=I+1;End
+   Else If LastSp>=Ps Then Begin E:=LastSp;Nx:=LastSp+1;End
    Else Begin E:=I;Nx:=I;End;
    Break;
   End;
-  If C=32 Then LastSp:=I;
   X:=X+Adv;
   Inc(I);
  End;
- { retire les espaces terminaux, saute ceux qui suivent la coupure }
+ { retire les espaces terminaux ; une coupure sur une espace suivie de la
+   fin du paragraphe ne cree pas de ligne vide }
  While (E>Ps) And (St[S].T^[E-1]=32) Do Dec(E);
- If Not ParaEnd Then
+ { apres un point, la coupure absorbe toute la suite d'espaces }
+ If (Not ParaEnd) And (E>Ps) And (St[S].T^[E-1]=46) Then
   While (Nx<St[S].Len) And (St[S].T^[Nx]=32) Do Inc(Nx);
+ If (Not ParaEnd) And (Nx>Ps) And (Nx<=St[S].Len) Then
+  If (St[S].T^[Nx-1]=32) And (St[S].T^[Nx]=13) Then Begin
+   Inc(Nx);ParaEnd:=True;
+  End;
  Lw:=0;Ns:=0;Asc:=0;Dsc:=0;
  For K:=Ps To E-1 Do Begin
   F:=St[S].F^[K];
@@ -2744,6 +2768,10 @@ Begin
   F:=St[S].F^[Ps];
   Asc:=FAsc[F];Dsc:=FDsc[F];
  End;
+ { les espaces terminales comptent pour le centrage et l'alignement a droite }
+ LastHang:=0;
+ For K:=E To Nx-1 Do
+  If St[S].T^[K]=32 Then LastHang:=LastHang+CharAdv(St[S].F^[K],32);
 End;
 
 Procedure AddLine(S,PgN,Ps,E,Nx,X,Y,W,H,Asc,Lw,Ns: Integer; ParaEnd: Boolean);
@@ -2753,6 +2781,7 @@ Begin
  Lines^[NLn].S:=Ps;Lines^[NLn].E:=E;Lines^[NLn].Nx:=Nx;
  Lines^[NLn].X:=X;Lines^[NLn].Y:=Y;Lines^[NLn].W:=W;Lines^[NLn].H:=H;
  Lines^[NLn].Asc:=Asc;Lines^[NLn].Lw:=Lw;Lines^[NLn].Ns:=Ns;
+ Lines^[NLn].Hg:=LastHang;
  Lines^[NLn].Sty:=S;Lines^[NLn].Pg:=PgN;
  PE:=ParaEndPos(S,Ps);
  Lines^[NLn].Al:=St[S].A^[PE];
@@ -2761,29 +2790,49 @@ Begin
 End;
 
 Procedure LayoutHead(P: Integer);
-Var Ps,Y,E,Nx,Lw,Ns,Asc,Dsc,H,First,I,Tot,NewY,SX,SW,Guard: Integer;
-    PEnd: Boolean;
+Var Ps,R,Y,E,Nx,Lw,Ns,Asc,Dsc,Hd,H2,Tries,SX,SW,LY,LH,F0,First,I,Tot,
+    SvReg: Integer;
+    PEnd,Ok: Boolean;
 Begin
- Ps:=0;Y:=0;First:=NLn;Guard:=0;
+ If NReg>=MAXREG Then Exit;
+ { le titre est une region de la largeur de la page ; il s'ecoule dans les
+   intervalles libres de chaque bande, comme le texte principal }
+ SvReg:=NReg;Inc(NReg);
+ RegPg[NReg]:=P;RegX[NReg]:=0;RegY[NReg]:=0;RegW[NReg]:=PGW;RegH[NReg]:=HEADH;
+ R:=NReg;Y:=0;Ps:=0;First:=NLn;BandOn:=False;
+ SX:=0;SW:=100;LY:=0;LH:=10;
  While (Ps<=St[P].Len) And (NLn<MAXLINE) Do Begin
-  Inc(Guard);
-  If Guard>200 Then Break;
-  SX:=0;SW:=PGW;
-  FillLine(P,Ps,PGW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
-  H:=Pitch(Asc+Dsc);
-  NewY:=Y+4;
-  If Not BandIntervals(P,0,PGW,Y,H,NewY) Then Begin
-   If NewY<=Y Then NewY:=Y+1;
-   Y:=NewY;Continue;
+  F0:=St[P].F^[Ps];
+  If BandOn And (BandNext<=BandN) Then Begin
+   SX:=BandA[BandNext];SW:=BandB[BandNext]-SX;LY:=BandY;LH:=BandH;
+   Inc(BandNext);
+   FillLine(P,Ps,SW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
+  End Else Begin
+   If BandOn Then Y:=BandY+BandH;
+   BandOn:=False;
+   Hd:=Pitch(FAsc[F0]+FDsc[F0]);
+   Tries:=0;
+   Repeat
+    Ok:=FindBand(R,Y,Hd);
+    If Not Ok Then Break;
+    SX:=BandA[1];SW:=BandB[1]-SX;
+    FillLine(P,Ps,SW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
+    H2:=Pitch(Asc+Dsc);
+    Inc(Tries);
+    If (H2>Hd) And (Tries<4) Then Begin Hd:=H2;BandOn:=False;End
+    Else Break;
+   Until False;
+   If Not Ok Then Break;
+   LY:=BandY;LH:=Integer(Max2(BandH,Pitch(Asc+Dsc)));
   End;
-  SX:=IvA[1];SW:=IvB[1]-IvA[1];
-  If SW<PGW Then FillLine(P,Ps,SW,E,Nx,Lw,Ns,Asc,Dsc,PEnd);
-  H:=Pitch(Asc+Dsc);
-  If Y+H>HEADH Then Break;
-  AddLine(P,P,Ps,E,Nx,SX,Y,SW,H,Asc,Lw,Ns,PEnd);
-  Y:=Y+H;Ps:=Nx;
+  AddLine(P,P,Ps,E,Nx,SX,LY,SW,LH,Asc,Lw,Ns,PEnd);
+  Ps:=Nx;
  End;
- Tot:=Y;
+ BandOn:=False;
+ NReg:=SvReg;
+ Tot:=0;
+ For I:=First To NLn-1 Do
+  If Lines^[I].Y+Lines^[I].H>Tot Then Tot:=Lines^[I].Y+Lines^[I].H;
  If (Tot<HEADH) And (NLn>First) Then
   For I:=First To NLn-1 Do Lines^[I].Y:=Lines^[I].Y+(HEADH-Tot) Div 2;
 End;
@@ -2816,6 +2865,11 @@ Begin
     Else Break;
    Until False;
    If Not Ok Then Begin Overflow:=True;Break;End;
+   { un paragraphe vide en haut d'une colonne est ignore }
+   If (Ps>0) And (E=Ps) And PEnd And (BandY<=RegY[BandR]) Then Begin
+    AddLine(0,RegPg[BandR],Ps,E,Nx,SX,BandY,SW,0,Asc,Lw,Ns,PEnd);
+    Ps:=Nx;BandOn:=False;Continue;
+   End;
    LY:=BandY;LH:=Integer(Max2(BandH,Pitch(Asc+Dsc)));
   End;
   AddLine(0,RegPg[BandR],Ps,E,Nx,SX,LY,SW,LH,Asc,Lw,Ns,PEnd);
@@ -2863,8 +2917,11 @@ Begin
  If N>MAXLX-1 Then N:=MAXLX-1;
  Ex:=0;Per:=0;Rem_:=0;
  Case Lines^[I].Al Of
-  AL_RIGHT: X0:=Lines^[I].X+Lines^[I].W-Lines^[I].Lw;
-  AL_CENTER: X0:=Lines^[I].X+(Lines^[I].W-Lines^[I].Lw) Div 2;
+  AL_RIGHT: X0:=Lines^[I].X+Lines^[I].W-Lines^[I].Lw-Lines^[I].Hg;
+  AL_CENTER: Begin
+   X0:=Lines^[I].X+(Lines^[I].W-Lines^[I].Lw-Lines^[I].Hg) Div 2;
+   If X0<Lines^[I].X Then X0:=Lines^[I].X;
+  End;
  Else
   X0:=Lines^[I].X;
  End;
@@ -3043,8 +3100,11 @@ Var XS,XE,YT,H,Fh: LongInt; F: Integer;
 Begin
  If Lines^[I].E<=Lines^[I].S Then Exit;
  Case Lines^[I].Al Of
-  AL_RIGHT: XS:=Lines^[I].X+Lines^[I].W-Lines^[I].Lw;
-  AL_CENTER: XS:=Lines^[I].X+(Lines^[I].W-Lines^[I].Lw) Div 2;
+  AL_RIGHT: XS:=Lines^[I].X+Lines^[I].W-Lines^[I].Lw-Lines^[I].Hg;
+  AL_CENTER: Begin
+   XS:=Lines^[I].X+(Lines^[I].W-Lines^[I].Lw-Lines^[I].Hg) Div 2;
+   If XS<Lines^[I].X Then XS:=Lines^[I].X;
+  End;
  Else
   XS:=Lines^[I].X;
  End;
@@ -5593,7 +5653,16 @@ Begin
       A.SY1:=Integer(Clamp((Y1-RY1)*Ph Div Fh,0,Ph-1));
       A.SY2:=Integer(Clamp((Y2-RY1)*Ph Div Fh,A.SY1+1,Ph));
      End;
-     If Aux=2 Then A.Flow:=FL_OVER Else A.Flow:=FL_BOTH;
+     { mot 3 : habillage du texte (0 aucun, 1 gauche, 2 droite, 3 les deux) ;
+       mot 4 : retournements (2 horizontal, 4 vertical) }
+     Case Integer(NW(Qr-24+4)) And 3 Of
+      0: A.Flow:=FL_CLEAR;
+      1: A.Flow:=FL_LEFT;
+      2: A.Flow:=FL_RIGHT;
+     Else A.Flow:=FL_BOTH;
+     End;
+     If (Aux And 2)<>0 Then A.FH:=1;
+     If (Aux And 4)<>0 Then A.FV:=1;
      AddArt(A);
     End;
    End;
@@ -5717,8 +5786,14 @@ Begin
   For I:=1 To NArt Do
    If (Arts[I].Pg=P) And (Arts[I].Kind=AR_ART) And (Used[Arts[I].Lib]>0) Then
    Begin
-    WW(0);WW(Used[Arts[I].Lib]-1);WW(3);
-    If Arts[I].Flow=FL_OVER Then WW(2) Else WW(0);
+    WW(0);WW(Used[Arts[I].Lib]-1);
+    Case Arts[I].Flow Of
+     FL_CLEAR: WW(0);
+     FL_LEFT: WW(1);
+     FL_RIGHT: WW(2);
+    Else WW(3);
+    End;
+    WW(Arts[I].FH*2+Arts[I].FV*4);
     X1:=Arts[I].X;Y1:=Arts[I].Y;X2:=X1+Arts[I].W;Y2:=Y1+Arts[I].H;
     RX1:=X1;RY1:=Y1;RX2:=X2;RY2:=Y2;
     Pw:=Lib[Arts[I].Lib].W;Ph:=Lib[Arts[I].Lib].H;
