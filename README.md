@@ -96,6 +96,10 @@ Aperçu du clone de Quattro :
 	</tr>
 </table>
 
+Aperçu du clone de Simply Accounting :
+
+<img width="642" height="484" alt="image" src="https://github.com/user-attachments/assets/5c732dbb-452c-46ed-bb6d-c8849fefd947" />
+
 Aperçu du clone de Visio :
 
 <img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
@@ -169,6 +173,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
       <td><b>QUATTRO.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Quattro Pro.</td>
     </tr>
+	<tr>
+		<td><b>SIMPLY.PAS</b></td>
+		<td>Cette commande permet de lancer un clone de Simply Accounting.</td>
+	</tr>
     <tr>
       <td><b>VISIO.PAS</b></td>
       <td>Cette commande permet de lancer un clone de Visio.</td>
