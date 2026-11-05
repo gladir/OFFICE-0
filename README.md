@@ -388,7 +388,9 @@ répertoire courant. Quatre pages fixes, un titre par page, lignes et boîtes d'
 <li>Texte : une histoire qui coule de colonne en colonne et de page en page, alignement gauche / droite / centré / justifié,
 choix de la police par caractère, sélection, couper / copier / coller, annulation, recherche, import / export ASCII.</li>
 <li>Images : 14 images intégrées et celles des bibliothèques d'origine (touche Tab pour changer de bibliothèque), prendre / poser /
-copier, taille, rognage, retournement, lignes et boîtes avec motifs de remplissage et habillage du texte.</li>
+copier, taille et rognage (flèches, <code>+</code> / <code>-</code> ou en tirant un coin à la souris), retournement, lignes et boîtes
+avec motifs de remplissage et habillage du texte. Annuler (<code>Ctrl+Z</code>) couvre le texte, les actions sur les images et la mise
+en page (colonnes, titres).</li>
 <li>Vues : zoom x2, normale, largeur de page, page entière. Impression d'une page
 ou de toutes les pages : en bitmap PBM, et, si le programme est compilé avec Free Pascal pour Windows,
 vers l'imprimante par défaut de Windows (API <code>gdi32</code> / <code>winspool</code> déclarées dans <code>NEWS.PAS</code>, sans

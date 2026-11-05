@@ -44,6 +44,7 @@ Const
  VH       = 361;
 
  { Page (en points a l'echelle 1:1) }
+ HSZ      = 3;          { demi-taille des poignees de coin }
  PGW      = 960;
  PGH      = 760;
  PGGAP    = 16;
@@ -157,6 +158,10 @@ Type
   SX1,SY1,SX2,SY2 : Integer; { zone source (rognage) }
  End;
 
+ TArtArr = Array[1..MAXART] Of TArt;
+ TColArr = Array[1..MAXPG] Of Byte;
+ THasArr = Array[1..MAXPG] Of Boolean;
+
  TEvent = Record
   { 0 rien, 1 touche, 2 bouton bas, 3 bouton haut, 4 mouvement }
   Kind : Byte;
@@ -189,9 +194,9 @@ Var
  { Document }
  St        : Array[0..MAXPG] Of TStory;
  NPg       : Integer;
- NCol      : Array[1..MAXPG] Of Byte;
- HasHead   : Array[1..MAXPG] Of Boolean;
- Arts      : Array[1..MAXART] Of TArt;
+ NCol      : TColArr;
+ HasHead   : THasArr;
+ Arts      : TArtArr;
  NArt      : Integer;
  DocName   : String[79];
  Named,Modified : Boolean;
@@ -241,6 +246,10 @@ Var
  UndoT,UndoF,UndoA : PBytes;
  UndoLen,UndoCur,UndoSt : Integer;
  UndoOK    : Boolean;
+ UKind,UTag,UNArt : Integer;   { 1 texte, 2 objets / mise en page }
+ UArts     : TArtArr;
+ UNCol     : TColArr;
+ UHas      : THasArr;
  FindStr   : String[40];
  Lang      : Integer;          { 0 francais, 1 anglais, 2 allemand }
 
@@ -278,6 +287,9 @@ Var
  MenuOpen,MenuHi : Integer;
  Dragging  : Integer;
  DragOX,DragOY : LongInt;
+ DragA     : TArt;             { objet avant le debut de la poignee }
+ DragCorner: Integer;          { 0 haut-gauche, 1 haut-droit, 2 bas-gauche... }
+ DragPushed: Boolean;
  CaretOn   : Boolean;
  CaretT    : LongInt;
  LastClickT : LongInt;
@@ -987,7 +999,22 @@ Begin
  If S='Page(s) : ' Then Begin TrEN:='Page(s): ';Exit;End;
  If S='Erreur d''impression Windows.' Then Begin
    TrEN:='Windows printing error.';Exit;End;
-If S='Format : bitmap PBM ' Then Begin TrEN:='Format: PBM bitmap ';Exit;End;
+ If S='(sans nom)' Then Begin TrEN:='(untitled)';Exit;End;
+ If S='Journal : ' Then Begin TrEN:='Newsletter: ';Exit;End;
+ If S='Page courante : ' Then Begin TrEN:='Current page: ';Exit;End;
+ If S='Colonnes : ' Then Begin TrEN:='Columns: ';Exit;End;
+ If S='Taille : ' Then Begin TrEN:='Size: ';Exit;End;
+ If S=', avec titre' Then Begin TrEN:=', with headline';Exit;End;
+ If S='Vue : ' Then Begin TrEN:='View: ';Exit;End;
+ If S='Police : ' Then Begin TrEN:='Font: ';Exit;End;
+ If S='Curseur de texte : ' Then Begin TrEN:='Text cursor: ';Exit;End;
+ If S='Objet s'#130'lectionn'#130' : ' Then Begin TrEN:='Selected object: ';
+   Exit;End;
+ If S='page ' Then Begin TrEN:='page ';Exit;End;
+ If S='Aucun objet s'#130'lectionn'#130 Then Begin TrEN:='No object selected';
+   Exit;End;
+ If S='Informations' Then Begin TrEN:='Information';Exit;End;
+ If S='Format : bitmap PBM ' Then Begin TrEN:='Format: PBM bitmap ';Exit;End;
  If S='Erreur d'''#130'criture du fichier.' Then Begin
    TrEN:='File write error.';Exit;End;
  If S='Titre du journal' Then Begin TrEN:='Newsletter headline';Exit;End;
@@ -1362,7 +1389,22 @@ Begin
  If S='Page(s) : ' Then Begin TrDE:='Seite(n): ';Exit;End;
  If S='Erreur d''impression Windows.' Then Begin
    TrDE:='Windows-Druckfehler.';Exit;End;
-If S='Format : bitmap PBM ' Then Begin TrDE:='Format: PBM-Bitmap ';Exit;End;
+ If S='(sans nom)' Then Begin TrDE:='(ohne Namen)';Exit;End;
+ If S='Journal : ' Then Begin TrDE:='Zeitung: ';Exit;End;
+ If S='Page courante : ' Then Begin TrDE:='Aktuelle Seite: ';Exit;End;
+ If S='Colonnes : ' Then Begin TrDE:='Spalten: ';Exit;End;
+ If S='Taille : ' Then Begin TrDE:='Gr'#148#225'e: ';Exit;End;
+ If S=', avec titre' Then Begin TrDE:=', mit Titel';Exit;End;
+ If S='Vue : ' Then Begin TrDE:='Ansicht: ';Exit;End;
+ If S='Police : ' Then Begin TrDE:='Schrift: ';Exit;End;
+ If S='Curseur de texte : ' Then Begin TrDE:='Textcursor: ';Exit;End;
+ If S='Objet s'#130'lectionn'#130' : ' Then Begin
+   TrDE:='Gew'#132'hltes Objekt: ';Exit;End;
+ If S='page ' Then Begin TrDE:='Seite ';Exit;End;
+ If S='Aucun objet s'#130'lectionn'#130 Then Begin
+   TrDE:='Kein Objekt gew'#132'hlt';Exit;End;
+ If S='Informations' Then Begin TrDE:='Informationen';Exit;End;
+ If S='Format : bitmap PBM ' Then Begin TrDE:='Format: PBM-Bitmap ';Exit;End;
  If S='Erreur d'''#130'criture du fichier.' Then Begin
    TrDE:='Fehler beim Schreiben der Datei.';Exit;End;
  If S='Titre du journal' Then Begin TrDE:='Titel der Zeitung';Exit;End;
@@ -2498,20 +2540,40 @@ Begin
  If N>St[0].Cap+2 Then Exit;
  Move(St[ASt].T^,UndoT^,N);Move(St[ASt].F^,UndoF^,N);Move(St[ASt].A^,UndoA^,N);
  UndoLen:=St[ASt].Len;UndoCur:=Cur;UndoSt:=ASt;UndoOK:=True;
+ UKind:=1;UTag:=0;
+End;
+
+{ Annulation des actions sur les objets et la mise en page. Tag<>0 : les
+  actions successives de meme nature (ex. agrandir) comptent pour une. }
+Procedure PushUndoDoc(Tag: Integer);
+Begin
+ If (UKind=2) And UndoOK And (Tag<>0) And (Tag=UTag) Then Exit;
+ UArts:=Arts;UNArt:=NArt;UNCol:=NCol;UHas:=HasHead;
+ UKind:=2;UTag:=Tag;UndoOK:=True;
 End;
 
 Procedure Relayout; Forward;
+Procedure UpdateSelArt; Forward;
 
 Procedure DoUndo;
 Var N: Integer;
 Begin
  If Not UndoOK Then Exit;
+ If UKind=2 Then Begin
+  Arts:=UArts;NArt:=UNArt;NCol:=UNCol;HasHead:=UHas;
+  SelArt:=0;UndoOK:=False;UKind:=0;UTag:=0;
+  Modified:=True;
+  Relayout;
+  If Mode=MD_ART Then UpdateSelArt;
+  NeedDraw:=True;
+  Exit;
+ End;
  N:=UndoLen+1;
  Move(UndoT^,St[UndoSt].T^,N);Move(UndoF^,St[UndoSt].F^,N);Move(UndoA^,
    St[UndoSt].A^,N);
  St[UndoSt].Len:=UndoLen;
  ASt:=UndoSt;Cur:=UndoCur;SelA:=-1;
- UndoOK:=False;
+ UndoOK:=False;UKind:=0;
  Modified:=True;
  Relayout;
 End;
@@ -3198,9 +3260,50 @@ Begin
  LY_:=DY-LongInt(P-1)*(PGH+PGGAP);
 End;
 
+{ Coin C (0 haut-gauche, 1 haut-droit, 2 bas-gauche, 3 bas-droit) de
+  l'objet A, en coordonnees de la fenetre d'affichage }
+Procedure CornerPos(Const A: TArt; C: Integer; Var HX,HY: LongInt);
+Var SX,SY: LongInt;
+Begin
+ PageToScr(A.Pg,A.X,A.Y,SX,SY);
+ HX:=SX;HY:=SY;
+ If (C And 1)<>0 Then HX:=SX+Sc(A.W);
+ If (C And 2)<>0 Then HY:=SY+Sc(A.H);
+End;
+
+{ Poignee sous le pointeur (coordonnees fenetre d'affichage) ou -1 }
+Function HandleHit(X,Y: LongInt): Integer;
+Var C: Integer; HX,HY: LongInt;
+Begin
+ HandleHit:=-1;
+ If (SelArt<1) Or (SelArt>NArt) Then Exit;
+ For C:=0 To 3 Do Begin
+  CornerPos(Arts[SelArt],C,HX,HY);
+  If (Abs(X-HX)<=HSZ+1) And (Abs(Y-HY)<=HSZ+1) Then Begin
+   HandleHit:=C;Exit;
+  End;
+ End;
+End;
+
+Procedure DrawHandles;
+Var C: Integer; HX,HY: LongInt;
+Begin
+ If (SelArt<1) Or (SelArt>NArt) Or HeldOn Or (ArtSub>2) Then Exit;
+ For C:=0 To 3 Do Begin
+  CornerPos(Arts[SelArt],C,HX,HY);
+  Box(Integer(HX)-HSZ,Integer(HY)-HSZ,Integer(HX)+HSZ,Integer(HY)+HSZ,INK);
+  If ArtSub=2 Then
+   Box(Integer(HX)-HSZ+2,Integer(HY)-HSZ+2,Integer(HX)+HSZ-2,Integer(HY)+HSZ-2,
+     PAPER)
+  Else
+   Box(Integer(HX)-1,Integer(HY)-1,Integer(HX)+1,Integer(HY)+1,PAPER);
+ End;
+End;
+
 Procedure DrawArtCursor;
 Var P: Integer; LX_,LY_,SX,SY: LongInt; I: Integer; HW,HH: LongInt;
 Begin
+ DrawHandles;
  DocToPage(ACx,ACy,P,LX_,LY_);
  PageToScr(P,LX_,LY_,SX,SY);
  { piece tenue : apercu a la position du curseur }
@@ -4726,6 +4829,7 @@ Procedure DelArt(I: Integer);
 Var K: Integer;
 Begin
  If (I<1) Or (I>NArt) Then Exit;
+ PushUndoDoc(0);
  For K:=I To NArt-1 Do Arts[K]:=Arts[K+1];
  Dec(NArt);
  SelArt:=0;
@@ -4763,6 +4867,7 @@ Begin
  A:=Held;
  A.Pg:=P;A.X:=Integer(LX_);A.Y:=Integer(LY_);
  ClampArt(A);
+ PushUndoDoc(0);
  I:=AddArt(A);
  If I>0 Then Begin
   Modified:=True;
@@ -4923,7 +5028,7 @@ End;
 Procedure ArtSetFlow(Fl: Integer);
 Begin
  If HeldOn Then Held.Flow:=Fl
- Else If SelArt>0 Then Arts[SelArt].Flow:=Fl
+ Else If SelArt>0 Then Begin PushUndoDoc(0);Arts[SelArt].Flow:=Fl;End
  Else Exit;
  Modified:=True;
  Relayout;
@@ -4934,6 +5039,7 @@ Begin
  If HeldOn Then Begin
   If Horiz Then Held.FH:=1-Held.FH Else Held.FV:=1-Held.FV;
  End Else If SelArt>0 Then Begin
+  PushUndoDoc(0);
   If Horiz Then Arts[SelArt].FH:=1-Arts[SelArt].FH Else
     Arts[SelArt].FV:=1-Arts[SelArt].FV;
  End Else Exit;
@@ -4945,6 +5051,7 @@ Procedure ArtResize(DW,DH: Integer);
 Var A: TArt; NW,NH: Integer;
 Begin
  If HeldOn Then A:=Held Else If SelArt>0 Then A:=Arts[SelArt] Else Exit;
+ If Not HeldOn Then PushUndoDoc(1000+SelArt);
  If A.Kind=AR_ART Then Begin
   NW:=A.W+DW;
   If DW=0 Then NW:=A.W-DH;
@@ -4969,6 +5076,7 @@ Procedure ArtResetSize;
 Var A: TArt;
 Begin
  If HeldOn Then A:=Held Else If SelArt>0 Then A:=Arts[SelArt] Else Exit;
+ If Not HeldOn Then PushUndoDoc(0);
  If A.Kind=AR_ART Then Begin
   A.W:=(A.SX2-A.SX1)*3 Div 2;A.H:=(A.SY2-A.SY1)*3 Div 2;
  End;
@@ -4985,6 +5093,7 @@ Var A: TArt; OW,OH,SW,SHh,NW,NH: Integer;
 Begin
  If HeldOn Then A:=Held Else If SelArt>0 Then A:=Arts[SelArt] Else Exit;
  If A.Kind<>AR_ART Then Exit;
+ If Not HeldOn Then PushUndoDoc(2000+SelArt);
  SW:=A.SX2-A.SX1;SHh:=A.SY2-A.SY1;
  OW:=A.W;OH:=A.H;
  If CropEnd=0 Then Begin
@@ -5014,6 +5123,75 @@ Begin
  NeedDraw:=True;
 End;
 
+{ Redimensionnement par un coin : le coin oppose reste fixe. }
+Procedure ResizeByCorner(Var A: TArt; Const O: TArt; C: Integer;
+  PX,PY: LongInt);
+Var FX,FY,NW,NH: LongInt; L,T: Boolean;
+Begin
+ A:=O;
+ L:=(C And 1)=0;T:=(C And 2)=0;
+ If L Then FX:=O.X+O.W Else FX:=O.X;
+ If T Then FY:=O.Y+O.H Else FY:=O.Y;
+ If O.Kind=AR_ART Then Begin
+  { image : proportions conservees }
+  NW:=Abs(PX-FX);
+  If NW<8 Then NW:=8;
+  If NW>PGW-2 Then NW:=PGW-2;
+  NH:=NW*O.H Div O.W;
+  If NH<4 Then NH:=4;
+  If NH>PGH-2 Then Begin NH:=PGH-2;NW:=NH*O.W Div O.H;End;
+  If L Then A.X:=Integer(FX-NW) Else A.X:=Integer(FX);
+  If T Then A.Y:=Integer(FY-NH) Else A.Y:=Integer(FY);
+  A.W:=Integer(NW);A.H:=Integer(NH);
+ End Else Begin
+  A.X:=Integer(Min2(PX,FX));A.Y:=Integer(Min2(PY,FY));
+  A.W:=Integer(Abs(PX-FX));A.H:=Integer(Abs(PY-FY));
+ End;
+ ClampArt(A);
+End;
+
+{ Un axe du rognage. S1,S2 : zone source ; Lim : taille de l'image source ;
+  Pos,Len : position et taille sur la page ; Low : c'est le bord bas (gauche
+  ou haut) qui bouge ; Edge : nouvelle position du bord ; Rev : image
+  retournee sur cet axe. }
+Procedure CropAxis(Var S1,S2: Integer; Lim: Integer; Var Pos,Len: Integer;
+  Low: Boolean; Edge: LongInt; Rev: Boolean);
+Var O1,O2,OP,OL: LongInt; D,N,NL: LongInt; UseS1: Boolean;
+Begin
+ O1:=S1;O2:=S2;OP:=Pos;OL:=Len;
+ If (O2-O1<1) Or (OL<1) Then Exit;
+ { le bord deplace correspond a S1 ou S2 de la source }
+ UseS1:=Low Xor Rev;
+ If Low Then D:=Edge-OP Else D:=Edge-(OP+OL);
+ If Low Then D:=D*(O2-O1) Div OL Else D:=D*(O2-O1) Div OL;
+ If Rev Then D:=-D;
+ If UseS1 Then Begin
+  N:=O1+D;
+  If N<0 Then N:=0;
+  If N>O2-4 Then N:=O2-4;
+  NL:=OL*(O2-N) Div (O2-O1);
+  S1:=Integer(N);
+ End Else Begin
+  N:=O2+D;
+  If N<O1+4 Then N:=O1+4;
+  If N>Lim Then N:=Lim;
+  NL:=OL*(N-O1) Div (O2-O1);
+  S2:=Integer(N);
+ End;
+ If NL<2 Then NL:=2;
+ Len:=Integer(NL);
+ If Low Then Pos:=Integer(OP+OL-NL);
+End;
+
+Procedure CropByCorner(Var A: TArt; Const O: TArt; C: Integer;
+  PX,PY: LongInt);
+Begin
+ A:=O;
+ CropAxis(A.SX1,A.SX2,Lib[O.Lib].W,A.X,A.W,(C And 1)=0,PX,O.FH<>0);
+ CropAxis(A.SY1,A.SY2,Lib[O.Lib].H,A.Y,A.H,(C And 2)=0,PY,O.FV<>0);
+ ClampArt(A);
+End;
+
 Procedure ArtFinishDraw;
 Var P1,P2: Integer; X1,Y1,X2,Y2: LongInt; A: TArt; I: Integer;
 Begin
@@ -5034,6 +5212,7 @@ Begin
   If A.H<4 Then A.H:=4;
  End;
  A.Th:=DrawTh;A.Pat:=DrawPat;A.Flow:=FL_OVER;
+ PushUndoDoc(0);
  I:=AddArt(A);
  If I>0 Then Begin Modified:=True;Relayout;SelArt:=I;End;
 End;
@@ -5099,6 +5278,7 @@ Begin
   End;
  Until Done;
  If (SelArt>0) And (Arts[SelArt].Kind<>AR_ART) Then Begin
+  PushUndoDoc(0);
   Arts[SelArt].Pat:=DrawPat;Modified:=True;
  End;
  NeedDraw:=True;
@@ -5114,6 +5294,7 @@ Begin
   If V>30 Then V:=30;
   DrawTh:=V;
   If (SelArt>0) And (Arts[SelArt].Kind<>AR_ART) Then Begin
+   PushUndoDoc(0);
    Arts[SelArt].Th:=V;Modified:=True;
   End;
   NeedDraw:=True;
@@ -5143,12 +5324,14 @@ Procedure CmdAddCol;
 Begin
  If NCol[CurPage]>=MAXCOL Then Begin
    SetStatus(Tr('MAXIMUM : ')+IntStr(MAXCOL)+Tr(' COLONNES'));Exit;End;
+ PushUndoDoc(0);
  Inc(NCol[CurPage]);Modified:=True;Relayout;
 End;
 
 Procedure CmdDelCol;
 Begin
  If NCol[CurPage]<=1 Then Begin SetStatus('UNE COLONNE MINIMUM');Exit;End;
+ PushUndoDoc(0);
  Dec(NCol[CurPage]);Modified:=True;Relayout;
 End;
 
@@ -5156,6 +5339,7 @@ Procedure CmdAddHead;
 Begin
  If HasHead[CurPage] Then Begin SetStatus('TITRE D'#144'J'#133' PR'#144'SENT');
    Exit;End;
+ PushUndoDoc(0);
  HasHead[CurPage]:=True;
  If St[CurPage].Len=0 Then StAppend(CurPage,Tr('Titre'),DefHead);
  St[CurPage].A^[St[CurPage].Len]:=AL_CENTER;
@@ -5165,6 +5349,7 @@ End;
 Procedure CmdDelHead;
 Begin
  If Not HasHead[CurPage] Then Exit;
+ PushUndoDoc(0);
  HasHead[CurPage]:=False;
  If ASt=CurPage Then Begin ASt:=0;Cur:=0;SelA:=-1;End;
  Modified:=True;Relayout;
@@ -6227,6 +6412,32 @@ Begin
  MsgBox('Statistiques',S);
 End;
 
+{ Informations sur le journal et sur l'objet / la police courante }
+Procedure CmdInfo;
+Var S,K: String;
+Begin
+ If DocName<>'' Then S:=DocName Else S:=Tr('(sans nom)');
+ If Modified Then S:=S+' *';
+ S:=Tr('Journal : ')+S+'|'+Tr('Page courante : ')+IntStr(CurPage)+'/'+
+   IntStr(NPg)+'|'+Tr('Colonnes : ')+IntStr(NCol[CurPage]);
+ If HasHead[CurPage] Then S:=S+Tr(', avec titre');
+ S:=S+'|'+Tr('Vue : ')+ViewName+'|'+Tr('Police : ')+FName[CurFont]+' ('+
+   IntStr(FAsc[CurFont]+FDsc[CurFont])+' pts)';
+ S:=S+'|'+Tr('Curseur de texte : ')+IntStr(Cur)+'/'+IntStr(St[ASt].Len);
+ If (SelArt>0) And (SelArt<=NArt) Then Begin
+  Case Arts[SelArt].Kind Of
+   AR_ART: K:=Tr('Image');
+   AR_LINE: K:=Tr('Ligne');
+  Else K:=Tr('Bo'#140'te');
+  End;
+  S:=S+'|'+Tr('Objet s'#130'lectionn'#130' : ')+K+'|  '+Tr('page ')+
+    IntStr(Arts[SelArt].Pg)+' : '+IntStr(Arts[SelArt].X)+','+
+    IntStr(Arts[SelArt].Y)+'|  '+Tr('Taille : ')+IntStr(Arts[SelArt].W)+
+    ' x '+IntStr(Arts[SelArt].H);
+ End Else S:=S+'|'+Tr('Aucun objet s'#130'lectionn'#130);
+ MsgBox('Informations',S);
+End;
+
 Procedure CmdFreeMem;
 Begin
  {$IFDEF FPC}
@@ -6420,7 +6631,7 @@ Begin
   8: Case I Of
       1: If FLBFound Then SwitchFonts(Not UseFLB);
       2: GuidesOn:=Not GuidesOn;
-      3: CmdAbout;
+      3: CmdInfo;
      End;
  End;
  NeedDraw:=True;
@@ -6798,6 +7009,16 @@ Begin
     End;
    End;
   MD_ART: Begin
+    If (SelArt>0) And (Not HeldOn) And (ArtSub<=2) Then Begin
+     T:=HandleHit(X,Y-(MENU_H+1));
+     If T>=0 Then Begin
+      DragA:=Arts[SelArt];DragCorner:=T;DragPushed:=False;
+      If (ArtSub=2) And (DragA.Kind=AR_ART) Then Dragging:=4
+      Else Dragging:=3;
+      NeedDraw:=True;
+      Exit;
+     End;
+    End;
     ScrToPage(X,Y-(MENU_H+1),P,LX_,LY_);
     ACx:=LX_;ACy:=LongInt(P-1)*(PGH+PGGAP)+LY_;
     If ACx<0 Then ACx:=0;
@@ -6808,7 +7029,7 @@ Begin
     If ArtSub=3 Then Begin ArtKey(K_ENTER);End
     Else If HeldOn Then StampHeld
     Else If SelArt>0 Then Begin
-     Dragging:=2;
+     Dragging:=2;DragPushed:=False;
      DragOX:=ACx-Arts[SelArt].X;
      DragOY:=ACy-(LongInt(Arts[SelArt].Pg-1)*(PGH+PGGAP)+Arts[SelArt].Y);
     End;
@@ -6831,7 +7052,17 @@ Begin
        If Cur<>OldCur Then Begin SyncFont;NeedDraw:=True;End;
       End;
      End;
+  3,4: If SelArt>0 Then Begin
+      If Y<MENU_H+1 Then ScrollBy(0,-8) Else If Y>PANEL_Y-1 Then ScrollBy(0,8);
+      If Not DragPushed Then Begin PushUndoDoc(0);DragPushed:=True;End;
+      LX_:=(X-OrgX)*ZD Div ZN;
+      LY_:=(Y-(MENU_H+1)-PgY0(DragA.Pg))*ZD Div ZN;
+      If Dragging=3 Then ResizeByCorner(Arts[SelArt],DragA,DragCorner,LX_,LY_)
+      Else CropByCorner(Arts[SelArt],DragA,DragCorner,LX_,LY_);
+      Modified:=True;NeedDraw:=True;
+     End;
   2: If SelArt>0 Then Begin
+      If Not DragPushed Then Begin PushUndoDoc(0);DragPushed:=True;End;
       ScrToPage(X,Y-(MENU_H+1),P,LX_,LY_);
       Arts[SelArt].Pg:=P;
       Arts[SelArt].X:=Integer(LX_-DragOX);
@@ -6854,7 +7085,14 @@ Begin
   NeedDraw:=True;
   Exit;
  End;
- If Dragging=2 Then Relayout;
+ If (Dragging>=2) And (Dragging<=4) Then Begin
+  If (Dragging>=3) And (SelArt>0) Then Begin
+   ACx:=Arts[SelArt].X+Arts[SelArt].W Div 2;
+   ACy:=LongInt(Arts[SelArt].Pg-1)*(PGH+PGGAP)+Arts[SelArt].Y+
+     Arts[SelArt].H Div 2;
+  End;
+  Relayout;
+ End;
  If (Dragging=1) And (SelA=Cur) Then SelA:=-1;
  Dragging:=0;
  NeedDraw:=True;
