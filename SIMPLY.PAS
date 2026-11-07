@@ -3,7 +3,7 @@
   @version: 1.00
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Turbo Pascal 7, Free Pascal
-  @description: Clone de l'application Simply Accounting
+  @description: Clone de l'application Sample Accounting
 }
 
 {$IFDEF FPC}
@@ -2506,7 +2506,7 @@ Begin
  Wd:=Mx*8+48;
  If Wd<250 Then Wd:=250;
  Ht:=22+12+NL*12+16+22+14;
- P:=NewWin(wkMsg,'Simply Accounting',Wd,Ht);
+ P:=NewWin(wkMsg,'Sample Accounting',Wd,Ht);
  P^.EnterOK:=True;P^.Aux:=Btn;
  For I:=1 To NL Do AddLbl(P,0,16,12+(I-1)*12,Lines[I]);
  K:=Btn;
@@ -5042,7 +5042,7 @@ Procedure RepHelp;
 Begin
  RN:=0;
  RTitle:=T3('Aide','Help','Hilfe');
- RAdd(True,'Simply Accounting - '+T3('Aide','Help','Hilfe'));
+ RAdd(True,'Sample Accounting - '+T3('Aide','Help','Hilfe'));
  RAdd(False,'');
  RAdd(False,
      T3('Cliquez sur une ic@one de la fen@etre principale pour ouvrir un '+
@@ -5480,8 +5480,8 @@ Begin
  MAdd(9,T3('Aide|F1','Contents|F1','Inhalt|F1'),90);
  MAdd(9,T3('Raccourcis clavier','Keyboard shortcuts','Tastenk@3rzel'),90);
  MAdd(9,'-',0);
- MAdd(9,T3('A propos de Simply Accounting...','About Simply Accounting...',
-     '@3ber Simply Accounting...'),92);
+ MAdd(9,T3('A propos de Sample Accounting...','About Sample Accounting...',
+     '@3ber Sample Accounting...'),92);
 End;
 
 Function MenuChecked(Cm: Integer): Boolean;
@@ -5910,7 +5910,7 @@ Begin
  Bx(3,3,13,14,cWht);Bx(4,4,12,8,cLRd);Ln(4,10,12,10,cDGr);
  If Named Or (FileN<>'') Then S:=ShortName(FileN) Else
    S:=T3('(sans titre)','(untitled)','(unbenannt)');
- TxB(22,5,'Simply Accounting - '+Upper(S),cWht);
+ TxB(22,5,'Sample Accounting - '+Upper(S),cWht);
  Raised(SCR_W-52,2,SCR_W-38,15);Raised(SCR_W-37,2,SCR_W-23,15);
  Raised(SCR_W-20,2,SCR_W-4,15);
  Ln(SCR_W-49,12,SCR_W-42,12,cBlk);Rectangle(SCR_W-34,5,SCR_W-27,12);
@@ -5936,7 +5936,7 @@ Begin
  TxB(28,TASK_Y+9,'Start',cBlk);
  Sunken(76,TASK_Y+3,244,SCR_H-3,cLGr);
  Dither(77,TASK_Y+4,243,SCR_H-4,cWht,cLGr);
- TxB(98,TASK_Y+9,'Simply Accounting',cBlk);
+ TxB(98,TASK_Y+9,'Sample Accounting',cBlk);
  Bx(82,TASK_Y+7,92,TASK_Y+17,cWht);Bx(83,TASK_Y+8,91,TASK_Y+11,cLRd);
  Sunken(SCR_W-90,TASK_Y+3,SCR_W-3,SCR_H-3,cLGr);
  Tx(SCR_W-80,TASK_Y+9,TimeStr,cBlk);
@@ -6129,7 +6129,7 @@ Begin
   87: Begin RepEmployees;ShowReportNow;End;
   88: Begin RepInventory;ShowReportNow;End;
   90: Begin RepHelp;ShowReportNow;End;
-  92: Info('Simply Accounting - '+T3('clone','clone',
+  92: Info('Sample Accounting - '+T3('clone','clone',
       'Klon')+' v'+VERSION_TEXT+'|'+T3('Programme de comptabilit@e en Pascal',
       'Accounting program in Pascal',
       'Buchhaltungsprogramm in Pascal')+
@@ -6315,7 +6315,7 @@ End;
 
 Procedure ShowHelpLine;
 Begin
- WriteLn('SIMPLY - Clone graphique de Simply Accounting (comptabilit@e).');
+ WriteLn('SIMPLY - Clone graphique de Sample Accounting (comptabilit@e).');
  WriteLn;
  WriteLn('Utilisation : SIMPLY [fichier.SDB] [/?]');
  WriteLn;
