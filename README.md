@@ -36,7 +36,7 @@ Aperçu du clone Cubase :
 
 Aperçu d'Excelsior :
 
-<img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/9f56d511-ef57-42c4-992c-2686c3056760" />
+<img width="638" height="486" alt="image" src="https://github.com/user-attachments/assets/a452c652-a99e-4f19-a9a5-5917f025641d" />
 
 Aperçu du clone de Lotus 1-2-3 :
 
@@ -85,9 +85,9 @@ Aperçu du clone de Papyrus :
 	</tr>
 </table>
 
-Aperçu du clone de PowerPoint :
+Aperçu du clone de PresentPoint :
 
-<img width="638" height="481" alt="image" src="https://github.com/user-attachments/assets/52a715e5-36cc-46d8-a4ea-346f7db61546" />
+<img width="642" height="486" alt="image" src="https://github.com/user-attachments/assets/c8a14836-91de-42b5-8520-7c2d7da2b001" />
 
 Aperçu du clone de Project :
 
