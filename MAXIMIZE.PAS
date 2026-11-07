@@ -2835,6 +2835,7 @@ Var
  StatMsg : String[80];
 
 Procedure DrawAll; Forward;
+Procedure Backdrop; Forward;
 
 Procedure Bx(X1,Y1,X2,Y2,C: Integer);
 Begin
@@ -3035,7 +3036,7 @@ Begin
  End;
  W:=400;H:=70+N*12;
  X1:=(SCR_W-W) Div 2;Y1:=(SCR_H-H) Div 2;X2:=X1+W;Y2:=Y1+H;
- DrawAll;
+ Backdrop;
  DlgFrame(X1,Y1,X2,Y2,APP_NAME);
  For I:=1 To N Do Tx_(X1+20,Y1+32+(I-1)*12,L[I],cBlk);
  BX:=(X1+X2) Div 2-(NB*84) Div 2;
@@ -3118,7 +3119,7 @@ Var X1,Y1,X2,Y2,Cur: Integer; E: TEvent; Done,Ok,Sel,Redraw: Boolean; V: String;
 Begin
  V:=S;Cur:=Length(V);Sel:=True;
  X1:=100;Y1:=170;X2:=540;Y2:=290;
- DrawAll;
+ Backdrop;
  DlgFrame(X1,Y1,X2,Y2,Title);
  Tx_(X1+16,Y1+34,Prompt,cBlk);
  Btn(X1+110,Y2-32,X1+190,Y2-10,T('OK~OK~OK~OK~OK'),True);
@@ -3160,7 +3161,7 @@ Begin
  If Sel<1 Then Sel:=1;
  If Sel>PickN Then Sel:=PickN;
  Top:=1;
- DrawAll;
+ Backdrop;
  Done:=False;Ok:=False;Redraw:=True;
  Repeat
   If Sel<Top Then Top:=Sel;
@@ -3242,7 +3243,7 @@ Begin
  X1:=8;Y1:=24;X2:=SCR_W-9;Y2:=SCR_H-24;
  Vis:=(Y2-Y1-90) Div 11;
  Top:=1;Lft:=0;Done:=False;Redraw:=True;
- DrawAll;
+ Backdrop;
  Repeat
   If Redraw Then Begin
    DlgFrame(X1,Y1,X2,Y2,Title);
@@ -3303,7 +3304,7 @@ Begin
  X1:=8;Y1:=24;X2:=SCR_W-9;Y2:=SCR_H-24;
  Vis:=(Y2-Y1-90) Div 11;
  Row:=1;Col:=0;Top:=1;Done:=False;Ok:=False;Redraw:=True;
- DrawAll;
+ Backdrop;
  Repeat
   If Row<Top Then Top:=Row;
   If Row>=Top+Vis Then Top:=Row-Vis+1;
@@ -4058,15 +4059,15 @@ Begin
  SeedText('E',Id,T(Body),'');
 End;
 
-Procedure SeedDemo;
-Var E1,E2,E3,E4,E5,E6,Id,Pl: LongInt;
+{ donnees de base : societe, utilisateurs, listes de valeurs }
+Procedure SeedBase(Const Nm: String; Demo: Boolean);
 Begin
- SessDate:=TodayDate;
- Cfg('COMPANY',T('Escona Vins et Spiritueux~Escona Wine Merchants~Escona Wei'
-   +'nhandel'));
- Cfg('DBNAME',T('Escona Tutoriel~Escona Tutorial~Escona Tutorial'));
- SeedUser('JNAPOLI','Jim Napoli','A');SeedUser('ASMITH','Anna Smith','U');
- SeedUser('ADMIN','Administrator','A');
+ Cfg('COMPANY',Nm);
+ Cfg('DBNAME',Nm);
+ If Demo Then Begin
+  SeedUser('JNAPOLI','Jim Napoli','A');SeedUser('ASMITH','Anna Smith','U');
+  SeedUser('ADMIN','Administrator','A');
+ End Else SeedUser(UserCode,UserCode,'A');
  SeedList('STATUS',T('Prospect|Client|Ancien client|Piste~Prospect|Customer|'
    +'Former customer|Lead~Interessent|Kunde|Ex-Kunde|Lead'));
  SeedList('SOURCE',T('R@ef@erence|Site Web|Salon|Appel|Publicit@e~Referral|W'
@@ -4087,6 +4088,13 @@ Begin
  SeedList('SALUT',T('M.|Mme|Dr~Mr.|Ms.|Dr.~Herr|Frau|Dr.'));
  SeedList('REL',T('Partenaire|Filiale|Concurrent~Partner|Subsidiary|Competit'
    +'or~Partner|Tochter|Wettbewerber'));
+End;
+
+Procedure SeedDemo;
+Var E1,E2,E3,E4,E5,E6,Id,Pl: LongInt;
+Begin
+ SessDate:=TodayDate;
+ SeedBase(T('Escona Tutoriel~Escona Tutorial~Escona Tutorial'),True);
  E1:=SeedEntry('Edgar Bros.|(604) 601-8000|escona@maximizer.com|Toronto|ON|1'
    +'2 King Street|M5H 1A1|42|8500000');
  E2:=SeedEntry('Erickson Fine Wines|(208) 555-0141|erickson@example.com|Eagl'
@@ -4443,7 +4451,7 @@ Begin
  W:=520;X1:=(SCR_W-W) Div 2;X2:=X1+W;
  Y1:=(SCR_H-(Vis*22+90)) Div 2;Y2:=Y1+Vis*22+90;
  Cur:=1;Top:=1;Done:=False;Ok:=False;Redraw:=True;Sel:=True;CPos:=Length(FV[1]);
- DrawAll;
+ Backdrop;
  Repeat
   If Cur<Top Then Top:=Cur;
   If Cur>=Top+Vis Then Top:=Cur-Vis+1;
@@ -4826,7 +4834,7 @@ Begin
  GridArea(G,X1+10,Y1+28,X2-10,Y2-46);
  G.Foc:=True;
  Reload;
- DrawAll;
+ Backdrop;
  Done:=False;Redraw:=True;
  Repeat
   If Redraw Then Begin
@@ -6588,7 +6596,7 @@ Begin
  If Not NeedEntry Then Exit;
  X1:=150;Y1:=150;X2:=490;Y2:=300;
  Acc_:=0;Run:=True;T0:=Secs;Done:=False;Redraw:=True;
- DrawAll;
+ Backdrop;
  Repeat
   If Run Then El:=Acc_+Secs-T0 Else El:=Acc_;
   DlgFrame(X1,Y1,X2,Y2,T('Chronom@etrer une t@qche~Time a task~Aufgabe zeite'
@@ -7733,6 +7741,300 @@ Begin
 End;
 
 { ====================================================================== }
+{                       ECRAN D'ACCUEIL                                  }
+{ ====================================================================== }
+
+Const
+ NNET = 240;
+ NEDG = 720;
+
+Var
+ UiReady  : Boolean;
+ SpFoc    : Integer;
+ SeedKind : Integer;           { 0 rien, 1 base vide, 2 exemple }
+ DirGiven : Boolean;
+ GfxOn    : Boolean;
+ NetX,NetY: Array[1..NNET] Of Integer;
+ NetA,NetB: Array[1..NEDG] Of Byte;
+ NetE     : Integer;
+ NetOk    : Boolean;
+ Seed     : LongInt;
+ CfgNew   : String[40];
+ J_       : Integer;
+
+Function Rnd(M: Integer): Integer;
+Begin
+ Seed:=(Seed*25173+13849) And 65535;
+ Rnd:=Integer((Seed Div 7) Mod M);
+End;
+
+Function InZone(X,Y: Integer): Boolean;
+Begin
+ InZone:=(Sqr(LongInt(X)-320)+Sqr(LongInt(Y)-112)<2800) Or
+   InBox(X,Y,36,162,604,246);
+End;
+
+{ reseau de points lumineux relies par des lignes dorees }
+Procedure NetBuild;
+Var N,I,J,B1,B2,B3: Integer; D,D1,D2,D3: LongInt;
+Begin
+ Seed:=12345;N:=0;
+ While N<NNET Do Begin
+  I:=26+Rnd(588);J:=52+Rnd(284);
+  If Not InZone(I,J) Then Begin Inc(N);NetX[N]:=I;NetY[N]:=J;End;
+ End;
+ NetE:=0;
+ For I:=1 To NNET Do Begin
+  B1:=0;B2:=0;B3:=0;D1:=6400;D2:=6400;D3:=6400;
+  For J:=1 To NNET Do
+   If J<>I Then Begin
+    D:=Sqr(LongInt(NetX[I]-NetX[J]))+Sqr(LongInt(NetY[I]-NetY[J]));
+    If D<D1 Then Begin D3:=D2;B3:=B2;D2:=D1;B2:=B1;D1:=D;B1:=J;End
+    Else If D<D2 Then Begin D3:=D2;B3:=B2;D2:=D;B2:=J;End
+    Else If D<D3 Then Begin D3:=D;B3:=J;End;
+   End;
+  If (B1>0) And (NetE<NEDG) Then Begin Inc(NetE);NetA[NetE]:=I;NetB[NetE]:=B1;
+    End;
+  If (B2>0) And (NetE<NEDG) Then Begin Inc(NetE);NetA[NetE]:=I;NetB[NetE]:=B2;
+    End;
+  If (B3>0) And (NetE<NEDG) Then Begin Inc(NetE);NetA[NetE]:=I;NetB[NetE]:=B3;
+    End;
+ End;
+ NetOk:=True;
+End;
+
+{ texte agrandi : metal argente (Metal) ou dore }
+Procedure BigText(CX,Y,Sz: Integer; Const S: String; Metal: Boolean);
+Var X: Integer;
+Begin
+ SetTextStyle(DefaultFont,HorizDir,Sz);
+ X:=CX-TextWidth(S) Div 2;
+ If Metal Then Begin
+  Tx_(X+3,Y+3,S,cBlk);Tx_(X+2,Y+2,S,cDGr);
+  Tx_(X+1,Y+1,S,cLGr);Tx_(X,Y,S,cWht);
+ End Else Begin
+  Tx_(X+2,Y+2,S,cBlk);Tx_(X+1,Y+1,S,cBrn);Tx_(X,Y,S,cYel);
+ End;
+ SetTextStyle(DefaultFont,HorizDir,1);
+End;
+
+Procedure SplashBanner;
+Var I,X,Y,Dx,Dy: Integer;
+Begin
+ If Not NetOk Then NetBuild;
+ { cadre dore et fond bleu nuit }
+ Bx(20,48,619,338,cNavy);
+ Rc(20,48,619,338,cYel);Rc(22,50,617,336,cBrn);
+ { etoiles }
+ Seed:=777;
+ For I:=1 To 90 Do Begin
+  X:=24+Rnd(592);Y:=54+Rnd(280);
+  If Odd(I) Then PutPixel(X,Y,cLCy) Else PutPixel(X,Y,cWht);
+ End;
+ { lignes dorees }
+ For I:=1 To NetE Do Begin
+  Dx:=NetX[NetA[I]]-NetX[NetB[I]];Dy:=NetY[NetA[I]]-NetY[NetB[I]];
+  If Sqr(LongInt(Dx))+Sqr(LongInt(Dy))<1300 Then
+   Ln(NetX[NetA[I]],NetY[NetA[I]],NetX[NetB[I]],NetY[NetB[I]],cYel)
+  Else Ln(NetX[NetA[I]],NetY[NetA[I]],NetX[NetB[I]],NetY[NetB[I]],cBrn);
+ End;
+ { rayons vers le monogramme }
+ J_:=0;
+ For I:=1 To NNET Do Begin
+  Dx:=NetX[I]-320;Dy:=NetY[I]-112;
+  If (Sqr(LongInt(Dx))+Sqr(LongInt(Dy))>4900) And
+     (Sqr(LongInt(Dx))+Sqr(LongInt(Dy))<19000) And (J_<14) Then Begin
+   Inc(J_);
+   Ln(NetX[I],NetY[I],320+Dx*44 Div 70,112+Dy*44 Div 70,cBrn);
+  End;
+ End;
+ { points lumineux }
+ For I:=1 To NNET Do Begin
+  X:=NetX[I];Y:=NetY[I];
+  If I Mod 8=0 Then Begin
+   Bx(X-2,Y-2,X+2,Y+2,cYel);Bx(X-1,Y-1,X+1,Y+1,cWht);
+  End Else Begin
+   Bx(X-1,Y,X+1,Y,cYel);Bx(X,Y-1,X,Y+1,cYel);PutPixel(X,Y,cWht);
+  End;
+ End;
+ { monogramme M dore }
+ SetFillStyle(SolidFill,cBlk);FillEllipse(323,115,45,45);
+ SetFillStyle(SolidFill,cYel);FillEllipse(320,112,44,44);
+ SetFillStyle(SolidFill,cBrn);FillEllipse(320,112,40,40);
+ SetFillStyle(SolidFill,cNavy);FillEllipse(320,112,37,37);
+ BigText(320,88,6,'M',False);
+ { nom en lettres argentees }
+ BigText(320,172,5,APP_NAME,True);
+ BigText(320,224,2,T('L''empire des relations~The empire of relationships~Da'
+   +'s Imperium der Beziehungen~El imperio de las relaciones~L''impero delle'
+   +' relazioni'),False);
+End;
+
+Procedure SplashBtn(I: Integer; Const L: String);
+Var X1: Integer;
+Begin
+ X1:=14+(I-1)*209;
+ Raised(X1,356,X1+204,388);
+ UTx(X1+(204-TextW(L)) Div 2,368,L,cBlk);
+ If SpFoc=I Then Begin
+  Rc(X1-1,355,X1+205,389,cYel);FocusRect(X1+3,359,X1+201,385);
+ End;
+End;
+
+Function SplashLbl(I: Integer): String;
+Begin
+ Case I Of
+  1: SplashLbl:=T('Lancer un &exemple~Launch an &example~Beispiel &starten~L'
+    +'anzar un &ejemplo~Avvia un &esempio');
+  2: SplashLbl:=T('&Nouveau CRM vide~&New empty CRM~&Neues leeres CRM~&Nuevo'
+    +' CRM vac@io~&Nuovo CRM vuoto');
+  Else SplashLbl:=T('&Ouvrir un CRM existant~&Open an existing CRM~Bestehend'
+    +'es CRM &@2ffnen~&Abrir un CRM existente~&Apri un CRM esistente');
+ End;
+End;
+
+Procedure SplashDraw;
+Var I: Integer;
+Begin
+ HideMouse;
+ Bx(0,0,SCR_W-1,SCR_H-1,cBlk);
+ BigText(320,12,3,APP_NAME,True);
+ SplashBanner;
+ For I:=1 To 3 Do SplashBtn(I,SplashLbl(I));
+ Tx_(14,402,T('Fl@eches / Tab : choisir    Entr@ee : valider    Echap : quit'
+   +'ter~Arrows / Tab: choose    Enter: accept    Esc: quit~Pfeile / Tab: w'
+   +'@1hlen    Enter: best@1tigen    Esc: Ende~Flechas / Tab: elegir    Intr'
+   +'o: aceptar    Esc: salir~Frecce / Tab: scegli    Invio: conferma    Esc'
+   +': esci'),cDGr);
+ Tx_(14,462,'Maximilien CRM '+VERSION_TEXT+'  -  MyISAM / SQL  -  gladir.com'
+   +'/office-0',cDGr);
+ ShowMouse;
+End;
+
+Procedure Backdrop;
+Begin
+ If UiReady Then DrawAll Else SplashDraw;
+End;
+
+{ dossiers contenant un CRM (abentry.frm) }
+Procedure FindCrmDirs;
+Var SR: SearchRec;
+Begin
+ PickN:=0;
+ FindFirst('*',Directory,SR);
+ While DosError=0 Do Begin
+  If (SR.Attr And Directory<>0) And (SR.Name<>'.') And (SR.Name<>'..') Then
+   If FileExists(SR.Name+DirSep+'abentry.frm') Then PickAdd(SR.Name);
+  FindNext(SR);
+ End;
+End;
+
+Function OpenDlg: Boolean;
+Var Sel: Integer; D: String;
+Begin
+ OpenDlg:=False;
+ FindCrmDirs;
+ PickAdd(T('(Autre dossier...)~(Other folder...)~(Anderer Ordner...)~(Otra c'
+   +'arpeta...)~(Altra cartella...)'));
+ Sel:=1;
+ If Not PickList(T('Ouvrir un CRM existant~Open an existing CRM~Bestehendes '
+   +'CRM @2ffnen~Abrir un CRM existente~Apri un CRM esistente'),Sel) Then
+   Exit;
+ If Sel=PickN Then Begin
+  D:='';
+  If Not InputBox(T('Dossier du CRM~CRM folder~CRM-Ordner~Carpeta del CRM~Ca'
+    +'rtella del CRM'),
+    T('Chemin du dossier :~Folder path:~Ordnerpfad:~Ruta de la carpeta:~Perc'
+      +'orso cartella:'),D,50) Then Exit;
+ End Else D:=PickIt^[Sel];
+ If (D='') Or Not FileExists(D+DirSep+'abentry.frm') Then Begin
+  Info(T('Aucun CRM trouv@e dans ce dossier.~No CRM found in this folder.~Ke'
+    +'in CRM in diesem Ordner.~No hay CRM en esta carpeta.~Nessun CRM in que'
+    +'sta cartella.'));
+  Exit;
+ End;
+ DbDir:=D;SeedKind:=0;OpenDlg:=True;
+End;
+
+Function NewDlg: Boolean;
+Var Nm,D: String; I: Integer;
+Begin
+ NewDlg:=False;
+ Nm:='';
+ If Not InputBox(T('Nouveau CRM~New CRM~Neues CRM~Nuevo CRM~Nuovo CRM'),
+   T('Nom du CRM :~CRM name:~Name des CRM:~Nombre del CRM:~Nome del CRM:'
+     ),Nm,40) Then Exit;
+ If Nm='' Then Exit;
+ D:='';
+ For I:=1 To Length(Nm) Do
+  If (Length(D)<8) And (UpCase(Nm[I]) In ['A'..'Z','0'..'9']) Then
+    D:=D+UpCase(Nm[I]);
+ If D='' Then D:='NOUVEAU';
+ If Not InputBox(T('Nouveau CRM~New CRM~Neues CRM~Nuevo CRM~Nuovo CRM'),
+   T('Dossier de la base de donn@ees :~Database folder:~Datenbankordner:~Car'
+     +'peta de la base:~Cartella del database:'),D,50) Then Exit;
+ If D='' Then Exit;
+ If FileExists(D+DirSep+'abentry.frm') Then Begin
+  If MsgBox(T('Ce dossier contient d@ej@a un CRM. L''ouvrir ?~This folder al'
+    +'ready holds a CRM. Open it?~Dieser Ordner enth@1lt bereits ein CRM. @2'
+    +'ffnen?~La carpeta ya contiene un CRM. @?Abrirlo?~La cartella contiene '
+    +'gi@q un CRM. Aprirlo?'),1)<>1 Then Exit;
+  SeedKind:=0;
+ End Else Begin
+  {$I-}
+  MkDir(D);
+  {$I+}
+  If IOResult<>0 Then ;
+  SeedKind:=1;CfgNew:=Nm;
+ End;
+ DbDir:=D;NewDlg:=True;
+End;
+
+{ retourne False pour quitter }
+Function Splash: Boolean;
+Var E: TEvent; Done,Redraw: Boolean; Ch: Char; I,Pick: Integer;
+Begin
+ Splash:=False;
+ SpFoc:=1;Redraw:=True;Done:=False;
+ Repeat
+  If Redraw Then Begin SplashDraw;Redraw:=False;End;
+  PollEvent(E);
+  Pick:=0;
+  If E.Kind=1 Then Begin
+   Case E.Key Of
+    K_ESC: Begin Done:=True;Pick:=-1;End;
+    K_LEFT,K_STAB: Begin If SpFoc>1 Then Dec(SpFoc) Else SpFoc:=3;
+      Redraw:=True;End;
+    K_RIGHT,K_TAB: Begin If SpFoc<3 Then Inc(SpFoc) Else SpFoc:=1;
+      Redraw:=True;End;
+    K_ENTER: Pick:=SpFoc;
+    256+45: Begin Done:=True;Pick:=-1;End;
+    Else Begin
+     Ch:=UpCase(Chr(E.Key And 255));
+     For I:=1 To 3 Do
+      If (Pos('&',SplashLbl(I))>0) And
+         (UpCase(SplashLbl(I)[Pos('&',SplashLbl(I))+1])=Ch) Then Pick:=I;
+    End;
+   End;
+  End Else If E.Kind=2 Then Begin
+   For I:=1 To 3 Do
+    If InBox(E.X,E.Y,14+(I-1)*209,356,18+(I-1)*209+200,388) Then Begin
+     SpFoc:=I;Pick:=I;
+    End;
+  End;
+  If Pick>0 Then Begin
+   SpFoc:=Pick;
+   Case Pick Of
+    1: Begin DbDir:='EXEMPLE';SeedKind:=2;Splash:=True;Done:=True;End;
+    2: If NewDlg Then Begin Splash:=True;Done:=True;End;
+    3: If OpenDlg Then Begin Splash:=True;Done:=True;End;
+   End;
+   Redraw:=True;
+  End;
+ Until Done;
+End;
+
+{ ====================================================================== }
 {                       COMMANDES DE L'APPLICATION                       }
 { ====================================================================== }
 
@@ -8317,7 +8619,9 @@ Var
 
 BEGIN
  DbDir:='CRMDATA';
- If GetEnv('MAXIMDB')<>'' Then DbDir:=GetEnv('MAXIMDB');
+ DirGiven:=False;
+ If GetEnv('MAXIMDB')<>'' Then Begin DbDir:=GetEnv('MAXIMDB');DirGiven:=True;
+   End;
  UserCode:='JNAPOLI';
  If GetEnv('CRMUSER')<>'' Then UserCode:=Upper(GetEnv('CRMUSER'));
  SqlArg:='';
@@ -8325,7 +8629,8 @@ BEGIN
   Pa:=ParamStr(Pi);
   If (Pa='/?') Or (Pa='-h') Or (Pa='--help') Then Begin ShowHelpLine;Halt(0);
     End;
-  If Upper(Copy(Pa,1,3))='/D:' Then DbDir:=Copy(Pa,4,60);
+  If Upper(Copy(Pa,1,3))='/D:' Then Begin DbDir:=Copy(Pa,4,60);DirGiven:=True;
+    End;
   If Upper(Copy(Pa,1,3))='/U:' Then UserCode:=Upper(Copy(Pa,4,12));
   If Upper(Pa)='/SQL' Then Begin
    If Pi<ParamCount Then SqlArg:=ParamStr(Pi+1);
@@ -8333,10 +8638,6 @@ BEGIN
  End;
  DetectLanguage;
  SessDate:=TodayDate;
- {$I-}
- MkDir(DbDir);
- {$I+}
- If IOResult<>0 Then ;
  DbInit;SqlInit;
  GetMem(TX,SizeOf(TTxtArr));
  GetMem(PickIt,SizeOf(TStrArr));
@@ -8344,11 +8645,29 @@ BEGIN
  TXN:=0;PickN:=0;
  FillChar(UdfNm,SizeOf(UdfNm),0);
  FillChar(UdfKd,SizeOf(UdfKd),'T');
+ MX:=0;MY:=0;MB:=0;LastB:=0;LastClickT:=0;LastClickX:=0;LastClickY:=0;
+ UiReady:=False;GfxOn:=False;NetOk:=False;SeedKind:=2;CfgNew:='CRM';
+ { ecran d'accueil : exemple, nouveau CRM vide ou CRM existant }
+ If (Not DirGiven) And (SqlArg='') Then Begin
+  InitializeGraphics;
+  If MouseDriverFound Then ShowMouse;
+  GfxOn:=True;
+  If Not Splash Then Begin CloseGraph;Halt(0);End;
+ End;
+ {$I-}
+ MkDir(DbDir);
+ {$I+}
+ If IOResult<>0 Then ;
  NewDb:=Not FileExists(TblPath('abentry','frm'));
- If Not OpenTables Then Begin WriteLn('Erreur base de donnees : ',DbErr);
-   Halt(1);End;
+ If Not OpenTables Then Begin
+  If GfxOn Then CloseGraph;
+  WriteLn('Erreur base de donnees : ',DbErr);Halt(1);
+ End;
  UdfLoad;
- If NewDb Then SeedDemo;
+ If NewDb Then Begin
+  If SeedKind=1 Then SeedBase(CfgNew,False)
+  Else If SeedKind=2 Then SeedDemo;
+ End;
  CfgGet;
  UdfLoad;
  If SqlArg<>'' Then Begin
@@ -8363,7 +8682,6 @@ BEGIN
  NoteType:='';NotePer:=1;HotMode:=4;CalDate:=SessDate;MailFold:='I';
  FillChar(Recent,SizeOf(Recent),0);
  MenuOpen:=0;MenuHi:=0;
- MX:=0;MY:=0;MB:=0;LastB:=0;LastClickT:=0;LastClickX:=0;LastClickY:=0;
  GridInit(GMain,tAB,MAXIDX,'NAME:176');
  GridInit(GSubL,tCO,300,'NAME:96');
  GridInit(GSubR,tNO,400,'ND:68');
@@ -8377,8 +8695,11 @@ BEGIN
  GridCols(GW[3],tOP,'CLOSEDT:88,NAME:100,AMOUNT:60');
  GridCols(GW[4],tAB,'NAME:150,MODIFIED:88');
  BuildMenus;BuildToolbar;
- InitializeGraphics;
- If MouseDriverFound Then ShowMouse;
+ If Not GfxOn Then Begin
+  InitializeGraphics;
+  If MouseDriverFound Then ShowMouse;
+ End;
+ UiReady:=True;
  SetModule(2);
  MainLoop;
  TblCloseAll;

@@ -438,7 +438,8 @@ d'exemple), copie de sécurité <code>.BAK</code>, rapports exportables en texte
 
 <h2>MAXIMIZE : Maximilien CRM (clone de Maximizer CRM)</h2>
 <ul>
-<li><code>MAXIMIZE [/D:dossier] [/U:code]</code> : gestion de la relation client avec menus classiques (pas de ruban), en français par défaut,
+<li><code>MAXIMIZE [/D:dossier] [/U:code]</code> : écran d'accueil (bannière dessinée « L'empire des relations ») avec trois boutons :
+lancer l'exemple, créer un nouveau CRM vide ou ouvrir un CRM existant (<code>/D:</code> l'ignore et ouvre directement le dossier) ; gestion de la relation client avec menus classiques (pas de ruban), en français par défaut,
 en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code>, en espagnol avec <code>LANGUAGE=SP</code>
 et en italien avec <code>LANGUAGE=IT</code> ; tout le code est dans <code>MAXIMIZE.PAS</code>.</li>
 <li>Modules : Mon jour de travail, Carnet d'adresses (contacts, opportunités, entrées liées, notes, champs définis, documents,
@@ -448,7 +449,7 @@ enveloppes, étiquettes, chronomètre de tâche ; recherche simple et avancée, 
 <li>Base de données : fichiers MyISAM (<code>.frm</code>, <code>.MYD</code>, <code>.MYI</code>) lus et écrits par le programme lui-même
 (lignes fixes, clé primaire <code>ID</code>), compatibles avec MariaDB / MySQL 5.x ; moteur SQL intégré
 (<code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE TABLE</code>, jointures, <code>GROUP BY</code>) :
-Outils &gt; Console SQL ou <code>MAXIMIZE /SQL "requête"</code>. La base <code>CRMDATA</code> est créée avec des données d'exemple.</li>
+Outils &gt; Console SQL ou <code>MAXIMIZE /SQL "requête"</code>. Le dossier <code>EXEMPLE</code> est créé avec des données d'exemple.</li>
 </ul>
 
 <h2>Licence</h2>
