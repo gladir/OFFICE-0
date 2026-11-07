@@ -3,7 +3,7 @@
   @version: 1.00
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Turbo Pascal 7, Free Pascal
-  @description: Clone de l'application PowerPoint
+  @description: Clone de l'application PresentPoint
 }
 
 Program SR;
@@ -1075,7 +1075,7 @@ Begin
 
  AddMenuItem(10,'Rubriques d''aide',         'F1',        False, ACT_HELP_TOPIC);
  AddMenuItem(10,'',                          '',          True,  0);
- AddMenuItem(10,'A propos de PowerPnt...',   '',          False, ACT_HELP_ABOUT);
+ AddMenuItem(10,'A propos de PresentPoint...',   '',          False, ACT_HELP_ABOUT);
 
  If RibbonMode Then Begin
   Menus[1].Caption:='Fichier';Menus[2].Caption:='Accueil';Menus[3].Caption:='Affich.';
@@ -2168,7 +2168,7 @@ Begin
  Pos := AddSlideAt(1);
  S := Pres.Slides[Pos];
  ApplyLayout(S, LAY_TITLE);
- S^.Shapes[1]^.Text[1] := 'Office-0 PowerPnt';
+ S^.Shapes[1]^.Text[1] := 'Office-0 PresentPoint';
  S^.Shapes[2]^.Text[1] := 'Clone Pascal de Microsoft PowerPoint';
 
  { Slide 2 : titre + contenu }
@@ -3420,7 +3420,7 @@ End;
 Function ConfirmDiscardChanges: Boolean;
 Begin
  If Pres.Dirty Then
-  ConfirmDiscardChanges := ConfirmYesNo('PowerPnt',
+  ConfirmDiscardChanges := ConfirmYesNo('PresentPoint',
    'Modifications non enregistrees. Continuer ?')
  Else ConfirmDiscardChanges := True;
 End;
@@ -3460,7 +3460,7 @@ Begin
   StatusMsg := 'Diapositive ' + IntToStr(Pos) + ' ajoutee.';
   NeedFullRedraw := True;
  End
- Else MessageBox('PowerPnt', 'Nombre maximum de diapositives atteint.');
+ Else MessageBox('PresentPoint', 'Nombre maximum de diapositives atteint.');
 End;
 
 Procedure ActionDupSlide;
@@ -3469,7 +3469,7 @@ Begin
  If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
  Pos := AddSlideAt(CurSlide + 1);
  If Pos = 0 Then Begin
-  MessageBox('PowerPnt', 'Nombre maximum de diapositives atteint.'); Exit;
+  MessageBox('PresentPoint', 'Nombre maximum de diapositives atteint.'); Exit;
  End;
  Src := Pres.Slides[CurSlide];
  Dst := Pres.Slides[Pos];
@@ -3492,7 +3492,7 @@ End;
 Procedure ActionDelSlide;
 Begin
  If (CurSlide < 1) Or (CurSlide > Pres.SldCount) Then Exit;
- If Not ConfirmYesNo('PowerPnt',
+ If Not ConfirmYesNo('PresentPoint',
   'Supprimer la diapositive ' + IntToStr(CurSlide) + ' ?') Then Exit;
  RemoveSlide(CurSlide);
  CurShape := 0;
@@ -3532,11 +3532,11 @@ Procedure ActionAbout;
 Var X1, Y1, X2, Y2: Integer; K: Char;
 Begin
  X1 := 130; Y1 := 110; X2 := 510; Y2 := 370;
- DlgFrame(X1, Y1, X2, Y2, 'A propos de Office-0 PowerPnt');
+ DlgFrame(X1, Y1, X2, Y2, 'A propos de Office-0 PresentPoint');
  AppHideMouse;
  SetColor(CLR_BLACK);
  SetTextStyle(DefaultFont, HorizDir, 2);
- OutTextXY(X1 + 20, Y1 + 30, 'Office-0  PowerPnt');
+ OutTextXY(X1 + 20, Y1 + 30, 'Office-0  PresentPoint');
  SetTextStyle(DefaultFont, HorizDir, 1);
  SetColor(CLR_BLUE);
  OutTextXY(X1 + 20, Y1 + 60, 'Clone de Microsoft PowerPoint');
@@ -10478,7 +10478,7 @@ Begin
  FillBox(84, 84, 555, 130, CLR_RED);
  SetColor(CLR_WHITE);
  SetTextStyle(DefaultFont, HorizDir, 3);
- OutTextXY(110, 95, 'Office-0 PowerPnt');
+ OutTextXY(110, 95, 'Office-0 PresentPoint');
  SetTextStyle(DefaultFont, HorizDir, 1);
  SetColor(CLR_BLACK);
  OutTextXY(120, 160, 'Clone Pascal de Microsoft PowerPoint');
@@ -10521,8 +10521,8 @@ Procedure ShowCommandLineHelp;
 Var HelpOutput: Text;
 Begin
  Assign(HelpOutput,'');Rewrite(HelpOutput);
- WriteLn(HelpOutput,'POWERPNT - Editeur graphique de presentations en Pascal.');
- WriteLn(HelpOutput,'Utilisation : POWERPNT [/CLASSICMENU | /RUBANMENU] [presentation] [/?]');
+ WriteLn(HelpOutput,'PRESENTPOINT - Editeur graphique de presentations en Pascal.');
+ WriteLn(HelpOutput,'Utilisation : PRESENTPOINT [/CLASSICMENU | /RUBANMENU] [presentation] [/?]');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput,'  /CLASSICMENU  Menus classiques, style PowerPoint 2003 (par defaut).');
  WriteLn(HelpOutput,'  /RUBANMENU    Onglets avec icones, style PowerPoint 2007 et suivants.');
@@ -10533,7 +10533,7 @@ Begin
  WriteLn(HelpOutput);
  WriteLn(HelpOutput,'Options insensibles a la casse ; le dernier mode specifie est utilise.');
  WriteLn(HelpOutput,'Le fichier peut apparaitre avant ou apres les options.');
- WriteLn(HelpOutput,'Exemple : POWERPNT /RUBANMENU "C:\Documents\Ma presentation.pptx"');
+ WriteLn(HelpOutput,'Exemple : PRESENTPOINT /RUBANMENU "C:\Documents\Ma presentation.pptx"');
  WriteLn(HelpOutput,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
  WriteLn(HelpOutput,'Alt+F Fichier, Alt+E Accueil, Alt+A Affichage, Alt+I Insertion, Alt+C Creation,');
  WriteLn(HelpOutput,'Alt+T Transitions, Alt+M Animations, Alt+D Diaporama, Alt+R Revision, Alt+H Aide.');
