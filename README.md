@@ -34,13 +34,17 @@ Aperçu du clone Cubase :
 
 <img width="639" height="476" alt="image" src="https://github.com/user-attachments/assets/73ee655a-6714-4254-9502-72cd07bed606" />
 
-Aperçu du clone d'Excel :
+Aperçu d'Excelsior :
 
-<img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/9f56d511-ef57-42c4-992c-2686c3056760" />
+<img width="638" height="486" alt="image" src="https://github.com/user-attachments/assets/a452c652-a99e-4f19-a9a5-5917f025641d" />
 
 Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
+
+Aperçu de Maximilien CRM :
+
+<img width="642" height="486" alt="image" src="https://github.com/user-attachments/assets/82fca6ef-df3e-4e69-a975-a506a09d51e4" />
 
 Aperçu du clone de News Master :
 
@@ -54,9 +58,9 @@ Aperçu du clone de OneNote :
 
 <img width="639" height="483" alt="image" src="https://github.com/user-attachments/assets/4e432deb-f940-45b2-adb1-c91959507b79" />
 
-Aperçu du clone de Outlook :
+Aperçu de Outlink :
 
-<img width="639" height="481" alt="image" src="https://github.com/user-attachments/assets/0b6d7013-6a94-4398-8410-9d22c5aa0d53" />
+<img width="642" height="482" alt="image" src="https://github.com/user-attachments/assets/6983058d-6111-474f-87ab-25c14528c4e0" />
 
 Aperçu du clone de Papyrus :
 
@@ -81,9 +85,9 @@ Aperçu du clone de Papyrus :
 	</tr>
 </table>
 
-Aperçu du clone de PowerPoint :
+Aperçu du clone de PresentPoint :
 
-<img width="638" height="481" alt="image" src="https://github.com/user-attachments/assets/52a715e5-36cc-46d8-a4ea-346f7db61546" />
+<img width="642" height="486" alt="image" src="https://github.com/user-attachments/assets/c8a14836-91de-42b5-8520-7c2d7da2b001" />
 
 Aperçu du clone de Project :
 
@@ -143,7 +147,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
 	<tr>
 		<td><b>EXCEL.PAS</b></td>
-		<td>Cette commande permet de lancer un clone de Excel.</td>
+		<td>Cette commande permet de lancer le tableur Excelsior.</td>
 	</tr>
     <tr>
       <td><b>LOTUS123.PAS</b></td>
@@ -167,7 +171,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>    
     <tr>
       <td><b>OUTLOOK.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de Outlook.</td>
+      <td>Cette commande permet de lancer Outlink.</td>
     </tr>    
 	<tr>
 		<td><b>PAPYRUS.PAS</b></td>
@@ -175,7 +179,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
     <tr>
       <td><b>POWERPNT.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de PowerPoint.</td>
+      <td>Cette commande permet de lancer PresentPoint.</td>
     </tr>    
     <tr>
       <td><b>PROJECT.PAS</b></td>
