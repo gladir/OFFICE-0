@@ -197,6 +197,15 @@ Var
  NPg       : Integer;
  NCol      : TColArr;
  HasHead   : THasArr;
+ PgRaw     : Array[1..MAXPG,0..19] Of Integer; { mots d'en-tete de page }
+ PgHeadH   : Array[1..MAXPG] Of Integer;  { hauteur du titre }
+ PgTop     : Array[1..MAXPG] Of Integer;  { haut des colonnes }
+ DocW2,DocZ  : Integer;
+ PgHeadCR  : Array[1..MAXPG] Of Boolean; { segment termine par un CR }
+ HeadCR    : Boolean;
+ OrphanN   : Integer;                      { paires hors des segments }
+ OrphanB   : Array[0..2047] Of Byte;                      { 3e mot du corps du
+   fichier }
  Arts      : TArtArr;
  NArt      : Integer;
  DocName   : String[79];
@@ -2614,6 +2623,17 @@ Begin
  Else Pitch:=(AD*11+9) Div 10;
 End;
 
+{ Valeurs par defaut des mots d'en-tete d'une page ; les mots dont le role
+  n'est pas connu sont relus puis reecrits tels quels. }
+Procedure InitPgFields(P: Integer);
+Var J: Integer;
+Begin
+ For J:=0 To 19 Do PgRaw[P,J]:=0;
+ PgRaw[P,0]:=2;PgRaw[P,2]:=1;PgRaw[P,3]:=P;PgRaw[P,7]:=1;
+ PgRaw[P,10]:=PGW;PgRaw[P,11]:=HEADH;PgRaw[P,12]:=1;PgRaw[P,13]:=1;
+ PgHeadH[P]:=HEADH;PgTop[P]:=HEADH+15;
+End;
+
 Procedure BuildRegions;
 Var P,C,N,CW,Y0: Integer;
 Begin
@@ -2621,7 +2641,7 @@ Begin
  For P:=1 To NPg Do Begin
   N:=NCol[P];
   CW:=(PGW-2*MRG-(N-1)*COLGAP) Div N;
-  If HasHead[P] Then Y0:=HEADH+15 Else Y0:=MRG;
+  If HasHead[P] Then Y0:=PgTop[P] Else Y0:=MRG;
   For C:=0 To N-1 Do Begin
    Inc(NReg);
    RegPg[NReg]:=P;RegX[NReg]:=MRG+C*(CW+COLGAP);RegY[NReg]:=Y0;
@@ -2798,7 +2818,8 @@ Begin
  { le titre est une region de la largeur de la page ; il s'ecoule dans les
    intervalles libres de chaque bande, comme le texte principal }
  SvReg:=NReg;Inc(NReg);
- RegPg[NReg]:=P;RegX[NReg]:=0;RegY[NReg]:=0;RegW[NReg]:=PGW;RegH[NReg]:=HEADH;
+ RegPg[NReg]:=P;RegX[NReg]:=0;RegY[NReg]:=0;RegW[NReg]:=PGW;
+ RegH[NReg]:=PgHeadH[P];
  R:=NReg;Y:=0;Ps:=0;First:=NLn;BandOn:=False;
  SX:=0;SW:=100;LY:=0;LH:=10;
  While (Ps<=St[P].Len) And (NLn<MAXLINE) Do Begin
@@ -2833,8 +2854,9 @@ Begin
  Tot:=0;
  For I:=First To NLn-1 Do
   If Lines^[I].Y+Lines^[I].H>Tot Then Tot:=Lines^[I].Y+Lines^[I].H;
- If (Tot<HEADH) And (NLn>First) Then
-  For I:=First To NLn-1 Do Lines^[I].Y:=Lines^[I].Y+(HEADH-Tot) Div 2;
+ If (Tot<PgHeadH[P]) And (NLn>First) Then
+  For I:=First To NLn-1 Do
+   Lines^[I].Y:=Lines^[I].Y+(PgHeadH[P]-Tot) Div 2;
 End;
 
 Procedure LayoutFlow;
@@ -3258,7 +3280,7 @@ Begin
    DotRect(X0+Sc(RegX[R]),Y0+Sc(RegY[R]),X0+Sc(RegX[R]+RegW[R]),
      Y0+Sc(RegY[R]+RegH[R]));
  If HasHead[P] Then
-  DotRect(X0,Y0,X0+Sc(PGW),Y0+Sc(HEADH));
+  DotRect(X0,Y0,X0+Sc(PGW),Y0+Sc(PgHeadH[P]));
 End;
 
 { Page complete : fond, texte, images }
@@ -5537,8 +5559,12 @@ Begin
   If (C>=32) Or (C=13) Then AppendCh(S,C,FMapO[At And 63],At Shr 6);
  End;
  L:=St[S].Len;
+ HeadCR:=False;
  If (S<>0) And (L>0) Then
-  If St[S].T^[L-1]=13 Then Dec(St[S].Len);
+  If St[S].T^[L-1]=13 Then Begin Dec(St[S].Len);HeadCR:=True;End
+  Else If Cnt>0 Then
+   { segment sans fin de paragraphe : l'alignement vient du dernier octet }
+   St[S].A^[L]:=NB^[Base+2*(Cnt-1)+1] Shr 6;
 End;
 
 Procedure AddObj(Kind: Byte; Th,Pt: Integer; RX1,RY1,RX2,RY2: LongInt; Pg:
@@ -5559,6 +5585,7 @@ Var F: File; Fs,O,T,Q,Qc,Qr,Nx,N,M,L,Sz,Bpr,HS,HE: LongInt;
     PIdx: Array[1..MAXLIB] Of Integer; Pc: TPiece; Ok: Boolean;
     X1,Y1,X2,Y2,RX1,RY1,RX2,RY2,Fw,Fh,Pw,Ph: LongInt; A: TArt;
     FMapO: Array[0..63] Of Byte; HF: Array[1..8] Of Integer;
+    SegS,SegE: Array[1..8] Of LongInt; OI: LongInt; Cv: Boolean;
 Begin
  LoadNWS:=False;
  {$I-}
@@ -5608,6 +5635,8 @@ Begin
   End;
   NPF:=Integer(NW(O));
   If (NPF<1) Or (NPF>8) Then Break;
+  DocW2:=Integer(NW(O+4));
+  DocZ:=Integer(NW(T+22));
   O:=O+6;
   For I:=0 To 63 Do FMapO[I]:=Byte(MapOrigFont(I));
   If N>STCAP Then N:=STCAP;
@@ -5621,10 +5650,18 @@ Begin
    If (NW(Q)<>2) Or (Q>=T) Then Break;
    If K>MAXPG Then Break;
    HF[K]:=Integer(NW(Q+4));
-   HasHead[K]:=HF[K]<>0;
+   HasHead[K]:=(HF[K] And 1)<>0;
+   For J:=0 To 19 Do PgRaw[K,J]:=Integer(NW(Q+2*J));
+   PgRaw[K,3]:=K;
+   If (NW(Q+22)>=20) And (NW(Q+22)<=PGH) Then
+    PgHeadH[K]:=Integer(NW(Q+22));
+   If NW(Q+40)<PGH Then PgTop[K]:=Integer(NW(Q+40))
+   Else PgTop[K]:=PgHeadH[K]+15;
    HS:=NW(Q+10);HE:=NW(Q+12);
-   If (HE>HS) And (HE<=M) And (HE-HS<=HCAP) Then
-    PairsToStory(K,T+26+2*HS,HE-HS,FMapO);
+   SegS[K]:=HS;SegE[K]:=HE;PgHeadCR[K]:=False;
+   If (HE>HS) And (HE<=M) And (HE-HS<=HCAP) Then Begin
+    PairsToStory(K,T+26+2*HS,HE-HS,FMapO);PgHeadCR[K]:=HeadCR;
+   End;
    NcR:=Integer(NW(Q+36));
    If (NcR<1) Or (NcR>6) Then Break;
    Nc:=NcR;If Nc>MAXCOL Then Nc:=MAXCOL;
@@ -5682,6 +5719,18 @@ Begin
     Qr:=Qr+24;
    End;
    Q:=Qr;
+  End;
+  { paires de texte qui n'appartiennent a aucun segment : conservees }
+  OrphanN:=0;
+  For OI:=N To M-1 Do Begin
+   Cv:=False;
+   For K:=1 To NPF Do
+    If (K<=MAXPG) And (OI>=SegS[K]) And (OI<SegE[K]) Then Cv:=True;
+   If (Not Cv) And (OrphanN<1024) Then Begin
+    OrphanB[2*OrphanN]:=NB^[T+26+2*OI];
+    OrphanB[2*OrphanN+1]:=NB^[T+27+2*OI];
+    Inc(OrphanN);
+   End;
   End;
   NPg:=MAXPG;
   If NCol[1]=0 Then NCol[1]:=2;
@@ -5741,8 +5790,10 @@ Begin
  Mt:=Nn;
  For P:=1 To 4 Do Begin
   HS[P]:=Mt;
-  If St[P].Len>0 Then Mt:=Mt+St[P].Len+1;
+  Mt:=Mt+St[P].Len+Ord(PgHeadCR[P]);
   HE[P]:=Mt;
+  { les paires hors segment suivent le titre de la page 1 }
+  If P=1 Then Mt:=Mt+OrphanN;
  End;
  { plages de texte par page }
  For P:=1 To 4 Do Begin PStart[P]:=-1;PEnd[P]:=-1;End;
@@ -5760,17 +5811,22 @@ Begin
   If P=1 Then PStart[P]:=0;
   If PEnd[P]<PStart[P] Then PEnd[P]:=PStart[P];
  End;
- WW(4);WW(0);WW(1);
+ WW(4);WW(0);WW(DocW2);
  For P:=1 To 4 Do Begin
-  WW(2);WW(0);
-  WW(Ord(HasHead[P]));
-  WW(P);WW(0);
+  { mots d'en-tete : ceux dont le role est connu sont recalcules, les autres
+    sont ceux lus dans le fichier (ou les valeurs par defaut) }
+  WW(PgRaw[P,0]);WW(PgRaw[P,1]);
+  WW((PgRaw[P,2] And (Not 1)) Or Ord(HasHead[P]));
+  WW(P);
+  If PgRaw[P,4]>HE[P]-HS[P] Then WW(HE[P]-HS[P]) Else WW(PgRaw[P,4]);
   WW(HS[P]);WW(HE[P]);
-  WW(1);WW(0);WW(0);WW(PGW);WW(HEADH);WW(1);WW(1);WW(0);WW(0);
+  WW(PgRaw[P,7]);WW(PgRaw[P,8]);WW(PgRaw[P,9]);WW(PGW);WW(PgHeadH[P]);
+  WW(PgRaw[P,12]);WW(PgRaw[P,13]);WW(PgRaw[P,14]);
+  If PgRaw[P,15]>Nn Then WW(Nn) Else WW(PgRaw[P,15]);
   WW(PStart[P]);WW(PEnd[P]);
   Ent:=NCol[P];
-  WW(Ent);WW(0);
-  If HasHead[P] Then Ctop:=167 Else Ctop:=0;
+  WW(Ent);WW(PgRaw[P,19]);
+  If HasHead[P] Then Ctop:=PgTop[P] Else Ctop:=0;
   For K:=1 To Ent-1 Do Begin
    Y:=Integer((LongInt(PGW-30*(Ent-1)) Div Ent)*K+30*(K-1));
    WW(Ctop);WW(Y);WW(PGH);WW(Y+30);
@@ -5822,12 +5878,15 @@ Begin
  End;
  { tableau final }
  WW(5);WW(0);WW(Nn);WW(Nn);
- For I:=1 To 7 Do WW(Mt);
+ { ces sept mots sont acceptes par News Master des qu'ils ne sont pas nuls ;
+   ils sont ecrits comme la longueur totale }
+ WW(HE[1]+OrphanN);WW(HE[1]+OrphanN);
+ For I:=1 To 5 Do WW(Mt);
  WW(ToOrigFont(CurFont));WW(Mt);
  { texte principal puis un titre par page }
  For K:=0 To 4 Do Begin
   P:=K;
-  If (K=0) Or (St[P].Len>0) Then Begin
+  If (K=0) Or (St[P].Len>0) Or ((K>0) And PgHeadCR[K]) Then Begin
    I:=0;
    While I<=St[P].Len Do Begin
     PE:=ParaEndPos(P,I);
@@ -5837,13 +5896,20 @@ Begin
      WB(St[P].T^[I]);WB(At);
      Inc(I);
     End;
-    If (PE<St[P].Len) Or (K>0) Then Begin
+    If PE<St[P].Len Then Begin
      At:=Byte((ToOrigFont(St[P].F^[PE]) And 63) Or (Al Shl 6));
      WB(10);WB(At);
     End;
     I:=PE+1;
    End;
+   If (K>0) And PgHeadCR[K] Then Begin
+    At:=Byte((ToOrigFont(St[P].F^[St[P].Len]) And 63) Or
+      (St[P].A^[St[P].Len] Shl 6));
+    WB(10);WB(At);
+   End;
   End;
+  If K=1 Then
+   For I:=0 To OrphanN*2-1 Do WB(OrphanB[I]);
  End;
  {$I-}Close(OutF);{$I+}
  If IOResult<>0 Then FileOk:=False;
@@ -6283,7 +6349,11 @@ Var P: Integer;
 Begin
  FreePool;
  NPg:=MAXPG;
- For P:=1 To MAXPG Do Begin NCol[P]:=2;HasHead[P]:=True;End;
+ For P:=1 To MAXPG Do Begin
+  NCol[P]:=2;HasHead[P]:=True;InitPgFields(P);
+ End;
+ DocW2:=1;DocZ:=-1;OrphanN:=0;
+ For P:=1 To MAXPG Do PgHeadCR[P]:=False;
  For P:=0 To MAXPG Do StClear(P,DefHead,AL_CENTER);
  StClear(0,DefBody,AL_LEFT);
  NArt:=0;SelArt:=0;HeldOn:=False;ArtSub:=0;DrawStep:=0;
@@ -6390,7 +6460,7 @@ Begin
   DocName:=N;Named:=True;Modified:=False;
   ASt:=0;Cur:=0;SelA:=-1;SelArt:=0;HeldOn:=False;UndoOK:=False;CurPage:=1;
     ScrX:=0;ScrY:=0;
-  CurFont:=St[0].F^[0];
+  CurFont:=MapOrigFont(DocZ);
   Relayout;
   SetView(ViewNo);
   SetStatus('JOURNAL CHARG'#144);
@@ -7186,7 +7256,11 @@ Begin
  GetMem(ClipT,CLIPCAP+2);GetMem(ClipF,CLIPCAP+2);
  GetMem(UndoT,STCAP+2);GetMem(UndoF,STCAP+2);GetMem(UndoA,STCAP+2);
  StInit(0,STCAP,DefBody,AL_LEFT);
- For P:=1 To MAXPG Do StInit(P,HCAP,DefHead,AL_CENTER);
+ For P:=1 To MAXPG Do Begin
+  StInit(P,HCAP,DefHead,AL_CENTER);InitPgFields(P);
+  PgHeadCR[P]:=False;
+ End;
+ DocW2:=1;OrphanN:=0;
  NPg:=MAXPG;NArt:=0;ClipN:=0;UndoOK:=False;
  ZN:=1;ZD:=1;ViewNo:=2;ScrX:=0;ScrY:=0;
  GuidesOn:=False;
@@ -7283,7 +7357,7 @@ BEGIN
  End;
  If StartOk Then Begin
   DocName:=StartName;Named:=True;Modified:=False;
-  CurFont:=St[0].F^[0];
+  CurFont:=MapOrigFont(DocZ);
   Relayout;
  End Else MakeDemo;
  SetView(2);
