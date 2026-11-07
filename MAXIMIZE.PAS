@@ -6142,6 +6142,11 @@ Begin
  If FormEdit(tAB,RBF,T('Nouvelle entr@ee~New entry~Neuer Eintrag~Nueva entra'
    +'da~Nuova voce'),
    '',',CREATED,MODIFIED,PERSONAL,') Then Begin
+  If TrimStr(SG(tAB,RBF,'NAME'))='' Then Begin
+   Info(T('Le nom est obligatoire.~The name is required.~Der Name ist erford'
+     +'erlich.~El nombre es obligatorio.~Il nome @e obbligatorio.'));
+   Exit;
+  End;
   Id:=RowAdd(tAB,RBF);
   If Id=0 Then Begin Info(DbErr);Exit;End;
   TblFlush(tAB);
