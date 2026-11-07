@@ -179,7 +179,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
     <tr>
       <td><b>POWERPNT.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de PowerPoint.</td>
+      <td>Cette commande permet de lancer un clone de PresentPoint.</td>
     </tr>    
     <tr>
       <td><b>PROJECT.PAS</b></td>
