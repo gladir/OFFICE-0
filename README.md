@@ -147,7 +147,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
 	<tr>
 		<td><b>EXCEL.PAS</b></td>
-		<td>Cette commande permet de lancer un clone de Excel.</td>
+		<td>Cette commande permet de lancer le tableur Excelsior.</td>
 	</tr>
     <tr>
       <td><b>LOTUS123.PAS</b></td>
