@@ -4,7 +4,7 @@
   @website(https://www.gladir.com/clonedraw)
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Free Pascal 3.2
-  @description: Clone de l'application Visio de Microsoft
+  @description: Clone de l'application Visior
 }
 
 { TODO: Liste de 25 points pour un clone complet de Visio
@@ -16312,9 +16312,9 @@ Begin
  If Not AboutDialogVisible Then Exit;
  AboutDialogBox(X,Y,W,H);
  If Language=_English Then Begin
-  Title:='About Visio';Description:='Diagram editor written in Pascal';
+  Title:='About Visior';Description:='Diagram editor written in Pascal';
  End Else Begin
-  Title:='A propos de Visio';Description:='Editeur de diagrammes en Pascal';
+  Title:='A propos de Visior';Description:='Editeur de diagrammes en Pascal';
  End;
  SetFillStyle(SolidFill,DarkGray);Bar(X+5,Y+5,X+W+5,Y+H+5);
  SetFillStyle(SolidFill,LightGray);Bar(X,Y,X+W,Y+H);
@@ -16323,7 +16323,7 @@ Begin
  SetColor(White);OutTextXY(X+10,Y+9,Title);
  SetFillStyle(SolidFill,Blue);Bar(X+20,Y+44,X+65,Y+89);
  SetColor(White);OutTextXY(X+34,Y+62,'V');
- SetColor(Black);OutTextXY(X+82,Y+49,'VISIO - OFFICE-0');
+ SetColor(Black);OutTextXY(X+82,Y+49,'VISIOR - OFFICE-0');
  OutTextXY(X+82,Y+69,'Version 1.0');
  OutTextXY(X+20,Y+107,Description);
  OutTextXY(X+20,Y+127,'Sylvain Maltais - gladir.com');
@@ -18162,7 +18162,7 @@ Begin
       ItemCount := 3;
       Items[1] := 'Help Topics';
       Items[2] := '-';
-      Items[3] := 'About Visio';
+      Items[3] := 'About Visior';
      End;
   Else
    ItemCount := 0;
@@ -18261,7 +18261,7 @@ Begin
         ItemCount := 3;
         Items[1] := 'Rubriques d''aide';
         Items[2] := '-';
-        Items[3] := 'A propos de Visio';
+        Items[3] := 'A propos de Visior';
        End;
     Else
      ItemCount := 0;
@@ -20415,7 +20415,7 @@ Begin
       RibEnd;
       RibBegin('Fermer~Close');
       RibBig('Fermer~Close', 'Fermer le dessin~Close the drawing', 5, RC_CLOSE);
-      RibBig('Quitter~Exit', 'Quitter Visio~Quit Visio', 9, RC_EXIT);
+      RibBig('Quitter~Exit', 'Quitter Visior~Quit Visior', 9, RC_EXIT);
       RibEnd;
      End;
   2: Begin
@@ -20542,7 +20542,7 @@ Begin
   9: Begin
       RibBegin('Aide~Help');
       RibBig('Rubriques~Help topics', 'Non disponible~Not available', 0, RC_NONE);
-      RibBig('A propos~About', 'A propos de Visio~About Visio', 49, RC_ABOUT);
+      RibBig('A propos~About', 'A propos de Visior~About Visior', 49, RC_ABOUT);
       RibEnd;
      End;
  End;
@@ -20789,9 +20789,9 @@ Procedure ShowCommandLineHelp;
 Var OutputFile:Text;
 Begin
  Assign(OutputFile,'');Rewrite(OutputFile);
- WriteLn(OutputFile,'VISIO - Cette commande permet lancer l''editeur de diagrammes.');
+ WriteLn(OutputFile,'VISIOR - Cette commande permet lancer l''editeur de diagrammes.');
  WriteLn;
- WriteLn(OutputFile,'Syntaxe : VISIO [/CLASSICMENU | /RUBANMENU] [-maxscreen] [fichier.VSDX]');
+ WriteLn(OutputFile,'Syntaxe : VISIOR [/CLASSICMENU | /RUBANMENU] [-maxscreen] [fichier.VSDX]');
  WriteLn;
  WriteLn(OutputFile,'  -maxscreen           Utilise la resolution maximale disponible.');
  WriteLn(OutputFile,' /CLASSICMENU  Menus classiques (par defaut).');
