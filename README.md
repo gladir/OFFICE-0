@@ -58,9 +58,9 @@ Aperçu du clone de OneNote :
 
 <img width="639" height="483" alt="image" src="https://github.com/user-attachments/assets/4e432deb-f940-45b2-adb1-c91959507b79" />
 
-Aperçu du clone de Outlook :
+Aperçu de Outlink :
 
-<img width="639" height="481" alt="image" src="https://github.com/user-attachments/assets/0b6d7013-6a94-4398-8410-9d22c5aa0d53" />
+<img width="642" height="482" alt="image" src="https://github.com/user-attachments/assets/6983058d-6111-474f-87ab-25c14528c4e0" />
 
 Aperçu du clone de Papyrus :
 
@@ -171,7 +171,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>    
     <tr>
       <td><b>OUTLOOK.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de Outlook.</td>
+      <td>Cette commande permet de lancer Outlink.</td>
     </tr>    
 	<tr>
 		<td><b>PAPYRUS.PAS</b></td>
@@ -179,7 +179,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
     <tr>
       <td><b>POWERPNT.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de PresentPoint.</td>
+      <td>Cette commande permet de lancer PresentPoint.</td>
     </tr>    
     <tr>
       <td><b>PROJECT.PAS</b></td>
