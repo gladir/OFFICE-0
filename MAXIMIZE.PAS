@@ -3712,6 +3712,16 @@ Begin
   End;
 End;
 
+Function QEsc(Const S: String): String;
+Var I: Integer; R: String;
+Begin
+ R:='';
+ For I:=1 To Length(S) Do Begin
+  If S[I]='''' Then R:=R+'''''' Else R:=R+S[I];
+ End;
+ QEsc:=R;
+End;
+
 { ---- legendes des champs ---- }
 
 Function FCap(Const N: String): String;
@@ -5117,6 +5127,10 @@ Const
 Var
  STAT_Y,CX2,AB_Y2,PANE_Y,BODY_Y,BODY_Y2,LW,Mid2,CalW,CalH : Integer;
  WdPanel  : Integer;
+ LibMode  : Integer;
+ LibCat   : String[20];
+ NLibIds  : Integer;
+ LibIds   : Array[1..200] Of LongInt;
  RBE      : PRec;
  Modu     : Integer;
  Foc      : Integer;
@@ -5736,6 +5750,21 @@ Begin
  If G.Sel>G.N Then G.Sel:=Max2(1,G.N);
 End;
 
+{ ne garde que les documents trouves par la recherche de texte }
+Procedure LibFilterIds;
+Var I,K: LongInt; J: Integer; Keep: Boolean;
+Begin
+ K:=0;
+ For I:=1 To GMain.N Do Begin
+  Keep:=False;
+  If RowGet(GMain.TI,GMain.Sl^[I],RB) Then
+   For J:=1 To NLibIds Do If LibIds[J]=GetN(GMain.TI,RB,1) Then Keep:=True;
+  If Keep Then Begin Inc(K);GMain.Sl^[K]:=GMain.Sl^[I];End;
+ End;
+ GMain.N:=K;
+ If GMain.Sel>GMain.N Then GMain.Sel:=Max2(1,GMain.N);
+End;
+
 Procedure LoadMain;
 Var Q: String;
 Begin
@@ -5761,13 +5790,17 @@ Begin
    End;
   End;
   6: Q:='SELECT * FROM email WHERE folder='''+MailFold+'''';
-  7: Q:='SELECT * FROM library';
+  7: Begin
+      Q:='SELECT * FROM library';
+      If LibMode=1 Then Q:=Q+' WHERE category = '''+QEsc(LibCat)+'''';
+     End;
   9: Q:='SELECT * FROM orders';
   Else Exit;
  End;
  GMain.Base:=Q;
  GridReload(GMain,'');
  If Modu In [2,8] Then PostFilter(GMain);
+ If (Modu=7) And (LibMode=2) Then LibFilterIds;
 End;
 
 Procedure NoteWhere(Var Q: String);
@@ -6255,15 +6288,17 @@ Begin
  GridDraw(GSubR);
 End;
 
+{ apercu du texte lie : lu directement, sans toucher a la zone TX }
 Procedure PreviewText(Own: Char; Id: LongInt; Y1: Integer);
 Var I: Integer;
 Begin
  Sunken(CX1,Y1,CX2,BODY_Y2,cWht);
  If Id<=0 Then Exit;
- TextLoad(Own,Id);
- For I:=1 To TXN Do
-  If Y1+4+(I-1)*11<BODY_Y2-8 Then
-    Tx_(CX1+6,Y1+4+(I-1)*11,Copy(TX^[I],1,64),cBlk);
+ If SqlRun('SELECT * FROM textln WHERE own='''+Own+''' AND ownid='+IntStr(Id)
+   +' ORDER BY seq') Then
+  For I:=1 To SqlN Do
+   If (Y1+4+(I-1)*11<BODY_Y2-8) And RowGet(tTX,P1^[I],RB) Then
+    Tx_(CX1+6,Y1+4+(I-1)*11,Copy(SG(tTX,RB,'LINE'),1,64),cBlk);
 End;
 
 Function FolderCount(F: Char): Integer;
@@ -6299,6 +6334,12 @@ Procedure DrawLibrary;
 Begin
  Title(ModName(7),26);
  Bx(CX1,WORK_Y+18,CX2,AB_Y1-1,cLGr);
+ Tx_(CX1+4,WORK_Y+23,IntStr(GMain.N)+' '+T('documents~documents~Dokumente~do'
+   +'cumentos~documenti'),cBlk);
+ If LibMode=1 Then
+  Tx_(CX1+150,WORK_Y+23,T('Cat@egorie : ~Category: ~Kategorie: ')+LibCat,cRed)
+ Else If LibMode=2 Then
+  Tx_(CX1+150,WORK_Y+23,T('Recherche : ~Search: ~Suche: ')+LibCat,cRed);
  GMain.Foc:=True;
  GridDraw(GMain);
  PreviewText('L',GridSelId(GMain),Mid2+6);
@@ -6635,7 +6676,8 @@ End;
 
 { ---- courriel ---- }
 
-Var MailTo,CallNum: String;
+Var MailTo,CallNum,MailSubj: String;
+    MailDoc: LongInt;
 
 Procedure ActEmail;
 Var Id: LongInt; Fd: Integer; Sub: String;
@@ -6647,15 +6689,19 @@ Begin
  SN(tEM,RBF,'ED',SessDate);SS(tEM,RBF,'ET',NowTime);
  SS(tEM,RBF,'FROMA',UserEmail);SS(tEM,RBF,'TOA',SG(tAB,RBE,'EMAIL'));
  If MailTo<>'' Then SS(tEM,RBF,'TOA',MailTo);
+ If MailSubj<>'' Then SS(tEM,RBF,'SUBJ',MailSubj);
  SN(tEM,RBF,'READ',1);
  If Not FormEdit(tEM,RBF,T('Nouveau courriel~New email~Neue E-Mail~Nuevo cor'
    +'reo~Nuova e-mail'),
    'FROMA,TOA,SUBJ','') Then Exit;
  TXN:=0;
- TxAdd(T('Bonjour,~Hello,~Guten Tag,~Hola,~Buongiorno,'));TxAdd('');TxAdd('');
- TxAdd(T('Cordialement,~Regards,~Mit freundlichen Gr@3@7en,~Saludos,~Cordial'
-   +'i saluti,'));
- TxAdd(UserName);
+ If MailDoc>0 Then TextLoad('L',MailDoc)
+ Else Begin
+  TxAdd(T('Bonjour,~Hello,~Guten Tag,~Hola,~Buongiorno,'));TxAdd('');TxAdd('');
+  TxAdd(T('Cordialement,~Regards,~Mit freundlichen Gr@3@7en,~Saludos,~Cordia'
+    +'li saluti,'));
+  TxAdd(UserName);
+ End;
  MergeAll(MainContact);
  If Not EditText(T('Message~Message~Nachricht~Mensaje~Messaggio')) Then Exit;
  Fd:=MsgBox(T('Envoyer maintenant ? (Non = brouillon)~Send now? (No = draft)'
@@ -8195,6 +8241,9 @@ Begin
  GridRowText:=S;
 End;
 
+Procedure LibCopyText; Forward;
+Procedure LibNewFromClip; Forward;
+
 Procedure CopyAppt(Slot: LongInt);
 Begin
  If (Slot<0) Or Not RowGet(tAP,Slot,RBF) Then Exit;
@@ -8210,6 +8259,7 @@ Procedure CopyCur;
 Var I: Integer; Sl: LongInt;
 Begin
  ClipClear;
+ If Modu=7 Then Begin LibCopyText;Exit;End;
  If (Modu=1) And (WdPanel>2) Then Begin
   ClipAdd(GridRowText(GW[WdPanel]));ClipPush;Exit;
  End;
@@ -8294,7 +8344,8 @@ End;
 
 Procedure PasteCur;
 Begin
- If Modu In [1,4,5] Then PasteAppt
+ If Modu=7 Then LibNewFromClip
+ Else If Modu In [1,4,5] Then PasteAppt
  Else If Modu In [2,8] Then PasteNote
  Else Info(T('Rien @a coller ici.~Nothing to paste here.~Hier kann nichts ei'
    +'ngef@3gt werden.~Nada que pegar aqu@i.~Niente da incollare qui.'));
@@ -8314,16 +8365,6 @@ Begin
 End;
 
 { ---- actions du carnet d'adresses ---- }
-
-Function QEsc(Const S: String): String;
-Var I: Integer; R: String;
-Begin
- R:='';
- For I:=1 To Length(S) Do Begin
-  If S[I]='''' Then R:=R+'''''' Else R:=R+S[I];
- End;
- QEsc:=R;
-End;
 
 Procedure ClipText(Const S: String);
 Begin
@@ -8819,6 +8860,307 @@ Begin
  PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
 End;
 
+{ ---- Bibliotheque de la societe ---- }
+
+Function LibSlot: LongInt;
+Begin
+ LibSlot:=GridSelSlot(GMain);
+End;
+
+{ charge le document choisi dans RBF et son texte dans TX }
+Function LibLoad(Slot: LongInt): LongInt;
+Begin
+ LibLoad:=0;
+ If (Slot<0) Or Not RowGet(tLI,Slot,RBF) Then Exit;
+ LibLoad:=GetN(tLI,RBF,1);
+ TextLoad('L',GetN(tLI,RBF,1));
+End;
+
+{ cree un document a partir du texte de TX ; retourne son ID }
+Function LibCreate(Const Nm: String): LongInt;
+Var Id: LongInt;
+Begin
+ NewRow(tLI,RB2);
+ SS(tLI,RB2,'NAME',Copy(Nm,1,40));SN(tLI,RB2,'DD',SessDate);
+ SS(tLI,RB2,'CREATOR',UserCode);
+ If LibMode=1 Then SS(tLI,RB2,'CATEGORY',LibCat);
+ Id:=RowAdd(tLI,RB2);
+ If Id>0 Then TextSave('L',Id);
+ TblFlush(tLI);
+ LibCreate:=Id;
+End;
+
+Procedure LibShow(Id: LongInt);
+Begin
+ ReloadAll;
+ GridGoto(GMain,Id);
+End;
+
+Procedure LibView;
+Var Id: LongInt; Nm: String; K,I: Integer;
+Begin
+ Id:=LibLoad(LibSlot);
+ If Id=0 Then Exit;
+ Nm:=SG(tLI,RBF,'NAME');
+ If TXN=0 Then Begin TXN:=1;TX^[1]:='';End;
+ If TXN+4<=MAXTXT Then Begin
+  Move(TX^[1],TX^[5],TXN*SizeOf(String[78]));
+  TX^[1]:=Nm;
+  TX^[2]:=SG(tLI,RBF,'CATEGORY')+'  '+FmtDate(NG(tLI,RBF,'DD'))+'  '
+    +SG(tLI,RBF,'CREATOR');
+  TX^[3]:=SG(tLI,RBF,'DESCR');
+  TX^[4]:=Rep('-',60);
+  Inc(TXN,4);
+ End;
+ ViewText(Nm);
+End;
+
+Procedure LibCopyText;
+Var I: Integer;
+Begin
+ If LibLoad(LibSlot)=0 Then Exit;
+ ClipClear;
+ For I:=1 To TXN Do ClipAdd(TX^[I]);
+ ClipPush;
+End;
+
+Procedure LibNewFromClip;
+Var I,N: Integer; Id: LongInt;
+Begin
+ ClipPull;
+ N:=ClipLines;
+ If N=0 Then Begin
+  Info(T('Le presse-papiers est vide.~The clipboard is empty.~Die Zwischenab'
+    +'lage ist leer.'));
+  Exit;
+ End;
+ TXN:=0;
+ For I:=1 To N Do TxAdd(ClipLine(I));
+ Id:=LibCreate(TrimStr(ClipLine(1)));
+ If Id>0 Then LibShow(Id);
+End;
+
+Procedure LibImportFile;
+Var P,Nm: String; F: Text; L: String; I: Integer; Id: LongInt;
+Begin
+ P:='';
+ If Not InputBox(T('Importer un fichier texte~Import a text file~Textdatei i'
+   +'mportieren'),
+   T('Fichier :~File:~Datei:'),P,70) Then Exit;
+ If P='' Then Exit;
+ {$I-}
+ Assign(F,P);Reset(F);
+ {$I+}
+ If IOResult<>0 Then Begin Info(P);Exit;End;
+ TXN:=0;
+ While Not Eof(F) And (TXN<MAXTXT) Do Begin
+  ReadLn(F,L);
+  TxAdd(L);
+ End;
+ Close(F);
+ I:=Length(P);
+ While (I>0) And (P[I]<>'\') And (P[I]<>'/') Do Dec(I);
+ Nm:=Copy(P,I+1,40);
+ Id:=LibCreate(Nm);
+ If Id>0 Then Begin
+  If RowGet(tLI,RowFind(tLI,Id),RBF) Then Begin
+   SS(tLI,RBF,'PATH',Copy(P,1,60));
+   If RowPut(tLI,RowFind(tLI,Id),RBF) Then ;
+   TblFlush(tLI);
+  End;
+  LibShow(Id);
+ End;
+End;
+
+Procedure LibProps;
+Begin
+ EditSlot(tLI,LibSlot,'NAME,CATEGORY,DESCR,PATH','',
+   T('Propri@et@es du document~Document properties~Dokumenteigenschaften'));
+End;
+
+{ joint une copie du document a l'entree courante }
+Procedure LibToEntry;
+Var Id,Did: LongInt; Nm: String;
+Begin
+ Id:=LibLoad(LibSlot);
+ If Id=0 Then Exit;
+ If CurId<=0 Then CurId:=PickEntryDlg;
+ If CurId<=0 Then Exit;
+ Nm:=SG(tLI,RBF,'NAME');
+ NewRow(tDO,RB2);
+ SN(tDO,RB2,'ENTRY_ID',CurId);SS(tDO,RB2,'NAME',Nm);SS(tDO,RB2,'KIND','D');
+ SS(tDO,RB2,'PATH',T('Biblioth@eque~Library~Bibliothek'));
+ SN(tDO,RB2,'DD',SessDate);SS(tDO,RB2,'CREATOR',UserCode);
+ Did:=RowAdd(tDO,RB2);
+ If Did>0 Then TextSave('D',Did);
+ TblFlush(tDO);
+ TXN:=1;TX^[1]:=T('Document joint : ~Document attached: ~Dokument angeh@1ngt'
+   +': ')+Nm;
+ If AddNote(CurId,NoteKindName(0),'',False)=0 Then ;
+ Touch(CurId);
+ Info(Nm+' -> '+EntryName(CurId));
+End;
+
+Procedure LibEmail;
+Var Id: LongInt;
+Begin
+ Id:=LibLoad(LibSlot);
+ If Id=0 Then Exit;
+ If CurId<=0 Then CurId:=PickEntryDlg;
+ If CurId<=0 Then Exit;
+ MailSubj:=SG(tLI,RBF,'NAME');MailDoc:=Id;
+ ActEmail;
+ MailSubj:='';MailDoc:=0;
+End;
+
+Procedure LibToTemplate;
+Var Id,Tid: LongInt;
+Begin
+ Id:=LibLoad(LibSlot);
+ If Id=0 Then Exit;
+ NewRow(tTP,RB2);
+ SS(tTP,RB2,'NAME',SG(tLI,RBF,'NAME'));SS(tTP,RB2,'KIND','L');
+ SS(tTP,RB2,'SUBJ',SG(tLI,RBF,'NAME'));
+ Tid:=RowAdd(tTP,RB2);
+ If Tid>0 Then TextSave('T',Tid);
+ TblFlush(tTP);
+ Info(T('Mod@ele de lettre cr@e@e.~Letter template created.~Briefvorlage ers'
+   +'tellt.'));
+End;
+
+Procedure LibPrint;
+Begin
+ If LibLoad(LibSlot)=0 Then Exit;
+ If TXN=0 Then Begin TXN:=1;TX^[1]:='';End;
+ PrintText;
+End;
+
+Procedure LibExport;
+Var F: Text; Nm: String; I: Integer;
+Begin
+ If LibLoad(LibSlot)=0 Then Exit;
+ Nm:='';
+ For I:=1 To Length(SG(tLI,RBF,'NAME')) Do
+  If (Length(Nm)<8) And (UpCase(SG(tLI,RBF,'NAME')[I]) In ['A'..'Z','0'..'9'])
+    Then
+   Nm:=Nm+UpCase(SG(tLI,RBF,'NAME')[I]);
+ If Nm='' Then Nm:='DOCUMENT';
+ Nm:=Nm+'.TXT';
+ If Not InputBox(T('Exporter~Export~Exportieren'),T('Fichier de sortie :~Out'
+   +'put file:~Ausgabedatei:'),Nm,40) Then Exit;
+ {$I-}
+ Assign(F,Nm);Rewrite(F);
+ {$I+}
+ If IOResult<>0 Then Begin Info(Nm);Exit;End;
+ For I:=1 To TXN Do WriteLn(F,TX^[I]);
+ Close(F);
+ Info(Nm);
+End;
+
+Procedure LibCopyRow;
+Begin
+ ClipText(GridRowText(GMain));
+End;
+
+Procedure LibCopyName;
+Begin
+ If LibLoad(LibSlot)<>0 Then ClipText(SG(tLI,RBF,'NAME'));
+End;
+
+Procedure LibDup;
+Var Id,N: LongInt; I: Integer;
+Begin
+ Id:=LibLoad(LibSlot);
+ If Id=0 Then Exit;
+ NewRow(tLI,RB2);
+ SS(tLI,RB2,'NAME',Copy(SG(tLI,RBF,'NAME'),1,35)+' (2)');
+ SS(tLI,RB2,'CATEGORY',SG(tLI,RBF,'CATEGORY'));SS(tLI,RB2,'DESCR',SG(tLI,RBF,
+   'DESCR'));
+ SS(tLI,RB2,'PATH',SG(tLI,RBF,'PATH'));SN(tLI,RB2,'DD',SessDate);
+ SS(tLI,RB2,'CREATOR',UserCode);
+ N:=RowAdd(tLI,RB2);
+ If N>0 Then Begin TextSave('L',N);TblFlush(tLI);LibShow(N);End;
+End;
+
+{ choisit une categorie parmi celles qui existent (ou une nouvelle) }
+Function LibCatPick(Var Res: String): Boolean;
+Var I,J,Sel: Integer; C: String; Dup: Boolean;
+Begin
+ LibCatPick:=False;
+ PickN:=0;
+ For I:=0 To Tb[tLI]^.Slots-1 Do
+  If RowGet(tLI,I,RB2) Then Begin
+   C:=SG(tLI,RB2,'CATEGORY');
+   Dup:=C='';
+   For J:=1 To PickN Do If PickIt^[J]=C Then Dup:=True;
+   If Not Dup Then PickAdd(C);
+  End;
+ PickAdd(T('(Nouvelle cat@egorie...)~(New category...)~(Neue Kategorie...)'));
+ Sel:=1;
+ If Not PickList(T('Cat@egorie~Category~Kategorie'),Sel) Then Exit;
+ If Sel=PickN Then Begin
+  C:='';
+  If Not InputBox(T('Cat@egorie~Category~Kategorie'),T('Nom :~Name:~Name:'
+    ),C,20) Then Exit;
+  Res:=C;
+ End Else Res:=PickIt^[Sel];
+ LibCatPick:=Res<>'';
+End;
+
+Procedure LibSetCat;
+Var C: String; S: LongInt;
+Begin
+ S:=LibSlot;
+ If (S<0) Or Not LibCatPick(C) Then Exit;
+ If RowGet(tLI,S,RBF) Then Begin
+  SS(tLI,RBF,'CATEGORY',C);
+  If RowPut(tLI,S,RBF) Then ;
+ End;
+ TblFlush(tLI);ReloadAll;
+End;
+
+Procedure LibFilterCat;
+Var C: String;
+Begin
+ If Not LibCatPick(C) Then Exit;
+ LibMode:=1;LibCat:=C;
+ ReloadAll;
+End;
+
+Procedure LibClear;
+Begin
+ LibMode:=0;LibCat:='';NLibIds:=0;
+ ReloadAll;
+End;
+
+{ recherche un texte dans les noms, descriptions et contenus }
+Procedure LibSearch;
+Var Q: String; I: LongInt; Id: LongInt; J: Integer; Dup: Boolean;
+ Procedure Add(V: LongInt);
+ Var K: Integer;
+ Begin
+  For K:=1 To NLibIds Do If LibIds[K]=V Then Exit;
+  If NLibIds<200 Then Begin Inc(NLibIds);LibIds[NLibIds]:=V;End;
+ End;
+Begin
+ Q:='';
+ If Not InputBox(T('Rechercher dans la biblioth@eque~Search the library~Bibl'
+   +'iothek durchsuchen'),
+   T('Texte :~Text:~Text:'),Q,40) Then Exit;
+ If Q='' Then Exit;
+ NLibIds:=0;
+ For I:=0 To Tb[tLI]^.Slots-1 Do
+  If RowGet(tLI,I,RB2) Then
+   If HasStr(SG(tLI,RB2,'NAME'),Q) Or HasStr(SG(tLI,RB2,'DESCR'),Q) Then
+    Add(GetN(tLI,RB2,1));
+ For I:=0 To Tb[tTX]^.Slots-1 Do
+  If RowGet(tTX,I,RB2) Then
+   If (SG(tTX,RB2,'OWN')='L') And HasStr(SG(tTX,RB2,'LINE'),Q) Then
+    Add(NG(tTX,RB2,'OWNID'));
+ LibMode:=2;LibCat:=Copy(Q,1,20);
+ ReloadAll;
+End;
+
 { ---- sous-menus ---- }
 
 Procedure BuildSub(Sid: Integer);
@@ -8946,6 +9288,40 @@ Begin
       PMAdd(T('Lettre...~Letter...~Brief...'),52,CurId>0);
       PMAdd(T('R@eunion...~Meeting...~Besprechung...'),57,CurId>0);
      End;
+  14: Begin
+      PMAdd(T('Nouveau document...~New document...~Neues Dokument...'),12,True);
+      PMAdd(T('@A partir du presse-papiers~From clipboard~Aus Zwischenablage'
+        ),201,ClipLines>0);
+      PMAdd(T('Importer un fichier texte...~Import a text file...~Textdatei '
+        +'importieren...'),202,True);
+     End;
+  15: Begin
+      PMAdd(T('Joindre @a l''entr@ee courante~Attach to current entry~An akt'
+        +'uellen Eintrag anh@1ngen'),204,True);
+      PMAdd(T('Envoyer par courriel...~Send by email...~Per E-Mail senden...'
+        ),205,True);
+      PMAdd(T('Utiliser comme mod@ele de lettre~Use as letter template~Als B'
+        +'riefvorlage'),206,True);
+     End;
+  16: Begin
+      PMAdd(T('Le texte~The text~Den Text'),120,True);
+      PMAdd(T('Le nom~The name~Den Namen'),209,True);
+      PMAdd(T('La ligne de la liste~The list row~Die Listenzeile'),219,True);
+     End;
+  17: Begin
+      PMAdd(T('D@efinir la cat@egorie...~Set category...~Kategorie setzen...'
+        ),211,True);
+      PMAdd(T('Filtrer par cat@egorie...~Filter by category...~Nach Kategori'
+        +'e filtern...'),212,True);
+      PMAdd(T('Tout afficher~Show all~Alle anzeigen'),213,LibMode>0);
+     End;
+  18: Begin
+      PMAdd(T('Nom~Name~Name'),214,True);
+      PMAdd(T('Cat@egorie~Category~Kategorie'),215,True);
+      PMAdd(T('Date (r@ecent d''abord)~Date (newest first)~Datum (neueste zu'
+        +'erst)'),216,True);
+      PMAdd(T('Cr@eateur~Creator~Ersteller'),217,True);
+     End;
   10: Begin
       PMAdd(T('Nom~Name~Name'),174,True);
       PMAdd(T('T@el@ephone~Phone~Telefon'),175,True);
@@ -8964,6 +9340,34 @@ Begin
  HasClip:=ClipLines>0;
  Case Modu Of
   1: BuildWd;
+  7: Begin
+      Sel:=GMain.N>0;
+      PMAdd(T('Ouvrir (lire)~Open (read)~@2ffnen (lesen)~Abrir (leer)~Apri ('
+        +'leggi)'),200,Sel);
+      PMAdd(T('Modifier le texte~Edit text~Text bearbeiten~Editar texto~Modi'
+        +'fica testo'),10,Sel);
+      PMAdd(T('Propri@et@es...~Properties...~Eigenschaften...~Propiedades...'
+        +'~Propriet@q...'),203,Sel);
+      PMSub(T('Nouveau~New~Neu~Nuevo~Nuovo'),14,True);
+      PMSep;
+      PMSub(T('Envoyer @a~Send to~Senden an'),15,Sel);
+      PMSub(T('Copier~Copy~Kopieren~Copiar~Copia'),16,Sel);
+      PMAdd(T('Coller comme nouveau document~Paste as new document~Als neues'
+        +' Dokument einf@3gen'),201,HasClip);
+      PMAdd(T('Dupliquer~Duplicate~Duplizieren~Duplicar~Duplica'),210,Sel);
+      PMSep;
+      PMSub(T('Cat@egorie~Category~Kategorie~Categor@ia~Categoria'),17,True);
+      PMSub(T('Trier par~Sort by~Sortieren nach'),18,True);
+      PMAdd(T('Rechercher dans le texte...~Search text...~Text suchen...'
+        ),218,True);
+      PMSep;
+      PMAdd(T('Exporter vers un fichier...~Export to a file...~In Datei expo'
+        +'rtieren...'),208,Sel);
+      PMAdd(T('Imprimer...~Print...~Drucken...~Imprimir...~Stampa...'),207,Sel);
+      PMSep;
+      PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+      PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+     End;
   3: Begin
       Sel:=GMain.N>0;
       PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
@@ -9656,6 +10060,26 @@ Begin
   191..194: Postpone(Cm-190);
   195: OpenEntryCur;
   196: CopyAllRows(GMain);
+  200: LibView;
+  201: LibNewFromClip;
+  202: LibImportFile;
+  203: LibProps;
+  204: LibToEntry;
+  205: LibEmail;
+  206: LibToTemplate;
+  207: LibPrint;
+  208: LibExport;
+  209: LibCopyName;
+  210: LibDup;
+  211: LibSetCat;
+  212: LibFilterCat;
+  213: LibClear;
+  214: SortBy('NAME',False);
+  215: SortBy('CATEGORY',False);
+  216: SortBy('DD',True);
+  217: SortBy('CREATOR',False);
+  218: LibSearch;
+  219: LibCopyRow;
   110,111: HelpText;
   112: AboutBox;
  End;
@@ -10237,7 +10661,8 @@ BEGIN
  GetMem(PickIt,SizeOf(TStrArr));
  GetMem(RBE,SizeOf(TRec));
  GetMem(ClipP,SizeOf(TBig));
- ClipLen:=0;NoDbl:=False;MailTo:='';CallNum:='';
+ ClipLen:=0;NoDbl:=False;MailTo:='';CallNum:='';MailSubj:='';MailDoc:=0;
+   LibMode:=0;LibCat:='';NLibIds:=0;
  TXN:=0;PickN:=0;
  FillChar(UdfNm,SizeOf(UdfNm),0);
  FillChar(UdfKd,SizeOf(UdfKd),'T');
