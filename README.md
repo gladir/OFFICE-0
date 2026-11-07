@@ -34,7 +34,7 @@ Aperçu du clone Cubase :
 
 <img width="639" height="476" alt="image" src="https://github.com/user-attachments/assets/73ee655a-6714-4254-9502-72cd07bed606" />
 
-Aperçu du clone d'Excel :
+Aperçu d'Excelsior :
 
 <img width="638" height="482" alt="image" src="https://github.com/user-attachments/assets/9f56d511-ef57-42c4-992c-2686c3056760" />
 
