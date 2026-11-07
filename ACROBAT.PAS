@@ -4,7 +4,7 @@
   @website(https://www.gladir.com/clonedraw)
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Turbo Pascal 7, Free Pascal
-  @description: Clone de l'application ACROBAT
+  @description: Clone de l'application Acrodoc (ACROBAT.PAS)
 
   Visionneuse / éditeur de documents PDF en mode graphique :
    - Ouverture de fichiers PDF (flux Flate, ASCIIHex, ASCII85, flux d'objets,
@@ -3851,7 +3851,7 @@ Begin
  WL('] >>');
  EndObj;
  BeginObj(3);
- S := '<< /Producer (CloneDRAW ACROBAT) /CreationDate (' + PdfDate + ')';
+ S := '<< /Producer (CloneDRAW Acrodoc) /CreationDate (' + PdfDate + ')';
  If DocTitle <> '' Then S := S + ' /Title ' + PdfStr(DocTitle);
  If DocAuthor <> '' Then S := S + ' /Author ' + PdfStr(DocAuthor);
  If DocSubject <> '' Then S := S + ' /Subject ' + PdfStr(DocSubject);
@@ -15819,7 +15819,7 @@ Var
  S: String;
 Begin
  BeginObj(No);
- S := '<< /Producer (CloneDRAW ACROBAT) /ModDate (' + PdfDate + ')';
+ S := '<< /Producer (CloneDRAW Acrodoc) /ModDate (' + PdfDate + ')';
  If DocTitle <> '' Then S := S + ' /Title ' + PdfStr(DocTitle);
  If DocAuthor <> '' Then S := S + ' /Author ' + PdfStr(DocAuthor);
  If DocSubject <> '' Then S := S + ' /Subject ' + PdfStr(DocSubject);
@@ -16392,7 +16392,7 @@ Begin
 
  Menus[MN_HELP].Title := 'Aide';
  MItem(MN_HELP, 'Raccourcis clavier', 'F1', CM_HELP);
- MItem(MN_HELP, 'À propos d''Acrobat...', '', CM_ABOUT);
+ MItem(MN_HELP, 'À propos d''Acrodoc...', '', CM_ABOUT);
 
  For M := 0 To MN_COUNT - 1 Do Begin
   Menus[M].Width := 120;
@@ -17423,7 +17423,7 @@ Procedure Notice(Const Msg: String);
 Var
  R: Integer;
 Begin
- R := MsgBox('Acrobat', Msg, 0);
+ R := MsgBox('Acrodoc', Msg, 0);
 End;
 
 { ---------------------------------------------------------------------- }
@@ -18105,16 +18105,143 @@ Begin
  End;
 End;
 
+Var
+ InfoBannerH: Integer;   { hauteur de l'illustration en tete de InfoDialog (0 = aucune) }
+
+{ Un objet de l'amas de documents : livre (0), dossier (1) ou feuilles (2) }
+Procedure BannerItem(X, Y, W, Kind, Tint: Integer);
+Const
+ BookCols: Array[0..7] Of Integer = (4, 1, 2, 5, 12, 3, 13, 9);
+Begin
+ Case Kind Of
+  0: Begin
+   SetFillStyle(SolidFill, BookCols[Tint And 7]);
+   Bar(X, Y, X + W, Y + 6);
+   SetFillStyle(SolidFill, 14);
+   Bar(X + 4, Y + 1, X + 6, Y + 5);
+   Bar(X + W - 6, Y + 1, X + W - 4, Y + 5);
+   SetColor(15); Line(X + 1, Y + 1, X + W - 1, Y + 1);
+  End;
+  1: Begin
+   If Tint And 1 = 0 Then SetFillStyle(SolidFill, 14) Else SetFillStyle(SolidFill, 6);
+   Bar(X, Y, X + W, Y + 6);
+   SetFillStyle(SolidFill, 15);
+   Bar(X + 2, Y - 1, X + 10, Y);
+   SetColor(Black); Rectangle(X + 2, Y - 1, X + 10, Y);
+  End;
+  Else Begin
+   SetFillStyle(SolidFill, 15);
+   Bar(X, Y, X + W, Y + 6);
+   SetColor(7);
+   Line(X + 2, Y + 2, X + W - 2, Y + 2);
+   Line(X + 2, Y + 4, X + W - 2, Y + 4);
+  End;
+ End;
+ SetColor(Black);
+ Rectangle(X, Y, X + W, Y + 6);
+End;
+
+{ Illustration : un bureau entouré de montagnes de feuilles, de dossiers et de livres }
+Procedure DrawAboutBanner(X, Y, W, H: Integer);
+Const
+ LeftN: Array[0..7] Of Integer = (11, 10, 8, 7, 5, 4, 3, 2);
+ RightN: Array[0..7] Of Integer = (10, 11, 9, 6, 6, 4, 3, 2);
+Var
+ I, J, N, BX, BY, BW, T, CX: Integer;
+ P: Array[0..3] Of PointType;
+Begin
+ { mur et plancher }
+ SetFillStyle(SolidFill, 11);
+ Bar(X, Y, X + W - 1, Y + H - 1);
+ SetFillStyle(SolidFill, 8);
+ Bar(X, Y + H - 8, X + W - 1, Y + H - 1);
+ SetColor(Black); Line(X, Y + H - 8, X + W - 1, Y + H - 8);
+ { montagnes de documents, à gauche et à droite du bureau }
+ For I := 0 To 7 Do Begin
+  For J := 0 To 1 Do Begin
+   If J = 0 Then Begin N := LeftN[I]; CX := X + 4 + I * 17; End
+   Else Begin N := RightN[I]; CX := X + W - 38 - I * 17; End;
+   For T := 0 To N - 1 Do Begin
+    BW := 32 - ((I + T) Mod 3) * 4;
+    BX := CX + ((I * 5 + T * 3 + J * 2) Mod 5) - 2;
+    BY := Y + H - 15 - T * 7;
+    BannerItem(BX, BY, BW, (I * 2 + T * 3 + J) Mod 3, I + T * 3 + J);
+   End;
+  End;
+ End;
+ { feuilles qui volent }
+ P[0].X := X + 126; P[0].Y := Y + 12; P[1].X := X + 148; P[1].Y := Y + 8;
+ P[2].X := X + 152; P[2].Y := Y + 24; P[3].X := X + 130; P[3].Y := Y + 28;
+ SetFillStyle(SolidFill, 15); FillPoly(4, P);
+ SetColor(Black); Line(X + 126, Y + 12, X + 148, Y + 8); Line(X + 148, Y + 8, X + 152, Y + 24);
+ Line(X + 152, Y + 24, X + 130, Y + 28); Line(X + 130, Y + 28, X + 126, Y + 12);
+ SetColor(7); Line(X + 130, Y + 16, X + 147, Y + 13); Line(X + 131, Y + 21, X + 149, Y + 18);
+ P[0].X := X + 318; P[0].Y := Y + 20; P[1].X := X + 338; P[1].Y := Y + 12;
+ P[2].X := X + 346; P[2].Y := Y + 26; P[3].X := X + 324; P[3].Y := Y + 34;
+ SetFillStyle(SolidFill, 15); FillPoly(4, P);
+ SetColor(Black); Line(X + 318, Y + 20, X + 338, Y + 12); Line(X + 338, Y + 12, X + 346, Y + 26);
+ Line(X + 346, Y + 26, X + 324, Y + 34); Line(X + 324, Y + 34, X + 318, Y + 20);
+ SetColor(7); Line(X + 323, Y + 23, X + 339, Y + 17); Line(X + 326, Y + 28, X + 342, Y + 22);
+ { le bureau }
+ T := Y + H - 34;
+ SetFillStyle(SolidFill, 6);
+ Bar(X + 166, T, X + 298, T + 5);
+ Bar(X + 172, T + 6, X + 292, Y + H - 9);
+ SetColor(14); Line(X + 166, T, X + 298, T);
+ SetColor(Black);
+ Rectangle(X + 166, T, X + 298, T + 5);
+ Rectangle(X + 172, T + 6, X + 292, Y + H - 9);
+ Line(X + 232, T + 6, X + 232, Y + H - 9);
+ Rectangle(X + 188, T + 11, X + 216, T + 17);
+ Rectangle(X + 248, T + 11, X + 276, T + 17);
+ { écran avec un document PDF }
+ SetFillStyle(SolidFill, 8);
+ Bar(X + 227, T - 7, X + 237, T - 1);
+ Bar(X + 218, T - 2, X + 246, T - 1);
+ SetFillStyle(SolidFill, Black);
+ Bar(X + 204, T - 42, X + 260, T - 8);
+ SetFillStyle(SolidFill, 9);
+ Bar(X + 207, T - 39, X + 257, T - 11);
+ SetFillStyle(SolidFill, 15);
+ Bar(X + 222, T - 37, X + 242, T - 13);
+ SetFillStyle(SolidFill, 4);
+ Bar(X + 222, T - 37, X + 242, T - 32);
+ SetColor(7);
+ Line(X + 225, T - 28, X + 239, T - 28); Line(X + 225, T - 24, X + 239, T - 24);
+ Line(X + 225, T - 20, X + 235, T - 20);
+ { lampe de bureau et tasse }
+ SetColor(8); Line(X + 282, T, X + 278, T - 22); Line(X + 278, T - 22, X + 270, T - 28);
+ SetFillStyle(SolidFill, 14); SetColor(Black);
+ FillEllipse(X + 268, T - 29, 8, 4);
+ SetFillStyle(SolidFill, 15);
+ Bar(X + 180, T - 9, X + 188, T - 1);
+ Rectangle(X + 180, T - 9, X + 188, T - 1);
+ SetFillStyle(SolidFill, 6);
+ Bar(X + 181, T - 8, X + 187, T - 6);
+ { titre }
+ SetTextStyle(DefaultFont, HorizDir, 2);
+ SetColor(White);
+ OutTextXY(X + W Div 2 - 55, Y + 7, 'Acrodoc');
+ SetColor(Blue);
+ OutTextXY(X + W Div 2 - 56, Y + 6, 'Acrodoc');
+ SetTextStyle(DefaultFont, HorizDir, 1);
+ { cadre en creux }
+ SetColor(8); Line(X - 1, Y - 1, X + W, Y - 1); Line(X - 1, Y - 1, X - 1, Y + H);
+ SetColor(15); Line(X - 1, Y + H, X + W, Y + H); Line(X + W, Y - 1, X + W, Y + H);
+End;
+
 Procedure InfoDialog(Const Title: String; W: Integer);
 Var
  I, H, K: Integer;
  Done, Ext: Boolean;
 Begin
- H := 70 + InfoN * 11;
+ H := 70 + InfoN * 11 + InfoBannerH;
  HideMouse;
  DlgFrame(W, H, Title);
+ If InfoBannerH > 0 Then DrawAboutBanner(DlgX1 + 8, DlgY1 + 24, W - 16, InfoBannerH - 8);
  SetColor(Black);
- For I := 0 To InfoN - 1 Do OutTextXY(DlgX1 + 14, DlgY1 + 26 + I * 11, InfoLines[I]);
+ For I := 0 To InfoN - 1 Do
+  OutTextXY(DlgX1 + 14, DlgY1 + 26 + InfoBannerH + I * 11, InfoLines[I]);
  PushButton(DlgX1 + W Div 2 - 40, DlgY2 - 28, DlgX1 + W Div 2 + 40, DlgY2 - 8, 'OK', False);
  ShowMouse;
  Done := False;
@@ -18309,7 +18436,7 @@ Var
 Begin
  ConfirmDiscard := True;
  If Not Modified Then Exit;
- R := MsgBox('Acrobat', 'Enregistrer les modifications apportées au document ?', 2);
+ R := MsgBox('Acrodoc', 'Enregistrer les modifications apportées au document ?', 2);
  If R = 0 Then ConfirmDiscard := False
  Else If R = 1 Then Begin
   If Not DoSave Then ConfirmDiscard := False;
@@ -19219,7 +19346,7 @@ End;
 Procedure ShowAbout;
 Begin
  InfoBegin;
- InfoAdd('ACROBAT - Clone d''Adobe Acrobat');
+ InfoAdd('Acrodoc - Visionneuse et '+#144+'diteur PDF');
  InfoAdd('Version 1.00 - Free Pascal / Turbo Pascal');
  InfoAdd('');
  InfoAdd('Visionneuse et éditeur de documents PDF en mode graphique :');
@@ -19228,7 +19355,9 @@ Begin
  InfoAdd('');
  InfoAdd('Sylvain Maltais (support@gladir.com)');
  InfoAdd('https://www.gladir.com/clonedraw');
- InfoDialog('À propos d''Acrobat', 480);
+ InfoBannerH := 112;
+ InfoDialog('À propos d''Acrodoc', 480);
+ InfoBannerH := 0;
 End;
 
 { ---------------------------------------------------------------------- }
@@ -20049,7 +20178,7 @@ Begin
    { Ctrl+C : copier ; sans sélection, c'est aussi ce que PtcCrt envoie
      quand on ferme la fenêtre : demander la fermeture. }
    If SelObj >= 0 Then ExecCmd(CM_COPY)
-   Else If MsgBox('Quitter', 'Voulez-vous quitter Acrobat ?', 1) <> 0 Then ExecCmd(CM_QUIT)
+   Else If MsgBox('Quitter', 'Voulez-vous quitter Acrodoc ?', 1) <> 0 Then ExecCmd(CM_QUIT)
    Else RedrawAll;
   End;
   22: ExecCmd(CM_PASTE);
@@ -20166,12 +20295,13 @@ BEGIN
   { Un flux distinct conserve la sortie console, même avec l'unité Crt. }
   Assign(HelpOutput, '');
   Rewrite(HelpOutput);
-  WriteLn(HelpOutput, 'ACROBAT : Visionneuse et éditeur de documents PDF (clone d''Adobe Acrobat).');
+  WriteLn(HelpOutput, 'ACROBAT : Cette commande permet de lancer Acrodoc, visionneuse et '+#130+
+                      'diteur de documents PDF.');
   WriteLn(HelpOutput);
   WriteLn(HelpOutput, 'Syntaxe : ACROBAT [fichier.pdf] [-maxscreen] [-maxcolors] [/? | -h | --help]');
   WriteLn(HelpOutput);
   WriteLn(HelpOutput, '  Sans option          Lance l''application graphique en 640x480.');
-  WriteLn(HelpOutput, '  -h, --help           Affichent également cette aide.');
+  WriteLn(HelpOutput, '  -h, --help           Affichent '+#130+'galement cette aide.');
   WriteLn(HelpOutput, '  -maxscreen           Utilise la resolution maximale disponible.');
   WriteLn(HelpOutput, '  -maxcolors           Utilise le nombre maximal de couleurs (couleurs vraies).');
   WriteLn(HelpOutput, '  /?                   Affiche cette aide et quitte.');
