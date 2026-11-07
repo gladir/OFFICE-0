@@ -8081,13 +8081,7 @@ Begin
  ViewText(T('Aide~Help~Hilfe~Ayuda~Aiuto'));
 End;
 
-Procedure AboutBox;
-Begin
- Info(APP_NAME+' '+VERSION_TEXT+' - '+T('Clone de Maximizer CRM pour Turbo P'
-   +'ascal / Free Pascal.~Maximizer CRM clone for Turbo Pascal / Free Pascal'
-   +'.~Maximizer-CRM-Klon f@3r Turbo Pascal / Free Pascal.')+' (c) Sylvain M'
-   +'altais - gladir.com/office-0');
-End;
+Procedure AboutBox; Forward;
 
 { ====================================================================== }
 {              MENUS CONTEXTUELS (CLIC DROIT) ET COPIER / COLLER         }
@@ -9626,6 +9620,8 @@ Var
  SpS      : Integer;           { echelle en % (100 = 640x480) }
  BX1,BY1,BX2,BY2 : Integer;    { cadre de la banniere }
  BtnY,BtnW : Integer;
+ AbtOn    : Boolean;           { banniere reduite dans la boite A propos }
+ AbtX1,AbtY1,AbtX2,AbtY2 : Integer;
 
 Function Rnd(M: Integer): Integer;
 Begin
@@ -9645,6 +9641,10 @@ End;
 Procedure SplashGeom;
 Var A,B: Integer;
 Begin
+ If AbtOn Then Begin
+  SpS:=60;BX1:=AbtX1;BY1:=AbtY1;BX2:=AbtX2;BY2:=AbtY2;
+  Exit;
+ End;
  A:=SCR_W*100 Div 640;B:=SCR_H*100 Div 480;
  If A<B Then SpS:=A Else SpS:=B;
  If SpS<100 Then SpS:=100;
@@ -9833,6 +9833,49 @@ Begin
  Tx_(14,SCR_H-18,'Maximilien CRM '+VERSION_TEXT+'  -  MyISAM / SQL  -  gladi'
    +'r.com/office-0',cDGr);
  ShowMouse;
+End;
+
+{ boite A propos : image d'accueil reduite, puis texte centre }
+Procedure AboutBox;
+Var X1,Y1,X2,Y2,W,H,I,Ty,Cx: Integer; E: TEvent; Done: Boolean;
+    L: Array[1..6] Of String[60];
+Begin
+ W:=440;H:=362;
+ X1:=(SCR_W-W) Div 2;Y1:=(SCR_H-H) Div 2;X2:=X1+W;Y2:=Y1+H;
+ Cx:=(X1+X2) Div 2;
+ L[1]:=APP_NAME+' '+VERSION_TEXT;
+ L[2]:=T('Clone de Maximizer CRM~Maximizer CRM clone~Maximizer-CRM-Klon');
+ L[3]:=T('pour Turbo Pascal / Free Pascal~for Turbo Pascal / Free Pascal~f@3r'
+   +' Turbo Pascal / Free Pascal');
+ L[4]:=T('Auteur : ~Author: ~Autor: ')+'Sylvain Maltais';
+ L[5]:=T('Date : ~Date: ~Datum: ')+'2026';
+ L[6]:=T('Site Web : ~Website: ~Webseite: ')+'gladir.com/office-0';
+ Backdrop;
+ HideMouse;
+ DlgFrame(X1,Y1,X2,Y2,T('@A propos de ~About ~@3ber ')+APP_NAME);
+ { image d'accueil }
+ AbtOn:=True;
+ AbtX1:=X1+20;AbtX2:=X2-20;AbtY1:=Y1+30;AbtY2:=Y1+200;
+ NetOk:=False;
+ SplashBanner;
+ AbtOn:=False;NetOk:=False;
+ { texte }
+ Ty:=AbtY2+12;
+ TxB(Cx-TextW(L[1]) Div 2,Ty,L[1],cBlk);
+ For I:=2 To 3 Do Tx_(Cx-TextW(L[I]) Div 2,Ty+4+(I-1)*14,L[I],cBlk);
+ For I:=4 To 6 Do Tx_(Cx-TextW(L[I]) Div 2,Ty+14+(I-1)*14,L[I],cBlk);
+ Btn(Cx-38,Y2-30,Cx+38,Y2-10,T('&OK~&OK~&OK~&OK~&OK'),True);
+ ShowMouse;
+ Done:=False;
+ Repeat
+  PollEvent(E);
+  If E.Kind=1 Then Begin
+   If (E.Key=K_ENTER) Or (E.Key=K_ESC) Or (E.Key=32) Or
+      (UpCase(Chr(E.Key And 255))='O') Then Done:=True;
+  End Else If E.Kind=2 Then
+   If InBox(E.X,E.Y,Cx-38,Y2-30,Cx+38,Y2-10) Or
+      InBox(E.X,E.Y,X2-19,Y1+5,X2-5,Y1+17) Then Done:=True;
+ Until Done;
 End;
 
 Procedure Backdrop;
@@ -10652,9 +10695,9 @@ End;
 
 Procedure ShowHelpLine;
 Begin
- WriteLn('MAXIMIZE - Maximilien CRM (clone de Maximizer CRM).');
+ WriteLn('MAXIMIZE - Cette commande permet de lancer Maximilien CRM (clone de Maximizer CRM).');
  WriteLn;
- WriteLn('Utilisation : MAXIMIZE [/D:dossier] [/U:utilisateur] [-maxscreen]');
+ WriteLn('Syntaxe : MAXIMIZE [/D:dossier] [/U:utilisateur] [-maxscreen]');
  WriteLn('              MAXIMIZE /SQL "requete" [/D:dossier]');
  WriteLn;
  WriteLn('  /D:dossier  Dossier de la base MyISAM (defaut : CRMDATA).');
