@@ -195,7 +195,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 	</tr>
     <tr>
       <td><b>VISIO.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de Visio.</td>
+      <td>Cette commande permet de lancer Visior.</td>
     </tr>    
     <tr>
       <td><b>WORD.PAS</b></td>
