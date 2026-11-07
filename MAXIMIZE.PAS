@@ -29,8 +29,6 @@ Uses {$IFDEF FPC}
 Const
  APP_NAME     = 'Maximilien CRM';
  VERSION_TEXT = '1.00';
- SCR_W        = 640;
- SCR_H        = 480;
  MENU_H       = 18;
  NMENU        = 9;
 
@@ -171,6 +169,8 @@ Type
 { ====================================================================== }
 
 Var
+ SCR_W,SCR_H : Integer;      { definition de l'ecran }
+ MaxScreen : Boolean;
  Lang      : Integer;         { 1 fr, 2 en, 3 de, 4 es, 5 it }
  DbDir     : String[60];
  UserCode  : String[12];
@@ -204,23 +204,60 @@ Var
 {                  GRAPHIQUE / SOURIS (squelette)                        }
 { ====================================================================== }
 
+{$IFDEF FPC}
+Procedure VgaPalette;
+Const
+ Rgb : Array[0..15,0..2] Of Byte = (
+  (0,0,0),(0,0,170),(0,170,0),(0,170,170),(170,0,0),(170,0,170),
+  (170,85,0),(170,170,170),(85,85,85),(85,85,255),(85,255,85),
+  (85,255,255),(255,85,85),(255,85,255),(255,255,85),(255,255,255));
+Var I: Integer;
+Begin
+ { les seize couleurs de l'interface restent identiques en 256 couleurs }
+ If GetMaxColor>15 Then
+  For I:=0 To 15 Do SetRGBPalette(I,Rgb[I,0],Rgb[I,1],Rgb[I,2]);
+End;
+{$ENDIF}
+
 Procedure InitializeGraphics;
 Var
  Driver, Mode: Integer;
  ErrCode: Integer;
+ {$IFDEF FPC}
+ LoMode, HiMode: Integer;
+ {$ENDIF}
 Begin
  {$IFDEF FPC}
   Driver:=VGA;
   Mode:=VGAHi;
+  If MaxScreen Then Begin
+   { -maxscreen : plus grande resolution disponible }
+   Driver:=D8bit;
+   GetModeRange(Driver,LoMode,HiMode);
+   If HiMode>=LoMode Then Mode:=HiMode
+   Else Begin Driver:=VGA;Mode:=VGAHi;End;
+  End;
  {$ELSE}
   Driver:=Detect;
   Mode:=VGAHi;
  {$ENDIF}
  InitGraph(Driver,Mode,'');
  ErrCode:=GraphResult;
+ {$IFDEF FPC}
+ If (ErrCode<>grOk) And MaxScreen Then Begin
+  Driver:=VGA;Mode:=VGAHi;
+  InitGraph(Driver,Mode,'');
+  ErrCode:=GraphResult;
+ End;
+ {$ENDIF}
  If ErrCode=grOk Then Begin
   SetColor(White);
   SetLineStyle(0,0,1);
+  SCR_W:=GetMaxX+1;
+  SCR_H:=GetMaxY+1;
+  {$IFDEF FPC}
+  VgaPalette;
+  {$ENDIF}
  End
   Else
  Begin
@@ -3118,7 +3155,7 @@ Function InputBox(Const Title,Prompt: String; Var S: String;
 Var X1,Y1,X2,Y2,Cur: Integer; E: TEvent; Done,Ok,Sel,Redraw: Boolean; V: String;
 Begin
  V:=S;Cur:=Length(V);Sel:=True;
- X1:=100;Y1:=170;X2:=540;Y2:=290;
+ X1:=(SCR_W-440) Div 2;Y1:=(SCR_H-120) Div 2;X2:=X1+440;Y2:=Y1+120;
  Backdrop;
  DlgFrame(X1,Y1,X2,Y2,Title);
  Tx_(X1+16,Y1+34,Prompt,cBlk);
@@ -4623,7 +4660,7 @@ Begin
  Ln(G.X1+2,G.Y1+15,G.X2-2,G.Y1+15,cDGr);
  For J:=1 To G.NC Do Begin
   Cw:=G.CWd[J];
-  If X+Cw>G.X2-14 Then Cw:=G.X2-14-X;
+  If (X+Cw>G.X2-14) Or (J=G.NC) Then Cw:=G.X2-14-X;
   If Cw>8 Then Begin
    TxC(X+3,G.Y1+5,Cw-12,G.CHd[J],cBlk);
    If G.SortF=G.CF[J] Then
@@ -4646,7 +4683,7 @@ Begin
     X:=G.X1+2;
     For J:=1 To G.NC Do Begin
      Cw:=G.CWd[J];
-     If X+Cw>G.X2-14 Then Cw:=G.X2-14-X;
+     If (X+Cw>G.X2-14) Or (J=G.NC) Then Cw:=G.X2-14-X;
      If Cw>8 Then Begin
       S:=FmtFld(G.TI,RB,G.CF[J]);
       If (J=1) And Mk Then S:=#4+S;
@@ -4706,7 +4743,7 @@ Begin
  If Y<G.Y1+16 Then Begin
   CX:=G.X1+2;
   For J:=1 To G.NC Do Begin
-   If (X>=CX) And (X<CX+G.CWd[J]) Then Begin
+   If (X>=CX) And ((X<CX+G.CWd[J]) Or (J=G.NC)) Then Begin
     If G.SortF=G.CF[J] Then G.SortD:=Not G.SortD Else Begin
      G.SortF:=G.CF[J];G.SortD:=False;End;
     G.HitCol:=J;GridClick:=2;
@@ -4892,14 +4929,13 @@ End;
 Const
  TOOL_Y  = 36;
  WORK_Y  = 62;
- STAT_Y  = 462;
  NAV_W   = 124;
  CX1     = 127;
- CX2     = 636;
  NTOOL   = 17;
  NMOD    = 9;
 
 Var
+ STAT_Y,CX2,AB_Y2,PANE_Y,BODY_Y,BODY_Y2,LW,Mid2,CalW,CalH : Integer;
  RBE      : PRec;
  Modu     : Integer;
  Foc      : Integer;
@@ -5468,11 +5504,21 @@ End;
 
 Const
  AB_Y1   = 98;
- AB_Y2   = 252;
- PANE_Y  = 258;
- BODY_Y  = 277;
- BODY_Y2 = 456;
- LW      = 196;
+
+{ disposition selon la definition de l'ecran (640x480 ou plus) }
+Procedure ComputeLayout;
+Begin
+ STAT_Y:=SCR_H-18;
+ CX2:=SCR_W-4;
+ BODY_Y2:=STAT_Y-6;
+ AB_Y2:=AB_Y1+(BODY_Y2-AB_Y1)*43 Div 100;
+ PANE_Y:=AB_Y2+6;
+ BODY_Y:=PANE_Y+19;
+ LW:=196+(SCR_W-640) Div 4;
+ Mid2:=AB_Y1+(BODY_Y2-AB_Y1)*56 Div 100;
+ CalW:=44+(SCR_W-640) Div 20;
+ CalH:=40+(SCR_H-480) Div 9;
+End;
 
 Function IsoToday: String;
 Begin
@@ -5701,7 +5747,7 @@ Begin
    GridCols(GMain,tOP,'ENTRY_ID:110,NAME:110,STAGE:76,PROB:40,AMOUNT:80,CLOS'
      +'EDT:88');
    SetSort(GMain,'CLOSEDT',False);
-   GridArea(GMain,CX1,AB_Y1,CX2,400);
+   GridArea(GMain,CX1,AB_Y1,CX2,BODY_Y2-56);
   End;
   4: Begin
    GridCols(GMain,tAP,'AD:88,AT:48,KIND:64,ENTRY_ID:110,SUBJ:190');
@@ -5711,24 +5757,24 @@ Begin
   5: Begin
    GridCols(GSubR,tAP,'AT:44,KIND:56,SUBJ:100');
    SetSort(GSubR,'AT',False);
-   GridArea(GSubR,CX1+316,AB_Y1+18,CX2,BODY_Y2);
+   GridArea(GSubR,CX1+7*CalW+8,AB_Y1+18,CX2,BODY_Y2);
    If CalDate=0 Then CalDate:=SessDate;
   End;
   6: Begin
    GridCols(GMain,tEM,'ED:88,FROMA:100,TOA:100,SUBJ:100');
    SetSort(GMain,'ED',True);
-   GridArea(GMain,CX1+104,AB_Y1,CX2,300);
+   GridArea(GMain,CX1+104,AB_Y1,CX2,Mid2);
   End;
   7: Begin
    GridCols(GMain,tLI,'NAME:150,CATEGORY:90,DD:88,CREATOR:72,DESCR:100');
    SetSort(GMain,'NAME',False);
-   GridArea(GMain,CX1,AB_Y1,CX2,300);
+   GridArea(GMain,CX1,AB_Y1,CX2,Mid2);
   End;
   9: Begin
    GridCols(GMain,tOR,'ORDNO:80,ENTRY_ID:150,OD:88,STATUS:90,TOTAL:96');
    SetSort(GMain,'OD',True);
-   GridArea(GMain,CX1,AB_Y1,CX2,270);
-   GridArea(GSubL,CX1,296,CX2,BODY_Y2);
+   GridArea(GMain,CX1,AB_Y1,CX2,Mid2-30);
+   GridArea(GSubL,CX1,Mid2-7,CX2,BODY_Y2);
   End;
  End;
 End;
@@ -5886,24 +5932,25 @@ Begin
 End;
 
 Procedure DrawWorkDay;
-Var I: Integer;
+Var I,HW: Integer;
 Begin
  Title(ModName(1)+' - '+UserName+' - '+FmtDate(SessDate),20);
  Bx(CX1,WORK_Y+18,CX2,STAT_Y-1,cLGr);
- DrawPanelTitle(CX1+2,WORK_Y+20,CX1+258,T('Horaire d''aujourd''hui~Today''s '
-   +'schedule~Heutiger Zeitplan~Agenda de hoy~Agenda di oggi'));
- GridArea(GW[1],CX1+2,WORK_Y+35,CX1+258,258);
- DrawPanelTitle(CX1+264,WORK_Y+20,CX2-2,T('Activit@es en retard~Overdue acti'
-   +'vities~@3berf@1llige Aktivit@1ten~Actividades atrasadas~Attivit@q in ri'
-   +'tardo'));
- GridArea(GW[2],CX1+264,WORK_Y+35,CX2-2,258);
- DrawPanelTitle(CX1+2,262,CX1+258,T('Opportunit@es @a fermer~Opportunities t'
-   +'o close~Abzuschlie@7ende Chancen~Oportunidades a cerrar~Opportunit@q da'
-   +' chiudere'));
- GridArea(GW[3],CX1+2,277,CX1+258,BODY_Y2);
- DrawPanelTitle(CX1+264,262,CX2-2,T('Entr@ees r@ecemment modifi@ees~Recently'
-   +' modified entries~K@3rzlich ge@1ndert'));
- GridArea(GW[4],CX1+264,277,CX2-2,BODY_Y2);
+ HW:=(CX2-CX1) Div 2;
+ DrawPanelTitle(CX1+2,WORK_Y+20,CX1+HW-4,T('Horaire d''aujourd''hui~Today''s'
+   +' schedule~Heutiger Zeitplan~Agenda de hoy~Agenda di oggi'));
+ GridArea(GW[1],CX1+2,WORK_Y+35,CX1+HW-4,PANE_Y);
+ DrawPanelTitle(CX1+HW+2,WORK_Y+20,CX2-2,T('Activit@es en retard~Overdue act'
+   +'ivities~@3berf@1llige Aktivit@1ten~Actividades atrasadas~Attivit@q in r'
+   +'itardo'));
+ GridArea(GW[2],CX1+HW+2,WORK_Y+35,CX2-2,PANE_Y);
+ DrawPanelTitle(CX1+2,PANE_Y+4,CX1+HW-4,T('Opportunit@es @a fermer~Opportuni'
+   +'ties to close~Abzuschlie@7ende Chancen~Oportunidades a cerrar~Opportuni'
+   +'t@q da chiudere'));
+ GridArea(GW[3],CX1+2,BODY_Y,CX1+HW-4,BODY_Y2);
+ DrawPanelTitle(CX1+HW+2,PANE_Y+4,CX2-2,T('Entr@ees r@ecemment modifi@ees~Re'
+   +'cently modified entries~K@3rzlich ge@1ndert'));
+ GridArea(GW[4],CX1+HW+2,BODY_Y,CX2-2,BODY_Y2);
  For I:=1 To 4 Do Begin GW[I].Foc:=False;GridDraw(GW[I]);End;
 End;
 
@@ -5916,7 +5963,7 @@ Begin
    +'cen~oportunidades~opportunit@q'),cBlk);
  GMain.Foc:=True;
  GridDraw(GMain);
- Bx(CX1,401,CX2,BODY_Y2+1,cLGr);
+ Bx(CX1,BODY_Y2-55,CX2,BODY_Y2+1,cLGr);
  Tot:=0;Wt:=0;N:=0;
  If SqlRun('SELECT * FROM oppor WHERE prob>0 AND prob<100') Then
   For I:=1 To SqlN Do
@@ -5924,13 +5971,13 @@ Begin
     Inc(N);Tot:=Tot+NG(tOP,RB,'AMOUNT');
     Wt:=Wt+(NG(tOP,RB,'AMOUNT') Div 100)*NG(tOP,RB,'PROB');
    End;
- TxB(CX1+8,410,T('Entonnoir ouvert~Open pipeline~Offene Pipeline~Embudo abie'
-   +'rto~Pipeline aperto')+' :',cNavy);
- Tx_(CX1+8,426,IntStr(N)+' '+T('opportunit@es~opportunities~Chancen~oportuni'
-   +'dades~opportunit@q')+'   '
+ TxB(CX1+8,BODY_Y2-46,T('Entonnoir ouvert~Open pipeline~Offene Pipeline~Embu'
+   +'do abierto~Pipeline aperto')+' :',cNavy);
+ Tx_(CX1+8,BODY_Y2-30,IntStr(N)+' '+T('opportunit@es~opportunities~Chancen~o'
+   +'portunidades~opportunit@q')+'   '
    +T('Total~Total~Summe~Total~Totale')+' '+FmtMoney(Tot),cBlk);
- Tx_(CX1+8,440,T('Valeur pond@er@ee~Weighted value~Gewichteter Wert~Valor po'
-   +'nderado~Valore ponderato')+' '+FmtMoney(Wt),cBlk);
+ Tx_(CX1+8,BODY_Y2-16,T('Valeur pond@er@ee~Weighted value~Gewichteter Wert~V'
+   +'alor ponderado~Valore ponderato')+' '+FmtMoney(Wt),cBlk);
 End;
 
 Procedure DrawHotlist;
@@ -5952,24 +5999,26 @@ Begin
  Title(ModName(5)+' - '+MonthName(M)+' '+IntStr(Y),24);
  Bx(CX1,WORK_Y+18,CX2,STAT_Y-1,cLGr);
  Raised(CX1+2,WORK_Y+20,CX1+22,WORK_Y+36);Arw(CX1+12,WORK_Y+28,3,cBlk);
- Raised(CX1+290,WORK_Y+20,CX1+310,WORK_Y+36);Arw(CX1+300,WORK_Y+28,4,cBlk);
+ Raised(CX1+7*CalW-18,WORK_Y+20,CX1+7*CalW+2,WORK_Y+36);
+ Arw(CX1+7*CalW-8,WORK_Y+28,4,cBlk);
  TxB(CX1+80,WORK_Y+24,MonthName(M)+' '+IntStr(Y),cNavy);
  For I:=0 To 6 Do Begin
-  Bx(CX1+2+I*44,AB_Y1,CX1+45+I*44,AB_Y1+14,cNavy);
-  Tx_(CX1+8+I*44,AB_Y1+4,Copy(DayName(I),1,3),cWht);
+  Bx(CX1+2+I*CalW,AB_Y1,CX1+CalW+1+I*CalW,AB_Y1+14,cNavy);
+  Tx_(CX1+8+I*CalW,AB_Y1+4,Copy(DayName(I),1,3),cWht);
  End;
  First:=WeekDay(Y*10000+M*100+1);
  Nd_:=DaysInMonth(Y,M);
  For Row:=0 To 5 Do
   For Col:=0 To 6 Do Begin
    Dd:=Row*7+Col-First+1;
-   X:=CX1+2+Col*44;Yy:=AB_Y1+16+Row*40;
+   X:=CX1+2+Col*CalW;Yy:=AB_Y1+16+Row*CalH;
    If (Dd>=1) And (Dd<=Nd_) Then Begin
     Cell:=Y*10000+M*100+Dd;
     Sel:=Cell=CalDate;Tdy:=Cell=SessDate;
-    If Sel Then Bx(X,Yy,X+43,Yy+38,cNavy) Else Bx(X,Yy,X+43,Yy+38,cWht);
-    Rc(X,Yy,X+43,Yy+38,cDGr);
-    If Tdy Then Rc(X+1,Yy+1,X+42,Yy+37,cRed);
+    If Sel Then Bx(X,Yy,X+CalW-1,Yy+CalH-2,cNavy)
+    Else Bx(X,Yy,X+CalW-1,Yy+CalH-2,cWht);
+    Rc(X,Yy,X+CalW-1,Yy+CalH-2,cDGr);
+    If Tdy Then Rc(X+1,Yy+1,X+CalW-2,Yy+CalH-3,cRed);
     If Sel Then TxB(X+4,Yy+4,IntStr(Dd),cWht) Else
       TxB(X+4,Yy+4,IntStr(Dd),cBlk);
     If CalCnt[Dd]>0 Then Begin
@@ -5977,9 +6026,9 @@ Begin
      Tx_(X+7,Yy+25,IntStr(CalCnt[Dd])+' '+Copy(T('act.~act.~Akt.~act.~att.'
        ),1,4),cBlk);
     End;
-   End Else Bx(X,Yy,X+43,Yy+38,cLGr);
+   End Else Bx(X,Yy,X+CalW-1,Yy+CalH-2,cLGr);
   End;
- DrawPanelTitle(CX1+316,AB_Y1,CX2,DayName(WeekDay(CalDate))+' '
+ DrawPanelTitle(CX1+7*CalW+8,AB_Y1,CX2,DayName(WeekDay(CalDate))+' '
    +FmtDate(CalDate));
  GSubR.Foc:=Foc=4;
  GridDraw(GSubR);
@@ -6019,8 +6068,8 @@ Begin
  GMain.Foc:=True;
  GridDraw(GMain);
  If GMain.N>0 Then Begin
-  PreviewText('E',GridSelId(GMain),306);
- End Else PreviewText('E',0,306);
+  PreviewText('E',GridSelId(GMain),Mid2+6);
+ End Else PreviewText('E',0,Mid2+6);
  If (GMain.N>0) And RowGet(tEM,GridSelSlot(GMain),RB) Then
   TxB(CX1+6,310-2,SG(tEM,RB,'SUBJ'),cNavy);
 End;
@@ -6031,7 +6080,7 @@ Begin
  Bx(CX1,WORK_Y+18,CX2,AB_Y1-1,cLGr);
  GMain.Foc:=True;
  GridDraw(GMain);
- PreviewText('L',GridSelId(GMain),306);
+ PreviewText('L',GridSelId(GMain),Mid2+6);
 End;
 
 Procedure DrawOrders;
@@ -6040,10 +6089,10 @@ Begin
  Bx(CX1,WORK_Y+18,CX2,STAT_Y-1,cLGr);
  GMain.Foc:=Foc<>3;
  GridDraw(GMain);
- DrawPanelTitle(CX1,278,CX2,T('Lignes de la commande (Entr@ee pour modifier)'
-   +'~Order lines (Enter to edit)~Auftragspositionen (Enter)'));
+ DrawPanelTitle(CX1,Mid2-22,CX2,T('Lignes de la commande (Entr@ee pour modif'
+   +'ier)~Order lines (Enter to edit)~Auftragspositionen (Enter)'));
  GSubL.Foc:=Foc=3;
- GridArea(GSubL,CX1,293,CX2,BODY_Y2);
+ GridArea(GSubL,CX1,Mid2-7,CX2,BODY_Y2);
  GridDraw(GSubL);
 End;
 
@@ -6594,7 +6643,7 @@ Var T0,T1,El: LongInt; E: TEvent; Done,Run,Redraw: Boolean; Acc_: LongInt;
  End;
 Begin
  If Not NeedEntry Then Exit;
- X1:=150;Y1:=150;X2:=490;Y2:=300;
+ X1:=(SCR_W-340) Div 2;Y1:=(SCR_H-150) Div 2;X2:=X1+340;Y2:=Y1+150;
  Acc_:=0;Run:=True;T0:=Secs;Done:=False;Redraw:=True;
  Backdrop;
  Repeat
@@ -7759,6 +7808,7 @@ Var
  NetE     : Integer;
  NetOk    : Boolean;
  Seed     : LongInt;
+ SplOX,SplOY : Integer;
  CfgNew   : String[40];
  J_       : Integer;
 
@@ -7897,7 +7947,10 @@ Procedure SplashDraw;
 Var I: Integer;
 Begin
  HideMouse;
+ SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  Bx(0,0,SCR_W-1,SCR_H-1,cBlk);
+ SplOX:=(SCR_W-640) Div 2;SplOY:=(SCR_H-480) Div 2;
+ SetViewPort(SplOX,SplOY,SplOX+639,SplOY+479,True);
  BigText(320,12,3,APP_NAME,True);
  SplashBanner;
  For I:=1 To 3 Do SplashBtn(I,SplashLbl(I));
@@ -7908,6 +7961,7 @@ Begin
    +': esci'),cDGr);
  Tx_(14,462,'Maximilien CRM '+VERSION_TEXT+'  -  MyISAM / SQL  -  gladir.com'
    +'/office-0',cDGr);
+ SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  ShowMouse;
 End;
 
@@ -8018,7 +8072,8 @@ Begin
    End;
   End Else If E.Kind=2 Then Begin
    For I:=1 To 3 Do
-    If InBox(E.X,E.Y,14+(I-1)*209,356,18+(I-1)*209+200,388) Then Begin
+    If InBox(E.X-SplOX,E.Y-SplOY,14+(I-1)*209,356,18+(I-1)*209+200,388) Then
+      Begin
      SpFoc:=I;Pick:=I;
     End;
   End;
@@ -8478,12 +8533,12 @@ Begin
   5: Begin
       If InBox(X,Y,CX1+2,WORK_Y+20,CX1+22,WORK_Y+36) Then Begin
         CalKey(K_PGUP);Exit;End;
-      If InBox(X,Y,CX1+290,WORK_Y+20,CX1+310,WORK_Y+36) Then Begin
-        CalKey(K_PGDN);Exit;End;
+      If InBox(X,Y,CX1+7*CalW-18,WORK_Y+20,CX1+7*CalW+2,WORK_Y+36) Then Begin
+       CalKey(K_PGDN);Exit;End;
       Yr:=CalDate Div 10000;Mo:=(CalDate Div 100) Mod 100;
-      If InBox(X,Y,CX1+2,AB_Y1+16,CX1+309,AB_Y1+255) Then Begin
+      If InBox(X,Y,CX1+2,AB_Y1+16,CX1+7*CalW+1,AB_Y1+15+6*CalH) Then Begin
        First:=WeekDay(Yr*10000+Mo*100+1);
-       Dd:=((Y-AB_Y1-16) Div 40)*7+((X-CX1-2) Div 44)-First+1;
+       Dd:=((Y-AB_Y1-16) Div CalH)*7+((X-CX1-2) Div CalW)-First+1;
        If (Dd>=1) And (Dd<=DaysInMonth(Yr,Mo)) Then Begin
         CalDate:=Yr*10000+Mo*100+Dd;CalLoad;Foc:=2;
         If IsDouble(X,Y) Then DoCmd(12);
@@ -8571,11 +8626,12 @@ Procedure ShowHelpLine;
 Begin
  WriteLn('MAXIMIZE - Maximilien CRM (clone de Maximizer CRM).');
  WriteLn;
- WriteLn('Utilisation : MAXIMIZE [/D:dossier] [/U:utilisateur]');
+ WriteLn('Utilisation : MAXIMIZE [/D:dossier] [/U:utilisateur] [-maxscreen]');
  WriteLn('              MAXIMIZE /SQL "requete" [/D:dossier]');
  WriteLn;
  WriteLn('  /D:dossier  Dossier de la base MyISAM (defaut : CRMDATA).');
  WriteLn('  /U:code     Code utilisateur (defaut : JNAPOLI).');
+ WriteLn('  -maxscreen  Utilise la resolution maximale disponible.');
  WriteLn('  /SQL        Execute une requete SQL sans interface graphique.');
  WriteLn('  /?          Affiche cette aide.');
  WriteLn;
@@ -8620,6 +8676,8 @@ Var
 BEGIN
  DbDir:='CRMDATA';
  DirGiven:=False;
+ MaxScreen:=False;
+ SCR_W:=640;SCR_H:=480;
  If GetEnv('MAXIMDB')<>'' Then Begin DbDir:=GetEnv('MAXIMDB');DirGiven:=True;
    End;
  UserCode:='JNAPOLI';
@@ -8632,6 +8690,7 @@ BEGIN
   If Upper(Copy(Pa,1,3))='/D:' Then Begin DbDir:=Copy(Pa,4,60);DirGiven:=True;
     End;
   If Upper(Copy(Pa,1,3))='/U:' Then UserCode:=Upper(Copy(Pa,4,12));
+  If (Upper(Pa)='-MAXSCREEN') Or (Upper(Pa)='/MAXSCREEN') Then MaxScreen:=True;
   If Upper(Pa)='/SQL' Then Begin
    If Pi<ParamCount Then SqlArg:=ParamStr(Pi+1);
   End;
@@ -8699,6 +8758,7 @@ BEGIN
   InitializeGraphics;
   If MouseDriverFound Then ShowMouse;
  End;
+ ComputeLayout;
  UiReady:=True;
  SetModule(2);
  MainLoop;
