@@ -183,7 +183,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>
 	<tr>
 		<td><b>SIMPLY.PAS</b></td>
-		<td>Cette commande permet de lancer un clone de Simply Accounting.</td>
+		<td>Cette commande permet de lancer un clone de Sample Accounting.</td>
 	</tr>
     <tr>
       <td><b>VISIO.PAS</b></td>
