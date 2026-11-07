@@ -5787,7 +5787,7 @@ Begin
   Else GridCols(GSubL,tRE,'RELATION:64,OTHER_ID:112');
  End;
  Case TabR Of
-  1: Begin GridCols(GSubR,tNO,'ND:88,NT:46,KIND:60,BODY:100');
+  1: Begin GridCols(GSubR,tNO,'FLAG:18,ND:88,NT:40,KIND:56,BODY:100');
       SetSort(GSubR,'ND',True);End;
   3: GridCols(GSubR,tDO,'NAME:100,KIND:60,DD:88,PATH:60');
   5: GridCols(GSubR,tOR,'ORDNO:70,OD:88,STATUS:60,TOTAL:80');
@@ -6599,6 +6599,8 @@ End;
 
 { ---- courriel ---- }
 
+Var MailTo,CallNum: String;
+
 Procedure ActEmail;
 Var Id: LongInt; Fd: Integer; Sub: String;
 Begin
@@ -6608,6 +6610,7 @@ Begin
  SN(tEM,RBF,'ENTRY_ID',CurId);SS(tEM,RBF,'FOLDER','S');
  SN(tEM,RBF,'ED',SessDate);SS(tEM,RBF,'ET',NowTime);
  SS(tEM,RBF,'FROMA',UserEmail);SS(tEM,RBF,'TOA',SG(tAB,RBE,'EMAIL'));
+ If MailTo<>'' Then SS(tEM,RBF,'TOA',MailTo);
  SN(tEM,RBF,'READ',1);
  If Not FormEdit(tEM,RBF,T('Nouveau courriel~New email~Neue E-Mail~Nuevo cor'
    +'reo~Nuova e-mail'),
@@ -6667,7 +6670,8 @@ Begin
     If SG(tCO,RB2,'PHONE')<>'' Then
      PickAdd(Copy(SG(tCO,RB2,'NAME'),1,16)+' '+SG(tCO,RB2,'PHONE'));
  Ph:='';
- If PickN>0 Then Begin
+ If CallNum<>'' Then Ph:=CallNum
+ Else If PickN>0 Then Begin
   Sel:=1;
   If Not PickList(EntryName(CurId),Sel) Then Exit;
   Ph:=PickIt^[Sel];
@@ -7983,13 +7987,14 @@ End;
 { ====================================================================== }
 
 Const
- MAXPM = 24;
+ MAXPM = 64;
 
 Var
  PML : Array[1..MAXPM] Of String[44];
  PMC : Array[1..MAXPM] Of Integer;
  PME : Array[1..MAXPM] Of Boolean;
  PMN : Integer;
+ PMBase : Integer;
 
 Procedure PMAdd(Const L: String; Cm: Integer; En: Boolean);
 Begin
@@ -7997,9 +8002,15 @@ Begin
  Inc(PMN);PML[PMN]:=L;PMC[PMN]:=Cm;PME[PMN]:=En;
 End;
 
+{ entree ouvrant un sous-menu }
+Procedure PMSub(Const L: String; Sid: Integer; En: Boolean);
+Begin
+ PMAdd(L,-100-Sid,En);
+End;
+
 Procedure PMSep;
 Begin
- If (PMN>0) And (PML[PMN]<>'-') Then PMAdd('-',0,False);
+ If (PMN>PMBase) And (PML[PMN]<>'-') Then PMAdd('-',0,False);
 End;
 
 Function PMH(I: Integer): Integer;
@@ -8007,37 +8018,48 @@ Begin
  If PML[I]='-' Then PMH:=8 Else PMH:=16;
 End;
 
-{ affiche le menu et retourne la commande choisie (0 = aucune) }
-Function PopupRun(X,Y: Integer): Integer;
-Var I,W,H,L,Hi,Yy: Integer; E: TEvent; Done,Redraw: Boolean; Res: Integer;
+Procedure BuildSub(Sid: Integer); Forward;
+
+{ affiche les entrees Lo..Hi et retourne la commande choisie (0 = aucune) }
+Function PopupRun(X,Y,Lo,Hi: Integer): Integer;
+Var I,W,H,L,Cur,Yy,Lo2,OldN,SubY: Integer; E: TEvent; Done,Redraw: Boolean;
+    Res: Integer;
  Function ItemAt(PX,PY: Integer): Integer;
  Var K,Y0: Integer;
  Begin
   ItemAt:=0;
   If (PX<X) Or (PX>X+W) Then Exit;
   Y0:=Y+3;
-  For K:=1 To PMN Do Begin
+  For K:=Lo To Hi Do Begin
    If (PY>=Y0) And (PY<Y0+PMH(K)) And (PML[K]<>'-') And PME[K] Then ItemAt:=K;
    Inc(Y0,PMH(K));
   End;
  End;
+ Function ItemY(N: Integer): Integer;
+ Var K,Y0: Integer;
+ Begin
+  Y0:=Y+3;
+  For K:=Lo To N-1 Do Inc(Y0,PMH(K));
+  ItemY:=Y0;
+ End;
  Function Step(From,Dir: Integer): Integer;
  Var K,N: Integer;
  Begin
-  K:=From;N:=0;
+  If From<Lo Then Begin If Dir>0 Then K:=Lo-1 Else K:=Hi+1;End Else K:=From;
+  N:=0;
   Repeat
    K:=K+Dir;
-   If K<1 Then K:=PMN;
-   If K>PMN Then K:=1;
+   If K<Lo Then K:=Hi;
+   If K>Hi Then K:=Lo;
    Inc(N);
-  Until ((PML[K]<>'-') And PME[K]) Or (N>PMN);
+  Until ((PML[K]<>'-') And PME[K]) Or (N>Hi-Lo+2);
   Step:=K;
  End;
 Begin
- While (PMN>0) And (PML[PMN]='-') Do Dec(PMN);
+ While (Hi>=Lo) And (PML[Hi]='-') Do Dec(Hi);
  W:=0;H:=6;
- For I:=1 To PMN Do Begin
-  L:=Length(PML[I])*8+40;
+ For I:=Lo To Hi Do Begin
+  L:=Length(PML[I])*8+44;
   If PML[I]='-' Then L:=0;
   If L>W Then W:=L;
   Inc(H,PMH(I));
@@ -8046,20 +8068,23 @@ Begin
  If Y+H>SCR_H-2 Then Y:=SCR_H-2-H;
  If X<2 Then X:=2;
  If Y<2 Then Y:=2;
- Hi:=0;Res:=0;Done:=False;Redraw:=True;
+ Cur:=0;Res:=0;Done:=False;Redraw:=True;
  Repeat
   If Redraw Then Begin
    HideMouse;
    Raised(X,Y,X+W,Y+H);
    Yy:=Y+3;
-   For I:=1 To PMN Do Begin
+   For I:=Lo To Hi Do Begin
     If PML[I]='-' Then Begin
      Ln(X+3,Yy+3,X+W-3,Yy+3,cDGr);Ln(X+3,Yy+4,X+W-3,Yy+4,cWht);
     End Else Begin
-     If I=Hi Then Begin
+     If I=Cur Then Begin
       Bx(X+3,Yy,X+W-3,Yy+15,cNavy);Tx_(X+20,Yy+4,PML[I],cWht);
      End Else If PME[I] Then Tx_(X+20,Yy+4,PML[I],cBlk)
      Else Tx_(X+20,Yy+4,PML[I],cDGr);
+     If PMC[I]<=-100 Then Begin
+      If I=Cur Then Arw(X+W-10,Yy+8,4,cWht) Else Arw(X+W-10,Yy+8,4,cBlk);
+     End;
     End;
     Inc(Yy,PMH(I));
    End;
@@ -8067,22 +8092,36 @@ Begin
    Redraw:=False;
   End;
   PollEvent(E);
+  I:=0;
   Case E.Kind Of
    4: Begin
        I:=ItemAt(E.X,E.Y);
-       If (I<>Hi) And (I<>0) Then Begin Hi:=I;Redraw:=True;End;
+       If (I<>Cur) And (I<>0) Then Begin Cur:=I;Redraw:=True;End;
+       I:=0;
       End;
    2,5: Begin
          I:=ItemAt(E.X,E.Y);
-         If I>0 Then Begin Res:=PMC[I];Done:=True;End
-         Else If Not InBox(E.X,E.Y,X,Y,X+W,Y+H) Then Done:=True;
+         If I=0 Then
+          If Not InBox(E.X,E.Y,X,Y,X+W,Y+H) Then Done:=True;
         End;
    1: Case E.Key Of
-       K_ESC: Done:=True;
-       K_UP: Begin Hi:=Step(Hi,-1);Redraw:=True;End;
-       K_DOWN: Begin Hi:=Step(Hi,1);Redraw:=True;End;
-       K_ENTER: If Hi>0 Then Begin Res:=PMC[Hi];Done:=True;End;
+       K_ESC,K_LEFT: Done:=True;
+       K_UP: Begin Cur:=Step(Cur,-1);Redraw:=True;End;
+       K_DOWN: Begin Cur:=Step(Cur,1);Redraw:=True;End;
+       K_ENTER,K_RIGHT: If Cur>0 Then I:=Cur;
       End;
+  End;
+  If I>0 Then Begin
+   If PMC[I]<=-100 Then Begin
+    { sous-menu }
+    OldN:=PMN;Lo2:=PMN+1;
+    BuildSub(-PMC[I]-100);
+    SubY:=ItemY(I)-3;
+    Res:=PopupRun(X+W-4,SubY,Lo2,PMN);
+    PMN:=OldN;
+    If Res<>0 Then Done:=True
+    Else Begin Backdrop;Redraw:=True;Cur:=I;End;
+   End Else Begin Res:=PMC[I];Done:=True;End;
   End;
  Until Done;
  PopupRun:=Res;
@@ -8218,12 +8257,499 @@ Begin
  TblFlush(tAP);ReloadAll;
 End;
 
+{ ---- actions du carnet d'adresses ---- }
+
+Function QEsc(Const S: String): String;
+Var I: Integer; R: String;
+Begin
+ R:='';
+ For I:=1 To Length(S) Do Begin
+  If S[I]='''' Then R:=R+'''''' Else R:=R+S[I];
+ End;
+ QEsc:=R;
+End;
+
+Procedure ClipText(Const S: String);
+Begin
+ ClipClear;ClipAdd(S);ClipPush;
+End;
+
+{ applique une modification aux entrees marquees, sinon a l'entree courante }
+Procedure ForTargets(Op: Integer; Const Fld,Val: String);
+Var I,N: Integer; Ids: Array[1..400] Of LongInt; S: LongInt; F: Integer;
+Begin
+ N:=0;
+ If NMark>0 Then Begin
+  For I:=1 To NMark Do Begin Inc(N);Ids[N]:=Marked[I];End;
+  If MsgBox(IntStr(N)+' '+T('entr@ees marqu@ees seront modifi@ees. Continuer'
+    +' ?~marked entries will be changed. Continue?~markierte Eintr@1ge werde'
+    +'n ge@1ndert. Fortfahren?'),1)<>1 Then Exit;
+ End Else Begin
+  If CurId<=0 Then Begin If NeedEntry Then ;Exit;End;
+  N:=1;Ids[1]:=CurId;
+ End;
+ F:=Fx(tAB,Fld);
+ For I:=1 To N Do Begin
+  S:=RowFind(tAB,Ids[I]);
+  If (S>=0) And RowGet(tAB,S,RBF) Then Begin
+   Case Op Of
+    1: SetS(tAB,RBF,F,Val);
+    2: If SG(tAB,RBF,'KIND')='I' Then SS(tAB,RBF,'KIND','C') Else SS(tAB,RBF,
+      'KIND','I');
+    3: If NG(tAB,RBF,'PERSONAL')=0 Then SN(tAB,RBF,'PERSONAL',1) Else
+      SN(tAB,RBF,'PERSONAL',0);
+   End;
+   SN(tAB,RBF,'MODIFIED',SessDate);
+   If RowPut(tAB,S,RBF) Then ;
+  End;
+ End;
+ TblFlush(tAB);ReloadAll;
+End;
+
+Procedure SetEntryField(Const Fld: String);
+Var Sel: Integer;
+Begin
+ If Fld='OWNER' Then LoadUsers Else LoadList(Fld);
+ If PickN=0 Then Begin
+  Info(T('Liste vide (Configuration > Listes).~Empty list (Setup > Lists).~L'
+    +'eere Liste (Einstellungen > Listen).'));
+  Exit;
+ End;
+ Sel:=1;
+ If PickList(FCap(Fld),Sel) Then ForTargets(1,Fld,PickIt^[Sel]);
+End;
+
+Procedure MarkSame(Const Fld: String);
+Var V: String; I: LongInt;
+Begin
+ If Not ReadEntry Then Exit;
+ V:=Upper(SG(tAB,RBE,Fld));
+ For I:=1 To GMain.N Do
+  If RowGet(tAB,GMain.Sl^[I],RB2) Then
+   If (Upper(SG(tAB,RB2,Fld))=V) And (MarkIdx(GetN(tAB,RB2,1))=0) Then
+    ToggleMark(GetN(tAB,RB2,1));
+ Dirty:=True;
+End;
+
+Procedure InvertMarks;
+Var I: LongInt;
+Begin
+ For I:=1 To GMain.N Do
+  If RowGet(tAB,GMain.Sl^[I],RB2) Then ToggleMark(GetN(tAB,RB2,1));
+ Dirty:=True;
+End;
+
+Procedure FilterSame(Const Fld: String);
+Var V: String;
+Begin
+ If Not ReadEntry Then Exit;
+ V:=SG(tAB,RBE,Fld);
+ If V='' Then Begin
+  Info(T('Cette valeur est vide.~This value is empty.~Dieser Wert ist leer.'
+    ));Exit;
+ End;
+ ApplyFilter(Lower(Fld)+' = '''+QEsc(V)+'''',Copy(FCap(Fld)+'='+V,1,38));
+End;
+
+Procedure SortBy(Const Fld: String; Desc: Boolean);
+Begin
+ SetSort(GMain,Fld,Desc);
+ ReloadAll;
+End;
+
+Procedure CopyField(N: Integer);
+Begin
+ If Not ReadEntry Then Exit;
+ Case N Of
+  1: ClipText(SG(tAB,RBE,'NAME'));
+  2: ClipText(SG(tAB,RBE,'PHONE'));
+  3: ClipText(SG(tAB,RBE,'EMAIL'));
+  4: Begin
+      ClipClear;ClipAdd(SG(tAB,RBE,'ADDR1'));
+      ClipAdd(SG(tAB,RBE,'CITY')+', '+SG(tAB,RBE,'STATE')+' '+SG(tAB,RBE,'ZI'
+        +'P'));
+      ClipAdd(SG(tAB,RBE,'COUNTRY'));ClipPush;
+     End;
+  5: ClipText(SG(tAB,RBE,'WEB'));
+  Else ClipText(GridRowText(GMain));
+ End;
+End;
+
+{ fusionne une autre entree dans l'entree courante }
+Procedure MergeEntry;
+Var Oth: LongInt; S: LongInt; F: Integer; Tn: Array[1..9] Of String[8];
+    I: Integer;
+Begin
+ If Not NeedEntry Then Exit;
+ Oth:=PickEntryDlg;
+ If (Oth<=0) Or (Oth=CurId) Then Exit;
+ If MsgBox(EntryName(Oth)+' -> '+EntryName(CurId)+' ?',1)<>1 Then Exit;
+ Tn[1]:='contact';Tn[2]:='oppor';Tn[3]:='notes';Tn[4]:='appt';Tn[5]:='docs';
+ Tn[6]:='email';Tn[7]:='timelog';Tn[8]:='orders';Tn[9]:='related';
+ For I:=1 To 9 Do
+  If SqlRun('UPDATE '+Tn[I]+' SET entry_id = '+IntStr(CurId)+' WHERE entry_i'
+    +'d = '+IntStr(Oth)) Then ;
+ If SqlRun('UPDATE related SET other_id = '+IntStr(CurId)+' WHERE other_id ='
+   +' '+IntStr(Oth)) Then ;
+ S:=RowFind(tAB,Oth);
+ If (S>=0) And RowGet(tAB,S,RBF) And ReadEntry Then Begin
+  For F:=3 To Tb[tAB]^.NF Do
+   If (Tb[tAB]^.F[F].Typ='C') And (GetS(tAB,RBE,F)='') And (GetS(tAB,RBF,F)<>
+     '') Then
+    SetS(tAB,RBE,F,GetS(tAB,RBF,F));
+  S:=RowFind(tAB,CurId);
+  If S>=0 Then If RowPut(tAB,S,RBE) Then ;
+ End;
+ DeleteEntry(Oth);
+ TblFlushAll;
+ ReloadAll;
+End;
+
+Procedure DeleteMarked;
+Var I: Integer;
+Begin
+ If NMark=0 Then Exit;
+ If MsgBox(IntStr(NMark)+' '+T('entr@ees marqu@ees seront supprim@ees avec l'
+   +'eurs donn@ees. Continuer ?~marked entries will be deleted with their da'
+   +'ta. Continue?~markierte Eintr@1ge werden mit ihren Daten gel@3scht. For'
+   +'tfahren?'),1)<>1 Then Exit;
+ For I:=1 To NMark Do DeleteEntry(Marked[I]);
+ NMark:=0;CurId:=0;
+ ReloadAll;
+ If GMain.N>0 Then SelectEntry(GridSelId(GMain));
+End;
+
+Procedure ExportMarked;
+Var F: Text; I,J: Integer; S: LongInt; Ln_: String;
+Begin
+ If NMark=0 Then Begin
+  Info(T('Marquez d''abord des entr@ees (Espace).~Mark entries first (Space)'
+    +'.~Zuerst Eintr@1ge markieren (Leertaste).'));
+  Exit;
+ End;
+ {$I-}
+ Assign(F,'MARKED.CSV');Rewrite(F);
+ {$I+}
+ If IOResult<>0 Then Exit;
+ Ln_:='';
+ For J:=2 To Tb[tAB]^.NF Do Begin
+  Ln_:=Ln_+Tb[tAB]^.F[J].Nm;
+  If J<Tb[tAB]^.NF Then Ln_:=Ln_+';';
+ End;
+ WriteLn(F,Ln_);
+ For I:=1 To NMark Do Begin
+  S:=RowFind(tAB,Marked[I]);
+  If (S>=0) And RowGet(tAB,S,RB2) Then Begin
+   Ln_:='';
+   For J:=2 To Tb[tAB]^.NF Do Begin
+    Ln_:=Ln_+GetS(tAB,RB2,J);
+    If J<Tb[tAB]^.NF Then Ln_:=Ln_+';';
+   End;
+   WriteLn(F,Ln_);
+  End;
+ End;
+ Close(F);
+ Info(IntStr(NMark)+' '+T('entr@ees export@ees dans MARKED.CSV.~entries expo'
+   +'rted to MARKED.CSV.~Eintr@1ge nach MARKED.CSV exportiert.'));
+End;
+
+{ fiche de l'entree : coordonnees, contacts, opportunites, activites, notes }
+Procedure EntryCard;
+Var I: Integer; E: String;
+Begin
+ If Not NeedEntry Then Exit;
+ If Not ReadEntry Then Exit;
+ E:=IntStr(CurId);
+ RepHead(SG(tAB,RBE,'NAME'));
+ TxAdd(SG(tAB,RBE,'ADDR1')+' '+SG(tAB,RBE,'ADDR2'));
+ TxAdd(SG(tAB,RBE,'CITY')+', '+SG(tAB,RBE,'STATE')+' '+SG(tAB,RBE,'ZIP')+' '
+   +SG(tAB,RBE,'COUNTRY'));
+ TxAdd(FCap('PHONE')+': '+SG(tAB,RBE,'PHONE')+'   '+FCap('FAX')+': '
+   +SG(tAB,RBE,'FAX'));
+ TxAdd(FCap('EMAIL')+': '+SG(tAB,RBE,'EMAIL')+'   '+FCap('WEB')+': '
+   +SG(tAB,RBE,'WEB'));
+ TxAdd(FCap('STATUS')+': '+SG(tAB,RBE,'STATUS')+'   '+FCap('SOURCE')+': '
+   +SG(tAB,RBE,'SOURCE')+'   '+FCap('TERR')+': '+SG(tAB,RBE,'TERR'));
+ TxAdd('');TxAdd(T('Contacts~Contacts~Kontakte'));TxAdd(Rep('-',40));
+ If SqlRun('SELECT * FROM contact WHERE entry_id='+E) Then
+  For I:=1 To SqlN Do
+   If RowGet(tCO,P1^[I],RB2) Then
+    TxAdd(Pad(SG(tCO,RB2,'NAME'),30)+Pad(SG(tCO,RB2,'PHONE'),18)+SG(tCO,RB2,
+      'EMAIL'));
+ TxAdd('');TxAdd(T('Opportunit@es~Opportunities~Verkaufschancen'));TxAdd(Rep(
+   '-',40));
+ If SqlRun('SELECT * FROM oppor WHERE entry_id='+E) Then
+  For I:=1 To SqlN Do
+   If RowGet(tOP,P1^[I],RB2) Then
+    TxAdd(Pad(SG(tOP,RB2,'NAME'),30)+Pad(SG(tOP,RB2,'STAGE'
+      ),14)+PadL(FmtMoney(NG(tOP,RB2,'AMOUNT')),14));
+ TxAdd('');TxAdd(T('Activit@es en cours~Pending activities~Offene Aktivit@1t'
+   +'en'));TxAdd(Rep('-',40));
+ If SqlRun('SELECT * FROM appt WHERE done=0 AND entry_id='+E+' ORDER BY ad')
+   Then
+  For I:=1 To SqlN Do
+   If RowGet(tAP,P1^[I],RB2) Then
+    TxAdd(FmtDate(NG(tAP,RB2,'AD'))+' '+SG(tAP,RB2,'AT')+'  '+SG(tAP,RB2,
+      'SUBJ'));
+ TxAdd('');TxAdd(T('Notes~Notes~Notizen'));TxAdd(Rep('-',40));
+ If SqlRun('SELECT * FROM notes WHERE entry_id='+E+' ORDER BY nd DESC') Then
+  For I:=1 To SqlN Do
+   If (I<=12) And RowGet(tNO,P1^[I],RB2) Then
+    TxAdd(FmtDate(NG(tNO,RB2,'ND'))+' '+Pad(SG(tNO,RB2,'KIND'),12)+SG(tNO,RB2,
+      'BODY'));
+ ViewText(SG(tAB,RBE,'NAME'));
+End;
+
+{ ---- contacts ---- }
+
+Function ContactField(Const Fld: String): String;
+Var S: LongInt;
+Begin
+ ContactField:='';
+ S:=GridSelSlot(GSubL);
+ If (S>=0) And RowGet(tCO,S,RB2) Then ContactField:=SG(tCO,RB2,Fld);
+End;
+
+Procedure SetMainContact;
+Var S: LongInt;
+Begin
+ S:=GridSelSlot(GSubL);
+ If S<0 Then Exit;
+ If SqlRun('UPDATE contact SET main = 0 WHERE entry_id = '+IntStr(CurId)) Then ;
+ If RowGet(tCO,S,RBF) Then Begin SN(tCO,RBF,'MAIN',1);If RowPut(tCO,S,RBF)
+   Then ;End;
+ TblFlush(tCO);ReloadAll;
+End;
+
+Procedure EmailContact;
+Begin
+ MailTo:=ContactField('EMAIL');
+ ActEmail;
+ MailTo:='';
+End;
+
+Procedure CallContact;
+Begin
+ CallNum:=ContactField('PHONE');
+ ActCall(False);
+ CallNum:='';
+End;
+
+Procedure CopyContactField(N: Integer);
+Begin
+ Case N Of
+  1: ClipText(ContactField('NAME'));
+  2: ClipText(ContactField('PHONE'));
+  Else ClipText(ContactField('EMAIL'));
+ End;
+End;
+
+{ ---- opportunites : etapes (1 gagnee 2 perdue 3 suivante 4 precedente) ---- }
+
+Procedure OppStage(Mode: Integer);
+Var S: LongInt; I,K,Cur,Best: Integer; Nm: String;
+Begin
+ S:=GridSelSlot(GSubL);
+ If (S<0) Or Not RowGet(tOP,S,RBF) Then Exit;
+ Cur:=NG(tOP,RBF,'PROB');
+ Best:=-1;Nm:='';
+ For I:=0 To Tb[tLV]^.Slots-1 Do
+  If RowGet(tLV,I,RB2) And (SG(tLV,RB2,'LST')='STAGE') Then Begin
+   K:=NG(tLV,RB2,'EXTRA');
+   Case Mode Of
+    1: If K=100 Then Begin Best:=K;Nm:=SG(tLV,RB2,'VAL');End;
+    2: If K=0 Then Begin Best:=K;Nm:=SG(tLV,RB2,'VAL');End;
+    3: If (K>Cur) And ((Best<0) Or (K<Best)) Then Begin Best:=K;
+      Nm:=SG(tLV,RB2,'VAL');End;
+    4: If (K<Cur) And (K>0) And (K>Best) Then Begin Best:=K;Nm:=SG(tLV,RB2,
+      'VAL');End;
+   End;
+  End;
+ If Nm='' Then Exit;
+ SS(tOP,RBF,'STAGE',Nm);SN(tOP,RBF,'PROB',Best);
+ { statut selon l'ordre de la liste OPPST : ouverte, gagnee, perdue }
+ K:=0;
+ For I:=0 To Tb[tLV]^.Slots-1 Do
+  If RowGet(tLV,I,RB2) And (SG(tLV,RB2,'LST')='OPPST') Then Begin
+   Inc(K);
+   If ((Best=100) And (K=2)) Or ((Best=0) And (K=3)) Or
+      ((Best>0) And (Best<100) And (K=1)) Then SS(tOP,RBF,'STATUS',SG(tLV,RB2,
+        'VAL'));
+  End;
+ If RowPut(tOP,S,RBF) Then ;
+ TblFlush(tOP);ReloadAll;
+End;
+
+{ ---- notes, documents, liens ---- }
+
+Procedure ToggleNoteFlag;
+Var S: LongInt;
+Begin
+ S:=GridSelSlot(GSubR);
+ If (S<0) Or Not RowGet(tNO,S,RBF) Then Exit;
+ If NG(tNO,RBF,'FLAG')=0 Then SN(tNO,RBF,'FLAG',1) Else SN(tNO,RBF,'FLAG',0);
+ If RowPut(tNO,S,RBF) Then ;
+ TblFlush(tNO);ReloadAll;
+End;
+
+Procedure ChangeNoteType;
+Var S: LongInt; Sel: Integer;
+Begin
+ S:=GridSelSlot(GSubR);
+ If (S<0) Or Not RowGet(tNO,S,RBF) Then Exit;
+ LoadList('NOTET');
+ If PickN=0 Then Exit;
+ Sel:=1;
+ If PickList(T('Type de note~Note type~Notiztyp'),Sel) Then Begin
+  If RowGet(tNO,S,RBF) Then Begin
+   SS(tNO,RBF,'KIND',PickIt^[Sel]);
+   If RowPut(tNO,S,RBF) Then ;
+  End;
+  TblFlush(tNO);ReloadAll;
+ End;
+End;
+
+Procedure CopyDocPath;
+Var S: LongInt;
+Begin
+ S:=GridSelSlot(GSubR);
+ If (S>=0) And RowGet(tDO,S,RB2) Then ClipText(SG(tDO,RB2,'PATH'));
+End;
+
+Procedure OpenLinked;
+Var S: LongInt; Id: LongInt;
+Begin
+ S:=GridSelSlot(GSubL);
+ If (S<0) Or Not RowGet(tRE,S,RB2) Then Exit;
+ Id:=NG(tRE,RB2,'OTHER_ID');
+ If Id<=0 Then Exit;
+ ShowFilter:=0;FilterSql:='';FilterName:='';
+ LoadMain;GridGoto(GMain,Id);Foc:=2;
+ SelectEntry(Id);
+End;
+
+{ ---- sous-menus ---- }
+
+Procedure BuildSub(Sid: Integer);
+Begin
+ PMBase:=PMN;
+ Case Sid Of
+  1: Begin
+      PMAdd(T('Nouvelle entr@ee~New entry~Neuer Eintrag'),1,True);
+      PMAdd(T('Nouveau contact~New contact~Neuer Kontakt'),17,CurId>0);
+      PMAdd(T('Nouvelle note~New note~Neue Notiz'),51,CurId>0);
+      PMAdd(T('Nouvelle opportunit@e~New opportunity~Neue Verkaufschance'
+        ),66,CurId>0);
+      PMAdd(T('Nouvelle commande~New order~Neuer Auftrag'),187,CurId>0);
+      PMAdd(T('Ins@erer un fichier...~Insert a file...~Datei einf@3gen...'
+        ),61,CurId>0);
+      PMAdd(T('Ins@erer un hyperlien...~Insert a hyperlink...~Hyperlink einf'
+        +'@3gen...'),62,CurId>0);
+     End;
+  2: Begin
+      PMAdd(T('Courriel...~Email...~E-Mail...'),50,CurId>0);
+      PMAdd(T('Lettre...~Letter...~Brief...'),52,CurId>0);
+      PMAdd(T('T@el@copie...~Fax...~Fax...'),53,CurId>0);
+      PMAdd(T('Document...~Document...~Dokument...'),54,CurId>0);
+      PMSep;
+      PMAdd(T('Passer un appel...~Make a call...~Anruf...'),55,CurId>0);
+      PMAdd(T('Recevoir un appel...~Receive a call...~Anruf empfangen...'
+        ),56,CurId>0);
+      PMAdd(T('R@eunion...~Meeting...~Besprechung...'),57,CurId>0);
+      PMAdd(T('@A faire...~To-do...~Aufgabe...'),58,CurId>0);
+      PMAdd(T('Appel t@el@ephonique (rdv)...~Phone call (appt)...~Anruf (Ter'
+        +'min)...'),59,CurId>0);
+      PMSep;
+      PMAdd(T('Plan d''action...~Action plan...~Aktionsplan...'),60,CurId>0);
+      PMAdd(T('Chronom@etrer une t@qche...~Time a task...~Aufgabe zeiten...'
+        ),65,CurId>0);
+     End;
+  3: Begin
+      PMAdd(T('Enveloppe~Envelope~Umschlag'),63,CurId>0);
+      PMAdd(T('@Etiquettes (marqu@ees)~Labels (marked)~Etiketten (markierte)'
+        ),64,True);
+      PMAdd(T('Fiche de l''entr@ee~Entry card~Eintragsblatt'),170,CurId>0);
+      PMAdd(T('Notes de l''entr@ee~Entry notes~Eintragsnotizen'),86,CurId>0);
+      PMAdd(T('Liste du carnet~Address book list~Adressbuchliste'),80,True);
+      PMAdd(T('Liste t@el@ephonique~Phone list~Telefonliste'),82,True);
+     End;
+  4: Begin
+      PMAdd(T('Marquer / d@emarquer~Mark / unmark~Markieren'),14,CurId>0);
+      PMAdd(T('Tout marquer~Mark all~Alle markieren'),15,True);
+      PMAdd(T('Tout d@emarquer~Unmark all~Alle demarkieren'),16,NMark>0);
+      PMAdd(T('Inverser les marques~Invert marks~Markierung umkehren'
+        ),130,True);
+      PMSep;
+      PMAdd(T('Marquer m@eme ville~Mark same city~Gleiche Stadt markieren'
+        ),131,CurId>0);
+      PMAdd(T('Marquer m@eme statut~Mark same status~Gleichen Status markier'
+        +'en'),132,CurId>0);
+      PMAdd(T('Marquer m@eme territoire~Mark same territory~Gleiches Gebiet '
+        +'markieren'),148,CurId>0);
+     End;
+  5: Begin
+      If NMark>0 Then PMAdd('('+IntStr(NMark)+' '+T('marqu@ees~marked~markie'
+        +'rt')+')',0,False);
+      PMAdd(T('Statut...~Status...~Status...'),133,CurId>0);
+      PMAdd(T('Source...~Source...~Quelle...'),134,CurId>0);
+      PMAdd(T('Territoire...~Territory...~Gebiet...'),135,CurId>0);
+      PMAdd(T('Responsable...~Owner...~Betreuer...'),136,CurId>0);
+      PMSep;
+      PMAdd(T('Soci@et@e <-> individu~Company <-> individual~Firma <-> Perso'
+        +'n'),137,CurId>0);
+      PMAdd(T('Personnel <-> public~Personal <-> public~Pers@2nlich <-> @2ff'
+        +'entlich'),138,CurId>0);
+     End;
+  6: Begin
+      PMAdd(T('M@eme ville~Same city~Gleiche Stadt'),140,CurId>0);
+      PMAdd(T('M@eme province / @etat~Same state~Gleiches Bundesland'
+        ),141,CurId>0);
+      PMAdd(T('M@eme statut~Same status~Gleicher Status'),142,CurId>0);
+      PMAdd(T('M@eme source~Same source~Gleiche Quelle'),143,CurId>0);
+      PMAdd(T('M@eme territoire~Same territory~Gleiches Gebiet'),144,CurId>0);
+      PMAdd(T('M@eme responsable~Same owner~Gleicher Betreuer'),145,CurId>0);
+      PMSep;
+      PMAdd(T('Entr@ees marqu@ees~Marked entries~Markierte Eintr@1ge'
+        ),146,NMark>0);
+      PMAdd(T('Tout afficher~Show all~Alle anzeigen'),45,True);
+     End;
+  7: Begin
+      PMAdd(T('Nom~Name~Name'),150,True);
+      PMAdd(T('Ville~City~Stadt'),151,True);
+      PMAdd(T('Statut~Status~Status'),154,True);
+      PMAdd(T('Derni@ere modification~Last modified~Zuletzt ge@1ndert'
+        ),152,True);
+      PMAdd(T('Date de cr@eation~Created~Erstellt'),153,True);
+     End;
+  8: Begin
+      PMAdd(T('Coordonn@ees compl@etes~Full details~Alle Daten'),120,CurId>0);
+      PMAdd(T('Nom~Name~Name'),160,CurId>0);
+      PMAdd(T('T@el@ephone~Phone~Telefon'),161,CurId>0);
+      PMAdd(T('Courriel~Email~E-Mail'),162,CurId>0);
+      PMAdd(T('Adresse~Address~Adresse'),163,CurId>0);
+      PMAdd(T('Site Web~Web site~Webseite'),164,CurId>0);
+      PMAdd(T('Ligne de la liste~List row~Listenzeile'),165,CurId>0);
+     End;
+  9: Begin
+      PMAdd(T('Gagn@ee~Won~Gewonnen'),177,True);
+      PMAdd(T('Perdue~Lost~Verloren'),178,True);
+      PMAdd(T('@Etape suivante~Next stage~N@1chste Phase'),179,True);
+      PMAdd(T('@Etape pr@ec@edente~Previous stage~Vorherige Phase'),180,True);
+     End;
+  10: Begin
+      PMAdd(T('Nom~Name~Name'),174,True);
+      PMAdd(T('T@el@ephone~Phone~Telefon'),175,True);
+      PMAdd(T('Courriel~Email~E-Mail'),176,True);
+     End;
+ End;
+End;
+
 { ---- contenu du menu contextuel selon le module et le volet ---- }
 
 Procedure BuildContext;
 Var Sel,HasClip: Boolean;
 Begin
- PMN:=0;
+ PMN:=0;PMBase:=0;
  ClipPull;
  HasClip:=ClipLines>0;
  Case Modu Of
@@ -8263,47 +8789,128 @@ Begin
      End;
   2,8: Begin
       If Foc=2 Then Begin
-       Sel:=GMain.N>0;
+       Sel:=(GMain.N>0) And (CurId>0);
        PMAdd(T('Modifier l''entr@ee~Edit entry~Eintrag bearbeiten~Editar ent'
          +'rada~Modifica voce'),10,Sel);
-       PMAdd(T('Nouvelle entr@ee~New entry~Neuer Eintrag~Nueva entrada~Nuova'
-         +' voce'),1,True);
-       PMAdd(T('Dupliquer~Duplicate~Duplizieren~Duplicar~Duplica'),13,Sel);
-       PMAdd(T('Marquer / d@emarquer~Mark / unmark~Markieren~Marcar~Segna'
-         ),14,Sel);
-       PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+       PMSub(T('Nouveau~New~Neu~Nuevo~Nuovo'),1,True);
+       PMSub(T('Actions~Actions~Aktionen~Acciones~Azioni'),2,Sel);
+       PMSub(T('Imprimer / rapports~Print / reports~Drucken / Berichte'
+         ),3,True);
        PMSep;
-       PMAdd(T('Note...~Note...~Notiz...~Nota...~Nota...'),51,Sel);
-       PMAdd(T('Courriel...~Email...~E-Mail...~Correo...~E-mail...'),50,Sel);
-       PMAdd(T('Passer un appel...~Make a call...~Anruf...~Llamar...~Chiama.'
-         +'..'),55,Sel);
-       PMAdd(T('R@eunion...~Meeting...~Besprechung...~Reuni@on...~Riunione..'
-         +'.'),57,Sel);
-       PMAdd(T('@A faire...~To-do...~Aufgabe...~Tarea...~Da fare...'),58,Sel);
-       PMAdd(T('Opportunit@e...~Opportunity...~Verkaufschance...~Oportunidad'
-         +'...~Opportunit@q...'),66,Sel);
-       PMAdd(T('Plan d''action...~Action plan...~Aktionsplan...~Plan de acci'
-         +'@on...~Piano d''azione...'),60,Sel);
+       PMSub(T('Marquer~Mark~Markieren~Marcar~Segna'),4,True);
+       PMSub(T('D@efinir~Set~Setzen~Definir~Imposta'),5,Sel);
+       PMSub(T('Filtrer par~Filter by~Filtern nach'),6,Sel);
+       PMSub(T('Trier par~Sort by~Sortieren nach'),7,True);
        PMSep;
-       PMAdd(T('Copier les coordonn@ees~Copy details~Daten kopieren~Copiar d'
-         +'atos~Copia dati'),120,Sel);
+       PMSub(T('Copier~Copy~Kopieren~Copiar~Copia'),8,Sel);
        PMAdd(T('Coller en note~Paste as note~Als Notiz einf@3gen~Pegar como '
          +'nota~Incolla come nota'),121,HasClip And Sel);
        PMSep;
-       PMAdd(T('Rechercher...~Find...~Suchen...~Buscar...~Cerca...'),40,True);
-       PMAdd(T('Tout afficher~Show all~Alle anzeigen~Mostrar todo~Mostra tut'
-         +'to'),45,True);
-      End Else Begin
-       If Foc=3 Then Sel:=GSubL.N>0 Else Sel:=GSubR.N>0;
-       PMAdd(T('Nouveau~New~Neu~Nuevo~Nuovo'),12,True);
-       PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+       PMAdd(T('Dupliquer~Duplicate~Duplizieren~Duplicar~Duplica'),13,Sel);
+       PMAdd(T('Fusionner avec...~Merge with...~Zusammenf@3hren mit...'
+         ),166,Sel);
+       PMAdd(T('Lier @a une entr@ee...~Link to an entry...~Mit Eintrag verkn'
+         +'@3pfen...'),167,Sel);
+       PMAdd(T('Exporter les marqu@ees (CSV)~Export marked (CSV)~Markierte e'
+         +'xportieren (CSV)'),169,NMark>0);
+       PMSep;
        PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+       If NMark>0 Then
+        PMAdd(T('Supprimer les marqu@ees~Delete marked~Markierte l@3schen'
+          ),168,True);
        PMSep;
-       PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
-       PMAdd(T('Coller en note~Paste as note~Als Notiz einf@3gen~Pegar como '
-         +'nota~Incolla come nota'),121,HasClip);
-       PMSep;
-       PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+       PMAdd(T('Rechercher...~Find...~Suchen...~Buscar...~Cerca...'),40,True);
+       PMAdd(T('Recherche avanc@ee...~Advanced search...~Erweiterte Suche...'
+         ),41,True);
+       PMAdd(T('Trouver les doublons~Find duplicates~Duplikate suchen'
+         ),46,True);
+      End Else If Foc=3 Then Begin
+       Sel:=GSubL.N>0;
+       Case TabL Of
+        1: Begin
+            PMAdd(T('Nouveau contact~New contact~Neuer Kontakt'),12,CurId>0);
+            PMAdd(T('Modifier~Edit~Bearbeiten'),10,Sel);
+            PMAdd(T('D@efinir comme principal~Set as primary~Als Hauptkontak'
+              +'t'),171,Sel);
+            PMSep;
+            PMAdd(T('Courriel au contact...~Email contact...~E-Mail an Konta'
+              +'kt...'),172,Sel);
+            PMAdd(T('Appeler le contact...~Call contact...~Kontakt anrufen..'
+              +'.'),173,Sel);
+            PMAdd(T('Lettre...~Letter...~Brief...'),52,CurId>0);
+            PMSep;
+            PMSub(T('Copier~Copy~Kopieren'),10,Sel);
+            PMAdd(T('Copier la ligne~Copy row~Zeile kopieren'),120,Sel);
+            PMSep;
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+           End;
+        2: Begin
+            PMAdd(T('Nouvelle opportunit@e~New opportunity~Neue Verkaufschan'
+              +'ce'),12,CurId>0);
+            PMAdd(T('Modifier~Edit~Bearbeiten'),10,Sel);
+            PMSub(T('@Etape~Stage~Phase'),9,Sel);
+            PMSep;
+            PMAdd(T('Copier la ligne~Copy row~Zeile kopieren'),120,Sel);
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+            PMSep;
+            PMAdd(T('Rapport des opportunit@es~Opportunities report~Chancenb'
+              +'ericht'),83,True);
+           End;
+        Else Begin
+            PMAdd(T('Lier @a une entr@ee...~Link to an entry...~Verkn@3pfen.'
+              +'..'),12,CurId>0);
+            PMAdd(T('Ouvrir l''entr@ee li@ee~Open linked entry~Verkn@3pften '
+              +'Eintrag @2ffnen'),181,Sel);
+            PMAdd(T('Modifier la relation~Edit relationship~Beziehung bearbe'
+              +'iten'),10,Sel);
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+           End;
+       End;
+      End Else Begin
+       Sel:=GSubR.N>0;
+       Case TabR Of
+        1: Begin
+            PMAdd(T('Nouvelle note...~New note...~Neue Notiz...'),12,CurId>0);
+            PMAdd(T('Modifier la note~Edit note~Notiz bearbeiten'),10,Sel);
+            PMAdd(T('Important (on/off)~Flag (on/off)~Wichtig (an/aus)'
+              ),182,Sel);
+            PMAdd(T('Changer le type...~Change type...~Typ @1ndern...'
+              ),183,Sel);
+            PMSep;
+            PMAdd(T('Copier le texte~Copy text~Text kopieren'),120,Sel);
+            PMAdd(T('Coller en nouvelle note~Paste as new note~Als neue Noti'
+              +'z einf@3gen'),121,HasClip And (CurId>0));
+            PMSep;
+            PMAdd(T('Afficher le type...~Show type...~Typ anzeigen...'
+              ),184,True);
+            PMAdd(T('Filtrer la p@eriode...~Filter period...~Zeitraum filter'
+              +'n...'),185,True);
+            PMAdd(T('Rapport des notes~Notes report~Notizbericht'),86,CurId>0);
+            PMSep;
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+           End;
+        3: Begin
+            PMAdd(T('Ins@erer un fichier...~Insert a file...~Datei einf@3gen'
+              +'...'),61,CurId>0);
+            PMAdd(T('Ins@erer un hyperlien...~Insert a hyperlink...~Hyperlin'
+              +'k einf@3gen...'),62,CurId>0);
+            PMAdd(T('Modifier~Edit~Bearbeiten'),10,Sel);
+            PMAdd(T('Copier le chemin~Copy path~Pfad kopieren'),186,Sel);
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+           End;
+        5: Begin
+            PMAdd(T('Nouvelle commande...~New order...~Neuer Auftrag...'
+              ),12,CurId>0);
+            PMAdd(T('Lignes de la commande~Order lines~Auftragspositionen'
+              ),10,Sel);
+            PMAdd(T('Copier la ligne~Copy row~Zeile kopieren'),120,Sel);
+            PMAdd(T('Supprimer~Delete~L@3schen'),11,Sel);
+           End;
+        Else Begin
+            PMAdd(T('Modifier~Edit~Bearbeiten'),10,CurId>0);
+            PMAdd(T('Actualiser~Refresh~Aktualisieren'),29,True);
+           End;
+       End;
       End;
      End;
   4: Begin
@@ -8335,6 +8942,7 @@ Begin
      End;
  End;
 End;
+
 
 { ====================================================================== }
 {                       ECRAN D'ACCUEIL                                  }
@@ -8762,6 +9370,46 @@ Begin
   123: CalKey(K_PGUP);
   124: CalKey(K_PGDN);
   127: DupAppt;
+  130: InvertMarks;
+  131: MarkSame('CITY');
+  132: MarkSame('STATUS');
+  133: SetEntryField('STATUS');
+  134: SetEntryField('SOURCE');
+  135: SetEntryField('TERR');
+  136: SetEntryField('OWNER');
+  137: ForTargets(2,'','');
+  138: ForTargets(3,'','');
+  140: FilterSame('CITY');
+  141: FilterSame('STATE');
+  142: FilterSame('STATUS');
+  143: FilterSame('SOURCE');
+  144: FilterSame('TERR');
+  145: FilterSame('OWNER');
+  146: Begin ShowFilter:=3;ReloadAll;End;
+  148: MarkSame('TERR');
+  150: SortBy('NAME',False);
+  151: SortBy('CITY',False);
+  152: SortBy('MODIFIED',True);
+  153: SortBy('CREATED',True);
+  154: SortBy('STATUS',False);
+  160..165: CopyField(Cm-159);
+  166: MergeEntry;
+  167: NewRelated;
+  168: DeleteMarked;
+  169: ExportMarked;
+  170: EntryCard;
+  171: SetMainContact;
+  172: EmailContact;
+  173: CallContact;
+  174..176: CopyContactField(Cm-173);
+  177..180: OppStage(Cm-176);
+  181: OpenLinked;
+  182: ToggleNoteFlag;
+  183: ChangeNoteType;
+  184: PickNoteFilter(1);
+  185: PickNoteFilter(2);
+  186: CopyDocPath;
+  187: NewOrder;
   110,111: HelpText;
   112: AboutBox;
  End;
@@ -9204,7 +9852,7 @@ Begin
  NoDbl:=False;
  DrawAll;
  BuildContext;
- Cm:=PopupRun(X,Y);
+ Cm:=PopupRun(X,Y,1,PMN);
  Dirty:=True;
  If Cm>0 Then DoCmd(Cm);
 End;
@@ -9321,7 +9969,7 @@ BEGIN
  GetMem(PickIt,SizeOf(TStrArr));
  GetMem(RBE,SizeOf(TRec));
  GetMem(ClipP,SizeOf(TBig));
- ClipLen:=0;NoDbl:=False;
+ ClipLen:=0;NoDbl:=False;MailTo:='';CallNum:='';
  TXN:=0;PickN:=0;
  FillChar(UdfNm,SizeOf(UdfNm),0);
  FillChar(UdfKd,SizeOf(UdfKd),'T');

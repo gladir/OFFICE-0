@@ -446,7 +446,7 @@ et en italien avec <code>LANGUAGE=IT</code> ; tout le code est dans <code>MAXIMI
 réseaux sociaux, commandes), Opportunités, Hotlist, Calendrier, Courriel, Bibliothèque de la société, Personnel et OrderDesk.</li>
 <li>Actions : courriel, note, lettre, télécopie, document, appels, réunion, à faire, plans d'action, fichiers et hyperliens,
 enveloppes, étiquettes, chronomètre de tâche ; recherche simple et avancée, requêtes enregistrées, doublons, marquage.</li>
-<li>Clic droit (ou <code>F9</code>) : menu contextuel selon le module (calendrier : nouvelle réunion / appel / tâche, modifier, terminer, dupliquer,
+<li>Clic droit (ou <code>F9</code>) : menu contextuel selon le module (carnet d'adresses : sous-menus Nouveau, Actions, Imprimer, Marquer, Définir statut / source / territoire / responsable sur les entrées marquées, Filtrer par, Trier par, Copier ; fusion d'entrées, liens, fiche, export des marquées ; contacts, opportunités, notes, documents) (calendrier : nouvelle réunion / appel / tâche, modifier, terminer, dupliquer,
 copier, coller, aujourd'hui, mois précédent / suivant, agenda...) ; copier / coller (<code>Ctrl+C</code>, <code>Ctrl+V</code>, <code>Ctrl+X</code>) dans les champs,
 l'éditeur de texte, les rendez-vous et les entrées. Sous Windows, le presse-papiers du système est lu et écrit par les API
 <code>user32</code> / <code>kernel32</code> (directive <code>WINDOWS</code>, sans unité externe) ; ailleurs un tampon interne est utilisé.</li>
