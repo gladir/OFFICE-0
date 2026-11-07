@@ -3,7 +3,7 @@
   @version: 1.00
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Turbo Pascal 7, Free Pascal
-  @description: Clone de l'application Excel
+  @description: Clone de l'application Excelsior
 }
 
 Program EXCEL;
@@ -3080,22 +3080,169 @@ Begin
  NeedFullRedraw := True;
 End;
 
-Procedure ActionAbout;
-Var X1, Y1, X2, Y2: Integer; K: Char;
+{ Image "L'univers des cellules" : grille en perspective, cellules
+  allumees, nombres et symboles, histogramme 3D qui s'eleve de la grille }
+Procedure DrawAboutArt(AX1, AY1, AX2, AY2: Integer);
+Const
+ NR = 10;
+Var
+ W, Hh, HZ, GH, VX, I, K, T, Y, Y2, XL: Integer;
+ Seed: LongInt;
+ Pts: Array[1..4] Of PointType;
+ BarH: Array[1..5] Of Integer;
+ BarF, BarS: Array[1..5] Of Integer;
+ TxK, TxT, TxC: Array[1..8] Of Integer;
+ TxS: Array[1..8] Of String[5];
+ Bw, Bx, By, Dx, Dy: Integer;
+
+ Function RowY(R: Integer): Integer;
+ Begin RowY := HZ + (GH * R * R) Div (NR * NR); End;
+
+ Function WAt(Yy: Integer): Integer;
+ Begin WAt := 6 + (50 * (Yy - HZ)) Div GH; End;
+
+ Function CellX(Kk, Yy: Integer): Integer;
+ Begin CellX := VX + Kk * WAt(Yy); End;
+
+ Function CellOk(Kk, R: Integer): Boolean;
+ Var A, B: Integer;
+ Begin
+  A := CellX(Kk, RowY(R + 1)); B := CellX(Kk + 1, RowY(R + 1));
+  CellOk := (A >= 2) And (B <= W - 3) And
+            (CellX(Kk, RowY(R)) >= 2) And (CellX(Kk + 1, RowY(R)) <= W - 3);
+ End;
+
+ Procedure Quad(Kk, R, Color: Integer);
+ Begin
+  Pts[1].X := AX1 + CellX(Kk, RowY(R));     Pts[1].Y := AY1 + RowY(R);
+  Pts[2].X := AX1 + CellX(Kk + 1, RowY(R)); Pts[2].Y := AY1 + RowY(R);
+  Pts[3].X := AX1 + CellX(Kk + 1, RowY(R + 1)); Pts[3].Y := AY1 + RowY(R + 1);
+  Pts[4].X := AX1 + CellX(Kk, RowY(R + 1)); Pts[4].Y := AY1 + RowY(R + 1);
+  SetFillStyle(1, Color);
+  FillPoly(4, Pts);
+ End;
+
 Begin
- X1 := 140; Y1 := 160; X2 := 500; Y2 := 320;
+ W := AX2 - AX1; Hh := AY2 - AY1; HZ := 62; GH := Hh - HZ - 1; VX := W Div 2;
+ { ciel : bandes sombres, halo a l'horizon }
+ FillBox(AX1, AY1, AX2, AY1 + 24, 0);
+ FillBox(AX1, AY1 + 25, AX2, AY1 + 44, 1);
+ FillBox(AX1, AY1 + 45, AX2, AY1 + HZ - 6, 9);
+ FillBox(AX1, AY1 + HZ - 5, AX2, AY1 + HZ, 11);
+ FillBox(AX1, AY1 + HZ + 1, AX2, AY2, 0);
+ Seed := 4321;
+ For I := 1 To 60 Do Begin
+  Seed := (Seed * 25173 + 13849) And 65535;
+  K := Seed Mod W;
+  Seed := (Seed * 25173 + 13849) And 65535;
+  Y := Seed Mod (HZ - 8);
+  If Y < 44 Then PutPixel(AX1 + K, AY1 + Y, 15);
+ End;
+ { cellules allumees }
+ For T := 1 To NR - 1 Do
+  For K := -9 To 8 Do
+   If CellOk(K, T) Then Begin
+    I := (T * 7 + (K + 9) * 13) Mod 17;
+    If I = 0 Then Quad(K, T, 3)
+    Else If I = 5 Then Quad(K, T, 2)
+    Else If I = 9 Then Quad(K, T, 6)
+    Else If I = 12 Then Quad(K, T, 5)
+    Else If I = 3 Then Quad(K, T, 1);
+   End;
+ { lignes de la grille }
+ For T := 1 To NR Do Begin
+  Y := RowY(T);
+  If T < 4 Then SetColor(1) Else SetColor(3);
+  Line(AX1, AY1 + Y, AX2, AY1 + Y);
+ End;
+ For K := -40 To 40 Do Begin
+  If K = 0 Then Y2 := GH + HZ
+  Else Begin
+   Y2 := HZ + (GH * ((W Div 2 - 1) Div Abs(K) - 6)) Div 50;
+   If Y2 > GH + HZ Then Y2 := GH + HZ;
+  End;
+  If Y2 > HZ + 2 Then Begin
+   SetColor(3);
+   Line(AX1 + CellX(K, HZ + 1), AY1 + HZ + 1, AX1 + CellX(K, Y2), AY1 + Y2);
+  End;
+ End;
+ { nombres, symboles monetaires et formules dans les cellules }
+ TxK[1] := -4; TxT[1] := 9; TxS[1] := '$';     TxC[1] := 14;
+ TxK[2] := -2; TxT[2] := 9; TxS[2] := '42';    TxC[2] := 10;
+ TxK[3] := -1; TxT[3] := 8; TxS[3] := '=SUM';  TxC[3] := 15;
+ TxK[4] := 2;  TxT[4] := 9; TxS[4] := '3.14';  TxC[4] := 11;
+ TxK[5] := 4;  TxT[5] := 9; TxS[5] := '%';     TxC[5] := 14;
+ TxK[6] := -3; TxT[6] := 7; TxS[6] := 'EUR';   TxC[6] := 10;
+ TxK[7] := 3;  TxT[7] := 8; TxS[7] := 'fx';    TxC[7] := 15;
+ TxK[8] := 0;  TxT[8] := 9; TxS[8] := '1,5';   TxC[8] := 12;
+ For I := 1 To 8 Do Begin
+  T := TxT[I]; K := TxK[I];
+  Y := RowY(T) + (RowY(T + 1) - RowY(T) - 8) Div 2;
+  XL := CellX(K, RowY(T)) + (WAt(RowY(T)) - 8 * Length(TxS[I])) Div 2;
+  TextAt(AX1 + XL, AY1 + Y, TxC[I], TxS[I]);
+ End;
+ { histogramme 3D pose sur la grille }
+ BarH[1] := 16; BarH[2] := 28; BarH[3] := 44; BarH[4] := 34; BarH[5] := 56;
+ BarF[1] := 10; BarF[2] := 11; BarF[3] := 14; BarF[4] := 13; BarF[5] := 12;
+ BarS[1] := 2;  BarS[2] := 3;  BarS[3] := 6;  BarS[4] := 5;  BarS[5] := 4;
+ T := 6; By := AY1 + RowY(T + 1);
+ Bw := WAt(RowY(T)) * 7 Div 10; Dx := 7; Dy := 5;
+ For I := 1 To 5 Do Begin
+  Bx := AX1 + CellX(I + 1, RowY(T)) + 3;
+  { face avant }
+  FillBox(Bx, By - BarH[I], Bx + Bw, By, BarF[I]);
+  { face droite }
+  Pts[1].X := Bx + Bw;      Pts[1].Y := By - BarH[I];
+  Pts[2].X := Bx + Bw + Dx; Pts[2].Y := By - BarH[I] - Dy;
+  Pts[3].X := Bx + Bw + Dx; Pts[3].Y := By - Dy;
+  Pts[4].X := Bx + Bw;      Pts[4].Y := By;
+  SetFillStyle(1, BarS[I]); FillPoly(4, Pts);
+  { dessus }
+  Pts[1].X := Bx;           Pts[1].Y := By - BarH[I];
+  Pts[2].X := Bx + Dx;      Pts[2].Y := By - BarH[I] - Dy;
+  Pts[3].X := Bx + Bw + Dx; Pts[3].Y := By - BarH[I] - Dy;
+  Pts[4].X := Bx + Bw;      Pts[4].Y := By - BarH[I];
+  SetFillStyle(1, 15); FillPoly(4, Pts);
+ End;
+ TextAt(AX1 + 8, AY1 + 8, 15, 'L''univers des cellules');
+ SetColor(CLR_WIN_DARK);
+ Rectangle(AX1 - 1, AY1 - 1, AX2 + 1, AY2 + 1);
+End;
+
+Procedure ActionAbout;
+Var X1, Y1, X2, Y2, BX1, BY1, BX2, BY2: Integer; K: Char; Done: Boolean;
+Begin
+ X1 := 100; Y1 := 60; X2 := 540; Y2 := 410;
+ BX1 := (X1 + X2) Div 2 - 40; BY1 := Y2 - 32; BX2 := BX1 + 80; BY2 := BY1 + 22;
  HideMouse;
  FillBox(X1, Y1, X2, Y2, CLR_WIN_BG);
  DrawRaisedFrame(X1, Y1, X2, Y2);
  FillBox(X1 + 2, Y1 + 2, X2 - 2, Y1 + 18, CLR_HEADER_SEL);
- TextAt(X1 + 8, Y1 + 5, CLR_WIN_LIGHT, 'A propos de EXCEL');
- TextAt(X1 + 16, Y1 + 36, CLR_TEXT, 'Clone Excel - Turbo Pascal / Free Pascal');
- TextAt(X1 + 16, Y1 + 56, CLR_TEXT, '(c) 2026  Sylvain Maltais');
- TextAt(X1 + 16, Y1 + 76, CLR_TEXT, 'https://www.gladir.com/office-0');
- TextAt(X1 + 16, Y1 + 110, CLR_TEXT, 'Phase 10 : format XLSX (ZIP + XML)');
- TextAt(X1 + 16, Y1 + 130, CLR_TEXT, 'Appuyez sur une touche...');
+ TextAt(X1 + 8, Y1 + 5, CLR_WIN_LIGHT, 'A propos de Excelsior');
+ DrawAboutArt(X1 + 10, Y1 + 28, X2 - 10, Y1 + 208);
+ TextBoldAt(X1 + 16, Y1 + 222, CLR_TEXT, 'Excelsior');
+ TextAt(X1 + 16, Y1 + 238, CLR_TEXT,
+        'Tableur graphique en Turbo Pascal / Free Pascal');
+ TextAt(X1 + 16, Y1 + 264, CLR_TEXT, 'Auteur :   Sylvain Maltais');
+ TextAt(X1 + 16, Y1 + 280, CLR_TEXT, 'Date :     2026');
+ TextAt(X1 + 16, Y1 + 296, CLR_TEXT, 'Site Web : https://www.gladir.com/office-0');
+ FillBox(BX1, BY1, BX2, BY2, CLR_WIN_BG);
+ DrawRaisedFrame(BX1, BY1, BX2, BY2);
+ TextAt(BX1 + 32, BY1 + 6, CLR_TEXT, 'OK');
  ShowMouse;
- Repeat K := ReadKey; If K = #0 Then K := ReadKey; Until K <> #255;
+ UpdateMouse;
+ Done := False;
+ Repeat
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then K := ReadKey
+   Else If (K = #13) Or (K = #27) Or (K = ' ') Then Done := True;
+  End;
+  UpdateMouse;
+  If LeftPressed And (Mouse.X >= BX1) And (Mouse.X <= BX2) And
+     (Mouse.Y >= BY1) And (Mouse.Y <= BY2) Then
+   Done := True;
+ Until Done;
  NeedFullRedraw := True;
 End;
 
@@ -7641,9 +7788,9 @@ Var HelpOutput: Text;
 Begin
  { Un flux distinct conserve la sortie console avec les unites Crt. }
  Assign(HelpOutput,'');Rewrite(HelpOutput);
- WriteLn(HelpOutput,'EXCEL - Clone graphique du tableur Excel.');
+ WriteLn(HelpOutput,'EXCELSIOR - Clone graphique du tableur Excel.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput,'Utilisation : EXCEL [/CLASSICMENU | /RUBANMENU] [classeur] [/?]');
+ WriteLn(HelpOutput,'Utilisation : EXCELSIOR [/CLASSICMENU | /RUBANMENU] [classeur] [/?]');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput,'  /CLASSICMENU  Menu classique, style Excel 2003 (par defaut).');
  WriteLn(HelpOutput,'  /RUBANMENU    Onglets et commandes avec icones, style Excel 2007 et suivants.');
@@ -7655,8 +7802,8 @@ Begin
  WriteLn(HelpOutput,'Le classeur peut etre place avant ou apres les options.');
  WriteLn(HelpOutput,'Entourer les chemins contenant des espaces de guillemets.');
  WriteLn(HelpOutput);
- WriteLn(HelpOutput,'Exemples : EXCEL /RUBANMENU "C:\Documents\Budget 2026.xlsx"');
- WriteLn(HelpOutput,'           EXCEL "Budget.xlc" /CLASSICMENU');
+ WriteLn(HelpOutput,'Exemples : EXCELSIOR /RUBANMENU "C:\Documents\Budget 2026.xlsx"');
+ WriteLn(HelpOutput,'           EXCELSIOR "Budget.xlc" /CLASSICMENU');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
  WriteLn(HelpOutput,'Accueil : Alt+E. Les commandes non implementees sont grisees.');
