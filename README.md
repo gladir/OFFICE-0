@@ -154,6 +154,10 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
 		<td>CFette commande permet de lancer le programme de publication de journaux News Master.</td>
 	</tr>
     <tr>
+      <td><b>MAXIMIZE.PAS</b></td>
+      <td>Cette commande permet de lancer un clone de Maximizer CRM (Maximilien CRM).</td>
+    </tr>
+    <tr>
       <td><b>NOTATOR.PAS</b></td>
       <td>Cette commande permet de lancer un clone graphique de Notator SL (séquenceur MIDI / éditeur de partition et impression de l'Atari ST : page d'arrangement, partition, matrice, liste d'événements, quantification, groove).</td>
     </tr>
@@ -430,6 +434,26 @@ projets.</li>
 employés, inventaire), graphiques, résumé de la société, rappels, vérification des données, clôture de l'exercice, calculatrice.</li>
 <li>Fichiers : société enregistrée dans un fichier <code>.SDB</code> (<code>UNIVERSL.SDB</code> par défaut, créé avec des données
 d'exemple), copie de sécurité <code>.BAK</code>, rapports exportables en texte ; <code>SIMPLY /?</code> : aide.</li>
+</ul>
+
+<h2>MAXIMIZE : Maximilien CRM (clone de Maximizer CRM)</h2>
+<ul>
+<li><code>MAXIMIZE [/D:dossier] [/U:code] [-maxscreen]</code> (<code>-maxscreen</code> : résolution maximale disponible, Free Pascal seulement ; l'écran d'accueil, la disposition et les boîtes de dialogue occupent tout l'écran) : écran d'accueil (bannière dessinée « L'empire des relations ») avec trois boutons :
+lancer l'exemple, créer un nouveau CRM vide ou ouvrir un CRM existant (<code>/D:</code> l'ignore et ouvre directement le dossier) ; gestion de la relation client avec menus classiques (pas de ruban), en français par défaut,
+en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code>, en espagnol avec <code>LANGUAGE=SP</code>
+et en italien avec <code>LANGUAGE=IT</code> ; tout le code est dans <code>MAXIMIZE.PAS</code>.</li>
+<li>Modules : Mon jour de travail, Carnet d'adresses (contacts, opportunités, entrées liées, notes, champs définis, documents,
+réseaux sociaux, commandes), Opportunités, Hotlist, Calendrier, Courriel, Bibliothèque de la société, Personnel et OrderDesk.</li>
+<li>Actions : courriel, note, lettre, télécopie, document, appels, réunion, à faire, plans d'action, fichiers et hyperliens,
+enveloppes, étiquettes, chronomètre de tâche ; recherche simple et avancée, requêtes enregistrées, doublons, marquage.</li>
+<li>Clic droit (ou <code>F9</code>) : menu contextuel selon le module (carnet d'adresses : sous-menus Nouveau, Actions, Imprimer, Marquer, Définir statut / source / territoire / responsable sur les entrées marquées, Filtrer par, Trier par, Copier ; fusion d'entrées, liens, fiche, export des marquées ; contacts, opportunités, notes, documents ; « Ma journée » : menu propre à chacun des quatre panneaux avec terminer, reporter, ouvrir l'entrée, contacter, copier le panneau) ; bibliothèque : lire, modifier le texte, propriétés, nouveau (presse-papiers, fichier texte), envoyer à (entrée, courriel, modèle de lettre), catégories, filtre, recherche dans le texte, tri, export, impression (calendrier : nouvelle réunion / appel / tâche, modifier, terminer, dupliquer,
+copier, coller, aujourd'hui, mois précédent / suivant, agenda...) ; copier / coller (<code>Ctrl+C</code>, <code>Ctrl+V</code>, <code>Ctrl+X</code>) dans les champs,
+l'éditeur de texte, les rendez-vous et les entrées. Sous Windows, le presse-papiers du système est lu et écrit par les API
+<code>user32</code> / <code>kernel32</code> (directive <code>WINDOWS</code>, sans unité externe) ; ailleurs un tampon interne est utilisé.</li>
+<li>Base de données : fichiers MyISAM (<code>.frm</code>, <code>.MYD</code>, <code>.MYI</code>) lus et écrits par le programme lui-même
+(lignes fixes, clé primaire <code>ID</code>), compatibles avec MariaDB / MySQL 5.x ; moteur SQL intégré
+(<code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>CREATE TABLE</code>, jointures, <code>GROUP BY</code>) :
+Outils &gt; Console SQL ou <code>MAXIMIZE /SQL "requête"</code>. Le dossier <code>EXEMPLE</code> est créé avec des données d'exemple.</li>
 </ul>
 
 <h2>Licence</h2>
