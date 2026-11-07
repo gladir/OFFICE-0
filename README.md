@@ -42,6 +42,10 @@ Aperçu du clone de Lotus 1-2-3 :
 
 <img width="638" height="480" alt="image" src="https://github.com/user-attachments/assets/b4c54172-ee6f-4c4b-962b-18aa3c0a4efc" />
 
+Aperçu de Maximilien CRM :
+
+<img width="642" height="486" alt="image" src="https://github.com/user-attachments/assets/82fca6ef-df3e-4e69-a975-a506a09d51e4" />
+
 Aperçu du clone de News Master :
 
 <img width="634" height="483" alt="image" src="https://github.com/user-attachments/assets/99604335-4d50-4773-97ed-1252c13f6677" />
