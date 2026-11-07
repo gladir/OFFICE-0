@@ -611,7 +611,7 @@ End;
 { jour de semaine : 0 dimanche .. 6 samedi }
 Function WeekDay(D: LongInt): Integer;
 Begin
- WeekDay:=Integer((DayNum(D)+5) Mod 7);
+ WeekDay:=Integer((DayNum(D)+2) Mod 7);
 End;
 
 Function DaysInMonth(Y,M: Integer): Integer;
@@ -2874,6 +2874,134 @@ Var
 Procedure DrawAll; Forward;
 Procedure Backdrop; Forward;
 
+
+{ ====================================================================== }
+{                          PRESSE-PAPIERS                                }
+{ ====================================================================== }
+{ Tampon interne (DOS, Linux...) ; sous Windows il est aussi synchronise
+  avec le presse-papiers du systeme par les API user32 / kernel32 declarees
+  ci-dessous (aucune unite externe). Le texte interne est en jeu OEM.      }
+
+{$IFDEF WINDOWS}
+Function OpenClipboard(hWnd: PtrUInt): LongInt; stdcall;
+ external 'user32' name 'OpenClipboard';
+Function CloseClipboard: LongInt; stdcall;
+ external 'user32' name 'CloseClipboard';
+Function EmptyClipboard: LongInt; stdcall;
+ external 'user32' name 'EmptyClipboard';
+Function GetClipboardData(Fmt: LongWord): PtrUInt; stdcall;
+ external 'user32' name 'GetClipboardData';
+Function SetClipboardData(Fmt: LongWord; hMem: PtrUInt): PtrUInt; stdcall;
+ external 'user32' name 'SetClipboardData';
+Function OemToCharBuffA(Src,Dst: Pointer; N: LongWord): LongInt; stdcall;
+ external 'user32' name 'OemToCharBuffA';
+Function CharToOemBuffA(Src,Dst: Pointer; N: LongWord): LongInt; stdcall;
+ external 'user32' name 'CharToOemBuffA';
+Function GlobalAlloc(Flg: LongWord; Sz: PtrUInt): PtrUInt; stdcall;
+ external 'kernel32' name 'GlobalAlloc';
+Function GlobalLock(hMem: PtrUInt): Pointer; stdcall;
+ external 'kernel32' name 'GlobalLock';
+Function GlobalUnlock(hMem: PtrUInt): LongInt; stdcall;
+ external 'kernel32' name 'GlobalUnlock';
+Function GlobalSize(hMem: PtrUInt): PtrUInt; stdcall;
+ external 'kernel32' name 'GlobalSize';
+{$ENDIF}
+
+Var
+ ClipP   : PBig;
+ ClipLen : Integer;
+ NoDbl   : Boolean;
+
+Procedure ClipClear;
+Begin
+ ClipLen:=0;
+End;
+
+Procedure ClipAdd(Const S: String);
+Var I: Integer;
+Begin
+ If ClipLen+Length(S)+2>8000 Then Exit;
+ For I:=1 To Length(S) Do Begin ClipP^[ClipLen]:=Ord(S[I]);Inc(ClipLen);End;
+ ClipP^[ClipLen]:=13;ClipP^[ClipLen+1]:=10;Inc(ClipLen,2);
+End;
+
+{ envoie le tampon au presse-papiers du systeme }
+Procedure ClipPush;
+{$IFDEF WINDOWS}
+Var H: PtrUInt; P: Pointer;
+Begin
+ If ClipLen=0 Then Exit;
+ If OpenClipboard(0)=0 Then Exit;
+ EmptyClipboard;
+ H:=GlobalAlloc(2,ClipLen+1);
+ If H<>0 Then Begin
+  P:=GlobalLock(H);
+  If P<>Nil Then Begin
+   OemToCharBuffA(ClipP,P,ClipLen);
+   PBig(P)^[ClipLen]:=0;
+   GlobalUnlock(H);
+   If SetClipboardData(1,H)=0 Then ;
+  End;
+ End;
+ CloseClipboard;
+End;
+{$ELSE}
+Begin
+End;
+{$ENDIF}
+
+{ lit le presse-papiers du systeme dans le tampon (sinon garde l'interne) }
+Procedure ClipPull;
+{$IFDEF WINDOWS}
+Var H: PtrUInt; P: Pointer; N,L: Integer;
+Begin
+ If OpenClipboard(0)=0 Then Exit;
+ H:=GetClipboardData(1);
+ If H<>0 Then Begin
+  P:=GlobalLock(H);
+  If P<>Nil Then Begin
+   N:=Integer(GlobalSize(H));
+   If N>8000 Then N:=8000;
+   L:=0;
+   While (L<N) And (PBig(P)^[L]<>0) Do Inc(L);
+   CharToOemBuffA(P,ClipP,L);
+   ClipLen:=L;
+   GlobalUnlock(H);
+  End;
+ End;
+ CloseClipboard;
+End;
+{$ELSE}
+Begin
+End;
+{$ENDIF}
+
+{ nombre de lignes du tampon }
+Function ClipLines: Integer;
+Var I,N: Integer;
+Begin
+ N:=0;
+ If ClipLen>0 Then Begin
+  N:=1;
+  For I:=0 To ClipLen-1 Do
+   If (ClipP^[I]=10) And (I<ClipLen-1) Then Inc(N);
+ End;
+ ClipLines:=N;
+End;
+
+Function ClipLine(N: Integer): String;
+Var I,K: Integer; S: String;
+Begin
+ K:=1;S:='';
+ For I:=0 To ClipLen-1 Do Begin
+  If ClipP^[I]=10 Then Begin
+   If K=N Then Begin ClipLine:=S;Exit;End;
+   Inc(K);S:='';
+  End Else If (ClipP^[I]<>13) And (Length(S)<78) Then S:=S+Chr(ClipP^[I]);
+ End;
+ If K=N Then ClipLine:=S Else ClipLine:='';
+End;
+
 Procedure Bx(X1,Y1,X2,Y2,C: Integer);
 Begin
  If (X2<X1) Or (Y2<Y1) Then Exit;
@@ -3018,7 +3146,8 @@ Begin
  PrevMX:=MX;PrevMY:=MY;LastB:=MB;
  GetMouseState(MX,MY,MB);
  E.X:=MX;E.Y:=MY;E.B:=MB;
- If ((MB And 1)<>0) And ((LastB And 1)=0) Then E.Kind:=2
+ If ((MB And 2)<>0) And ((LastB And 2)=0) Then E.Kind:=5
+ Else If ((MB And 1)<>0) And ((LastB And 1)=0) Then E.Kind:=2
  Else If ((MB And 1)=0) And ((LastB And 1)<>0) Then E.Kind:=3
  Else If (MX<>PrevMX) Or (MY<>PrevMY) Then E.Kind:=4
  Else Delay(4);
@@ -3027,6 +3156,7 @@ End;
 Function IsDouble(X,Y: LongInt): Boolean;
 Var Tk: LongInt;
 Begin
+ If NoDbl Then Begin IsDouble:=False;Exit;End;
  Tk:=Tick;
  IsDouble:=(Abs(Tk-LastClickT)<45) And (Abs(X-LastClickX)<5)
      And (Abs(Y-LastClickY)<5);
@@ -3112,8 +3242,22 @@ End;
 { edition d'une ligne : retourne True si la touche a ete traitee }
 Function LineKey(Var S: String; Max: Integer; Var Cur: Integer; K: Word;
   Var Sel: Boolean): Boolean;
+Var I: Integer; V: String;
 Begin
  LineKey:=True;
+ If K=3 Then Begin ClipClear;ClipAdd(S);ClipPush;Exit;End;
+ If K=24 Then Begin ClipClear;ClipAdd(S);ClipPush;S:='';Cur:=0;Sel:=False;
+   Exit;End;
+ If K=22 Then Begin
+  ClipPull;
+  V:=ClipLine(1);
+  If Sel Then Begin S:='';Cur:=0;Sel:=False;End;
+  For I:=1 To Length(V) Do
+   If (V[I]>=' ') And (Length(S)<Max) Then Begin
+    Insert(V[I],S,Cur+1);Inc(Cur);
+   End;
+  Exit;
+ End;
  If (K>=32) And (K<256) Then Begin
   If Sel Then Begin S:='';Cur:=0;Sel:=False;End;
   If Length(S)<Max Then Begin Insert(Chr(K),S,Cur+1);Inc(Cur);End;
@@ -3299,6 +3443,11 @@ Begin
    Redraw:=True;
    Case E.Key Of
     K_ESC,K_ENTER: Done:=True;
+    3: Begin
+      ClipClear;
+      For I:=1 To TXN Do ClipAdd(TX^[I]);
+      ClipPush;
+     End;
     K_UP: If Top>1 Then Dec(Top);
     K_DOWN: If Top<TXN Then Inc(Top);
     K_PGUP: Top:=Max2(1,Top-Vis+1);
@@ -3334,8 +3483,9 @@ End;
 { ---- editeur de texte multi-lignes ---- }
 
 Function EditText(Const Title: String): Boolean;
-Var X1,Y1,X2,Y2,Row,Col,Top,Vis,I: Integer; E: TEvent; Done,Ok,Redraw: Boolean;
-    S: String; Sel: Boolean;
+Var X1,Y1,X2,Y2,Row,Col,Top,Vis,I,N: Integer; E: TEvent; Done,Ok,Redraw:
+  Boolean;
+    S,Tail: String; Sel: Boolean;
 Begin
  If TXN<1 Then Begin TXN:=1;TX^[1]:='';End;
  X1:=8;Y1:=24;X2:=SCR_W-9;Y2:=SCR_H-24;
@@ -3389,6 +3539,36 @@ Begin
       TX^[Row]:=Copy(S+TX^[Row+1],1,78);
       For I:=Row+1 To TXN-1 Do TX^[I]:=TX^[I+1];
       Dec(TXN);
+     End;
+    3: Begin
+      ClipClear;
+      For I:=1 To TXN Do ClipAdd(TX^[I]);
+      ClipPush;
+     End;
+    24: Begin
+      ClipClear;ClipAdd(S);ClipPush;
+      For I:=Row To TXN-1 Do TX^[I]:=TX^[I+1];
+      If TXN>1 Then Dec(TXN) Else TX^[1]:='';
+      If Row>TXN Then Row:=TXN;
+     End;
+    22: Begin
+      ClipPull;
+      N:=ClipLines;
+      If N>0 Then Begin
+       Tail:=Copy(S,Col+1,80);
+       If N=1 Then Begin
+        TX^[Row]:=Copy(Copy(S,1,Col)+ClipLine(1)+Tail,1,72);
+        Col:=Min2(Length(Copy(S,1,Col)+ClipLine(1)),72);
+       End Else Begin
+        If TXN+N-1>MAXTXT Then N:=MAXTXT-TXN+1;
+        For I:=TXN DownTo Row+1 Do TX^[I+N-1]:=TX^[I];
+        Inc(TXN,N-1);
+        TX^[Row]:=Copy(Copy(S,1,Col)+ClipLine(1),1,72);
+        For I:=2 To N-1 Do TX^[Row+I-1]:=ClipLine(I);
+        TX^[Row+N-1]:=Copy(ClipLine(N)+Tail,1,72);
+        Row:=Row+N-1;Col:=Length(ClipLine(N));
+       End;
+      End;
      End;
     25: Begin
       For I:=Row To TXN-1 Do TX^[I]:=TX^[I+1];
@@ -5083,6 +5263,11 @@ Begin
  MAdd(2,T('Tout marquer~Mark all~Alle markieren~Marcar todo~Segna tutto'),15);
  MAdd(2,T('Tout d@emarquer~Unmark all~Alle demarkieren~Desmarcar todo~Desele'
    +'ziona tutto'),16);
+ MAdd(2,'-',0);
+ MAdd(2,T('Copier|Ctrl+C~Copy|Ctrl+C~Kopieren|Strg+C~Copiar|Ctrl+C~Copia|Ctr'
+   +'l+C'),120);
+ MAdd(2,T('Coller|Ctrl+V~Paste|Ctrl+V~Einf@3gen|Strg+V~Pegar|Ctrl+V~Incolla|'
+   +'Ctrl+V'),121);
  MAdd(2,'-',0);
  MAdd(2,T('Nouveau contact~New contact~Neuer Kontakt~Nuevo contacto~Nuovo co'
    +'ntatto'),17);
@@ -7760,6 +7945,10 @@ Begin
    +' activity~Eintrag markieren / Aktivit@1t erledigen'));
  TxAdd('  Ctrl+N / Ctrl+F     '+T('Nouvelle entr@ee / Rechercher~New entry /'
    +' Find~Neuer Eintrag / Suchen'));
+ TxAdd('  '+T('Clic droit / F9~Right click / F9~Rechtsklick / F9')+'       '
+   +T('Menu contextuel~Context menu~Kontextmen@3')+'');
+ TxAdd('  Ctrl+C / Ctrl+V     '+T('Copier / coller (presse-papiers)~Copy / p'
+   +'aste (clipboard)~Kopieren / Einf@3gen (Zwischenablage)'));
  TxAdd('  F4                  '+T('Liste de valeurs dans un formulaire~Value'
    +' list in a form~Wertliste im Formular'));
  TxAdd('  F2                  '+T('Valider un formulaire / un texte~Accept a'
@@ -7787,6 +7976,364 @@ Begin
    +'ascal / Free Pascal.~Maximizer CRM clone for Turbo Pascal / Free Pascal'
    +'.~Maximizer-CRM-Klon f@3r Turbo Pascal / Free Pascal.')+' (c) Sylvain M'
    +'altais - gladir.com/office-0');
+End;
+
+{ ====================================================================== }
+{              MENUS CONTEXTUELS (CLIC DROIT) ET COPIER / COLLER         }
+{ ====================================================================== }
+
+Const
+ MAXPM = 24;
+
+Var
+ PML : Array[1..MAXPM] Of String[44];
+ PMC : Array[1..MAXPM] Of Integer;
+ PME : Array[1..MAXPM] Of Boolean;
+ PMN : Integer;
+
+Procedure PMAdd(Const L: String; Cm: Integer; En: Boolean);
+Begin
+ If PMN>=MAXPM Then Exit;
+ Inc(PMN);PML[PMN]:=L;PMC[PMN]:=Cm;PME[PMN]:=En;
+End;
+
+Procedure PMSep;
+Begin
+ If (PMN>0) And (PML[PMN]<>'-') Then PMAdd('-',0,False);
+End;
+
+Function PMH(I: Integer): Integer;
+Begin
+ If PML[I]='-' Then PMH:=8 Else PMH:=16;
+End;
+
+{ affiche le menu et retourne la commande choisie (0 = aucune) }
+Function PopupRun(X,Y: Integer): Integer;
+Var I,W,H,L,Hi,Yy: Integer; E: TEvent; Done,Redraw: Boolean; Res: Integer;
+ Function ItemAt(PX,PY: Integer): Integer;
+ Var K,Y0: Integer;
+ Begin
+  ItemAt:=0;
+  If (PX<X) Or (PX>X+W) Then Exit;
+  Y0:=Y+3;
+  For K:=1 To PMN Do Begin
+   If (PY>=Y0) And (PY<Y0+PMH(K)) And (PML[K]<>'-') And PME[K] Then ItemAt:=K;
+   Inc(Y0,PMH(K));
+  End;
+ End;
+ Function Step(From,Dir: Integer): Integer;
+ Var K,N: Integer;
+ Begin
+  K:=From;N:=0;
+  Repeat
+   K:=K+Dir;
+   If K<1 Then K:=PMN;
+   If K>PMN Then K:=1;
+   Inc(N);
+  Until ((PML[K]<>'-') And PME[K]) Or (N>PMN);
+  Step:=K;
+ End;
+Begin
+ While (PMN>0) And (PML[PMN]='-') Do Dec(PMN);
+ W:=0;H:=6;
+ For I:=1 To PMN Do Begin
+  L:=Length(PML[I])*8+40;
+  If PML[I]='-' Then L:=0;
+  If L>W Then W:=L;
+  Inc(H,PMH(I));
+ End;
+ If X+W>SCR_W-2 Then X:=SCR_W-2-W;
+ If Y+H>SCR_H-2 Then Y:=SCR_H-2-H;
+ If X<2 Then X:=2;
+ If Y<2 Then Y:=2;
+ Hi:=0;Res:=0;Done:=False;Redraw:=True;
+ Repeat
+  If Redraw Then Begin
+   HideMouse;
+   Raised(X,Y,X+W,Y+H);
+   Yy:=Y+3;
+   For I:=1 To PMN Do Begin
+    If PML[I]='-' Then Begin
+     Ln(X+3,Yy+3,X+W-3,Yy+3,cDGr);Ln(X+3,Yy+4,X+W-3,Yy+4,cWht);
+    End Else Begin
+     If I=Hi Then Begin
+      Bx(X+3,Yy,X+W-3,Yy+15,cNavy);Tx_(X+20,Yy+4,PML[I],cWht);
+     End Else If PME[I] Then Tx_(X+20,Yy+4,PML[I],cBlk)
+     Else Tx_(X+20,Yy+4,PML[I],cDGr);
+    End;
+    Inc(Yy,PMH(I));
+   End;
+   ShowMouse;
+   Redraw:=False;
+  End;
+  PollEvent(E);
+  Case E.Kind Of
+   4: Begin
+       I:=ItemAt(E.X,E.Y);
+       If (I<>Hi) And (I<>0) Then Begin Hi:=I;Redraw:=True;End;
+      End;
+   2,5: Begin
+         I:=ItemAt(E.X,E.Y);
+         If I>0 Then Begin Res:=PMC[I];Done:=True;End
+         Else If Not InBox(E.X,E.Y,X,Y,X+W,Y+H) Then Done:=True;
+        End;
+   1: Case E.Key Of
+       K_ESC: Done:=True;
+       K_UP: Begin Hi:=Step(Hi,-1);Redraw:=True;End;
+       K_DOWN: Begin Hi:=Step(Hi,1);Redraw:=True;End;
+       K_ENTER: If Hi>0 Then Begin Res:=PMC[Hi];Done:=True;End;
+      End;
+  End;
+ Until Done;
+ PopupRun:=Res;
+End;
+
+{ ---- copier / coller ---- }
+
+Function GridRowText(Var G: TGrid): String;
+Var S: String; J: Integer; Sl: LongInt;
+Begin
+ S:='';
+ Sl:=GridSelSlot(G);
+ If (Sl>=0) And RowGet(G.TI,Sl,RB) Then
+  For J:=1 To G.NC Do Begin
+   If J>1 Then S:=S+#9;
+   S:=S+FmtFld(G.TI,RB,G.CF[J]);
+  End;
+ GridRowText:=S;
+End;
+
+Procedure CopyAppt(Slot: LongInt);
+Begin
+ If (Slot<0) Or Not RowGet(tAP,Slot,RBF) Then Exit;
+ ClipClear;
+ ClipAdd('[APPT]'+SG(tAP,RBF,'KIND')+'|'+SG(tAP,RBF,'AT')+'|'+SG(tAP,RBF,'ET')
+   +'|'+IntStr(NG(tAP,RBF,'ENTRY_ID')));
+ ClipAdd(SG(tAP,RBF,'SUBJ'));
+ ClipAdd(SG(tAP,RBF,'NOTES'));
+ ClipPush;
+End;
+
+Procedure CopyCur;
+Var I: Integer; Sl: LongInt;
+Begin
+ ClipClear;
+ If Modu In [4,5] Then Begin
+  If Modu=4 Then CopyAppt(GridSelSlot(GMain)) Else CopyAppt(GridSelSlot(GSubR));
+  Exit;
+ End;
+ If (Modu In [2,8]) And (Foc=2) Then Begin
+  If Not ReadEntry Then Exit;
+  ClipAdd(SG(tAB,RBE,'NAME'));
+  ClipAdd(SG(tAB,RBE,'ADDR1'));
+  ClipAdd(SG(tAB,RBE,'CITY')+', '+SG(tAB,RBE,'STATE')+' '+SG(tAB,RBE,'ZIP'));
+  ClipAdd(SG(tAB,RBE,'COUNTRY'));
+  ClipAdd(T('T@el. : ~Phone: ~Tel.: ~Tel.: ~Tel.: ')+SG(tAB,RBE,'PHONE'));
+  ClipAdd(T('Courriel : ~Email: ~E-Mail: ~Correo: ~E-mail: ')+SG(tAB,RBE,
+    'EMAIL'));
+  ClipPush;Exit;
+ End;
+ If (Modu In [2,8]) And (Foc=4) And (TabR=1) Then Begin
+  Sl:=GridSelSlot(GSubR);
+  If (Sl>=0) And RowGet(tNO,Sl,RBF) Then Begin
+   TextLoad('N',GetN(tNO,RBF,1));
+   If TXN=0 Then TxAdd(SG(tNO,RBF,'BODY'));
+   For I:=1 To TXN Do ClipAdd(TX^[I]);
+   ClipPush;
+  End;
+  Exit;
+ End;
+ If (Modu In [2,8]) And (Foc=3) Then ClipAdd(GridRowText(GSubL))
+ Else If (Modu In [2,8]) And (Foc=4) Then ClipAdd(GridRowText(GSubR))
+ Else If (Modu=9) And (Foc=3) Then ClipAdd(GridRowText(GSubL))
+ Else ClipAdd(GridRowText(GMain));
+ ClipPush;
+End;
+
+Procedure PasteAppt;
+Var L1,Subj,Notes: String; K: Char; At,Et: String; En: LongInt; P,Q: Integer;
+Begin
+ ClipPull;
+ If ClipLines=0 Then Begin
+  Info(T('Le presse-papiers est vide.~The clipboard is empty.~Die Zwischenab'
+    +'lage ist leer.~El portapapeles est@a vac@io.~Gli appunti sono vuoti.'));
+  Exit;
+ End;
+ L1:=ClipLine(1);K:='T';At:=NextHour;Et:=At;En:=CurId;
+ If Copy(L1,1,6)='[APPT]' Then Begin
+  K:=L1[7];
+  Delete(L1,1,8);
+  P:=Pos('|',L1);At:=Copy(L1,1,P-1);Delete(L1,1,P);
+  P:=Pos('|',L1);Et:=Copy(L1,1,P-1);Delete(L1,1,P);
+  En:=ValInt(L1,CurId);
+  Subj:=ClipLine(2);Notes:=ClipLine(3);
+ End Else Begin Subj:=L1;Notes:=ClipLine(2);End;
+ NewRow(tAP,RBF);
+ SN(tAP,RBF,'ENTRY_ID',En);SS(tAP,RBF,'KIND',K);
+ If Modu=5 Then SN(tAP,RBF,'AD',CalDate) Else SN(tAP,RBF,'AD',SessDate);
+ SS(tAP,RBF,'AT',At);SS(tAP,RBF,'ET',Et);SS(tAP,RBF,'SUBJ',Subj);
+ SS(tAP,RBF,'NOTES',Notes);SS(tAP,RBF,'OWNER',UserCode);SN(tAP,RBF,'PRIO',2);
+ If RowAdd(tAP,RBF)=0 Then Info(DbErr);
+ TblFlush(tAP);ReloadAll;
+End;
+
+Procedure PasteNote;
+Var I: Integer;
+Begin
+ If Not NeedEntry Then Exit;
+ ClipPull;
+ If ClipLines=0 Then Begin
+  Info(T('Le presse-papiers est vide.~The clipboard is empty.~Die Zwischenab'
+    +'lage ist leer.~El portapapeles est@a vac@io.~Gli appunti sono vuoti.'));
+  Exit;
+ End;
+ TXN:=0;
+ For I:=1 To ClipLines Do TxAdd(ClipLine(I));
+ If EditText(T('Texte de la note~Note text~Notiztext~Texto de la nota~Testo '
+   +'della nota')) Then Begin
+  If TXN<1 Then Begin TXN:=1;TX^[1]:='';End;
+  If AddNote(CurId,NoteKindName(0),'',False)=0 Then ;
+  Touch(CurId);ReloadAll;
+ End;
+End;
+
+Procedure PasteCur;
+Begin
+ If Modu In [4,5] Then PasteAppt
+ Else If Modu In [2,8] Then PasteNote
+ Else Info(T('Rien @a coller ici.~Nothing to paste here.~Hier kann nichts ei'
+   +'ngef@3gt werden.~Nada que pegar aqu@i.~Niente da incollare qui.'));
+End;
+
+{ duplique le rendez-vous choisi, une semaine plus tard }
+Procedure DupAppt;
+Var Sl: LongInt;
+Begin
+ If Modu=4 Then Sl:=GridSelSlot(GMain) Else Sl:=GridSelSlot(GSubR);
+ If (Sl<0) Or Not RowGet(tAP,Sl,RBF) Then Exit;
+ SN(tAP,RBF,'ID',0);
+ SN(tAP,RBF,'AD',AddDays(NG(tAP,RBF,'AD'),7));
+ SN(tAP,RBF,'DONE',0);
+ If RowAdd(tAP,RBF)=0 Then Info(DbErr);
+ TblFlush(tAP);ReloadAll;
+End;
+
+{ ---- contenu du menu contextuel selon le module et le volet ---- }
+
+Procedure BuildContext;
+Var Sel,HasClip: Boolean;
+Begin
+ PMN:=0;
+ ClipPull;
+ HasClip:=ClipLines>0;
+ Case Modu Of
+  5: Begin
+      Sel:=GSubR.N>0;
+      PMAdd(T('Nouvelle r@eunion~New meeting~Neue Besprechung~Nueva reuni@on'
+        +'~Nuova riunione'),57,True);
+      PMAdd(T('Nouvel appel~New phone call~Neuer Anruf~Nueva llamada~Nuova c'
+        +'hiamata'),59,True);
+      PMAdd(T('Nouvelle t@qche~New to-do~Neue Aufgabe~Nueva tarea~Nuova atti'
+        +'vit@q'),58,True);
+      PMAdd(T('Plan d''action...~Action plan...~Aktionsplan...~Plan de acci'
+        +'@on...~Piano d''azione...'),60,True);
+      PMSep;
+      PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+      PMAdd(T('Marquer comme termin@e~Mark as done~Als erledigt markieren~Ma'
+        +'rcar hecho~Segna come fatto'),67,Sel);
+      PMAdd(T('Dupliquer (+7 jours)~Duplicate (+7 days)~Duplizieren (+7 Tage'
+        +')~Duplicar (+7 d@ias)~Duplica (+7 giorni)'),127,Sel);
+      PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+      PMSep;
+      PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+      PMAdd(T('Coller~Paste~Einf@3gen~Pegar~Incolla'),121,HasClip);
+      PMSep;
+      PMAdd(T('Aujourd''hui~Today~Heute~Hoy~Oggi'),122,True);
+      PMAdd(T('Mois pr@ec@edent~Previous month~Vormonat~Mes anterior~Mese pr'
+        +'ecedente'),123,True);
+      PMAdd(T('Mois suivant~Next month~N@1chster Monat~Mes siguiente~Mese su'
+        +'ccessivo'),124,True);
+      PMAdd(T('Aller @a une date...~Go to date...~Gehe zu Datum...~Ir a fech'
+        +'a...~Vai a data...'),47,True);
+      PMSep;
+      PMAdd(T('Agenda de la semaine~Weekly agenda~Wochenagenda~Agenda semana'
+        +'l~Agenda settimanale'),88,True);
+      PMAdd(T('Activit@es en cours~Pending activities~Offene Aktivit@1ten~Ac'
+        +'tividades~Attivit@q'),87,True);
+     End;
+  2,8: Begin
+      If Foc=2 Then Begin
+       Sel:=GMain.N>0;
+       PMAdd(T('Modifier l''entr@ee~Edit entry~Eintrag bearbeiten~Editar ent'
+         +'rada~Modifica voce'),10,Sel);
+       PMAdd(T('Nouvelle entr@ee~New entry~Neuer Eintrag~Nueva entrada~Nuova'
+         +' voce'),1,True);
+       PMAdd(T('Dupliquer~Duplicate~Duplizieren~Duplicar~Duplica'),13,Sel);
+       PMAdd(T('Marquer / d@emarquer~Mark / unmark~Markieren~Marcar~Segna'
+         ),14,Sel);
+       PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+       PMSep;
+       PMAdd(T('Note...~Note...~Notiz...~Nota...~Nota...'),51,Sel);
+       PMAdd(T('Courriel...~Email...~E-Mail...~Correo...~E-mail...'),50,Sel);
+       PMAdd(T('Passer un appel...~Make a call...~Anruf...~Llamar...~Chiama.'
+         +'..'),55,Sel);
+       PMAdd(T('R@eunion...~Meeting...~Besprechung...~Reuni@on...~Riunione..'
+         +'.'),57,Sel);
+       PMAdd(T('@A faire...~To-do...~Aufgabe...~Tarea...~Da fare...'),58,Sel);
+       PMAdd(T('Opportunit@e...~Opportunity...~Verkaufschance...~Oportunidad'
+         +'...~Opportunit@q...'),66,Sel);
+       PMAdd(T('Plan d''action...~Action plan...~Aktionsplan...~Plan de acci'
+         +'@on...~Piano d''azione...'),60,Sel);
+       PMSep;
+       PMAdd(T('Copier les coordonn@ees~Copy details~Daten kopieren~Copiar d'
+         +'atos~Copia dati'),120,Sel);
+       PMAdd(T('Coller en note~Paste as note~Als Notiz einf@3gen~Pegar como '
+         +'nota~Incolla come nota'),121,HasClip And Sel);
+       PMSep;
+       PMAdd(T('Rechercher...~Find...~Suchen...~Buscar...~Cerca...'),40,True);
+       PMAdd(T('Tout afficher~Show all~Alle anzeigen~Mostrar todo~Mostra tut'
+         +'to'),45,True);
+      End Else Begin
+       If Foc=3 Then Sel:=GSubL.N>0 Else Sel:=GSubR.N>0;
+       PMAdd(T('Nouveau~New~Neu~Nuevo~Nuovo'),12,True);
+       PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+       PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+       PMSep;
+       PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+       PMAdd(T('Coller en note~Paste as note~Als Notiz einf@3gen~Pegar como '
+         +'nota~Incolla come nota'),121,HasClip);
+       PMSep;
+       PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+      End;
+     End;
+  4: Begin
+      Sel:=GMain.N>0;
+      PMAdd(T('Marquer comme termin@e~Mark as done~Als erledigt markieren~Ma'
+        +'rcar hecho~Segna come fatto'),67,Sel);
+      PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+      PMAdd(T('Dupliquer (+7 jours)~Duplicate (+7 days)~Duplizieren (+7 Tage'
+        +')~Duplicar (+7 d@ias)~Duplica (+7 giorni)'),127,Sel);
+      PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+      PMSep;
+      PMAdd(T('Nouveau~New~Neu~Nuevo~Nuovo'),12,True);
+      PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+      PMAdd(T('Coller~Paste~Einf@3gen~Pegar~Incolla'),121,HasClip);
+      PMSep;
+      PMAdd(T('Activit@es en cours~Pending activities~Offene Aktivit@1ten~Ac'
+        +'tividades~Attivit@q'),87,True);
+      PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+     End;
+  Else Begin
+      If (Modu=9) And (Foc=3) Then Sel:=GSubL.N>0 Else Sel:=GMain.N>0;
+      PMAdd(T('Nouveau~New~Neu~Nuevo~Nuovo'),12,True);
+      PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+      PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+      PMSep;
+      PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+      PMSep;
+      PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+     End;
+ End;
 End;
 
 { ====================================================================== }
@@ -8093,6 +8640,9 @@ End;
 {                       COMMANDES DE L'APPLICATION                       }
 { ====================================================================== }
 
+Procedure CalKey(K: Word); Forward;
+Procedure ContextKey; Forward;
+
 Procedure DoCmd(Cm: Integer);
 Var Dt: String;
 Begin
@@ -8161,6 +8711,7 @@ Begin
   64: ActEnvelope(True);
   65: ActTimer;
   66: ActOpp;
+  67: ToggleDone;
   70: MailMerge;
   71: SqlConsole;
   72: Calculator;
@@ -8205,6 +8756,12 @@ Begin
          +'R BY status');
   92: RepLabels;
   100..109: SetupCmd(Cm);
+  120: CopyCur;
+  121: PasteCur;
+  122: Begin CalDate:=SessDate;If Modu=5 Then CalLoad;End;
+  123: CalKey(K_PGUP);
+  124: CalKey(K_PGDN);
+  127: DupAppt;
   110,111: HelpText;
   112: AboutBox;
  End;
@@ -8384,6 +8941,9 @@ Begin
   K_F5: Begin DoCmd(29);Exit;End;
   K_F6: Begin DoCmd(21);Exit;End;
   14: Begin DoCmd(1);Exit;End;
+  3: Begin DoCmd(120);Exit;End;
+  22: Begin DoCmd(121);Exit;End;
+  K_F9,256+93: Begin ContextKey;Exit;End;
   6: Begin DoCmd(40);Exit;End;
   K_TAB: Begin CycleFocus(1);Exit;End;
   K_STAB: Begin CycleFocus(-1);Exit;End;
@@ -8395,8 +8955,13 @@ Begin
       K_ENTER: Begin Foc:=2;Dirty:=True;End;
      End;
   2: Begin
-      If (Modu=5) Then Begin CalKey(K);If K=K_ENTER Then DoCmd(12);If K=K_INS
-        Then DoCmd(12);Exit;End;
+      If (Modu=5) Then Begin
+       CalKey(K);
+       If (K=K_ENTER) Or (K=K_INS) Then DoCmd(12);
+       If K=K_DEL Then DoCmd(11);
+       If K=32 Then ToggleDone;
+       Exit;
+      End;
       If Modu=1 Then Exit;
       If GridKey(GMain,K) Then AfterMove
       Else Case K Of
@@ -8597,6 +9162,59 @@ Begin
  If (X>=CX1) And (Y>=WORK_Y) And (Y<STAT_Y) Then ModuleMouse(X,Y);
 End;
 
+{ selectionne l'element sous le curseur sans l'activer (clic droit) }
+Procedure RightSelect(X,Y: LongInt);
+Var R,Yr,Mo,I: Integer; First,Dd: LongInt;
+ Function Pick(Var G: TGrid; F: Integer): Boolean;
+ Begin
+  Pick:=False;
+  If InBox(X,Y,G.X1,G.Y1+16,G.X2-14,G.Y2) Then Begin
+   R:=GridClick(G,X,Y);
+   Foc:=F;Pick:=True;
+  End;
+ End;
+Begin
+ Case Modu Of
+  2,8: If Not Pick(GMain,2) Then
+        If Not Pick(GSubL,3) Then
+         If TabR In [1,3,5] Then If Pick(GSubR,4) Then ;
+  3,4,6,7: If Pick(GMain,2) Then ;
+  9: If Not Pick(GMain,2) Then If Pick(GSubL,3) Then ;
+  5: Begin
+      Yr:=CalDate Div 10000;Mo:=(CalDate Div 100) Mod 100;
+      If InBox(X,Y,CX1+2,AB_Y1+16,CX1+7*CalW+1,AB_Y1+15+6*CalH) Then Begin
+       First:=WeekDay(Yr*10000+Mo*100+1);
+       Dd:=((Y-AB_Y1-16) Div CalH)*7+((X-CX1-2) Div CalW)-First+1;
+       If (Dd>=1) And (Dd<=DaysInMonth(Yr,Mo)) Then Begin
+        CalDate:=Yr*10000+Mo*100+Dd;CalLoad;
+       End;
+       Foc:=2;
+      End Else If Pick(GSubR,4) Then ;
+     End;
+ End;
+ AfterMove;
+End;
+
+Procedure MouseRight(X,Y: LongInt);
+Var Cm: Integer;
+Begin
+ If (Y<WORK_Y) Or (X<CX1) Or (Y>=STAT_Y) Or (Modu=1) Then Exit;
+ NoDbl:=True;
+ RightSelect(X,Y);
+ NoDbl:=False;
+ DrawAll;
+ BuildContext;
+ Cm:=PopupRun(X,Y);
+ Dirty:=True;
+ If Cm>0 Then DoCmd(Cm);
+End;
+
+Procedure ContextKey;
+Begin
+ If Modu=1 Then Exit;
+ MouseRight(CX1+90,AB_Y1+34);
+End;
+
 Procedure ShowTip;
 Var I: Integer;
 Begin
@@ -8617,6 +9235,7 @@ Begin
   Case E.Kind Of
    1: HandleKey(E.Key);
    2: MouseDown(E.X,E.Y);
+   5: MouseRight(E.X,E.Y);
    4: ShowTip;
   End;
  Until Quit;
@@ -8701,6 +9320,8 @@ BEGIN
  GetMem(TX,SizeOf(TTxtArr));
  GetMem(PickIt,SizeOf(TStrArr));
  GetMem(RBE,SizeOf(TRec));
+ GetMem(ClipP,SizeOf(TBig));
+ ClipLen:=0;NoDbl:=False;
  TXN:=0;PickN:=0;
  FillChar(UdfNm,SizeOf(UdfNm),0);
  FillChar(UdfKd,SizeOf(UdfKd),'T');
