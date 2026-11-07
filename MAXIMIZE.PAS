@@ -5116,6 +5116,7 @@ Const
 
 Var
  STAT_Y,CX2,AB_Y2,PANE_Y,BODY_Y,BODY_Y2,LW,Mid2,CalW,CalH : Integer;
+ WdPanel  : Integer;
  RBE      : PRec;
  Modu     : Integer;
  Foc      : Integer;
@@ -5861,6 +5862,30 @@ Begin
  LoadSubs;
 End;
 
+{ creneau de l'activite choisie selon le module }
+Function ApptSlot: LongInt;
+Begin
+ Case Modu Of
+  1: If WdPanel In [1,2] Then ApptSlot:=GridSelSlot(GW[WdPanel]) Else
+    ApptSlot:=-1;
+  4: ApptSlot:=GridSelSlot(GMain);
+  Else ApptSlot:=GridSelSlot(GSubR);
+ End;
+End;
+
+{ entree liee a la ligne choisie dans Ma journee }
+Function WdEntryId: LongInt;
+Var S: LongInt;
+Begin
+ WdEntryId:=0;
+ S:=GridSelSlot(GW[WdPanel]);
+ If S<0 Then Exit;
+ If RowGet(GW[WdPanel].TI,S,RB) Then Begin
+  If WdPanel=4 Then WdEntryId:=GetN(tAB,RB,1)
+  Else WdEntryId:=NG(GW[WdPanel].TI,RB,'ENTRY_ID');
+ End;
+End;
+
 { synchronise l'entree courante avec la ligne choisie }
 Procedure SyncCur;
 Var Id: LongInt; S: LongInt;
@@ -5873,6 +5898,17 @@ Begin
          CurId:=Id;LoadSubs;
         End;
        End;
+  1: Begin
+      Id:=WdEntryId;
+      If Id>0 Then CurId:=Id;
+     End;
+  5: Begin
+      S:=GridSelSlot(GSubR);
+      If (S>=0) And RowGet(tAP,S,RB) Then Begin
+       Id:=NG(tAP,RB,'ENTRY_ID');
+       If Id>0 Then CurId:=Id;
+      End;
+     End;
   3,4,6,9: If (S>=0) And RowGet(GMain.TI,S,RB) Then Begin
         Id:=NG(GMain.TI,RB,'ENTRY_ID');
         If Id>0 Then CurId:=Id;
@@ -6136,7 +6172,7 @@ Begin
  DrawPanelTitle(CX1+HW+2,PANE_Y+4,CX2-2,T('Entr@ees r@ecemment modifi@ees~Re'
    +'cently modified entries~K@3rzlich ge@1ndert'));
  GridArea(GW[4],CX1+HW+2,BODY_Y,CX2-2,BODY_Y2);
- For I:=1 To 4 Do Begin GW[I].Foc:=False;GridDraw(GW[I]);End;
+ For I:=1 To 4 Do Begin GW[I].Foc:=(I=WdPanel) And (Foc=2);GridDraw(GW[I]);End;
 End;
 
 Procedure DrawOpps;
@@ -7562,7 +7598,7 @@ End;
 Procedure ToggleDone;
 Var S: LongInt; TI: Integer;
 Begin
- If Modu=4 Then S:=GridSelSlot(GMain) Else S:=GridSelSlot(GSubR);
+ S:=ApptSlot;
  If S<0 Then Exit;
  If RowGet(tAP,S,RBF) Then Begin
   If NG(tAP,RBF,'DONE')=0 Then SN(tAP,RBF,'DONE',1) Else SN(tAP,RBF,'DONE',0);
@@ -7714,6 +7750,11 @@ End;
 Procedure CtxNew;
 Begin
  Case Modu Of
+  1: Case WdPanel Of
+      1,2: ActAppt('T');
+      3: Begin If CurId<=0 Then CurId:=PickEntryDlg;ActOpp;End;
+      Else NewEntry;
+     End;
   2,8: Case Foc Of
     3: Case TabL Of
         1: Begin If NeedEntry Then NewSub(tCO,'','ENTRY_ID,',T('Nouveau cont'
@@ -7743,6 +7784,13 @@ Procedure CtxEdit;
 Var S: LongInt;
 Begin
  Case Modu Of
+  1: Case WdPanel Of
+      1,2: EditSlot(tAP,GridSelSlot(GW[WdPanel]),'','',T('Activit@e~Activity'
+        +'~Aktivit@1t'));
+      3: EditSlot(tOP,GridSelSlot(GW[3]),'','CREATED,',T('Opportunit@e~Oppor'
+        +'tunity~Verkaufschance'));
+      Else EditEntry;
+     End;
   2,8: Case Foc Of
     3: Begin S:=GridSelSlot(GSubL);
         Case TabL Of
@@ -7785,6 +7833,11 @@ Procedure CtxDel;
 Var S: LongInt;
 Begin
  Case Modu Of
+  1: Case WdPanel Of
+      1,2: DelSlot(tAP,GridSelSlot(GW[WdPanel]));
+      3: DelSlot(tOP,GridSelSlot(GW[3]));
+      Else DeleteCur;
+     End;
   2,8: Case Foc Of
     3: Begin S:=GridSelSlot(GSubL);
         Case TabL Of
@@ -8157,8 +8210,11 @@ Procedure CopyCur;
 Var I: Integer; Sl: LongInt;
 Begin
  ClipClear;
- If Modu In [4,5] Then Begin
-  If Modu=4 Then CopyAppt(GridSelSlot(GMain)) Else CopyAppt(GridSelSlot(GSubR));
+ If (Modu=1) And (WdPanel>2) Then Begin
+  ClipAdd(GridRowText(GW[WdPanel]));ClipPush;Exit;
+ End;
+ If Modu In [1,4,5] Then Begin
+  CopyAppt(ApptSlot);
   Exit;
  End;
  If (Modu In [2,8]) And (Foc=2) Then Begin
@@ -8238,7 +8294,7 @@ End;
 
 Procedure PasteCur;
 Begin
- If Modu In [4,5] Then PasteAppt
+ If Modu In [1,4,5] Then PasteAppt
  Else If Modu In [2,8] Then PasteNote
  Else Info(T('Rien @a coller ici.~Nothing to paste here.~Hier kann nichts ei'
    +'ngef@3gt werden.~Nada que pegar aqu@i.~Niente da incollare qui.'));
@@ -8248,7 +8304,7 @@ End;
 Procedure DupAppt;
 Var Sl: LongInt;
 Begin
- If Modu=4 Then Sl:=GridSelSlot(GMain) Else Sl:=GridSelSlot(GSubR);
+ Sl:=ApptSlot;
  If (Sl<0) Or Not RowGet(tAP,Sl,RBF) Then Exit;
  SN(tAP,RBF,'ID',0);
  SN(tAP,RBF,'AD',AddDays(NG(tAP,RBF,'AD'),7));
@@ -8549,7 +8605,9 @@ End;
 Procedure OppStage(Mode: Integer);
 Var S: LongInt; I,K,Cur,Best: Integer; Nm: String;
 Begin
- S:=GridSelSlot(GSubL);
+ If Modu=1 Then S:=GridSelSlot(GW[3])
+ Else If Modu=3 Then S:=GridSelSlot(GMain)
+ Else S:=GridSelSlot(GSubL);
  If (S<0) Or Not RowGet(tOP,S,RBF) Then Exit;
  Cur:=NG(tOP,RBF,'PROB');
  Best:=-1;Nm:='';
@@ -8626,6 +8684,139 @@ Begin
  ShowFilter:=0;FilterSql:='';FilterName:='';
  LoadMain;GridGoto(GMain,Id);Foc:=2;
  SelectEntry(Id);
+End;
+
+{ ---- Ma journee : actions des panneaux ---- }
+
+Procedure OpenEntryCur;
+Var Id: LongInt;
+Begin
+ If Not NeedEntry Then Exit;
+ Id:=CurId;
+ SetModule(2);
+ ShowFilter:=0;FilterSql:='';FilterName:='';
+ LoadMain;GridGoto(GMain,Id);
+ SelectEntry(Id);
+End;
+
+{ reporte l'activite choisie (1 demain, 2 une semaine, 3 lundi, 4 date) }
+Procedure Postpone(Mode: Integer);
+Var Sl,Base,Nd: LongInt; Dt: String; K: Integer;
+Begin
+ Sl:=ApptSlot;
+ If (Sl<0) Or Not RowGet(tAP,Sl,RBF) Then Exit;
+ Base:=NG(tAP,RBF,'AD');
+ If Base<SessDate Then Base:=SessDate;
+ Case Mode Of
+  1: Nd:=AddDays(Base,1);
+  2: Nd:=AddDays(Base,7);
+  3: Begin
+      K:=(8-WeekDay(SessDate)) Mod 7;
+      If K=0 Then K:=7;
+      Nd:=AddDays(SessDate,K);
+     End;
+  Else Begin
+   Dt:=FmtDate(Base);
+   If Not InputBox(T('Reporter~Postpone~Verschieben'),T('Nouvelle date :~New'
+     +' date:~Neues Datum:'),Dt,12) Then Exit;
+   If Not ParseDate(Dt,Nd) Then Begin
+    Info(T('Date invalide.~Invalid date.~Ung@3ltiges Datum.'));Exit;
+   End;
+  End;
+ End;
+ If RowGet(tAP,Sl,RBF) Then Begin
+  SN(tAP,RBF,'AD',Nd);
+  If RowPut(tAP,Sl,RBF) Then ;
+ End;
+ TblFlush(tAP);ReloadAll;
+End;
+
+{ copie toutes les lignes d'une grille }
+Procedure CopyAllRows(Var G: TGrid);
+Var I: LongInt; S: String; J: Integer;
+Begin
+ ClipClear;
+ For I:=1 To G.N Do
+  If RowGet(G.TI,G.Sl^[I],RB2) Then Begin
+   S:='';
+   For J:=1 To G.NC Do Begin
+    If J>1 Then S:=S+#9;
+    S:=S+FmtFld(G.TI,RB2,G.CF[J]);
+   End;
+   ClipAdd(S);
+  End;
+ ClipPush;
+End;
+
+Procedure BuildWd;
+Var Sel: Boolean; P: Integer;
+Begin
+ P:=WdPanel;
+ Sel:=GW[P].N>0;
+ If P In [1,2] Then Begin
+  PMAdd(T('Marquer comme termin@e~Mark as done~Als erledigt markieren~Marcar'
+    +' hecho~Segna come fatto'),67,Sel);
+  PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+  PMSub(T('Reporter~Postpone~Verschieben~Aplazar~Rinvia'),11,Sel);
+  PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Apri v'
+    +'oce'),195,Sel And (CurId>0));
+  PMSep;
+  PMSub(T('Nouvelle activit@e~New activity~Neue Aktivit@1t'),12,True);
+  PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel And (CurId>0));
+  PMSep;
+  PMAdd(T('Dupliquer (+7 jours)~Duplicate (+7 days)~Duplizieren (+7 Tage)'
+    ),127,Sel);
+  PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+  PMSep;
+  PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+  PMAdd(T('Coller~Paste~Einf@3gen~Pegar~Incolla'),121,ClipLines>0);
+  PMAdd(T('Copier tout le panneau~Copy whole panel~Ganzes Feld kopieren'
+    ),190,Sel);
+  PMSep;
+  PMAdd(T('Agenda de la semaine~Weekly agenda~Wochenagenda'),88,True);
+  PMAdd(T('Activit@es en cours~Pending activities~Offene Aktivit@1ten'
+    ),87,True);
+  PMAdd('Hotlist',23,True);
+  PMAdd(T('Calendrier~Calendar~Kalender~Calendario~Calendario'),24,True);
+ End Else If P=3 Then Begin
+  PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+  PMSub(T('@Etape~Stage~Phase'),9,Sel);
+  PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Apri v'
+    +'oce'),195,Sel And (CurId>0));
+  PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel And (CurId>0));
+  PMSep;
+  PMAdd(T('Nouvelle opportunit@e~New opportunity~Neue Verkaufschance'),12,True);
+  PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+  PMSep;
+  PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+  PMAdd(T('Copier tout le panneau~Copy whole panel~Ganzes Feld kopieren'
+    ),190,Sel);
+  PMSep;
+  PMAdd(T('Rapport des opportunit@es~Opportunities report~Chancenbericht'
+    ),83,True);
+  PMAdd(T('Entonnoir des ventes~Sales pipeline~Verkaufstrichter'),84,True);
+  PMAdd(T('Pr@evisions par mois~Forecast by month~Prognose pro Monat'),85,True);
+  PMAdd(T('Module Opportunit@es~Opportunities module~Modul Verkaufschancen'
+    ),22,True);
+ End Else Begin
+  PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Apri v'
+    +'oce'),195,Sel);
+  PMAdd(T('Modifier l''entr@ee~Edit entry~Eintrag bearbeiten~Editar entrada~'
+    +'Modifica voce'),10,Sel);
+  PMSub(T('Nouveau~New~Neu~Nuevo~Nuovo'),1,Sel);
+  PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel);
+  PMSub(T('Imprimer / rapports~Print / reports~Drucken / Berichte'),3,Sel);
+  PMSep;
+  PMSub(T('Copier~Copy~Kopieren~Copiar~Copia'),8,Sel);
+  PMAdd(T('Copier tout le panneau~Copy whole panel~Ganzes Feld kopieren'
+    ),190,Sel);
+  PMSep;
+  PMAdd(T('Nouvelle entr@ee~New entry~Neuer Eintrag'),1,True);
+  PMAdd(T('Carnet d''adresses~Address Book~Adressbuch~Direcciones~Rubrica'
+    ),21,True);
+ End;
+ PMSep;
+ PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
 End;
 
 { ---- sous-menus ---- }
@@ -8736,6 +8927,25 @@ Begin
       PMAdd(T('@Etape suivante~Next stage~N@1chste Phase'),179,True);
       PMAdd(T('@Etape pr@ec@edente~Previous stage~Vorherige Phase'),180,True);
      End;
+  11: Begin
+      PMAdd(T('Demain~Tomorrow~Morgen'),191,True);
+      PMAdd(T('Dans une semaine~In one week~In einer Woche'),192,True);
+      PMAdd(T('Lundi prochain~Next Monday~N@1chsten Montag'),193,True);
+      PMAdd(T('Choisir une date...~Pick a date...~Datum w@1hlen...'),194,True);
+     End;
+  12: Begin
+      PMAdd(T('R@eunion...~Meeting...~Besprechung...'),57,True);
+      PMAdd(T('Appel...~Phone call...~Anruf...'),59,True);
+      PMAdd(T('@A faire...~To-do...~Aufgabe...'),58,True);
+      PMAdd(T('Plan d''action...~Action plan...~Aktionsplan...'),60,CurId>0);
+     End;
+  13: Begin
+      PMAdd(T('Courriel...~Email...~E-Mail...'),50,CurId>0);
+      PMAdd(T('Passer un appel...~Make a call...~Anruf...'),55,CurId>0);
+      PMAdd(T('Note...~Note...~Notiz...'),51,CurId>0);
+      PMAdd(T('Lettre...~Letter...~Brief...'),52,CurId>0);
+      PMAdd(T('R@eunion...~Meeting...~Besprechung...'),57,CurId>0);
+     End;
   10: Begin
       PMAdd(T('Nom~Name~Name'),174,True);
       PMAdd(T('T@el@ephone~Phone~Telefon'),175,True);
@@ -8753,6 +8963,30 @@ Begin
  ClipPull;
  HasClip:=ClipLines>0;
  Case Modu Of
+  1: BuildWd;
+  3: Begin
+      Sel:=GMain.N>0;
+      PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+      PMSub(T('@Etape~Stage~Phase'),9,Sel);
+      PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Ap'
+        +'ri voce'),195,Sel);
+      PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel);
+      PMSep;
+      PMAdd(T('Nouvelle opportunit@e~New opportunity~Neue Verkaufschance'
+        ),12,True);
+      PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
+      PMSep;
+      PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
+      PMAdd(T('Copier tout~Copy all~Alles kopieren'),196,Sel);
+      PMSep;
+      PMAdd(T('Rapport des opportunit@es~Opportunities report~Chancenbericht'
+        ),83,True);
+      PMAdd(T('Entonnoir des ventes~Sales pipeline~Verkaufstrichter'),84,True);
+      PMAdd(T('Pr@evisions par mois~Forecast by month~Prognose pro Monat'
+        ),85,True);
+      PMSep;
+      PMAdd(T('Actualiser~Refresh~Aktualisieren~Actualizar~Aggiorna'),29,True);
+     End;
   5: Begin
       Sel:=GSubR.N>0;
       PMAdd(T('Nouvelle r@eunion~New meeting~Neue Besprechung~Nueva reuni@on'
@@ -8767,8 +9001,12 @@ Begin
       PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
       PMAdd(T('Marquer comme termin@e~Mark as done~Als erledigt markieren~Ma'
         +'rcar hecho~Segna come fatto'),67,Sel);
+      PMSub(T('Reporter~Postpone~Verschieben~Aplazar~Rinvia'),11,Sel);
       PMAdd(T('Dupliquer (+7 jours)~Duplicate (+7 days)~Duplizieren (+7 Tage'
         +')~Duplicar (+7 d@ias)~Duplica (+7 giorni)'),127,Sel);
+      PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Ap'
+        +'ri voce'),195,Sel And (CurId>0));
+      PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel And (CurId>0));
       PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
       PMSep;
       PMAdd(T('Copier~Copy~Kopieren~Copiar~Copia'),120,Sel);
@@ -8918,8 +9156,12 @@ Begin
       PMAdd(T('Marquer comme termin@e~Mark as done~Als erledigt markieren~Ma'
         +'rcar hecho~Segna come fatto'),67,Sel);
       PMAdd(T('Modifier~Edit~Bearbeiten~Editar~Modifica'),10,Sel);
+      PMSub(T('Reporter~Postpone~Verschieben~Aplazar~Rinvia'),11,Sel);
       PMAdd(T('Dupliquer (+7 jours)~Duplicate (+7 days)~Duplizieren (+7 Tage'
         +')~Duplicar (+7 d@ias)~Duplica (+7 giorni)'),127,Sel);
+      PMAdd(T('Ouvrir l''entr@ee~Open entry~Eintrag @2ffnen~Abrir entrada~Ap'
+        +'ri voce'),195,Sel And (CurId>0));
+      PMSub(T('Contacter~Contact~Kontaktieren'),13,Sel And (CurId>0));
       PMAdd(T('Supprimer~Delete~L@3schen~Eliminar~Elimina'),11,Sel);
       PMSep;
       PMAdd(T('Nouveau~New~Neu~Nuevo~Nuovo'),12,True);
@@ -9410,6 +9652,10 @@ Begin
   185: PickNoteFilter(2);
   186: CopyDocPath;
   187: NewOrder;
+  190: CopyAllRows(GW[WdPanel]);
+  191..194: Postpone(Cm-190);
+  195: OpenEntryCur;
+  196: CopyAllRows(GMain);
   110,111: HelpText;
   112: AboutBox;
  End;
@@ -9610,7 +9856,20 @@ Begin
        If K=32 Then ToggleDone;
        Exit;
       End;
-      If Modu=1 Then Exit;
+      If Modu=1 Then Begin
+       If GridKey(GW[WdPanel],K) Then AfterMove
+       Else Case K Of
+        K_LEFT,K_PGUP: Begin If WdPanel>1 Then Dec(WdPanel) Else WdPanel:=4;
+          AfterMove;End;
+        K_RIGHT,K_PGDN: Begin If WdPanel<4 Then Inc(WdPanel) Else WdPanel:=1;
+          AfterMove;End;
+        K_ENTER: DoCmd(10);
+        K_INS: DoCmd(12);
+        K_DEL: DoCmd(11);
+        32: If WdPanel In [1,2] Then ToggleDone;
+       End;
+       Exit;
+      End;
       If GridKey(GMain,K) Then AfterMove
       Else Case K Of
        K_ENTER: DoCmd(10);
@@ -9678,7 +9937,9 @@ Begin
   1: Begin
       For I:=1 To 4 Do
        If InBox(X,Y,GW[I].X1,GW[I].Y1,GW[I].X2,GW[I].Y2) Then Begin
+        WdPanel:=I;Foc:=2;
         R:=GridClick(GW[I],X,Y);
+        SyncCur;
         If (R=1) And IsDouble(X,Y) Then Begin
          If I=4 Then Begin
           If RowGet(tAB,GridSelSlot(GW[4]),RB) Then Begin
@@ -9826,6 +10087,13 @@ Begin
   2,8: If Not Pick(GMain,2) Then
         If Not Pick(GSubL,3) Then
          If TabR In [1,3,5] Then If Pick(GSubR,4) Then ;
+  1: Begin
+      For I:=1 To 4 Do
+       If InBox(X,Y,GW[I].X1,GW[I].Y1,GW[I].X2,GW[I].Y2) Then Begin
+        WdPanel:=I;Foc:=2;
+        If Pick(GW[I],2) Then ;
+       End;
+     End;
   3,4,6,7: If Pick(GMain,2) Then ;
   9: If Not Pick(GMain,2) Then If Pick(GSubL,3) Then ;
   5: Begin
@@ -9846,7 +10114,7 @@ End;
 Procedure MouseRight(X,Y: LongInt);
 Var Cm: Integer;
 Begin
- If (Y<WORK_Y) Or (X<CX1) Or (Y>=STAT_Y) Or (Modu=1) Then Exit;
+ If (Y<WORK_Y) Or (X<CX1) Or (Y>=STAT_Y) Then Exit;
  NoDbl:=True;
  RightSelect(X,Y);
  NoDbl:=False;
@@ -9859,8 +10127,8 @@ End;
 
 Procedure ContextKey;
 Begin
- If Modu=1 Then Exit;
- MouseRight(CX1+90,AB_Y1+34);
+ If Modu=1 Then MouseRight(GW[WdPanel].X1+60,GW[WdPanel].Y1+34)
+ Else MouseRight(CX1+90,AB_Y1+34);
 End;
 
 Procedure ShowTip;
@@ -10005,7 +10273,7 @@ BEGIN
  End;
  Quit:=False;Dirty:=True;ToolBarOn:=True;StatusOn:=True;
  StatMsg:='';TipIdx:=0;
- Modu:=2;Foc:=2;TabL:=1;TabR:=1;CurId:=0;
+ Modu:=2;Foc:=2;TabL:=1;TabR:=1;CurId:=0;WdPanel:=1;
  ShowFilter:=0;FilterSql:='';FilterName:='';NFilt:=0;NMark:=0;
  NoteType:='';NotePer:=1;HotMode:=4;CalDate:=SessDate;MailFold:='I';
  FillChar(Recent,SizeOf(Recent),0);
