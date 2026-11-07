@@ -3296,10 +3296,13 @@ End;
 
 Function InputBox(Const Title,Prompt: String; Var S: String;
   Max: Integer): Boolean;
-Var X1,Y1,X2,Y2,Cur: Integer; E: TEvent; Done,Ok,Sel,Redraw: Boolean; V: String;
+Var X1,Y1,X2,Y2,Cur,W: Integer; E: TEvent; Done,Ok,Sel,Redraw: Boolean; V:
+  String;
 Begin
  V:=S;Cur:=Length(V);Sel:=True;
- X1:=(SCR_W-440) Div 2;Y1:=(SCR_H-120) Div 2;X2:=X1+440;Y2:=Y1+120;
+ W:=440+(SCR_W-640) Div 4;
+ If W>760 Then W:=760;
+ X1:=(SCR_W-W) Div 2;Y1:=(SCR_H-120) Div 2;X2:=X1+W;Y2:=Y1+120;
  Backdrop;
  DlgFrame(X1,Y1,X2,Y2,Title);
  Tx_(X1+16,Y1+34,Prompt,cBlk);
@@ -3333,9 +3336,10 @@ Begin
  W:=300;
  For I:=1 To PickN Do If Length(PickIt^[I])*8+40>W Then
    W:=Length(PickIt^[I])*8+40;
- If W>520 Then W:=520;
+ If W>520+(SCR_W-640) Div 3 Then W:=520+(SCR_W-640) Div 3;
  Vis:=PickN;
- If Vis>15 Then Vis:=15;
+ If Vis>(SCR_H-130) Div 14 Then Vis:=(SCR_H-130) Div 14;
+ If Vis>40 Then Vis:=40;
  If Vis<3 Then Vis:=3;
  X1:=(SCR_W-W) Div 2;X2:=X1+W;
  Y1:=(SCR_H-(Vis*14+90)) Div 2;Y2:=Y1+Vis*14+90;
@@ -3430,7 +3434,7 @@ Begin
    DlgFrame(X1,Y1,X2,Y2,Title);
    Sunken(X1+8,Y1+26,X2-8,Y2-44,cWht);
    For I:=0 To Vis-1 Do
-    If Top+I<=TXN Then Tx_(X1+12,Y1+30+I*11,Copy(TX^[Top+I],Lft+1,74),cBlk);
+    If Top+I<=TXN Then Tx_(X1+12,Y1+30+I*11,Copy(TX^[Top+I],Lft+1,78),cBlk);
    Btn(X1+20,Y2-36,X1+110,Y2-14,T('&Imprimer~&Print~&Drucken~&Imprimir~&Stam'
      +'pa'),False);
    Btn(X1+130,Y2-36,X1+220,Y2-14,T('&Fermer~&Close~&Schlie@7en~&Cerrar~&Chiu'
@@ -4674,8 +4678,12 @@ Begin
  FormEdit:=False;
  Setup;
  If NF=0 Then Exit;
- Vis:=NF;If Vis>12 Then Vis:=12;
- W:=520;X1:=(SCR_W-W) Div 2;X2:=X1+W;
+ Vis:=NF;
+ If Vis>(SCR_H-140) Div 22 Then Vis:=(SCR_H-140) Div 22;
+ If Vis>26 Then Vis:=26;
+ W:=520+(SCR_W-640) Div 3;
+ If W>900 Then W:=900;
+ X1:=(SCR_W-W) Div 2;X2:=X1+W;
  Y1:=(SCR_H-(Vis*22+90)) Div 2;Y2:=Y1+Vis*22+90;
  Cur:=1;Top:=1;Done:=False;Ok:=False;Redraw:=True;Sel:=True;CPos:=Length(FV[1]);
  Backdrop;
@@ -9593,10 +9601,12 @@ End;
 { ====================================================================== }
 {                       ECRAN D'ACCUEIL                                  }
 { ====================================================================== }
+{ L'image occupe tout l'ecran : sa taille suit la definition obtenue
+  (640x480 par defaut, davantage avec -maxscreen).                         }
 
 Const
- NNET = 240;
- NEDG = 720;
+ NNET = 600;
+ NEDG = 1800;
 
 Var
  UiReady  : Boolean;
@@ -9604,14 +9614,18 @@ Var
  SeedKind : Integer;           { 0 rien, 1 base vide, 2 exemple }
  DirGiven : Boolean;
  GfxOn    : Boolean;
+ NetN     : Integer;
  NetX,NetY: Array[1..NNET] Of Integer;
- NetA,NetB: Array[1..NEDG] Of Byte;
+ NetA,NetB: Array[1..NEDG] Of Integer;
  NetE     : Integer;
  NetOk    : Boolean;
  Seed     : LongInt;
- SplOX,SplOY : Integer;
  CfgNew   : String[40];
  J_       : Integer;
+ { geometrie de l'accueil }
+ SpS      : Integer;           { echelle en % (100 = 640x480) }
+ BX1,BY1,BX2,BY2 : Integer;    { cadre de la banniere }
+ BtnY,BtnW : Integer;
 
 Function Rnd(M: Integer): Integer;
 Begin
@@ -9619,25 +9633,75 @@ Begin
  Rnd:=Integer((Seed Div 7) Mod M);
 End;
 
-Function InZone(X,Y: Integer): Boolean;
+Function Sz(Base,Cap: Integer): Integer;
+Var V: Integer;
 Begin
- InZone:=(Sqr(LongInt(X)-320)+Sqr(LongInt(Y)-112)<2800) Or
-   InBox(X,Y,36,162,604,246);
+ V:=(Base*SpS+50) Div 100;
+ If V<1 Then V:=1;
+ If V>Cap Then V:=Cap;
+ Sz:=V;
+End;
+
+Procedure SplashGeom;
+Var A,B: Integer;
+Begin
+ A:=SCR_W*100 Div 640;B:=SCR_H*100 Div 480;
+ If A<B Then SpS:=A Else SpS:=B;
+ If SpS<100 Then SpS:=100;
+ BX1:=20;BX2:=SCR_W-21;
+ BY1:=24+8*Sz(3,6);
+ BY2:=SCR_H-142;
+ BtnY:=SCR_H-124;
+ BtnW:=(SCR_W-38) Div 3;
+End;
+
+{ centre du monogramme et rayon }
+Function MedY: Integer;
+Begin
+ MedY:=BY1+(BY2-BY1)*22 Div 100;
+End;
+
+Function MedR: Integer;
+Begin
+ MedR:=44*SpS Div 100;
+End;
+
+Function NameY: Integer;
+Begin
+ NameY:=BY1+(BY2-BY1)*43 Div 100;
+End;
+
+Function TagY: Integer;
+Begin
+ TagY:=NameY+8*Sz(5,10)+6*SpS Div 100;
+End;
+
+Function InZone(X,Y: Integer): Boolean;
+Var R: LongInt;
+Begin
+ R:=MedR+8;
+ InZone:=(Sqr(LongInt(X)-SCR_W Div 2)+Sqr(LongInt(Y)-MedY)<R*R) Or
+   InBox(X,Y,BX1+16,NameY-8,BX2-16,TagY+8*Sz(2,6)+8);
 End;
 
 { reseau de points lumineux relies par des lignes dorees }
 Procedure NetBuild;
-Var N,I,J,B1,B2,B3: Integer; D,D1,D2,D3: LongInt;
+Var N,I,J,B1,B2,B3: Integer; D,D1,D2,D3,Lim: LongInt;
 Begin
+ SplashGeom;
+ NetN:=Integer(240*LongInt(BX2-BX1)*(BY2-BY1) Div (590*290));
+ If NetN>NNET Then NetN:=NNET;
+ If NetN<60 Then NetN:=60;
+ Lim:=6400*LongInt(SpS)*SpS Div 10000;
  Seed:=12345;N:=0;
- While N<NNET Do Begin
-  I:=26+Rnd(588);J:=52+Rnd(284);
+ While N<NetN Do Begin
+  I:=BX1+6+Rnd(BX2-BX1-12);J:=BY1+4+Rnd(BY2-BY1-8);
   If Not InZone(I,J) Then Begin Inc(N);NetX[N]:=I;NetY[N]:=J;End;
  End;
  NetE:=0;
- For I:=1 To NNET Do Begin
-  B1:=0;B2:=0;B3:=0;D1:=6400;D2:=6400;D3:=6400;
-  For J:=1 To NNET Do
+ For I:=1 To NetN Do Begin
+  B1:=0;B2:=0;B3:=0;D1:=Lim;D2:=Lim;D3:=Lim;
+  For J:=1 To NetN Do
    If J<>I Then Begin
     D:=Sqr(LongInt(NetX[I]-NetX[J]))+Sqr(LongInt(NetY[I]-NetY[J]));
     If D<D1 Then Begin D3:=D2;B3:=B2;D2:=D1;B2:=B1;D1:=D;B1:=J;End
@@ -9655,52 +9719,58 @@ Begin
 End;
 
 { texte agrandi : metal argente (Metal) ou dore }
-Procedure BigText(CX,Y,Sz: Integer; Const S: String; Metal: Boolean);
-Var X: Integer;
+Procedure BigText(CX,Y,Size: Integer; Const S: String; Metal: Boolean);
+Var X,O: Integer;
 Begin
- SetTextStyle(DefaultFont,HorizDir,Sz);
+ SetTextStyle(DefaultFont,HorizDir,Size);
  X:=CX-TextWidth(S) Div 2;
+ O:=(Size+2) Div 3;
  If Metal Then Begin
-  Tx_(X+3,Y+3,S,cBlk);Tx_(X+2,Y+2,S,cDGr);
-  Tx_(X+1,Y+1,S,cLGr);Tx_(X,Y,S,cWht);
+  Tx_(X+3*O,Y+3*O,S,cBlk);Tx_(X+2*O,Y+2*O,S,cDGr);
+  Tx_(X+O,Y+O,S,cLGr);Tx_(X,Y,S,cWht);
  End Else Begin
-  Tx_(X+2,Y+2,S,cBlk);Tx_(X+1,Y+1,S,cBrn);Tx_(X,Y,S,cYel);
+  Tx_(X+2*O,Y+2*O,S,cBlk);Tx_(X+O,Y+O,S,cBrn);Tx_(X,Y,S,cYel);
  End;
  SetTextStyle(DefaultFont,HorizDir,1);
 End;
 
 Procedure SplashBanner;
-Var I,X,Y,Dx,Dy: Integer;
+Var I,X,Y,Dx,Dy,R,Cx,Cy,NS: Integer; D2: LongInt; Dd: Real;
 Begin
  If Not NetOk Then NetBuild;
+ Cx:=SCR_W Div 2;Cy:=MedY;R:=MedR;
  { cadre dore et fond bleu nuit }
- Bx(20,48,619,338,cNavy);
- Rc(20,48,619,338,cYel);Rc(22,50,617,336,cBrn);
+ Bx(BX1,BY1,BX2,BY2,cNavy);
+ Rc(BX1,BY1,BX2,BY2,cYel);Rc(BX1+2,BY1+2,BX2-2,BY2-2,cBrn);
  { etoiles }
  Seed:=777;
- For I:=1 To 90 Do Begin
-  X:=24+Rnd(592);Y:=54+Rnd(280);
+ NS:=Integer(90*LongInt(BX2-BX1)*(BY2-BY1) Div (590*290));
+ If NS>600 Then NS:=600;
+ For I:=1 To NS Do Begin
+  X:=BX1+4+Rnd(BX2-BX1-8);Y:=BY1+4+Rnd(BY2-BY1-8);
   If Odd(I) Then PutPixel(X,Y,cLCy) Else PutPixel(X,Y,cWht);
  End;
  { lignes dorees }
  For I:=1 To NetE Do Begin
   Dx:=NetX[NetA[I]]-NetX[NetB[I]];Dy:=NetY[NetA[I]]-NetY[NetB[I]];
-  If Sqr(LongInt(Dx))+Sqr(LongInt(Dy))<1300 Then
+  If Sqr(LongInt(Dx))+Sqr(LongInt(Dy))<1300*LongInt(SpS)*SpS Div 10000 Then
    Ln(NetX[NetA[I]],NetY[NetA[I]],NetX[NetB[I]],NetY[NetB[I]],cYel)
   Else Ln(NetX[NetA[I]],NetY[NetA[I]],NetX[NetB[I]],NetY[NetB[I]],cBrn);
  End;
  { rayons vers le monogramme }
  J_:=0;
- For I:=1 To NNET Do Begin
-  Dx:=NetX[I]-320;Dy:=NetY[I]-112;
-  If (Sqr(LongInt(Dx))+Sqr(LongInt(Dy))>4900) And
-     (Sqr(LongInt(Dx))+Sqr(LongInt(Dy))<19000) And (J_<14) Then Begin
+ For I:=1 To NetN Do Begin
+  Dx:=NetX[I]-Cx;Dy:=NetY[I]-Cy;
+  D2:=Sqr(LongInt(Dx))+Sqr(LongInt(Dy));
+  If (D2>Sqr(LongInt(R)*3 Div 2)) And (D2<Sqr(LongInt(R)*3)) And (J_<20) Then
+    Begin
    Inc(J_);
-   Ln(NetX[I],NetY[I],320+Dx*44 Div 70,112+Dy*44 Div 70,cBrn);
+   Dd:=Sqrt(D2);
+   Ln(NetX[I],NetY[I],Cx+Round(Dx*R/Dd),Cy+Round(Dy*R/Dd),cBrn);
   End;
  End;
  { points lumineux }
- For I:=1 To NNET Do Begin
+ For I:=1 To NetN Do Begin
   X:=NetX[I];Y:=NetY[I];
   If I Mod 8=0 Then Begin
    Bx(X-2,Y-2,X+2,Y+2,cYel);Bx(X-1,Y-1,X+1,Y+1,cWht);
@@ -9709,26 +9779,27 @@ Begin
   End;
  End;
  { monogramme M dore }
- SetFillStyle(SolidFill,cBlk);FillEllipse(323,115,45,45);
- SetFillStyle(SolidFill,cYel);FillEllipse(320,112,44,44);
- SetFillStyle(SolidFill,cBrn);FillEllipse(320,112,40,40);
- SetFillStyle(SolidFill,cNavy);FillEllipse(320,112,37,37);
- BigText(320,88,6,'M',False);
+ SetFillStyle(SolidFill,cBlk);FillEllipse(Cx+3,Cy+3,R+1,R+1);
+ SetFillStyle(SolidFill,cYel);FillEllipse(Cx,Cy,R,R);
+ SetFillStyle(SolidFill,cBrn);FillEllipse(Cx,Cy,R-4,R-4);
+ SetFillStyle(SolidFill,cNavy);FillEllipse(Cx,Cy,R-7,R-7);
+ BigText(Cx,Cy-4*Sz(6,10),Sz(6,10),'M',False);
  { nom en lettres argentees }
- BigText(320,172,5,APP_NAME,True);
- BigText(320,224,2,T('L''empire des relations~The empire of relationships~Da'
-   +'s Imperium der Beziehungen~El imperio de las relaciones~L''impero delle'
-   +' relazioni'),False);
+ BigText(Cx,NameY,Sz(5,10),APP_NAME,True);
+ BigText(Cx,TagY,Sz(2,6),T('L''empire des relations~The empire of relationsh'
+   +'ips~Das Imperium der Beziehungen~El imperio de las relaciones~L''impero'
+   +' delle relazioni'),False);
 End;
 
 Procedure SplashBtn(I: Integer; Const L: String);
 Var X1: Integer;
 Begin
- X1:=14+(I-1)*209;
- Raised(X1,356,X1+204,388);
- UTx(X1+(204-TextW(L)) Div 2,368,L,cBlk);
+ X1:=14+(I-1)*(BtnW+5);
+ Raised(X1,BtnY,X1+BtnW-5,BtnY+32);
+ UTx(X1+(BtnW-5-TextW(L)) Div 2,BtnY+12,L,cBlk);
  If SpFoc=I Then Begin
-  Rc(X1-1,355,X1+205,389,cYel);FocusRect(X1+3,359,X1+201,385);
+  Rc(X1-1,BtnY-1,X1+BtnW-4,BtnY+33,cYel);
+  FocusRect(X1+3,BtnY+3,X1+BtnW-8,BtnY+29);
  End;
 End;
 
@@ -9748,21 +9819,19 @@ Procedure SplashDraw;
 Var I: Integer;
 Begin
  HideMouse;
+ If Not NetOk Then NetBuild;
  SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
  Bx(0,0,SCR_W-1,SCR_H-1,cBlk);
- SplOX:=(SCR_W-640) Div 2;SplOY:=(SCR_H-480) Div 2;
- SetViewPort(SplOX,SplOY,SplOX+639,SplOY+479,True);
- BigText(320,12,3,APP_NAME,True);
+ BigText(SCR_W Div 2,12,Sz(3,6),APP_NAME,True);
  SplashBanner;
  For I:=1 To 3 Do SplashBtn(I,SplashLbl(I));
- Tx_(14,402,T('Fl@eches / Tab : choisir    Entr@ee : valider    Echap : quit'
-   +'ter~Arrows / Tab: choose    Enter: accept    Esc: quit~Pfeile / Tab: w'
-   +'@1hlen    Enter: best@1tigen    Esc: Ende~Flechas / Tab: elegir    Intr'
-   +'o: aceptar    Esc: salir~Frecce / Tab: scegli    Invio: conferma    Esc'
-   +': esci'),cDGr);
- Tx_(14,462,'Maximilien CRM '+VERSION_TEXT+'  -  MyISAM / SQL  -  gladir.com'
-   +'/office-0',cDGr);
- SetViewPort(0,0,SCR_W-1,SCR_H-1,True);
+ Tx_(14,BtnY+46,T('Fl@eches / Tab : choisir    Entr@ee : valider    Echap : '
+   +'quitter~Arrows / Tab: choose    Enter: accept    Esc: quit~Pfeile / Tab'
+   +': w@1hlen    Enter: best@1tigen    Esc: Ende~Flechas / Tab: elegir    I'
+   +'ntro: aceptar    Esc: salir~Frecce / Tab: scegli    Invio: conferma    '
+   +'Esc: esci'),cDGr);
+ Tx_(14,SCR_H-18,'Maximilien CRM '+VERSION_TEXT+'  -  MyISAM / SQL  -  gladi'
+   +'r.com/office-0',cDGr);
  ShowMouse;
 End;
 
@@ -9873,8 +9942,8 @@ Begin
    End;
   End Else If E.Kind=2 Then Begin
    For I:=1 To 3 Do
-    If InBox(E.X-SplOX,E.Y-SplOY,14+(I-1)*209,356,18+(I-1)*209+200,388) Then
-      Begin
+    If InBox(E.X,E.Y,14+(I-1)*(BtnW+5),BtnY,14+(I-1)*(BtnW+5)+BtnW-5,BtnY+32)
+      Then Begin
      SpFoc:=I;Pick:=I;
     End;
   End;

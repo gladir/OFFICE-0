@@ -438,7 +438,7 @@ d'exemple), copie de sécurité <code>.BAK</code>, rapports exportables en texte
 
 <h2>MAXIMIZE : Maximilien CRM (clone de Maximizer CRM)</h2>
 <ul>
-<li><code>MAXIMIZE [/D:dossier] [/U:code] [-maxscreen]</code> (<code>-maxscreen</code> : résolution maximale disponible, Free Pascal seulement ; la disposition s'adapte à l'écran) : écran d'accueil (bannière dessinée « L'empire des relations ») avec trois boutons :
+<li><code>MAXIMIZE [/D:dossier] [/U:code] [-maxscreen]</code> (<code>-maxscreen</code> : résolution maximale disponible, Free Pascal seulement ; l'écran d'accueil, la disposition et les boîtes de dialogue occupent tout l'écran) : écran d'accueil (bannière dessinée « L'empire des relations ») avec trois boutons :
 lancer l'exemple, créer un nouveau CRM vide ou ouvrir un CRM existant (<code>/D:</code> l'ignore et ouvre directement le dossier) ; gestion de la relation client avec menus classiques (pas de ruban), en français par défaut,
 en anglais avec <code>LANGUAGE=EN</code>, en allemand avec <code>LANGUAGE=GR</code>, en espagnol avec <code>LANGUAGE=SP</code>
 et en italien avec <code>LANGUAGE=IT</code> ; tout le code est dans <code>MAXIMIZE.PAS</code>.</li>
