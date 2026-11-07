@@ -26,7 +26,7 @@ Aperçu du clone d'Access :
 
 <img width="638" height="475" alt="image" src="https://github.com/user-attachments/assets/975ff2d1-e9ec-4966-b614-393b2c3a2f1d" />
 
-Aperçu du clone d'Acrobat :
+Aperçu du clone de l'éditeur PDF :
 
 <img width="636" height="476" alt="image" src="https://github.com/user-attachments/assets/31715206-7b6d-4965-914e-1e1c4ab26d54" />
 
@@ -100,7 +100,7 @@ Aperçu du clone de Quattro :
 	</tr>
 </table>
 
-Aperçu du clone de Simply Accounting :
+Aperçu du clone de Sample Accounting :
 
 <img width="642" height="484" alt="image" src="https://github.com/user-attachments/assets/5c732dbb-452c-46ed-bb6d-c8849fefd947" />
 
@@ -183,7 +183,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>
 	<tr>
 		<td><b>SIMPLY.PAS</b></td>
-		<td>Cette commande permet de lancer un clone de Simply Accounting.</td>
+		<td>Cette commande permet de lancer un clone de Sample Accounting.</td>
 	</tr>
     <tr>
       <td><b>VISIO.PAS</b></td>
