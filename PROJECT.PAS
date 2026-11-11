@@ -6740,34 +6740,146 @@ Begin
  NeedFullRedraw := True;
 End;
 
+{ Dessine l'image "La route vers le succes - Etapes et jalons".            }
+{ Taille de base 380 x 96 ; Sc = echelle en pourcent (100 = taille normale) }
+Procedure DrawSuccessRoad(BX, BY, Sc: Integer);
+Const
+ RoadX: Array[0..6] Of Integer = (190, 120, 220, 140, 230, 180, 262);
+ RoadY: Array[0..6] Of Integer = ( 96,  84,  70,  56,  44,  32,  22);
+Var
+ I, J, N, Steps, X, Y, HalfW, W0, W1, BW, BH, PX, PY, RX, RY: Integer;
+
+ Function S(V: Integer): Integer;
+ Begin
+  S := V * Sc Div 100;
+ End;
+
+ Procedure Span(Y, XA, XB, Col: Integer);
+ Begin
+  If (Y < 0) Or (Y >= BH) Then Exit;
+  If XA < 0 Then XA := 0;
+  If XB > BW - 1 Then XB := BW - 1;
+  If XA > XB Then Exit;
+  FillBox(BX + XA, BY + Y, BX + XB, BY + Y, Col);
+ End;
+
+ Procedure Tri(AX, AY, LX, RX, YB, Col: Integer);
+ Var YY, XL, XR: Integer;
+ Begin
+  AX := S(AX); AY := S(AY); LX := S(LX); RX := S(RX); YB := S(YB);
+  For YY := AY To YB Do Begin
+   If YB = AY Then Begin XL := AX; XR := AX; End
+   Else Begin
+    XL := AX + (LX - AX) * (YY - AY) Div (YB - AY);
+    XR := AX + (RX - AX) * (YY - AY) Div (YB - AY);
+   End;
+   Span(YY, XL, XR, Col);
+  End;
+ End;
+
+ Procedure Sign(SX, SY: Integer; Const Txt: String);
+ Var SW, FY: Integer;
+ Begin
+  SX := S(SX); SY := S(SY);
+  SW := Length(Txt) * 8 + 6;
+  FillBox(BX + SX + 4, BY + SY + 10, BX + SX + 5, BY + SY + 12 + S(4), CLR_BROWN);
+  FillBox(BX + SX + SW - 6, BY + SY + 10, BX + SX + SW - 5, BY + SY + 12 + S(4), CLR_BROWN);
+  FillBox(BX + SX, BY + SY, BX + SX + SW, BY + SY + 10, CLR_WHITE);
+  SetColor(CLR_BLACK);
+  Rectangle(BX + SX, BY + SY, BX + SX + SW, BY + SY + 10);
+  OutTextXY(BX + SX + 3, BY + SY + 1, Txt);
+  FY := SY - 12;
+  SetColor(CLR_DGRAY);
+  Line(BX + SX + 3, BY + FY, BX + SX + 3, BY + SY);
+  FillBox(BX + SX + 4, BY + FY, BX + SX + 12, BY + FY + 3, CLR_RED);
+  FillBox(BX + SX + 4, BY + FY + 4, BX + SX + 9, BY + FY + 5, CLR_RED);
+ End;
+
+Begin
+ BW := S(380); BH := S(96);
+ { ciel }
+ FillBox(BX, BY, BX + BW - 1, BY + BH - 1, CLR_LCYAN);
+ FillBox(BX, BY, BX + BW - 1, BY + S(20), CLR_CYAN);
+ { soleil et rayons }
+ SetColor(CLR_YELLOW);
+ For I := 0 To S(11) Do Circle(BX + S(335), BY + S(16), I);
+ For I := 0 To 11 Do Begin
+  X := Round(Cos(I * Pi / 6) * S(20)); Y := Round(Sin(I * Pi / 6) * S(20));
+  Line(BX + S(335) + X Div 2, BY + S(16) + Y Div 2, BX + S(335) + X, BY + S(16) + Y);
+ End;
+ { montagnes lointaines, sommet principal, colline }
+ Tri(70, 30, -40, 190, 78, CLR_DGRAY);
+ Tri(275, 8, 150, 420, 78, CLR_BROWN);
+ Tri(275, 8, 262, 288, 17, CLR_WHITE);
+ Tri(315, 34, 270, 360, 78, CLR_GREEN);
+ { prairie }
+ FillBox(BX, BY + S(76), BX + BW - 1, BY + BH - 1, CLR_GREEN);
+ { route sinueuse }
+ N := 0;
+ For I := 0 To 5 Do Begin
+  W0 := S(14 - I * 2); W1 := S(14 - (I + 1) * 2);
+  PX := S(RoadX[I]); PY := S(RoadY[I]);
+  RX := S(RoadX[I + 1]); RY := S(RoadY[I + 1]);
+  Steps := Abs(RX - PX);
+  If Abs(RY - PY) > Steps Then Steps := Abs(RY - PY);
+  If Steps < 1 Then Steps := 1;
+  For J := 0 To Steps Do Begin
+   X := PX + (RX - PX) * J Div Steps;
+   Y := PY + (RY - PY) * J Div Steps;
+   HalfW := W0 + (W1 - W0) * J Div Steps;
+   If HalfW < 1 Then HalfW := 1;
+   FillBox(BX + X - HalfW, BY + Y - 1, BX + X + HalfW, BY + Y + S(1), CLR_DGRAY);
+   Inc(N);
+   If (N Mod 10) < 5 Then
+    FillBox(BX + X, BY + Y, BX + X + S(1) - 1, BY + Y + S(1) - 1, CLR_YELLOW);
+  End;
+ End;
+ { derniere portion jusqu'au sommet + drapeau d'arrivee }
+ SetColor(CLR_DGRAY);
+ Line(BX + S(262), BY + S(22), BX + S(274), BY + S(11));
+ Line(BX + S(263), BY + S(22), BX + S(275), BY + S(11));
+ SetColor(CLR_BLACK);
+ Line(BX + S(275), BY + S(1), BX + S(275), BY + S(10));
+ FillBox(BX + S(275) + 1, BY + S(1), BX + S(275) + 10, BY + S(1) + 4, CLR_LRED);
+ { panneaux des etapes }
+ Sign(244, 82, 'Planification');
+ Sign(  6, 66, 'Execution');
+ Sign(262, 48, 'Controle');
+ Sign( 70, 28, 'Livraison');
+ SetColor(CLR_DGRAY);
+ Rectangle(BX - 1, BY - 1, BX + BW, BY + BH);
+End;
+
 Procedure ActionAbout;
 Var X1, Y1, X2, Y2: Integer; K: Char;
 Begin
- X1 := 120; Y1 := 110; X2 := 520; Y2 := 370;
+ X1 := 40; Y1 := 40; X2 := 600; Y2 := 400;
  HideMouse;
  FillBox(X1 + 4, Y2 + 1, X2 + 4, Y2 + 3, CLR_BLACK);
  FillBox(X2 + 1, Y1 + 4, X2 + 3, Y2 + 3, CLR_BLACK);
  DrawRaised(X1, Y1, X2, Y2, CLR_DLG_BG, CLR_WIN_HI, CLR_WIN_LO);
  FillBox(X1 + 2, Y1 + 2, X2 - 2, Y1 + 15, CLR_DLG_TITLE_BG);
  SetColor(CLR_DLG_TITLE_FG);
- OutTextXY(X1 + 6, Y1 + 4, 'A propos de Office-0 Project');
+ OutTextXY(X1 + 6, Y1 + 4, 'A propos de Davidson Project');
  SetColor(CLR_BLACK);
- OutTextXY(X1 + 16, Y1 + 30, 'Clone de Microsoft Project');
- OutTextXY(X1 + 16, Y1 + 46, 'Office-0 v1.00 - 2026');
- OutTextXY(X1 + 16, Y1 + 62, '(c) Sylvain Maltais - www.gladir.com');
- OutTextXY(X1 + 16, Y1 + 84, 'Fonctionnalites :');
- OutTextXY(X1 + 32, Y1 + 100, '- Vues Gantt, Reseau (PERT), Ressources, Utilisation, Calendrier');
- OutTextXY(X1 + 32, Y1 + 114, '- Algorithme du chemin critique (CPM) avec slacks');
- OutTextXY(X1 + 32, Y1 + 128, '- Lignes de reference + suivi (% acheve, cout reel)');
- OutTextXY(X1 + 32, Y1 + 142, '- Nivellement des ressources');
- OutTextXY(X1 + 32, Y1 + 156, '- Formats : MPX, XML Project 2003, CSV, MPP/MPT/MPD/PPM (CFBF)');
- OutTextXY(X1 + 32, Y1 + 170, '- Insertion images BMP, PCX, GIF');
- OutTextXY(X1 + 32, Y1 + 184, '- Rapports et impression');
- OutTextXY(X1 + 16, Y1 + 206, 'Raccourcis : F1 Aide  Ctrl+S Sauver  Ctrl+O Ouvrir  Ctrl+P Imprimer');
- DrawRaised(X1 + 170, Y2 - 32, X1 + 230, Y2 - 12, CLR_LGRAY,
+ DrawSuccessRoad(X1 + 90, Y1 + 20, 100);
+ SetColor(CLR_BLACK);
+ OutTextXY(X1 + 16, Y1 + 130, 'Clone de Microsoft Project');
+ OutTextXY(X1 + 16, Y1 + 146, 'Office-0 v1.00 - 2026');
+ OutTextXY(X1 + 16, Y1 + 162, '(c) Sylvain Maltais - www.gladir.com');
+ OutTextXY(X1 + 16, Y1 + 184, 'Fonctionnalites :');
+ OutTextXY(X1 + 32, Y1 + 200, '- Vues Gantt, Reseau (PERT), Ressources, Utilisation, Calendrier');
+ OutTextXY(X1 + 32, Y1 + 214, '- Algorithme du chemin critique (CPM) avec slacks');
+ OutTextXY(X1 + 32, Y1 + 228, '- Lignes de reference + suivi (% acheve, cout reel)');
+ OutTextXY(X1 + 32, Y1 + 242, '- Nivellement des ressources');
+ OutTextXY(X1 + 32, Y1 + 256, '- Formats : MPX, XML Project 2003, CSV, MPP/MPT/MPD/PPM (CFBF)');
+ OutTextXY(X1 + 32, Y1 + 270, '- Insertion images BMP, PCX, GIF');
+ OutTextXY(X1 + 32, Y1 + 284, '- Rapports et impression');
+ OutTextXY(X1 + 16, Y1 + 306, 'Raccourcis : F1 Aide  Ctrl+S Sauver  Ctrl+O Ouvrir  Ctrl+P Imprimer');
+ DrawRaised(X1 + 250, Y2 - 32, X1 + 310, Y2 - 12, CLR_LGRAY,
             CLR_WIN_HI, CLR_WIN_LO);
  SetColor(CLR_BLACK);
- OutTextXY(X1 + 195, Y2 - 26, 'OK');
+ OutTextXY(X1 + 275, Y2 - 26, 'OK');
  ShowMouse;
  Repeat
   UpdateMouse;
@@ -6779,7 +6891,7 @@ Begin
    If K = #0 Then ReadKey;
   End;
   If LeftPressed Then
-   If InRect(Mouse.X, Mouse.Y, X1 + 170, Y2 - 32, X1 + 230, Y2 - 12) Then Begin
+   If InRect(Mouse.X, Mouse.Y, X1 + 250, Y2 - 32, X1 + 310, Y2 - 12) Then Begin
     NeedFullRedraw := True; Exit;
    End;
  Until False;
@@ -7569,7 +7681,7 @@ Procedure ShowCommandLineHelp;
 Var HelpOutput: Text;
 Begin
  Assign(HelpOutput,'');Rewrite(HelpOutput);
- WriteLn(HelpOutput,'PROJECT - Gestion graphique de projets en Pascal.');
+ WriteLn(HelpOutput,'Davidson Project - Gestion graphique de projets en Pascal.');
  WriteLn(HelpOutput,'Utilisation : PROJECT [/CLASSICMENU | /RUBANMENU] [fichier] [/?]');
  WriteLn(HelpOutput);
  WriteLn(HelpOutput,'  /CLASSICMENU  Menus classiques, style Project 2003 (par defaut).');
@@ -7587,6 +7699,122 @@ Begin
  WriteLn(HelpOutput,'Alt+T Outils, Alt+P Projet, Alt+N Fenetre, Alt+H Aide.');
  Close(HelpOutput);
 End;
+{ Page d'accueil : retourne 1 = exemple, 2 = nouveau, 3 = projet ouvert }
+Function WelcomeScreen: Integer;
+Const
+ BtnX1 = 170; BtnX2 = 470; BtnY0 = 282; BtnH = 32; BtnGap = 12;
+ BtnTxt: Array[1..3] Of String[24] =
+  ('Lancer un exemple', 'Nouveau projet', 'Ouvrir un projet existant');
+Var
+ Sel, I, Y, Res, Filt, Tw: Integer;
+ K: Char;
+ FName: String;
+ Done, Redraw: Boolean;
+ Phase: Integer;
+
+ { Titre 4 fois plus gros, lettres ondulant comme un drapeau au vent }
+ Procedure DrawWavingTitle;
+ Const Txt = 'Davidson Project';
+ Var C, X, Dy, TW0, CW: Integer; Ch: String;
+ Begin
+  HideMouse;
+  FillBox(0, 172, SCREEN_W - 1, 226, CLR_DLG_BG);
+  SetTextStyle(DefaultFont, HorizDir, 4);
+  TW0 := TextWidth(Txt);
+  X := (SCREEN_W - TW0) Div 2;
+  For C := 1 To Length(Txt) Do Begin
+   Ch := Txt[C];
+   CW := TextWidth(Ch);
+   Dy := Round(Sin((Phase * 12 + C * 28) * Pi / 90) * 5
+        + Sin((Phase * 7 + C * 50) * Pi / 90) * 2);
+   SetColor(CLR_DGRAY);
+   OutTextXY(X + 2, 184 + Dy + 2, Ch);
+   If Odd(C) Then SetColor(CLR_BLUE) Else SetColor(CLR_RED);
+   OutTextXY(X, 184 + Dy, Ch);
+   X := X + CW;
+  End;
+  SetTextStyle(DefaultFont, HorizDir, 1);
+  ShowMouse;
+ End;
+
+ Function BtnTop(N: Integer): Integer;
+ Begin
+  BtnTop := BtnY0 + (N - 1) * (BtnH + BtnGap);
+ End;
+
+ Procedure DrawAll;
+ Var N: Integer;
+ Begin
+  HideMouse;
+  FillBox(0, 0, SCREEN_W - 1, SCREEN_H - 1, CLR_DLG_BG);
+  DrawSuccessRoad((SCREEN_W - 570) Div 2, 24, 150);
+  DrawWavingTitle;
+  SetColor(CLR_DGRAY);
+  Tw := TextWidth('Gestion de projets - La route vers le succes');
+  OutTextXY((SCREEN_W - Tw) Div 2, 232, 'Gestion de projets - La route vers le succes');
+  Tw := TextWidth('Que souhaitez-vous faire ?');
+  SetColor(CLR_BLACK);
+  OutTextXY((SCREEN_W - Tw) Div 2, 258, 'Que souhaitez-vous faire ?');
+  For N := 1 To 3 Do Begin
+   Y := BtnTop(N);
+   DrawRaised(BtnX1, Y, BtnX2, Y + BtnH, CLR_LGRAY, CLR_WIN_HI, CLR_WIN_LO);
+   If N = Sel Then Begin
+    SetColor(CLR_BLACK);
+    Rectangle(BtnX1 + 3, Y + 3, BtnX2 - 3, Y + BtnH - 3);
+   End;
+   SetColor(CLR_BLACK);
+   Tw := TextWidth(BtnTxt[N]);
+   OutTextXY((BtnX1 + BtnX2 - Tw) Div 2, Y + (BtnH - 8) Div 2, BtnTxt[N]);
+  End;
+  SetColor(CLR_DGRAY);
+  Tw := TextWidth('Fleches/Entree ou 1-2-3 pour choisir   -   Echap : nouveau projet');
+  OutTextXY((SCREEN_W - Tw) Div 2, SCREEN_H - 24,
+            'Fleches/Entree ou 1-2-3 pour choisir   -   Echap : nouveau projet');
+  ShowMouse;
+ End;
+
+Begin
+ Sel := 1; Res := 0; Done := False; Redraw := True; Phase := 0;
+ Repeat
+  If Redraw Then Begin DrawAll; Redraw := False; End
+  Else Begin
+   Inc(Phase);
+   DrawWavingTitle;
+   Delay(40);
+  End;
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K := ReadKey;
+    If (K = #72) And (Sel > 1) Then Begin Dec(Sel); Redraw := True; End
+    Else If (K = #80) And (Sel < 3) Then Begin Inc(Sel); Redraw := True; End;
+   End
+   Else If K = #13 Then Res := Sel
+   Else If K = #27 Then Res := 2
+   Else If (K >= '1') And (K <= '3') Then Res := Ord(K) - Ord('0');
+  End;
+  If LeftPressed Then Begin
+   For I := 1 To 3 Do
+    If InRect(Mouse.X, Mouse.Y, BtnX1, BtnTop(I), BtnX2, BtnTop(I) + BtnH) Then Res := I;
+   While LeftPressed Do UpdateMouse;
+  End;
+  If Res = 3 Then Begin
+   FName := ''; Filt := 1;
+   If DoFileDialog(False, FName, Filt) Then Begin
+    If LoadProjectByExt(FName) Then Begin
+     StatusMsg := 'Charge : ' + FName;
+     Done := True;
+    End Else
+     MessageBox('Ouvrir',
+      'Format non encore supporte ou fichier illisible :' + #13 + FName);
+   End;
+   If Not Done Then Begin Res := 0; Redraw := True; End;
+  End Else If Res <> 0 Then Done := True;
+ Until Done;
+ WelcomeScreen := Res;
+End;
+
 Procedure ParseCommandLine;
 Var I,J: Integer;Arg,U: String;
 Begin
@@ -7615,7 +7843,12 @@ BEGIN
  LayoutMenus;
  InitTools;
  InitProject;
- SampleProject;
+ If CommandLineFile='' Then Begin
+  Case WelcomeScreen Of
+   1: SampleProject;
+   2: ActionNew;
+  End;
+ End Else SampleProject;
  If CommandLineFile<>'' Then Begin
   If LoadProjectByExt(CommandLineFile) Then StatusMsg:='Charge : '+CommandLineFile
   Else MessageBox('Ouvrir','Impossible de charger : '+CommandLineFile);
