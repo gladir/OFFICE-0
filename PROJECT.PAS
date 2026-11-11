@@ -310,7 +310,41 @@ Type
   Excs      : Array[1..32] Of TCalExc;
  End;
 
+ TCustProp = Record
+  Name  : String[30];
+  Value : String[60];
+ End;
+
  TProject = Record
+  Author      : String[40];
+  Category    : String[40];
+  Keywords    : String[80];
+  Template    : String[40];
+  HyperBase   : String[80];
+  LastAuthor  : String[40];
+  Revision    : Word;
+  CreatedDt   : TDate;
+  EditMin     : LongInt;
+  Language    : Byte;
+  CurrSym     : String[4];
+  CurrPos     : Byte;
+  CurrDigits  : Byte;
+  DaysPerMonth: Byte;
+  DefStart    : String[5];
+  DefEnd      : String[5];
+  DefTaskType : Byte;
+  AutoCalc    : Boolean;
+  NewAuto     : Boolean;
+  CritSlack   : Byte;
+  FYMonth     : Byte;
+  WeekStart   : Byte;
+  DateFmt     : Byte;
+  DefStdRate  : LongInt;
+  DefOvtRate  : LongInt;
+  Accrue      : Byte;
+  ShowSummary : Boolean;
+  ShowCritical: Boolean;
+  Cust        : Array[1..10] Of TCustProp;
   Title       : String[60];
   Manager     : String[40];
   Company     : String[40];
@@ -542,6 +576,13 @@ Begin
  IsWeekDay := (D >= 1) And (D <= 5);
 End;
 
+Function TodayJDN: TDate;
+Var Y, M, D, W: Word;
+Begin
+ GetDate(Y, M, D, W);
+ TodayJDN := DateToJDN(Y, M, D);
+End;
+
 Function ShortDateStr(JDN: TDate): String;
 Var Y, M, D: Integer; Sd, Sm, Sy: String;
 Begin
@@ -549,8 +590,17 @@ Begin
  JDNToDate(JDN, Y, M, D);
  Str(D, Sd); If Length(Sd) < 2 Then Sd := '0' + Sd;
  Str(M, Sm); If Length(Sm) < 2 Then Sm := '0' + Sm;
- Str(Y Mod 100, Sy); If Length(Sy) < 2 Then Sy := '0' + Sy;
- ShortDateStr := Sd + '/' + Sm + '/' + Sy;
+ Case Project.DateFmt Of
+  1: Begin Str(Y, Sy); ShortDateStr := Sd + '/' + Sm + '/' + Sy; End;
+  2: Begin Str(Y, Sy); ShortDateStr := Sy + '-' + Sm + '-' + Sd; End;
+  3: Begin
+      Str(Y Mod 100, Sy); If Length(Sy) < 2 Then Sy := '0' + Sy;
+      ShortDateStr := Sm + '/' + Sd + '/' + Sy;
+     End;
+ Else
+  Str(Y Mod 100, Sy); If Length(Sy) < 2 Then Sy := '0' + Sy;
+  ShortDateStr := Sd + '/' + Sm + '/' + Sy;
+ End;
 End;
 
 Function MonthName(M: Integer): String;
@@ -1007,8 +1057,10 @@ Begin
  PicCount := 0;
 End;
 
+Var XmlCustIdx: Integer;
+
 Procedure InitProject;
-Var C: PCalendar;
+Var C: PCalendar; CI: Integer;
 Begin
  FreeProject;
  FreePictures;
@@ -1026,6 +1078,20 @@ Begin
  Project.HoursPerWeek := 40;
  Project.ScheduleFrom := 0;
  Project.FileName := '';
+ Project.Author := '';  Project.Category := ''; Project.Keywords := '';
+ Project.Template := ''; Project.HyperBase := ''; Project.LastAuthor := '';
+ Project.Revision := 1; Project.CreatedDt := TodayJDN; Project.EditMin := 0;
+ Project.Language := 0; Project.CurrSym := '$'; Project.CurrPos := 0;
+ Project.CurrDigits := 2; Project.DaysPerMonth := 20;
+ Project.DefStart := '08:00'; Project.DefEnd := '17:00';
+ Project.DefTaskType := 0; Project.AutoCalc := True; Project.NewAuto := True;
+ Project.CritSlack := 0; Project.FYMonth := 1; Project.WeekStart := 0;
+ Project.DateFmt := 0; Project.DefStdRate := 0; Project.DefOvtRate := 0;
+ Project.Accrue := 1; Project.ShowSummary := True; Project.ShowCritical := True;
+ For CI := 1 To 10 Do Begin
+  Project.Cust[CI].Name := ''; Project.Cust[CI].Value := '';
+ End;
+ XmlCustIdx := 0;
  Project.Dirty    := False;
  Project.TaskCount:= 0;
  Project.ResCount := 0;
@@ -2010,7 +2076,7 @@ Begin
  Case A Of
   ACT_NEW,ACT_OPEN,ACT_SAVE,ACT_SAVEAS,ACT_QUIT,ACT_HELP_ABOUT,ACT_INS_TASK,ACT_DELETE,ACT_INDENT,ACT_OUTDENT,
   ACT_LINK,ACT_UNLINK,ACT_ZOOM_IN,ACT_ZOOM_OUT,ACT_ZOOM_FIT,ACT_SCROLL_TASK,ACT_VIEW_GANTT,ACT_VIEW_NET,
-  ACT_VIEW_RES,ACT_VIEW_USAGE,ACT_VIEW_CAL,ACT_PROJ_INFO,ACT_TASKINFO,ACT_RES_SHEET,ACT_TOOL_BASE,
+  ACT_VIEW_RES,ACT_VIEW_USAGE,ACT_VIEW_CAL,ACT_PROJ_INFO,ACT_PROPS,ACT_TASKINFO,ACT_RES_SHEET,ACT_TOOL_BASE,
   ACT_TOOL_LEVEL,ACT_TOOL_TRACK,ACT_INS_PIC,ACT_PRINT,ACT_REPORTS,ACT_RPT_SUM,ACT_RPT_TASKS,ACT_RPT_CRIT,
   ACT_RPT_RES,ACT_RPT_COST,ACT_RPT_MS,ACT_HELP_TOPIC,ACT_HELP_TUTOR:
    RibbonActionEnabled:=True;
@@ -3249,6 +3315,8 @@ Begin
  DD := StrToIntDef(Copy(T, 1, P1 - 1), 0);
  MM := StrToIntDef(Copy(T, P1 + 1, P2 - P1 - 1), 0);
  YY := StrToIntDef(Copy(T, P2 + 1, Length(T) - P2), 0);
+ If DD > 31 Then Begin I := DD; DD := YY; YY := I; End
+ Else If Project.DateFmt = 3 Then Begin I := DD; DD := MM; MM := I; End;
  If YY < 100 Then Begin
   If YY < 50 Then YY := YY + 2000 Else YY := YY + 1900;
  End;
@@ -3784,6 +3852,766 @@ Begin
    BlinkState := Not BlinkState;
    If Focus <= 5 Then DrawDlg;
   End;
+ Until Done;
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{          DIALOGUE PROPRIETES DU PROJET (a onglets, detaille)           }
+{ ====================================================================== }
+
+Const
+ PR_MAXF  = 90;
+ PR_TABS  = 6;
+ PK_TEXT  = 0;
+ PK_NUM   = 1;
+ PK_DATE  = 2;
+ PK_BOOL  = 3;
+ PK_CHOICE= 4;
+ PK_RO    = 5;
+
+Type
+ TPropField = Record
+  Tab, Id, Kind, Row : Byte;
+  X, LW, EW          : Integer;
+  Lbl                : String[34];
+  MaxLen             : Byte;
+  Choices            : String[120];
+ End;
+
+Var
+ PrF            : Array[1..PR_MAXF] Of TPropField;
+ PrBuf          : Array[1..PR_MAXF] Of String[120];
+ PrCount        : Integer;
+ PrAttr         : Word;
+ PrSessionStart : LongInt;
+
+Function NowMinutes: LongInt;
+Var H, M, S, S100: Word;
+Begin
+ GetTime(H, M, S, S100);
+ NowMinutes := LongInt(H) * 60 + M;
+End;
+
+Function TotalEditMin: LongInt;
+Begin
+ TotalEditMin := Project.EditMin + ((NowMinutes - PrSessionStart + 1440) Mod 1440);
+End;
+
+Function Pad2(N: LongInt): String;
+Var S: String;
+Begin
+ S := IntToStr(N);
+ If Length(S) < 2 Then S := '0' + S;
+ Pad2 := S;
+End;
+
+Function Money2Str(V: LongInt): String;
+Begin
+ Money2Str := IntToStr(V Div 100) + '.' + Pad2(AbsI(V) Mod 100);
+End;
+
+Function ParseMoney(Const S: String): LongInt;
+Var R: Real; E, I: Integer; T: String;
+Begin
+ T := S;
+ For I := 1 To Length(T) Do If T[I] = ',' Then T[I] := '.';
+ Val(T, R, E);
+ If E = 0 Then ParseMoney := Round(R * 100) Else ParseMoney := 0;
+End;
+
+Function ChoiceCount(Const Ch: String): Integer;
+Var I, N: Integer;
+Begin
+ N := 1;
+ For I := 1 To Length(Ch) Do If Ch[I] = '|' Then Inc(N);
+ If Ch = '' Then N := 0;
+ ChoiceCount := N;
+End;
+
+Function ChoiceItem(Const Ch: String; N: Integer): String;
+Var I, K: Integer; S: String;
+Begin
+ K := 0; S := '';
+ For I := 1 To Length(Ch) Do Begin
+  If Ch[I] = '|' Then Begin
+   If K = N Then Break;
+   Inc(K); S := '';
+  End Else S := S + Ch[I];
+ End;
+ If K <> N Then S := '';
+ ChoiceItem := S;
+End;
+
+Function ValidTimeStr(Const S: String): Boolean;
+Var H, M: LongInt;
+Begin
+ ValidTimeStr := False;
+ If (Length(S) <> 5) Or (S[3] <> ':') Then Exit;
+ H := StrToIntDef(Copy(S, 1, 2), -1);
+ M := StrToIntDef(Copy(S, 4, 2), -1);
+ ValidTimeStr := (H >= 0) And (H <= 23) And (M >= 0) And (M <= 59);
+End;
+
+Function FmtFileTime(T: LongInt): String;
+Var DT: DateTime;
+Begin
+ UnpackTime(T, DT);
+ FmtFileTime := Pad2(DT.Day) + '/' + Pad2(DT.Month) + '/' + IntToStr(DT.Year)
+                + ' ' + Pad2(DT.Hour) + ':' + Pad2(DT.Min);
+End;
+
+Function YesNo(B: Boolean): String;
+Begin
+ If B Then YesNo := 'Oui' Else YesNo := 'Non';
+End;
+
+Function BoolStr(B: Boolean): String;
+Begin
+ If B Then BoolStr := '1' Else BoolStr := '0';
+End;
+
+Function CalendarChoices: String;
+Var I: Integer; S: String;
+Begin
+ S := '';
+ For I := 1 To Project.CalCount Do Begin
+  If Project.Calendars[I] <> Nil Then Begin
+   If S <> '' Then S := S + '|';
+   S := S + Project.Calendars[I]^.Name;
+  End;
+ End;
+ If S = '' Then S := 'Standard';
+ CalendarChoices := S;
+End;
+
+{ Valeur affichable (texte) d'une propriete }
+Function GetPropStr(Id: Integer): String;
+Var SR: SearchRec; Found: Boolean; Dir: DirStr; FNm: NameStr; Ext: ExtStr;
+    I, NT, NS, NM, NC: Integer;
+    SumW, SumC, SumP: LongInt; T: PTask; Base: Boolean; Full: String;
+Begin
+ GetPropStr := '';
+ Found := False;
+ If Project.FileName <> '' Then Begin
+  FindFirst(Project.FileName, AnyFile, SR);
+  Found := (DosError = 0);
+  {$IFDEF FPC} FindClose(SR); {$ENDIF}
+ End;
+ If Project.FileName <> '' Then Begin
+  Full := FExpand(Project.FileName);
+  FSplit(Full, Dir, FNm, Ext);
+ End Else Begin Full := ''; Dir := ''; FNm := ''; Ext := ''; End;
+ { statistiques calculees }
+ NT := 0; NS := 0; NM := 0; NC := 0; SumW := 0; SumC := 0; SumP := 0;
+ Base := False;
+ For I := 1 To Project.TaskCount Do Begin
+  T := Project.Tasks[I];
+  If T = Nil Then Continue;
+  If T^.IsSummary Then Inc(NS)
+  Else Begin
+   Inc(NT);
+   SumW := SumW + T^.Work; SumC := SumC + T^.Cost; SumP := SumP + T^.PercentDone;
+  End;
+  If T^.IsMilestone Then Inc(NM);
+  If T^.Critical And (Not T^.IsSummary) Then Inc(NC);
+  If T^.BaselineStart > 0 Then Base := True;
+ End;
+ Case Id Of
+  1: If Project.FileName = '' Then GetPropStr := '(projet non enregistre)'
+     Else GetPropStr := FNm + Ext;
+  2: If Project.FileName = '' Then GetPropStr := '-'
+     Else If Ext = '' Then GetPropStr := 'Fichier'
+     Else GetPropStr := 'Fichier ' + Copy(Ext, 2, 8);
+  3: If Project.FileName = '' Then GetPropStr := '-' Else GetPropStr := Dir;
+  4: If Found Then GetPropStr := IntToStr(SR.Size) + ' octets' Else GetPropStr := '-';
+  5: If Project.CreatedDt > 0 Then GetPropStr := ShortDateStr(Project.CreatedDt)
+     Else GetPropStr := '-';
+  6: If Found Then GetPropStr := FmtFileTime(SR.Time) Else GetPropStr := '(jamais enregistre)';
+  7:  GetPropStr := BoolStr((PrAttr And $01) <> 0);
+  8:  GetPropStr := BoolStr((PrAttr And $20) <> 0);
+  9:  GetPropStr := BoolStr((PrAttr And $02) <> 0);
+  10: GetPropStr := BoolStr((PrAttr And $04) <> 0);
+  11: GetPropStr := Project.Title;
+  12: GetPropStr := Project.Subject;
+  13: GetPropStr := Project.Author;
+  14: GetPropStr := Project.Manager;
+  15: GetPropStr := Project.Company;
+  16: GetPropStr := Project.Category;
+  17: GetPropStr := Project.Keywords;
+  18: GetPropStr := Project.Comments;
+  19: GetPropStr := Project.Template;
+  20: GetPropStr := Project.HyperBase;
+  21: GetPropStr := IntToStr(Project.Language);
+  22: GetPropStr := Project.LastAuthor;
+  23: GetPropStr := IntToStr(Project.Revision);
+  30: GetPropStr := IntToStr(NT);
+  31: GetPropStr := IntToStr(NS);
+  32: GetPropStr := IntToStr(NM);
+  33: GetPropStr := IntToStr(NC);
+  34: GetPropStr := IntToStr(Project.ResCount);
+  35: GetPropStr := IntToStr(Project.AsgCount);
+  36: GetPropStr := IntToStr(Project.CalCount);
+  37: GetPropStr := ShortDateStr(Project.StartDate);
+  38: GetPropStr := ShortDateStr(Project.FinishDate);
+  39: If Project.FinishDate >= Project.StartDate Then
+       GetPropStr := IntToStr(Project.FinishDate - Project.StartDate + 1)
+      Else GetPropStr := '0';
+  40: GetPropStr := IntToStr(SumW Div 10);
+  41: GetPropStr := Money2Str(SumC) + ' ' + Project.CurrSym;
+  42: If NT > 0 Then GetPropStr := IntToStr(SumP Div NT) + ' %' Else GetPropStr := '0 %';
+  43: GetPropStr := YesNo(Base);
+  44: GetPropStr := IntToStr(TotalEditMin);
+  45: GetPropStr := IntToStr(PicCount);
+  46: GetPropStr := 'Davidson Project 1.00';
+  50: GetPropStr := IntToStr(Project.ScheduleFrom);
+  51: GetPropStr := ShortDateStr(Project.StartDate);
+  52: GetPropStr := ShortDateStr(Project.FinishDate);
+  53: GetPropStr := ShortDateStr(Project.StatusDate);
+  54: GetPropStr := ShortDateStr(Project.CurrentDt);
+  55: GetPropStr := IntToStr(Project.DefCalendar - 1);
+  56: GetPropStr := IntToStr(Project.HoursPerDay);
+  57: GetPropStr := IntToStr(Project.DaysPerWeek);
+  58: GetPropStr := IntToStr(Project.HoursPerWeek);
+  59: GetPropStr := IntToStr(Project.DaysPerMonth);
+  60: GetPropStr := Project.DefStart;
+  61: GetPropStr := Project.DefEnd;
+  62: GetPropStr := IntToStr(Project.DefTaskType);
+  63: GetPropStr := BoolStr(Project.AutoCalc);
+  64: GetPropStr := BoolStr(Project.NewAuto);
+  65: GetPropStr := IntToStr(Project.CritSlack);
+  66: GetPropStr := IntToStr(Project.FYMonth - 1);
+  67: GetPropStr := IntToStr(Project.WeekStart);
+  70: GetPropStr := Project.CurrSym;
+  71: GetPropStr := IntToStr(Project.CurrPos);
+  72: GetPropStr := IntToStr(Project.CurrDigits);
+  73: GetPropStr := IntToStr(Project.DateFmt);
+  74: GetPropStr := Money2Str(Project.DefStdRate);
+  75: GetPropStr := Money2Str(Project.DefOvtRate);
+  76: GetPropStr := IntToStr(Project.Accrue);
+  77: GetPropStr := BoolStr(Project.ShowSummary);
+  78: GetPropStr := BoolStr(Project.ShowCritical);
+  80..99:
+   Begin
+    I := (Id - 80) Div 2 + 1;
+    If ((Id - 80) Mod 2) = 0 Then GetPropStr := Project.Cust[I].Name
+    Else GetPropStr := Project.Cust[I].Value;
+   End;
+ End;
+End;
+
+Function PrCheckNum(Const S, Nm: String; Lo, Hi: LongInt; Var V: LongInt;
+                    Var Err: String): Boolean;
+Begin
+ V := StrToIntDef(TrimStr(S), Lo - 1);
+ PrCheckNum := (V >= Lo) And (V <= Hi);
+ If (V < Lo) Or (V > Hi) Then
+  Err := Nm + ' : valeur entre ' + IntToStr(Lo) + ' et ' + IntToStr(Hi) + ' requise.';
+End;
+
+{ Valide (Apply = False) puis applique (Apply = True). Retourne '' si OK. }
+Function SetPropStr(Id: Integer; Const S: String; Apply: Boolean): String;
+Var V: LongInt; D: TDate; Err: String; I: Integer;
+ Procedure Bit(M: Word);
+ Begin
+  If Apply Then Begin
+   If S = '1' Then PrAttr := PrAttr Or M Else PrAttr := PrAttr And (Not M);
+  End;
+ End;
+Begin
+ Err := '';
+ Case Id Of
+  7: Bit($01);
+  8: Bit($20);
+  9: Bit($02);
+  10: Bit($04);
+  11: If Apply Then Project.Title := Copy(S, 1, 60);
+  12: If Apply Then Project.Subject := Copy(S, 1, 60);
+  13: If Apply Then Project.Author := Copy(S, 1, 40);
+  14: If Apply Then Project.Manager := Copy(S, 1, 40);
+  15: If Apply Then Project.Company := Copy(S, 1, 40);
+  16: If Apply Then Project.Category := Copy(S, 1, 40);
+  17: If Apply Then Project.Keywords := Copy(S, 1, 80);
+  18: If Apply Then Project.Comments := Copy(S, 1, 120);
+  19: If Apply Then Project.Template := Copy(S, 1, 40);
+  20: If Apply Then Project.HyperBase := Copy(S, 1, 80);
+  21: If Apply Then Project.Language := StrToIntDef(S, 0);
+  22: If Apply Then Project.LastAuthor := Copy(S, 1, 40);
+  23: If PrCheckNum(S, 'Revision', 0, 65535, V, Err) Then
+       If Apply Then Project.Revision := V;
+  50: If Apply Then Project.ScheduleFrom := StrToIntDef(S, 0);
+  51: If Not ParseDateStr(S, D) Then Err := 'Date de debut invalide.'
+      Else If Apply Then Project.StartDate := D;
+  53: If Not ParseDateStr(S, D) Then Err := 'Date d''etat invalide.'
+      Else If Apply Then Project.StatusDate := D;
+  54: If Not ParseDateStr(S, D) Then Err := 'Date courante invalide.'
+      Else If Apply Then Project.CurrentDt := D;
+  55: If Apply Then Begin
+       V := StrToIntDef(S, 0) + 1;
+       If (V >= 1) And (V <= Project.CalCount) Then Project.DefCalendar := V;
+      End;
+  56: If PrCheckNum(S, 'Heures par jour', 1, 24, V, Err) Then
+       If Apply Then Project.HoursPerDay := V;
+  57: If PrCheckNum(S, 'Jours par semaine', 1, 7, V, Err) Then
+       If Apply Then Project.DaysPerWeek := V;
+  58: If PrCheckNum(S, 'Heures par semaine', 1, 168, V, Err) Then
+       If Apply Then Project.HoursPerWeek := V;
+  59: If PrCheckNum(S, 'Jours par mois', 1, 31, V, Err) Then
+       If Apply Then Project.DaysPerMonth := V;
+  60: If Not ValidTimeStr(S) Then Err := 'Heure de debut : format HH:MM requis.'
+      Else If Apply Then Project.DefStart := S;
+  61: If Not ValidTimeStr(S) Then Err := 'Heure de fin : format HH:MM requis.'
+      Else If Apply Then Project.DefEnd := S;
+  62: If Apply Then Project.DefTaskType := StrToIntDef(S, 0);
+  63: If Apply Then Project.AutoCalc := (S = '1');
+  64: If Apply Then Project.NewAuto := (S = '1');
+  65: If PrCheckNum(S, 'Marge critique', 0, 255, V, Err) Then
+       If Apply Then Project.CritSlack := V;
+  66: If Apply Then Project.FYMonth := StrToIntDef(S, 0) + 1;
+  67: If Apply Then Project.WeekStart := StrToIntDef(S, 0);
+  70: If Apply Then Project.CurrSym := Copy(S, 1, 4);
+  71: If Apply Then Project.CurrPos := StrToIntDef(S, 0);
+  72: If PrCheckNum(S, 'Decimales', 0, 4, V, Err) Then
+       If Apply Then Project.CurrDigits := V;
+  73: If Apply Then Project.DateFmt := StrToIntDef(S, 0);
+  74: If Apply Then Project.DefStdRate := ParseMoney(S);
+  75: If Apply Then Project.DefOvtRate := ParseMoney(S);
+  76: If Apply Then Project.Accrue := StrToIntDef(S, 0);
+  77: If Apply Then Project.ShowSummary := (S = '1');
+  78: If Apply Then Project.ShowCritical := (S = '1');
+  80..99:
+   If Apply Then Begin
+    I := (Id - 80) Div 2 + 1;
+    If ((Id - 80) Mod 2) = 0 Then Project.Cust[I].Name := Copy(S, 1, 30)
+    Else Project.Cust[I].Value := Copy(S, 1, 60);
+   End;
+ End;
+ SetPropStr := Err;
+End;
+
+Procedure PrAdd(T, Id, Kind, Row: Integer; X, LW, EW: Integer; Const Lbl: String;
+                MaxLen: Integer; Const Ch: String);
+Begin
+ If PrCount >= PR_MAXF Then Exit;
+ Inc(PrCount);
+ PrF[PrCount].Tab := T;   PrF[PrCount].Id := Id;
+ PrF[PrCount].Kind := Kind; PrF[PrCount].Row := Row;
+ PrF[PrCount].X := X;     PrF[PrCount].LW := LW;   PrF[PrCount].EW := EW;
+ PrF[PrCount].Lbl := Lbl; PrF[PrCount].MaxLen := MaxLen;
+ PrF[PrCount].Choices := Ch;
+ PrBuf[PrCount] := GetPropStr(Id);
+End;
+
+Procedure PrBuildFields;
+Var I: Integer; Cal: String;
+Begin
+ PrCount := 0;
+ { ---- Onglet 1 : General ---- }
+ PrAdd(1, 1, PK_RO, 0, 0, 140, 420, 'Fichier :', 0, '');
+ PrAdd(1, 2, PK_RO, 1, 0, 140, 420, 'Type :', 0, '');
+ PrAdd(1, 3, PK_RO, 2, 0, 140, 420, 'Dossier :', 0, '');
+ PrAdd(1, 4, PK_RO, 3, 0, 140, 420, 'Taille :', 0, '');
+ PrAdd(1, 5, PK_RO, 4, 0, 140, 420, 'Cree le :', 0, '');
+ PrAdd(1, 6, PK_RO, 5, 0, 140, 420, 'Modifie le :', 0, '');
+ PrAdd(1, 46, PK_RO, 6, 0, 140, 420, 'Application :', 0, '');
+ PrAdd(1, 7, PK_BOOL, 9, 24, 0, 0, 'Lecture seule', 0, '');
+ PrAdd(1, 8, PK_BOOL, 9, 300, 0, 0, 'Archive', 0, '');
+ PrAdd(1, 9, PK_BOOL, 10, 24, 0, 0, 'Cache', 0, '');
+ PrAdd(1, 10, PK_BOOL, 10, 300, 0, 0, 'Systeme', 0, '');
+ { ---- Onglet 2 : Resume ---- }
+ PrAdd(2, 11, PK_TEXT, 0, 0, 150, 420, 'Titre :', 60, '');
+ PrAdd(2, 12, PK_TEXT, 1, 0, 150, 420, 'Sujet :', 60, '');
+ PrAdd(2, 13, PK_TEXT, 2, 0, 150, 420, 'Auteur :', 40, '');
+ PrAdd(2, 14, PK_TEXT, 3, 0, 150, 420, 'Gestionnaire :', 40, '');
+ PrAdd(2, 15, PK_TEXT, 4, 0, 150, 420, 'Societe :', 40, '');
+ PrAdd(2, 16, PK_TEXT, 5, 0, 150, 420, 'Categorie :', 40, '');
+ PrAdd(2, 17, PK_TEXT, 6, 0, 150, 420, 'Mots cles :', 80, '');
+ PrAdd(2, 18, PK_TEXT, 7, 0, 150, 420, 'Commentaires :', 120, '');
+ PrAdd(2, 19, PK_TEXT, 8, 0, 150, 420, 'Modele :', 40, '');
+ PrAdd(2, 20, PK_TEXT, 9, 0, 150, 420, 'Base des liens :', 80, '');
+ PrAdd(2, 21, PK_CHOICE, 10, 0, 150, 200, 'Langue :', 0,
+       'Francais|English|Espanol|Deutsch|Portugues|Italiano');
+ PrAdd(2, 22, PK_TEXT, 11, 0, 150, 420, 'Dernier auteur :', 40, '');
+ PrAdd(2, 23, PK_NUM, 12, 0, 150, 80, 'Revision :', 5, '');
+ { ---- Onglet 3 : Statistiques (lecture seule) ---- }
+ PrAdd(3, 30, PK_RO, 0, 0, 200, 80, 'Taches :', 0, '');
+ PrAdd(3, 31, PK_RO, 1, 0, 200, 80, 'Taches recapitulatives :', 0, '');
+ PrAdd(3, 32, PK_RO, 2, 0, 200, 80, 'Jalons :', 0, '');
+ PrAdd(3, 33, PK_RO, 3, 0, 200, 80, 'Taches critiques :', 0, '');
+ PrAdd(3, 34, PK_RO, 4, 0, 200, 80, 'Ressources :', 0, '');
+ PrAdd(3, 35, PK_RO, 5, 0, 200, 80, 'Affectations :', 0, '');
+ PrAdd(3, 36, PK_RO, 6, 0, 200, 80, 'Calendriers :', 0, '');
+ PrAdd(3, 45, PK_RO, 7, 0, 200, 80, 'Images inserees :', 0, '');
+ PrAdd(3, 43, PK_RO, 8, 0, 200, 80, 'Planning de base :', 0, '');
+ PrAdd(3, 37, PK_RO, 0, 300, 160, 120, 'Debut du projet :', 0, '');
+ PrAdd(3, 38, PK_RO, 1, 300, 160, 120, 'Fin du projet :', 0, '');
+ PrAdd(3, 39, PK_RO, 2, 300, 160, 120, 'Duree (jours) :', 0, '');
+ PrAdd(3, 40, PK_RO, 3, 300, 160, 120, 'Travail (h) :', 0, '');
+ PrAdd(3, 41, PK_RO, 4, 300, 160, 120, 'Cout total :', 0, '');
+ PrAdd(3, 42, PK_RO, 5, 300, 160, 120, '% acheve moyen :', 0, '');
+ PrAdd(3, 44, PK_RO, 6, 300, 160, 120, 'Edition (min) :', 0, '');
+ { ---- Onglet 4 : Planification ---- }
+ Cal := CalendarChoices;
+ PrAdd(4, 50, PK_CHOICE, 0, 0, 190, 250, 'Planifier a partir de :', 0,
+       'Date de debut du projet|Date de fin du projet');
+ PrAdd(4, 51, PK_DATE, 1, 0, 190, 100, 'Date de debut :', 12, '');
+ PrAdd(4, 52, PK_RO, 1, 300, 190, 100, 'Date de fin :', 0, '');
+ PrAdd(4, 53, PK_DATE, 2, 0, 190, 100, 'Date d''etat :', 12, '');
+ PrAdd(4, 54, PK_DATE, 2, 300, 190, 100, 'Date courante :', 12, '');
+ PrAdd(4, 55, PK_CHOICE, 3, 0, 190, 250, 'Calendrier par defaut :', 0, Cal);
+ PrAdd(4, 56, PK_NUM, 4, 0, 190, 100, 'Heures par jour :', 2, '');
+ PrAdd(4, 57, PK_NUM, 4, 300, 190, 100, 'Jours par semaine :', 1, '');
+ PrAdd(4, 58, PK_NUM, 5, 0, 190, 100, 'Heures par semaine :', 3, '');
+ PrAdd(4, 59, PK_NUM, 5, 300, 190, 100, 'Jours par mois :', 2, '');
+ PrAdd(4, 60, PK_TEXT, 6, 0, 190, 100, 'Heure de debut :', 5, '');
+ PrAdd(4, 61, PK_TEXT, 6, 300, 190, 100, 'Heure de fin :', 5, '');
+ PrAdd(4, 62, PK_CHOICE, 7, 0, 190, 250, 'Type de tache :', 0,
+       'Duree fixe|Unites fixes|Travail fixe');
+ PrAdd(4, 65, PK_NUM, 8, 0, 190, 100, 'Marge critique (jours) :', 3, '');
+ PrAdd(4, 66, PK_CHOICE, 9, 0, 190, 250, 'Debut annee fiscale :', 0,
+       'Janvier|Fevrier|Mars|Avril|Mai|Juin|Juillet|Aout|Septembre|Octobre|Novembre|Decembre');
+ PrAdd(4, 67, PK_CHOICE, 10, 0, 190, 250, 'Premier jour de semaine :', 0,
+       'Dimanche|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi');
+ PrAdd(4, 63, PK_BOOL, 12, 0, 0, 0, 'Calcul automatique du planning', 0, '');
+ PrAdd(4, 64, PK_BOOL, 13, 0, 0, 0, 'Nouvelles taches planifiees automatiquement', 0, '');
+ { ---- Onglet 5 : Format ---- }
+ PrAdd(5, 70, PK_TEXT, 0, 0, 190, 60, 'Symbole monetaire :', 4, '');
+ PrAdd(5, 71, PK_CHOICE, 1, 0, 190, 250, 'Position du symbole :', 0,
+       'Avant 1$|Apres 1$|Avant 1 $|Apres 1 $');
+ PrAdd(5, 72, PK_NUM, 2, 0, 190, 60, 'Decimales :', 1, '');
+ PrAdd(5, 73, PK_CHOICE, 3, 0, 190, 250, 'Format de date :', 0,
+       'JJ/MM/AA|JJ/MM/AAAA|AAAA-MM-JJ|MM/JJ/AA');
+ PrAdd(5, 74, PK_TEXT, 4, 0, 190, 100, 'Taux standard / h :', 10, '');
+ PrAdd(5, 75, PK_TEXT, 5, 0, 190, 100, 'Taux heures sup. / h :', 10, '');
+ PrAdd(5, 76, PK_CHOICE, 6, 0, 190, 250, 'Acquisition des couts :', 0,
+       'Au debut|Au prorata|A la fin');
+ PrAdd(5, 77, PK_BOOL, 8, 0, 0, 0, 'Afficher les taches recapitulatives', 0, '');
+ PrAdd(5, 78, PK_BOOL, 9, 0, 0, 0, 'Surligner le chemin critique', 0, '');
+ { ---- Onglet 6 : Personnalise ---- }
+ For I := 1 To 10 Do Begin
+  PrAdd(6, 80 + (I - 1) * 2, PK_TEXT, I, 0, 30, 230, IntToStr(I) + '.', 30, '');
+  PrAdd(6, 81 + (I - 1) * 2, PK_TEXT, I, 280, 0, 300, '', 60, '');
+ End;
+End;
+
+Procedure DoPropertiesDialog;
+Const
+ TabNames: Array[1..PR_TABS] Of String[16] =
+  ('General', 'Resume', 'Statistiques', 'Planification', 'Format', 'Personnalise');
+Var
+ X1, Y1, X2, Y2, ContY: Integer;
+ Tab, Focus, FN, I, Caret, Fi: Integer;
+ TabIdx: Array[1..PR_MAXF] Of Integer;
+ K, K2: Char;
+ Done: Boolean;
+ FA: File;
+ Err: String;
+ AttrOrig: Word;
+ HasFile: Boolean;
+
+ Function FieldY(Idx: Integer): Integer;
+ Begin
+  FieldY := ContY + PrF[Idx].Row * 22 + 6;
+ End;
+
+ Function FieldX(Idx: Integer): Integer;
+ Begin
+  FieldX := X1 + 20 + PrF[Idx].X;
+ End;
+
+ Function CurField: Integer;
+ Begin
+  If (Focus >= 0) And (Focus < FN) Then CurField := TabIdx[Focus + 1]
+  Else CurField := 0;
+ End;
+
+ Procedure SetCaret;
+ Var F: Integer;
+ Begin
+  F := CurField;
+  If F > 0 Then Caret := Length(PrBuf[F]) Else Caret := 0;
+ End;
+
+ Procedure BuildTab;
+ Var J: Integer;
+ Begin
+  FN := 0;
+  For J := 1 To PrCount Do
+   If (PrF[J].Tab = Tab) And (PrF[J].Kind <> PK_RO) Then Begin
+    Inc(FN); TabIdx[FN] := J;
+   End;
+  Focus := 0;
+  SetCaret;
+ End;
+
+ Procedure ChangeTab(N: Integer);
+ Begin
+  If N < 1 Then N := PR_TABS;
+  If N > PR_TABS Then N := 1;
+  Tab := N;
+  BuildTab;
+ End;
+
+ Procedure CycleChoice(F, Dir: Integer);
+ Var N, Cnt: Integer;
+ Begin
+  Cnt := ChoiceCount(PrF[F].Choices);
+  If Cnt < 1 Then Exit;
+  N := StrToIntDef(PrBuf[F], 0) + Dir;
+  If N < 0 Then N := Cnt - 1;
+  If N >= Cnt Then N := 0;
+  PrBuf[F] := IntToStr(N);
+ End;
+
+ Procedure DrawField(F: Integer; Focused: Boolean);
+ Var X, Y, Tw: Integer; S: String;
+ Begin
+  X := FieldX(F); Y := FieldY(F);
+  Case PrF[F].Kind Of
+   PK_BOOL:
+    DlgCheck(X, Y + 2, PrF[F].Lbl, PrBuf[F] = '1', Focused);
+   PK_TEXT, PK_NUM, PK_DATE:
+    Begin
+     If PrF[F].LW > 0 Then DlgLabel(X, Y + 5, PrF[F].Lbl);
+     DlgEdit(X + PrF[F].LW, Y, X + PrF[F].LW + PrF[F].EW, Y + 18, PrBuf[F],
+             Focused, Caret * Ord(Focused));
+    End;
+   PK_CHOICE:
+    Begin
+     DlgLabel(X, Y + 5, PrF[F].Lbl);
+     FillBox(X + PrF[F].LW, Y, X + PrF[F].LW + PrF[F].EW, Y + 18, CLR_WHITE);
+     SetColor(CLR_WIN_LO);
+     Rectangle(X + PrF[F].LW, Y, X + PrF[F].LW + PrF[F].EW, Y + 18);
+     SetColor(CLR_BLACK);
+     OutTextXY(X + PrF[F].LW + 4, Y + 5,
+               ChoiceItem(PrF[F].Choices, StrToIntDef(PrBuf[F], 0)));
+     OutTextXY(X + PrF[F].LW + PrF[F].EW - 12, Y + 5, 'v');
+     If Focused Then Rectangle(X + PrF[F].LW + 2, Y + 2,
+                               X + PrF[F].LW + PrF[F].EW - 2, Y + 16);
+    End;
+   PK_RO:
+    Begin
+     DlgLabel(X, Y + 5, PrF[F].Lbl);
+     SetColor(CLR_WIN_LO);
+     Rectangle(X + PrF[F].LW, Y, X + PrF[F].LW + PrF[F].EW, Y + 18);
+     S := PrBuf[F];
+     While (Length(S) > 0) And (TextWidth(S) > PrF[F].EW - 8) Do
+      Delete(S, Length(S), 1);
+     SetColor(CLR_BLACK);
+     OutTextXY(X + PrF[F].LW + 4, Y + 5, S);
+    End;
+  End;
+  Tw := 0;
+ End;
+
+ Procedure DrawDlg;
+ Var J, TX: Integer;
+ Begin
+  HideMouse;
+  DlgFrame(X1, Y1, X2, Y2, 'Proprietes du projet');
+  { onglets }
+  For J := 1 To PR_TABS Do
+   DlgTab(X1 + 10 + (J - 1) * 100, Y1 + 28, 98, TabNames[J], J = Tab);
+  { cadre du contenu }
+  FillBox(X1 + 10, Y1 + 51, X2 - 10, Y2 - 46, CLR_DLG_BG);
+  SetColor(CLR_WIN_HI);
+  Line(X1 + 10, Y1 + 50, X1 + 10, Y2 - 46);
+  SetColor(CLR_WIN_LO);
+  Line(X1 + 10, Y2 - 46, X2 - 10, Y2 - 46);
+  Line(X2 - 10, Y1 + 50, X2 - 10, Y2 - 46);
+  { decorations propres a chaque onglet }
+  If Tab = 1 Then
+   DlgGroup(X1 + 14, ContY + 8 * 22 + 4, X2 - 14, ContY + 11 * 22 + 6,
+            'Attributs du fichier');
+  If Tab = 3 Then Begin
+   SetColor(CLR_DGRAY);
+   OutTextXY(X1 + 20, ContY + 10 * 22 + 6,
+             'Ces statistiques sont calculees et en lecture seule.');
+  End;
+  If Tab = 6 Then Begin
+   SetColor(CLR_DGRAY);
+   OutTextXY(X1 + 20 + 30, ContY + 6, 'Nom');
+   OutTextXY(X1 + 20 + 280, ContY + 6, 'Valeur');
+  End;
+  { champs }
+  For J := 1 To PrCount Do
+   If PrF[J].Tab = Tab Then DrawField(J, J = CurField);
+  SetColor(CLR_DGRAY);
+  OutTextXY(X1 + 14, Y2 - 32, 'PgPrec/PgSuiv : onglets   Tab : champ suivant');
+  DlgBtn(X2 - 180, Y2 - 38, X2 - 110, Y2 - 14, 'OK', False, Focus = FN);
+  DlgBtn(X2 - 100, Y2 - 38, X2 - 30, Y2 - 14, 'Annuler', False, Focus = FN + 1);
+  TX := 0;
+  ShowMouse;
+ End;
+
+ { Valide tous les champs ; en cas d'erreur, se positionne sur le champ. }
+ Function ValidateAll: Boolean;
+ Var J, Q: Integer;
+ Begin
+  ValidateAll := True;
+  For J := 1 To PrCount Do
+   If PrF[J].Kind <> PK_RO Then Begin
+    Err := SetPropStr(PrF[J].Id, PrBuf[J], False);
+    If Err <> '' Then Begin
+     ValidateAll := False;
+     MessageBox('Proprietes', Err);
+     Tab := PrF[J].Tab; BuildTab;
+     For Q := 1 To FN Do If TabIdx[Q] = J Then Focus := Q - 1;
+     SetCaret;
+     Exit;
+    End;
+   End;
+ End;
+
+ Procedure ApplyAll;
+ Var J: Integer;
+ Begin
+  PrAttr := AttrOrig;
+  For J := 1 To PrCount Do
+   If PrF[J].Kind <> PK_RO Then SetPropStr(PrF[J].Id, PrBuf[J], True);
+  If HasFile And (PrAttr <> AttrOrig) Then Begin
+   Assign(FA, Project.FileName);
+   {$I-} SetFAttr(FA, PrAttr); {$I+}
+   If IOResult <> 0 Then
+    MessageBox('Proprietes', 'Impossible de modifier les attributs du fichier.');
+  End;
+  Project.Dirty := True;
+  CPMRecompute;
+ End;
+
+ Procedure HandleChar(C: Char);
+ Var F: Integer;
+ Begin
+  F := CurField;
+  If F = 0 Then Exit;
+  Case PrF[F].Kind Of
+   PK_TEXT, PK_DATE, PK_NUM:
+    Begin
+     If C < ' ' Then Exit;
+     If (PrF[F].Kind = PK_NUM) And ((C < '0') Or (C > '9')) Then Exit;
+     If Length(PrBuf[F]) >= PrF[F].MaxLen Then Exit;
+     Insert(C, PrBuf[F], Caret + 1);
+     Inc(Caret);
+    End;
+   PK_BOOL:
+    If C = ' ' Then Begin
+     If PrBuf[F] = '1' Then PrBuf[F] := '0' Else PrBuf[F] := '1';
+    End;
+   PK_CHOICE:
+    If C = ' ' Then CycleChoice(F, 1);
+  End;
+ End;
+
+ Procedure NextFocus(Dir: Integer);
+ Begin
+  Focus := Focus + Dir;
+  If Focus < 0 Then Focus := FN + 1;
+  If Focus > FN + 1 Then Focus := 0;
+  SetCaret;
+ End;
+
+ Procedure HandleClick;
+ Var J, F, X, Y, W: Integer;
+ Begin
+  { onglets }
+  For J := 1 To PR_TABS Do
+   If InRect(Mouse.X, Mouse.Y, X1 + 10 + (J - 1) * 100, Y1 + 28,
+             X1 + 10 + (J - 1) * 100 + 98, Y1 + 50) Then Begin
+    If J <> Tab Then ChangeTab(J);
+    DrawDlg; Exit;
+   End;
+  If InRect(Mouse.X, Mouse.Y, X2 - 180, Y2 - 38, X2 - 110, Y2 - 14) Then Begin
+   If ValidateAll Then Begin ApplyAll; Done := True; End Else DrawDlg;
+   Exit;
+  End;
+  If InRect(Mouse.X, Mouse.Y, X2 - 100, Y2 - 38, X2 - 30, Y2 - 14) Then Begin
+   Done := True; Exit;
+  End;
+  For J := 1 To FN Do Begin
+   F := TabIdx[J];
+   X := FieldX(F); Y := FieldY(F);
+   If PrF[F].Kind = PK_BOOL Then W := 22 + TextWidth(PrF[F].Lbl)
+   Else W := PrF[F].LW + PrF[F].EW;
+   If InRect(Mouse.X, Mouse.Y, X, Y, X + W, Y + 18) Then Begin
+    Focus := J - 1; SetCaret;
+    If PrF[F].Kind = PK_BOOL Then HandleChar(' ')
+    Else If PrF[F].Kind = PK_CHOICE Then CycleChoice(F, 1);
+    DrawDlg; Exit;
+   End;
+  End;
+ End;
+
+Begin
+ X1 := 10; Y1 := 20; X2 := 630; Y2 := 460;
+ ContY := Y1 + 54;
+ HasFile := False;
+ PrAttr := 0;
+ If Project.FileName <> '' Then Begin
+  Assign(FA, Project.FileName);
+  {$I-} GetFAttr(FA, PrAttr); {$I+}
+  If DosError = 0 Then HasFile := True Else PrAttr := 0;
+ End;
+ AttrOrig := PrAttr;
+ PrBuildFields;
+ Tab := 1;
+ BuildTab;
+ Done := False;
+ DrawDlg;
+ Repeat
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Fi := CurField;
+    Case K2 Of
+     #15: NextFocus(-1);
+     #73: ChangeTab(Tab - 1);
+     #81: ChangeTab(Tab + 1);
+     #72: NextFocus(-1);
+     #80: NextFocus(1);
+     #75: If (Fi > 0) And (PrF[Fi].Kind = PK_CHOICE) Then CycleChoice(Fi, -1)
+          Else If (Fi > 0) And (Caret > 0) Then Dec(Caret);
+     #77: If (Fi > 0) And (PrF[Fi].Kind = PK_CHOICE) Then CycleChoice(Fi, 1)
+          Else If (Fi > 0) And (Caret < Length(PrBuf[Fi])) Then Inc(Caret);
+     #71: If Fi > 0 Then Caret := 0;
+     #79: If Fi > 0 Then Caret := Length(PrBuf[Fi]);
+     #83: If (Fi > 0) And (PrF[Fi].Kind In [PK_TEXT, PK_NUM, PK_DATE])
+             And (Caret < Length(PrBuf[Fi])) Then Delete(PrBuf[Fi], Caret + 1, 1);
+    End;
+   End
+   Else Begin
+    Fi := CurField;
+    Case K Of
+     #9:  NextFocus(1);
+     #13: If Focus = FN + 1 Then Done := True
+          Else If ValidateAll Then Begin ApplyAll; Done := True; End;
+     #27: Done := True;
+     #8:  If (Fi > 0) And (PrF[Fi].Kind In [PK_TEXT, PK_NUM, PK_DATE])
+             And (Caret > 0) Then Begin
+           Delete(PrBuf[Fi], Caret, 1); Dec(Caret);
+          End;
+    Else
+     If (Focus = FN) And (K = ' ') Then Begin
+      If ValidateAll Then Begin ApplyAll; Done := True; End;
+     End Else If (Focus = FN + 1) And (K = ' ') Then Done := True
+     Else HandleChar(K);
+    End;
+   End;
+   BlinkState := True;
+   If Not Done Then DrawDlg;
+  End;
+  If (Not Done) And LeftPressed Then Begin
+   HandleClick;
+   While LeftPressed Do UpdateMouse;
+  End;
+  Inc(TickCount);
+  If (Not Done) And (TickCount Mod 12 = 0) Then Begin
+   BlinkState := Not BlinkState;
+   Fi := CurField;
+   If (Fi > 0) And (PrF[Fi].Kind In [PK_TEXT, PK_NUM, PK_DATE]) Then DrawDlg;
+  End;
+  Delay(10);
  Until Done;
  NeedFullRedraw := True;
 End;
@@ -5217,7 +6045,7 @@ Begin
  LoadProjectMPX := True;
 End;
 Function SaveProjectXML(Const FName: String): Boolean;
-Var F: Text; I, J: Integer; T: PTask; R: PResource;
+Var F: Text; CPI, I, J: Integer; T: PTask; R: PResource;
 
   Function XmlEsc(Const S: String): String;
   Var K: Integer; R: String;
@@ -5279,20 +6107,56 @@ Begin
  WriteLn(F, '  <Name>', XmlEsc(FName), '</Name>');
  WriteLn(F, '  <Title>', XmlEsc(Project.Title), '</Title>');
  WriteLn(F, '  <Subject>', XmlEsc(Project.Subject), '</Subject>');
- WriteLn(F, '  <Author>', XmlEsc(Project.Manager), '</Author>');
+ WriteLn(F, '  <Author>', XmlEsc(Project.Author), '</Author>');
+ WriteLn(F, '  <Category>', XmlEsc(Project.Category), '</Category>');
+ WriteLn(F, '  <Keywords>', XmlEsc(Project.Keywords), '</Keywords>');
+ WriteLn(F, '  <Template>', XmlEsc(Project.Template), '</Template>');
+ WriteLn(F, '  <HyperlinkBase>', XmlEsc(Project.HyperBase), '</HyperlinkBase>');
+ WriteLn(F, '  <LastAuthor>', XmlEsc(Project.LastAuthor), '</LastAuthor>');
+ WriteLn(F, '  <Revision>', Project.Revision, '</Revision>');
+ WriteLn(F, '  <CreationDate>', XmlDateTime(Project.CreatedDt), '</CreationDate>');
+ WriteLn(F, '  <EditMinutes>', TotalEditMin, '</EditMinutes>');
+ WriteLn(F, '  <Language>', Project.Language, '</Language>');
  WriteLn(F, '  <Manager>', XmlEsc(Project.Manager), '</Manager>');
  WriteLn(F, '  <Company>', XmlEsc(Project.Company), '</Company>');
  WriteLn(F, '  <Comments>', XmlEsc(Project.Comments), '</Comments>');
- WriteLn(F, '  <ScheduleFromStart>1</ScheduleFromStart>');
+ WriteLn(F, '  <ScheduleFromStart>', 1 - Project.ScheduleFrom, '</ScheduleFromStart>');
  WriteLn(F, '  <StartDate>', XmlDateTime(Project.StartDate), '</StartDate>');
  WriteLn(F, '  <FinishDate>', XmlDateTime(Project.FinishDate), '</FinishDate>');
  WriteLn(F, '  <StatusDate>', XmlDateTime(Project.StatusDate), '</StatusDate>');
- WriteLn(F, '  <CalendarUID>1</CalendarUID>');
- WriteLn(F, '  <DefaultStartTime>08:00:00</DefaultStartTime>');
- WriteLn(F, '  <DefaultFinishTime>17:00:00</DefaultFinishTime>');
- WriteLn(F, '  <MinutesPerDay>480</MinutesPerDay>');
- WriteLn(F, '  <MinutesPerWeek>2400</MinutesPerWeek>');
- WriteLn(F, '  <DaysPerMonth>20</DaysPerMonth>');
+ WriteLn(F, '  <CalendarUID>', Project.DefCalendar, '</CalendarUID>');
+ WriteLn(F, '  <DefaultStartTime>', Project.DefStart, ':00</DefaultStartTime>');
+ WriteLn(F, '  <DefaultFinishTime>', Project.DefEnd, ':00</DefaultFinishTime>');
+ WriteLn(F, '  <MinutesPerDay>', Project.HoursPerDay * 60, '</MinutesPerDay>');
+ WriteLn(F, '  <MinutesPerWeek>', Project.HoursPerWeek * 60, '</MinutesPerWeek>');
+ WriteLn(F, '  <DaysPerMonth>', Project.DaysPerMonth, '</DaysPerMonth>');
+ WriteLn(F, '  <DaysPerWeek>', Project.DaysPerWeek, '</DaysPerWeek>');
+ Case Project.DefTaskType Of
+  0: WriteLn(F, '  <DefaultTaskType>1</DefaultTaskType>');
+  1: WriteLn(F, '  <DefaultTaskType>0</DefaultTaskType>');
+ Else WriteLn(F, '  <DefaultTaskType>2</DefaultTaskType>');
+ End;
+ WriteLn(F, '  <DefaultFixedCostAccrual>', Project.Accrue + 1, '</DefaultFixedCostAccrual>');
+ WriteLn(F, '  <DefaultStandardRate>', Money2Str(Project.DefStdRate), '</DefaultStandardRate>');
+ WriteLn(F, '  <DefaultOvertimeRate>', Money2Str(Project.DefOvtRate), '</DefaultOvertimeRate>');
+ WriteLn(F, '  <CurrencySymbol>', XmlEsc(Project.CurrSym), '</CurrencySymbol>');
+ WriteLn(F, '  <CurrencySymbolPosition>', Project.CurrPos, '</CurrencySymbolPosition>');
+ WriteLn(F, '  <CurrencyDigits>', Project.CurrDigits, '</CurrencyDigits>');
+ WriteLn(F, '  <CriticalSlackLimit>', Project.CritSlack, '</CriticalSlackLimit>');
+ WriteLn(F, '  <WeekStartDay>', Project.WeekStart, '</WeekStartDay>');
+ WriteLn(F, '  <FYStartMonth>', Project.FYMonth, '</FYStartMonth>');
+ WriteLn(F, '  <DateFormat>', Project.DateFmt, '</DateFormat>');
+ WriteLn(F, '  <AutoCalculate>', Ord(Project.AutoCalc), '</AutoCalculate>');
+ WriteLn(F, '  <NewTasksAreAuto>', Ord(Project.NewAuto), '</NewTasksAreAuto>');
+ WriteLn(F, '  <ShowSummaryTasks>', Ord(Project.ShowSummary), '</ShowSummaryTasks>');
+ WriteLn(F, '  <ShowCriticalPath>', Ord(Project.ShowCritical), '</ShowCriticalPath>');
+ For CPI := 1 To 10 Do
+  If (Project.Cust[CPI].Name <> '') Or (Project.Cust[CPI].Value <> '') Then Begin
+   WriteLn(F, '  <CustomProperty>');
+   WriteLn(F, '    <PropName>', XmlEsc(Project.Cust[CPI].Name), '</PropName>');
+   WriteLn(F, '    <PropValue>', XmlEsc(Project.Cust[CPI].Value), '</PropValue>');
+   WriteLn(F, '  </CustomProperty>');
+  End;
  { ----- Calendriers ----- }
  WriteLn(F, '  <Calendars>');
  WriteLn(F, '    <Calendar>');
@@ -5547,7 +6411,53 @@ Var F: Text; Buf, Tag, Txt, Path: String;
       And (Not InCalendar) Then Begin
     If Tag = 'Title'      Then Project.Title    := Copy(Trimmed, 1, 60);
     If Tag = 'Subject'    Then Project.Subject  := Copy(Trimmed, 1, 60);
-    If Tag = 'Author'     Then Project.Manager  := Copy(Trimmed, 1, 40);
+    If Tag = 'Author'     Then Project.Author   := Copy(Trimmed, 1, 40);
+    If Tag = 'Category'   Then Project.Category := Copy(Trimmed, 1, 40);
+    If Tag = 'Keywords'   Then Project.Keywords := Copy(Trimmed, 1, 80);
+    If Tag = 'Template'   Then Project.Template := Copy(Trimmed, 1, 40);
+    If Tag = 'HyperlinkBase' Then Project.HyperBase := Copy(Trimmed, 1, 80);
+    If Tag = 'LastAuthor' Then Project.LastAuthor := Copy(Trimmed, 1, 40);
+    If Tag = 'Revision'   Then Project.Revision := StrToIntDef(Trimmed, 1);
+    If Tag = 'CreationDate' Then Project.CreatedDt := ParseXmlDate(Trimmed);
+    If Tag = 'EditMinutes' Then Project.EditMin := StrToIntDef(Trimmed, 0);
+    If Tag = 'Language'   Then Project.Language := StrToIntDef(Trimmed, 0);
+    If Tag = 'ScheduleFromStart' Then Project.ScheduleFrom := 1 - StrToIntDef(Trimmed, 1);
+    If Tag = 'CalendarUID' Then Begin
+     If (StrToIntDef(Trimmed, 1) >= 1) And (StrToIntDef(Trimmed, 1) <= Project.CalCount) Then
+      Project.DefCalendar := StrToIntDef(Trimmed, 1);
+    End;
+    If (Tag = 'DefaultStartTime') And (Length(Trimmed) >= 5) Then Project.DefStart := Copy(Trimmed, 1, 5);
+    If (Tag = 'DefaultFinishTime') And (Length(Trimmed) >= 5) Then Project.DefEnd := Copy(Trimmed, 1, 5);
+    If Tag = 'MinutesPerDay' Then Project.HoursPerDay := StrToIntDef(Trimmed, 480) Div 60;
+    If Tag = 'MinutesPerWeek' Then Project.HoursPerWeek := StrToIntDef(Trimmed, 2400) Div 60;
+    If Tag = 'DaysPerMonth' Then Project.DaysPerMonth := StrToIntDef(Trimmed, 20);
+    If Tag = 'DaysPerWeek' Then Project.DaysPerWeek := StrToIntDef(Trimmed, 5);
+    If Tag = 'DefaultTaskType' Then Begin
+     Case StrToIntDef(Trimmed, 1) Of
+      1: Project.DefTaskType := 0;
+      0: Project.DefTaskType := 1;
+     Else Project.DefTaskType := 2;
+     End;
+    End;
+    If Tag = 'DefaultFixedCostAccrual' Then Project.Accrue := StrToIntDef(Trimmed, 2) - 1;
+    If Tag = 'DefaultStandardRate' Then Project.DefStdRate := ParseMoney(Trimmed);
+    If Tag = 'DefaultOvertimeRate' Then Project.DefOvtRate := ParseMoney(Trimmed);
+    If Tag = 'CurrencySymbol' Then Project.CurrSym := Copy(Trimmed, 1, 4);
+    If Tag = 'CurrencySymbolPosition' Then Project.CurrPos := StrToIntDef(Trimmed, 0);
+    If Tag = 'CurrencyDigits' Then Project.CurrDigits := StrToIntDef(Trimmed, 2);
+    If Tag = 'CriticalSlackLimit' Then Project.CritSlack := StrToIntDef(Trimmed, 0);
+    If Tag = 'WeekStartDay' Then Project.WeekStart := StrToIntDef(Trimmed, 0);
+    If Tag = 'FYStartMonth' Then Project.FYMonth := StrToIntDef(Trimmed, 1);
+    If Tag = 'DateFormat' Then Project.DateFmt := StrToIntDef(Trimmed, 0);
+    If Tag = 'AutoCalculate' Then Project.AutoCalc := (Trimmed = '1');
+    If Tag = 'NewTasksAreAuto' Then Project.NewAuto := (Trimmed = '1');
+    If Tag = 'ShowSummaryTasks' Then Project.ShowSummary := (Trimmed = '1');
+    If Tag = 'ShowCriticalPath' Then Project.ShowCritical := (Trimmed = '1');
+    If (Tag = 'PropName') And (XmlCustIdx < 10) Then Begin
+     Inc(XmlCustIdx); Project.Cust[XmlCustIdx].Name := Copy(Trimmed, 1, 30);
+    End;
+    If (Tag = 'PropValue') And (XmlCustIdx >= 1) Then
+     Project.Cust[XmlCustIdx].Value := Copy(Trimmed, 1, 60);
     If Tag = 'Manager'    Then Project.Manager  := Copy(Trimmed, 1, 40);
     If Tag = 'Company'    Then Project.Company  := Copy(Trimmed, 1, 40);
     If Tag = 'Comments'   Then Project.Comments := Copy(Trimmed, 1, 120);
@@ -6215,6 +7125,10 @@ Begin
  Else If Not SaveProjectByExt(Project.FileName) Then ActionSaveAs
  Else Begin
   Project.Dirty := False;
+  Inc(Project.Revision);
+  Project.LastAuthor := Project.Author;
+  Project.EditMin := TotalEditMin;
+  PrSessionStart := NowMinutes;
   StatusMsg := 'Enregistre';
   NeedStatRedraw := True;
  End;
@@ -7116,6 +8030,7 @@ Begin
   ACT_VIEW_USAGE: ActionView(VIEW_USAGE);
   ACT_VIEW_CAL:   ActionView(VIEW_CALENDAR);
   ACT_PROJ_INFO:  ActionProjInfo;
+  ACT_PROPS:      DoPropertiesDialog;
   ACT_TASKINFO:   ActionTaskInfo;
   ACT_RES_SHEET:  ActionResourceSheet;
   ACT_TOOL_BASE:  ActionSaveBaseline;
@@ -7703,7 +8618,7 @@ End;
 Function WelcomeScreen: Integer;
 Const
  BtnX1 = 170; BtnX2 = 470; BtnY0 = 282; BtnH = 32; BtnGap = 12;
- BtnTxt: Array[1..3] Of String[24] =
+ BtnTxt: Array[1..3] Of String[30] =
   ('Lancer un exemple', 'Nouveau projet', 'Ouvrir un projet existant');
 Var
  Sel, I, Y, Res, Filt, Tw: Integer;
@@ -7838,6 +8753,7 @@ BEGIN
  ParseCommandLine;
  InitializeGraphics;
  InitGlobals;
+ PrSessionStart := NowMinutes;
  InitColumns;
  InitMenus;
  LayoutMenus;
