@@ -3,10 +3,10 @@
   @version: 1.00
   @website(https://www.gladir.com/office-0)
   @abstract(Target: Turbo Pascal 7, Free Pascal
-  @description: Clone de l'application Word
+  @description: WorDium, traitement de texte graphique
 }
 
-Program WordApp;
+Program WorDium;
 
 Uses {$IFDEF FPC}
       Crt,Dos,PtcGraph,PtcCrt,PtcMouse
@@ -9001,7 +9001,7 @@ Begin
  FillRectArea(X1, Y1, X2, Y2, CLR_3D_FACE);
  DrawButton3D(X1, Y1, X2, Y2, False);
  FillRectArea(X1+3, Y1+3, X2-3, Y1+18, Blue);
- DrawTextAt(X1+8, Y1+6, 'Word Clone', White);
+ DrawTextAt(X1+8, Y1+6, 'WorDium', White);
  DrawTextAt(X1+16, Y1+40, Msg, Black);
  DrawButton3D(X1+100, Y2-30, X1+180, Y2-10, False);
  DrawTextAt(X1+128, Y2-26, 'Yes', Black);
@@ -10165,7 +10165,7 @@ Begin
                      If Doc.Modified Then
                       If Not ShowConfirmYN('Discard unsaved changes?') Then Exit;
                      FNameTmp := '';
-                     If ShowFileDialog('Open Document', False, 'Documents Word (*.WPD;*.DOCX;*.DOC;*.PDF)|*.WPD;*.DOCX;*.DOC;*.PDF|PDF (*.PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
+                     If ShowFileDialog('Open Document', False, 'Documents (*.WPD;*.DOCX;*.DOC;*.PDF)|*.WPD;*.DOCX;*.DOC;*.PDF|PDF (*.PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If LoadAnyDocument(FNameTmp) Then Begin
                        LayoutDocument;
@@ -10179,7 +10179,7 @@ Begin
   ACT_FILE_SAVE   : Begin
                      FNameTmp := Doc.FileName;
                      If (FNameTmp = '') Or (FNameTmp = 'Document1') Then Begin
-                      If Not ShowFileDialog('Save Document', True, 'Documents Word (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
+                      If Not ShowFileDialog('Save Document', True, 'Documents (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
                       { .DOC en sortie n'est pas supporte (Phase 9 lecture seule) }
                        NeedsRedraw := True; Exit;
                       End;
@@ -10196,7 +10196,7 @@ Begin
   ACT_FILE_SAVEAS : Begin
                      FNameTmp := Doc.FileName;
                      If FNameTmp = 'Document1' Then FNameTmp := '';
-                     If ShowFileDialog('Save As', True, 'Documents Word (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
+                     If ShowFileDialog('Save As', True, 'Documents (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If ExtIsDoc(FNameTmp) And (Not ExtIsDocx(FNameTmp)) Then Begin
                        ShowMessage('Cannot save as .DOC (read-only format)');
@@ -10369,7 +10369,7 @@ Begin
   ACT_WIN_CASCADE : StatusMsg := 'Cascade (single-doc)';
 
   ACT_HLP_CONTENT : ShowMessage('Help Contents (a venir)');
-  ACT_HLP_ABOUT   : ShowMessage('Word Clone v1.0 - Pascal/Graph');
+  ACT_HLP_ABOUT   : ShowMessage('WorDium v1.0 - Pascal/Graph');
  Else
   StatusMsg := 'Action non implementee';
  End;
@@ -10396,7 +10396,7 @@ Begin
  DrawButton3D(X1, Y1, X2, Y2, False);
  { Titre }
  FillRectArea(X1+3, Y1+3, X2-3, Y1+18, Blue);
- DrawTextAt(X1+8, Y1+6, 'Word Clone', White);
+ DrawTextAt(X1+8, Y1+6, 'WorDium', White);
  { Message }
  DrawTextAt(X1+16, Y1+40, S, Black);
  { Bouton OK }
@@ -11083,8 +11083,8 @@ Procedure ShowCommandLineHelp;
 Var OutputHelp: Text;
 Begin
  Assign(OutputHelp,'');Rewrite(OutputHelp);
- WriteLn(OutputHelp,'WORD - Traitement de texte graphique en Pascal.');
- WriteLn(OutputHelp,'Utilisation : WORD [/CLASSICMENU | /RUBANMENU] [document] [/?]');
+ WriteLn(OutputHelp,'WorDium - Traitement de texte graphique en Pascal.');
+ WriteLn(OutputHelp,'Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] [/?]');
  WriteLn(OutputHelp);
  WriteLn(OutputHelp,'  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut).');
  WriteLn(OutputHelp,'  /RUBANMENU    Onglets et commandes avec icones, style Word 2007 et suivants.');
@@ -11095,7 +11095,7 @@ Begin
  WriteLn(OutputHelp,'Les options sont insensibles a la casse ; le dernier mode specifie est utilise.');
  WriteLn(OutputHelp,'Le document peut etre place avant ou apres les options.');
  WriteLn(OutputHelp,'Entourer les chemins contenant des espaces de guillemets.');
- WriteLn(OutputHelp,'Exemple : WORD /RUBANMENU "C:\Documents\Mon texte.docx"');
+ WriteLn(OutputHelp,'Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"');
  WriteLn(OutputHelp,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
  WriteLn(OutputHelp,'Accueil : Alt+E. Les commandes non implementees sont grisees.');
  WriteLn(OutputHelp,'Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitter.');
