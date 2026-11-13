@@ -12252,6 +12252,262 @@ Begin
 End;
 
 
+{$IFDEF WINDOWS}
+Type
+ { PRINTDLGW uses two-byte packing on Win32. }
+ {$PACKRECORDS 2}
+ TWordPrintDialog = Record
+  Size: LongWord;
+  Owner, DevMode, DevNames, DC: PtrUInt;
+  Flags: LongWord;
+  First, Last, MinPage, MaxPage, Copies: Word;
+  Instance, CustomData, PrintHook, SetupHook: PtrUInt;
+  PrintTemplate, SetupTemplate, PrintHandle, SetupHandle: PtrUInt;
+ End;
+ {$PACKRECORDS DEFAULT}
+ TWordPrintJob = Record
+  Size: LongInt;
+  Name, OutputName, DataType: Pointer;
+  Flags: LongWord;
+ End;
+Function WordPrintDlg(Var D:TWordPrintDialog): LongBool; stdcall; external 'comdlg32.dll' name 'PrintDlgW';
+Function WordPrintError: LongWord; stdcall; external 'comdlg32.dll' name 'CommDlgExtendedError';
+Function WordPrintOwner: PtrUInt; stdcall; external 'user32.dll' name 'GetForegroundWindow';
+Function WordGlobalFree(H:PtrUInt): PtrUInt; stdcall; external 'kernel32.dll' name 'GlobalFree';
+Function WordPrintDeleteDC(DC:PtrUInt): LongBool; stdcall; external 'gdi32.dll' name 'DeleteDC';
+Function WordPrintCaps(DC:PtrUInt; Index:LongInt):LongInt; stdcall; external 'gdi32.dll' name 'GetDeviceCaps';
+Function WordStartDoc(DC:PtrUInt; Var Job:TWordPrintJob):LongInt; stdcall; external 'gdi32.dll' name 'StartDocW';
+Function WordStartPage(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'StartPage';
+Function WordEndPage(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'EndPage';
+Function WordEndDoc(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'EndDoc';
+Function WordAbortDoc(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'AbortDoc';
+Function WordPrintText(DC:PtrUInt; X,Y:LongInt; S:Pointer; Count:LongInt):LongBool; stdcall; external 'gdi32.dll' name 'TextOutW';
+Function WordPrintMode(DC:PtrUInt; Mode:LongInt):LongInt; stdcall; external 'gdi32.dll' name 'SetBkMode';
+Function WordPrintDIB(DC:PtrUInt; X,Y,W,H,SX,SY,SW,SH:LongInt;
+ Bits:Pointer; Var Info:TPDFBitmapInfo; Usage,Operation:LongWord):LongInt;
+ stdcall; external 'gdi32.dll' name 'StretchDIBits';
+
+Procedure PrintWordDocument;
+Const
+ ReturnDC=$100; NoSelection=4; PageRange=2; DriverCopies=$40000;
+ Palette: Array[0..15] of LongWord =
+  ($000000,$AA0000,$00AA00,$AAAA00,$0000AA,$AA00AA,$0055AA,$AAAAAA,
+   $555555,$FF5555,$55FF55,$FFFF55,$5555FF,$FF55FF,$55FFFF,$FFFFFF);
+ JobName: Array[0..7] of Word=(87,111,114,68,105,117,109,0);
+ CourierFace: Array[0..11] of Char='Courier New'#0;
+Var
+ Dialog:TWordPrintDialog;
+ Job:TWordPrintJob;
+ SavedView, OK:Boolean;
+ PrintPage, FirstPage, LastPage, L, P, I, J, R, C, T, X, Y, W, PageX:Integer;
+ PrinterX, PrinterY:LongInt;
+ Scale:Real;
+ S:String;
+ Style:TCharStyle;
+
+ Function DeviceX(Value:Integer):LongInt;
+ Begin DeviceX:=PrinterX+Round(Value*Scale); End;
+ Function DeviceY(Value:Integer):LongInt;
+ Begin DeviceY:=PrinterY+Round(Value*Scale); End;
+
+ Procedure DrawText(AX,AY:Integer; Const Value:String; Const Sty:TCharStyle;
+                    Const FontFace:String; Height:Integer);
+ Var
+  Font, PreviousFont:LongWord;
+  Face:Array[0..63] of Char;
+  U:Word;
+  K, Weight, Advance:Integer;
+ Begin
+  If (Value='') Or Not OK Then Exit;
+  FillChar(Face,SizeOf(Face),0);
+  If FontFace='' Then Move(CourierFace,Face,SizeOf(CourierFace))
+  Else For K:=1 To Length(FontFace) Do
+   If K<SizeOf(Face) Then Face[K-1]:=FontFace[K];
+  Weight:=400;
+  If (Sty.Style and STY_BOLD)<>0 Then Weight:=700;
+  Advance:=RunAdvance(Sty);
+  Font:=PDFFont(-Round(Height*Scale),0,0,0,Weight,
+   Ord((Sty.Style and STY_ITALIC)<>0),Ord((Sty.Style and STY_UNDERLINE)<>0),
+   0,1,0,0,0,0,@Face[0]);
+  If Font=0 Then Begin OK:=False; Exit; End;
+  PreviousFont:=PDFSelect(Dialog.DC,Font);
+  PDFTextColor(Dialog.DC,Palette[Sty.Color and 15]);
+  If FontFace<>'' Then Begin
+   { Positioned PDF fragments use their original Windows encoding. }
+   OK:=PDFText(Dialog.DC,DeviceX(AX),DeviceY(AY),@Value[1],Length(Value));
+  End Else
+   For K:=1 To Length(Value) Do Begin
+    U:=Cp437ToUni(Ord(Value[K]));
+    If Not WordPrintText(Dialog.DC,DeviceX(AX+(K-1)*Advance),DeviceY(AY),@U,1) Then OK:=False;
+   End;
+  PDFSelect(Dialog.DC,PreviousFont);
+  PDFDelete(Font);
+ End;
+
+ Procedure DrawShape(AX,AY,BX,BY:Integer; Color:Byte; Filled:Boolean);
+ Var Pixel:LongWord; Info:TPDFBitmapInfo; X1,Y1,DX,DY,Steps,K:LongInt;
+ Begin
+  FillChar(Info,SizeOf(Info),0);
+  Info.Size:=SizeOf(Info); Info.Width:=1; Info.Height:=1;
+  Info.Planes:=1; Info.BitCount:=32;
+  Pixel:=Palette[Color and 15];
+  Pixel:=((Pixel and 255) shl 16) or (Pixel and $FF00) or (Pixel shr 16);
+  If Filled Then Begin
+   If WordPrintDIB(Dialog.DC,DeviceX(AX),DeviceY(AY),
+      DeviceX(BX+1)-DeviceX(AX),DeviceY(BY+1)-DeviceY(AY),
+      0,0,1,1,@Pixel,Info,0,$CC0020)=-1 Then OK:=False;
+  End Else Begin
+   DX:=BX-AX; DY:=BY-AY;
+   Steps:=Abs(DX);
+   If Abs(DY)>Steps Then Steps:=Abs(DY);
+   If Steps=0 Then Steps:=1;
+   For K:=0 To Steps Do Begin
+    X1:=AX+DX*K div Steps; Y1:=AY+DY*K div Steps;
+    If WordPrintDIB(Dialog.DC,DeviceX(X1),DeviceY(Y1),
+       DeviceX(X1+1)-DeviceX(X1),DeviceY(Y1+1)-DeviceY(Y1),
+       0,0,1,1,@Pixel,Info,0,$CC0020)=-1 Then OK:=False;
+   End;
+  End;
+ End;
+
+ Procedure DrawPicture(AX,AY,Width,Height:Integer; Data:Pointer);
+ Var
+  Info:TPDFBitmapInfo;
+  Colors:Array[0..15] of LongWord;
+  PackedInfo:Record Header:TPDFBitmapInfo; Table:Array[0..15] of LongWord; End;
+  Scan, Source:^Byte;
+  Row, Col, Stride, K:Integer;
+  Color:LongWord;
+ Begin
+  If (Data=Nil) Or (Width<=0) Or (Height<=0) Then Exit;
+  FillChar(Info,SizeOf(Info),0);
+  Info.Size:=SizeOf(Info); Info.Width:=Width; Info.Height:=-1;
+  Info.Planes:=1; Info.BitCount:=8; Info.Colors:=16;
+  For K:=0 To 15 Do Begin
+   Color:=Palette[K];
+   Colors[K]:=((Color and 255) shl 16) or (Color and $FF00) or (Color shr 16);
+  End;
+  PackedInfo.Header:=Info; PackedInfo.Table:=Colors;
+  Stride:=(Width+3) and not 3;
+  GetMem(Scan,Stride);
+  FillChar(Scan^,Stride,0);
+  Source:=Data;
+  For Row:=0 To Height-1 Do Begin
+   For Col:=0 To Width-1 Do Begin
+    PByte(PtrUInt(Scan)+Col)^:=Source^ and 15;
+    Inc(Source);
+   End;
+   If WordPrintDIB(Dialog.DC,DeviceX(AX),DeviceY(AY+Row),
+      DeviceX(AX+Width)-DeviceX(AX),DeviceY(AY+Row+1)-DeviceY(AY+Row),
+      0,0,Width,1,Scan,PackedInfo.Header,0,$CC0020)=-1 Then OK:=False;
+  End;
+  FreeMem(Scan,Stride);
+ End;
+
+Begin
+ FillChar(Dialog,SizeOf(Dialog),0);
+ Dialog.Size:=SizeOf(Dialog); Dialog.Owner:=WordPrintOwner;
+ SavedView:=PageLayoutView;
+ PageLayoutView:=True;
+ LayoutDocument;
+ Dialog.MinPage:=1; Dialog.MaxPage:=Doc.PageCount;
+ Dialog.First:=1; Dialog.Last:=Doc.PageCount; Dialog.Copies:=1;
+ Dialog.Flags:=ReturnDC or NoSelection or DriverCopies;
+ OK:=WordPrintDlg(Dialog);
+ If OK And (Dialog.DC=0) Then ShowMessage('Imprimante indisponible.');
+ If OK And (Dialog.DC<>0) Then Begin
+  FirstPage:=1; LastPage:=Doc.PageCount;
+  If (Dialog.Flags and PageRange)<>0 Then Begin
+   FirstPage:=Dialog.First; LastPage:=Dialog.Last;
+  End;
+  W:=WordPrintCaps(Dialog.DC,8);
+  Y:=WordPrintCaps(Dialog.DC,10);
+  Scale:=W/PAGE_W;
+  If Y/PAGE_H<Scale Then Scale:=Y/PAGE_H;
+  PrinterX:=(W-Round(PAGE_W*Scale)) div 2;
+  PrinterY:=(Y-Round(PAGE_H*Scale)) div 2;
+  FillChar(Job,SizeOf(Job),0);
+  Job.Size:=SizeOf(Job); Job.Name:=@JobName[0];
+  OK:=(Scale>0) And (WordStartDoc(Dialog.DC,Job)>0);
+  If OK Then Begin
+   PageX:=(SCREEN_W-PAGE_W) div 2;
+   For PrintPage:=FirstPage To LastPage Do Begin
+    OK:=WordStartPage(Dialog.DC)>0;
+    If Not OK Then Break;
+    WordPrintMode(Dialog.DC,1);
+    FillChar(Style,SizeOf(Style),0); Style.FontSize:=12;
+    If Doc.PDFPageCount=0 Then Begin
+     DrawText((PAGE_W-Length(DocxHeaderText)*8) div 2,PAGE_MARGIN_T div 2,
+              DocxHeaderText,Style,'',8);
+     DrawText((PAGE_W-Length(DocxFooterText)*8) div 2,PAGE_H-22,
+              DocxFooterText,Style,'',8);
+    End;
+    For I:=1 To Doc.PDFGraphicCount Do
+     With Doc.PDFGraphics[I] Do
+      If Doc.PDFGraphics[I].Page=PrintPage Then DrawShape(X1,Y1,X2,Y2,Color,Kind=2);
+    For L:=1 To VLineCount Do Begin
+     If VLines[L].PageIdx<>PrintPage Then Continue;
+     P:=VLines[L].ParaIdx;
+     Y:=VLines[L].Y-(DOCAREA_TOP+8)-(PrintPage-1)*(PAGE_H+12);
+     X:=VLines[L].X-PageX;
+     If VLines[L].IsImage Then
+      With Doc.Paragraphs[P] Do DrawPicture(X,Y,ImgW,ImgH,ImgData)
+     Else If VLines[L].IsTable Then Begin
+      T:=Doc.Paragraphs[P].TableIdx;
+      R:=VLines[L].TblRow; W:=VLines[L].Width div Tables[T].Cols;
+      FillChar(Style,SizeOf(Style),0); Style.FontSize:=12;
+      For C:=1 To Tables[T].Cols Do Begin
+       DrawShape(X,Y,X+W,Y,Black,True);
+       DrawShape(X,Y,X,Y+TBL_CELL_HEIGHT,Black,True);
+       DrawShape(X+W,Y,X+W,Y+TBL_CELL_HEIGHT,Black,True);
+       If R=Tables[T].Rows Then
+        DrawShape(X,Y+TBL_CELL_HEIGHT,X+W,Y+TBL_CELL_HEIGHT,Black,True);
+       S:=CellTextOf(P,R,C);
+       DrawText(X+TBL_CELL_PAD,Y+(TBL_CELL_HEIGHT-8) div 2,S,Style,'',8);
+       Inc(X,W);
+      End;
+     End Else If Doc.Paragraphs[P].PDF.Active Then Begin
+      S:=Copy(ParaText(P),VLines[L].CharStart,VLines[L].CharLen);
+      With Doc.Paragraphs[P] Do DrawText(X,Y,S,Runs[1].Style,PDF.Face,PDF.Height);
+     End Else Begin
+      For I:=0 To VLines[L].CharLen-1 Do Begin
+       J:=VLines[L].CharStart-1+I;
+       LocateChar(P,J,R,C);
+       With Doc.Paragraphs[P].Runs[R] Do
+        DrawText(LineCharScreenX(L,J)-PageX,Y,Text[C+1],Style,'',RunHeight(Style));
+      End;
+      If VLineIsLastInPara(L) And Doc.Paragraphs[P].BorderBottom Then
+       DrawShape(PAGE_MARGIN_L,Y+VLines[L].Height-1,PAGE_W-PAGE_MARGIN_R,
+                 Y+VLines[L].Height-1,DarkGray,True);
+     End;
+    End;
+    If OK Then OK:=WordEndPage(Dialog.DC)>0;
+    If Not OK Then Break;
+   End;
+   If OK Then OK:=WordEndDoc(Dialog.DC)>0;
+   If Not OK Then WordAbortDoc(Dialog.DC);
+  End;
+  If OK Then StatusMsg:='Document transmis a l''imprimante.'
+  Else ShowMessage('Echec de l''impression.');
+ End Else If WordPrintError<>0 Then ShowMessage('Impossible d''ouvrir le dialogue d''impression.');
+ If Dialog.DC<>0 Then WordPrintDeleteDC(Dialog.DC);
+ If Dialog.DevMode<>0 Then WordGlobalFree(Dialog.DevMode);
+ If Dialog.DevNames<>0 Then WordGlobalFree(Dialog.DevNames);
+ PageLayoutView:=SavedView;
+ NeedsRelayout:=True; NeedsRedraw:=True;
+End;
+{$ENDIF}
+
+Procedure PrintDocument;
+Begin
+ {$IFDEF WINDOWS}
+ PrintWordDocument;
+ {$ELSE}
+ ShowMessage('Impression disponible sous Windows.');
+ {$ENDIF}
+End;
+
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -12320,7 +12576,7 @@ Begin
                      End;
                      NeedsRedraw := True;
                     End;
-  ACT_FILE_PRINT  : ShowMessage('Print: a venir');
+  ACT_FILE_PRINT  : PrintDocument;
   ACT_FILE_EXIT   : AppShouldExit := True;
 
   ACT_EDIT_UNDO   : DoUndo;
