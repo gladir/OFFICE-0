@@ -10728,6 +10728,7 @@ Var
  Suggestions: Array[1..MaxSuggestions] of TWord;
  Scores: Array[1..MaxSuggestions] of Integer;
  DictName: String;
+ SpellLanguage: Byte;
 
 Function Lower(S: TWord): TWord;
 Var
@@ -11865,6 +11866,13 @@ Begin
  Else If LanguageCode='GR' Then DictName:='de_DE'
  Else If LanguageCode='IT' Then DictName:='it_IT'
  Else If LanguageCode='ES' Then DictName:='es_ES';
+ Case SpellLanguage Of
+  1: DictName:='fr_FR';
+  2: DictName:='en_US';
+  3: DictName:='de_DE';
+  4: DictName:='it_IT';
+  5: DictName:='es_ES';
+ End;
  InitDictionary;
  Replaced:=0; Cancelled:=False;
  For P:=1 To Doc.ParaCount Do Begin
@@ -11935,6 +11943,116 @@ Begin
   ShowMessage('Orthographe : '+Answer+' correction(s).');
  End;
 End;
+
+Procedure ShowOptionsDialog;
+Const
+ Languages: Array[0..5] of String[12] =
+  ('Automatique','Francais','Anglais','Allemand','Italien','Espagnol');
+Var
+ LayoutMode, ShowRuler, Done, Apply: Boolean;
+ Language, Focus, I: Integer;
+ Key: Word;
+ PreviousButtons: LongInt;
+
+ Procedure Paint;
+ Var J,X,Y: Integer;
+ Begin
+  EraseSoftCursor;
+  FillRectArea(100,105,540,375,CLR_3D_FACE);
+  DrawButton3D(100,105,540,375,False);
+  FillRectArea(103,108,537,127,Blue);
+  DrawTextAt(113,114,'Options',White);
+  DrawTextAt(117,141,'Affichage',Black);
+  DrawButton3D(117,158,296,183,LayoutMode);
+  DrawTextAt(127,167,'Mode Page',Black);
+  DrawButton3D(307,158,523,183,ShowRuler);
+  DrawTextAt(317,167,'Afficher la regle',Black);
+  DrawTextAt(117,200,'Langue du correcteur',Black);
+  For J:=0 To 5 Do Begin
+   X:=117+(J mod 3)*137;
+   Y:=219+(J div 3)*30;
+   DrawButton3D(X,Y,X+130,Y+24,Language=J);
+   DrawTextAt(X+8,Y+8,Languages[J],Black);
+  End;
+  DrawTextAt(117,289,'Automatique suit LANGUAGE (francais par defaut).',Black);
+  DrawTextAt(117,308,'Tab : option   Espace : choisir',DarkGray);
+  SetColor(Blue);
+  Case Focus Of
+   0: Rectangle(115,156,298,185);
+   1: Rectangle(305,156,525,185);
+  Else
+   X:=117+((Focus-2) mod 3)*137;
+   Y:=219+((Focus-2) div 3)*30;
+   Rectangle(X-2,Y-2,X+132,Y+26);
+  End;
+  DrawButton3D(323,335,419,362,False);
+  DrawTextAt(334,344,'Appliquer',Black);
+  DrawButton3D(427,335,523,362,False);
+  DrawTextAt(441,344,'Annuler',Black);
+ End;
+
+ Procedure Choose;
+ Begin
+  Case Focus Of
+   0: LayoutMode:=Not LayoutMode;
+   1: ShowRuler:=Not ShowRuler;
+  Else Language:=Focus-2;
+  End;
+ End;
+
+Begin
+ LayoutMode:=PageLayoutView;
+ ShowRuler:=RulerVisible;
+ Language:=SpellLanguage;
+ Focus:=0; Done:=False; Apply:=False;
+ PreviousButtons:=MsBtn;
+ Paint;
+ Repeat
+  If KeyPressed Then Begin
+   Key:=ReadKeyEx;
+   Case Key Of
+    KEY_ESC: Done:=True;
+    KEY_ENTER: Begin Apply:=True; Done:=True; End;
+    KEY_TAB,KEY_RIGHT: Focus:=(Focus+1) mod 8;
+    KEY_LEFT: Focus:=(Focus+7) mod 8;
+    32: Choose;
+   End;
+   If Not Done Then Paint;
+  End;
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If Not Done And ((MsBtn and MB_LEFT)<>0) And
+     ((PreviousButtons and MB_LEFT)=0) Then Begin
+   If (MsY>=158) And (MsY<=183) Then Begin
+    If (MsX>=117) And (MsX<=296) Then Begin Focus:=0; Choose; End;
+    If (MsX>=307) And (MsX<=523) Then Begin Focus:=1; Choose; End;
+   End;
+   For I:=0 To 5 Do
+    If (MsX>=117+(I mod 3)*137) And (MsX<=247+(I mod 3)*137) And
+       (MsY>=219+(I div 3)*30) And (MsY<=243+(I div 3)*30) Then Begin
+     Focus:=I+2; Choose;
+    End;
+   If (MsY>=335) And (MsY<=362) Then Begin
+    If (MsX>=323) And (MsX<=419) Then Begin Apply:=True; Done:=True; End;
+    If (MsX>=427) And (MsX<=523) Then Done:=True;
+   End;
+   If Not Done Then Paint;
+  End;
+  PreviousButtons:=MsBtn;
+  If Not Done Then Begin
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ EraseSoftCursor;
+ If Apply Then Begin
+  ChangeDocumentView(LayoutMode);
+  If ShowRuler<>RulerVisible Then ToggleDocumentRuler;
+  SpellLanguage:=Language;
+ End;
+ NeedsRedraw:=True;
+End;
+
 
 Procedure ExecAction(Act: Integer);
 Var
@@ -12141,7 +12259,7 @@ Begin
 
   ACT_TLS_SPELL   : DoSpellDialog;
   ACT_TLS_WORDS   : ShowWordCountDialog;
-  ACT_TLS_OPTIONS : ShowMessage('Options: a venir');
+  ACT_TLS_OPTIONS : ShowOptionsDialog;
 
   ACT_TBL_INSERT  : Begin
                      MarkMutation(2);
