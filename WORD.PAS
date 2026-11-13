@@ -10143,6 +10143,236 @@ Begin
 End;
 
 
+Procedure ShowFontDialog;
+Const
+ Options: Array[1..3] of String[10] = ('Gras','Italique','Souligne');
+ Bits: Array[1..3] of Byte = (STY_BOLD,STY_ITALIC,STY_UNDERLINE);
+ MinSize=6; MaxSize=72; VisibleSizes=10;
+Var
+ Draft, Initial: TCharStyle;
+ P1,C1,P2,C2,P,L,R,J,A,B,Extra,F,Choice,FirstSize: Integer;
+ SizeText: String;
+ K: Word;
+ Prev: LongInt;
+ Done, Accept, Dirty, ListOpen: Boolean;
+
+ Procedure Bounds;
+ Begin
+  L:=0; R:=Length(ParaText(P));
+  If P=P1 Then L:=C1;
+  If (P=P2) And (C2<R) Then R:=C2;
+ End;
+
+ Procedure MoveChoice(NewChoice: Integer);
+ Begin
+  If NewChoice<MinSize Then NewChoice:=MinSize;
+  If NewChoice>MaxSize Then NewChoice:=MaxSize;
+  Choice:=NewChoice;
+  If Choice<FirstSize Then FirstSize:=Choice;
+  If Choice>=FirstSize+VisibleSizes Then FirstSize:=Choice-VisibleSizes+1;
+ End;
+
+ Procedure ToggleList;
+ Begin
+  ListOpen:=Not ListOpen;
+  If ListOpen Then MoveChoice(Draft.FontSize);
+ End;
+
+ Procedure Paint;
+ Var I,X,Y,Ink: Integer; Sample: String;
+ Begin
+  EraseSoftCursor;
+  FillRectArea(110,94,530,404,CLR_3D_FACE);
+  DrawButton3D(110,94,530,404,False);
+  FillRectArea(113,97,527,116,Blue);
+  DrawTextAt(121,102,'Police',White);
+  DrawTextAt(128,132,'Taille (6 a 72 pt)',Black);
+  FillRectArea(294,124,376,148,White);
+  DrawSunkenRect(294,124,376,148);
+  Str(Draft.FontSize,SizeText);
+  DrawTextAt(303,132,SizeText+' pt',Black);
+  DrawButton3D(353,125,375,147,ListOpen);
+  DrawTextAt(361,132,'v',Black);
+  For I:=1 To 3 Do Begin
+   X:=128+(I-1)*124;
+   DrawButton3D(X,160,X+112,184,(Draft.Style and Bits[I])<>0);
+   DrawTextAt(X+8,168,Options[I],Black);
+   If F=I Then DrawTextAt(X+98,168,'*',Blue);
+  End;
+  For I:=0 To 15 Do Begin
+   X:=128+(I mod 8)*47; Y:=198+(I div 8)*24;
+   DrawButton3D(X,Y,X+39,Y+21,Draft.Color=I);
+   FillRectArea(X+5,Y+5,X+34,Y+16,I);
+   If Draft.Color=I Then Begin
+    SetColor(White); Rectangle(X+2,Y+2,X+37,Y+19);
+   End;
+  End;
+  FillRectArea(128,253,512,337,White);
+  DrawSunkenRect(128,253,512,337);
+  Sample:='AaBb 123';
+  ApplyRunStyle(Draft);
+  DrawStyledText(141,261,Sample,Draft);
+  If (Draft.Style and STY_UNDERLINE)<>0 Then
+   Line(141,261+8,140+Length(Sample)*8,
+     261+8);
+  DrawTextAt(128,345,'Tab : option   Espace : ouvrir / basculer',Black);
+  DrawButton3D(329,370,414,393,False);
+  DrawButton3D(421,370,512,393,False);
+  DrawTextAt(340,378,'Appliquer',Black);
+  DrawTextAt(434,378,'Annuler',Black);
+  If F=0 Then DrawTextAt(380,132,'*',Blue);
+  If F=4 Then DrawTextAt(508,202,'*',Blue);
+  If ListOpen Then Begin
+   FillRectArea(294,149,376,331,White);
+   DrawSunkenRect(294,149,376,331);
+   For I:=0 To VisibleSizes-1 Do Begin
+    Y:=150+I*18;
+    Ink:=Black;
+    If FirstSize+I=Choice Then Begin
+     FillRectArea(295,Y,352,Y+17,Blue);
+     Ink:=White;
+    End;
+    Str(FirstSize+I,SizeText);
+    DrawTextAt(303,Y+5,SizeText+' pt',Ink);
+   End;
+   DrawButton3D(353,150,375,168,False);
+   DrawTextAt(360,155,'^',Black);
+   DrawButton3D(353,312,375,330,False);
+   DrawTextAt(360,318,'v',Black);
+  End;
+ End;
+
+Begin
+ If CursorInTable And Not SelHasRange Then Begin
+  ShowMessage('Les cellules utilisent une police fixe.');
+  Exit;
+ End;
+ Initial:=CurrentStyle;
+ If SelHasRange Then Begin
+  SelGetRange(P1,C1,P2,C2);
+  For P:=P1 To P2 Do Begin
+   Bounds;
+   If R>L Then Begin
+    LocateChar(P,L,J,A);
+    Initial:=Doc.Paragraphs[P].Runs[J].Style;
+    Break;
+   End;
+  End;
+ End;
+ Draft:=Initial;
+ If (Draft.FontSize<6) Or (Draft.FontSize>72) Then Draft.FontSize:=12;
+ F:=0; ListOpen:=False; FirstSize:=MinSize; Choice:=Draft.FontSize;
+ Done:=False; Accept:=False; Prev:=MsBtn;
+ Paint;
+ Repeat
+  Dirty:=False;
+  If KeyPressed Then Begin
+   K:=ReadKeyEx;
+   Dirty:=True;
+   If ListOpen Then Begin
+    Case K Of
+     KEY_ESC: ListOpen:=False;
+     KEY_TAB: Begin ListOpen:=False; F:=1; End;
+     KEY_ENTER,32: Begin Draft.FontSize:=Choice; ListOpen:=False; End;
+     KEY_UP: MoveChoice(Choice-1);
+     KEY_DOWN: MoveChoice(Choice+1);
+     KEY_HOME: MoveChoice(MinSize);
+     KEY_END: MoveChoice(MaxSize);
+     KEY_PGUP: MoveChoice(Choice-VisibleSizes);
+     KEY_PGDN: MoveChoice(Choice+VisibleSizes);
+    End;
+   End Else Case K Of
+    KEY_ESC: Done:=True;
+    KEY_ENTER: If F=0 Then ToggleList Else Begin Done:=True; Accept:=True; End;
+    KEY_TAB: F:=(F+1) mod 5;
+    KEY_LEFT: If F=4 Then Draft.Color:=(Draft.Color+15) mod 16;
+    KEY_RIGHT: If F=4 Then Draft.Color:=(Draft.Color+1) mod 16;
+    KEY_UP,KEY_DOWN: If F=0 Then ToggleList
+     Else If F=4 Then Draft.Color:=Draft.Color xor 8;
+    32: If F=0 Then ToggleList
+     Else If (F>=1) And (F<=3) Then Draft.Style:=Draft.Style xor Bits[F];
+   End;
+  End;
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If Not Done And ((MsBtn and MB_LEFT)<>0) And ((Prev and MB_LEFT)=0) Then Begin
+   Dirty:=True;
+   If (MsY>=124) And (MsY<=148) And (MsX>=294) And (MsX<=376) Then Begin
+    F:=0; ToggleList;
+   End Else If ListOpen Then Begin
+    If (MsX>=294) And (MsX<=352) And (MsY>=150) And (MsY<330) Then Begin
+     Draft.FontSize:=FirstSize+(MsY-150) div 18;
+     ListOpen:=False;
+    End Else If (MsX>=353) And (MsX<=376) And (MsY>=150) And (MsY<=330) Then Begin
+     If MsY<=168 Then MoveChoice(FirstSize-1);
+     If MsY>=312 Then MoveChoice(FirstSize+VisibleSizes);
+    End Else ListOpen:=False;
+   End Else Begin
+   If (MsY>=160) And (MsY<=184) Then
+    For J:=1 To 3 Do
+     If (MsX>=128+(J-1)*124) And (MsX<=240+(J-1)*124) Then Begin
+      F:=J; Draft.Style:=Draft.Style xor Bits[J];
+     End;
+   If (MsX>=128) And (MsX<504) And (MsY>=198) And (MsY<246) Then Begin
+    F:=4; Draft.Color:=(MsX-128) div 47+8*((MsY-198) div 24);
+   End;
+   If (MsY>=370) And (MsY<=393) Then Begin
+    If (MsX>=329) And (MsX<=414) Then Begin Done:=True; Accept:=True; End;
+    If (MsX>=421) And (MsX<=512) Then Done:=True;
+   End;
+   End;
+  End;
+  Prev:=MsBtn;
+  If Dirty And Not Done Then Paint;
+  If Not Done Then Begin
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ EraseSoftCursor;
+ NeedsRedraw:=True;
+ If Not Accept Then Exit;
+
+ If SelHasRange Then Begin
+  For P:=P1 To P2 Do Begin
+   Bounds;
+   If R<=L Then Continue;
+   Extra:=0;
+   LocateChar(P,L,J,A);
+   If A>0 Then Inc(Extra);
+   If R<Length(ParaText(P)) Then Begin
+    LocateChar(P,R,J,B);
+    If B>0 Then Inc(Extra);
+   End;
+   If Doc.Paragraphs[P].RunCount+Extra>MAX_RUNS_PER_PARA Then Begin
+    ShowMessage('Selection trop fragmentee pour appliquer la police.');
+    Exit;
+   End;
+  End;
+  PushUndoSnapshot;
+  For P:=P1 To P2 Do Begin
+   Bounds;
+   If R<=L Then Continue;
+   If Not SplitRunAtChar(P,L) Then Continue;
+   If Not SplitRunAtChar(P,R) Then Continue;
+   A:=0;
+   For J:=1 To Doc.Paragraphs[P].RunCount Do Begin
+    B:=A+Length(Doc.Paragraphs[P].Runs[J].Text);
+    If (A>=L) And (B<=R) And (B>A) Then
+     Doc.Paragraphs[P].Runs[J].Style:=Draft;
+    A:=B;
+   End;
+   MergeAdjacentSameStyleRuns(P);
+  End;
+  Doc.Modified:=True;
+  NeedsRelayout:=True;
+ End;
+ CurrentStyle:=Draft;
+ For J:=1 To 3 Do FmtBar[J].Pressed:=(Draft.Style and Bits[J])<>0;
+ ResetMutation;
+End;
+
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -10271,7 +10501,7 @@ Begin
                      NeedsRedraw   := True;
                     End;
 
-  ACT_FMT_FONT    : ShowMessage('Font dialog: Phase 3');
+  ACT_FMT_FONT    : ShowFontDialog;
   ACT_FMT_PARA    : ShowMessage('Paragraph dialog: Phase 4');
   ACT_FMT_BOLD    : Begin
                      If SelHasRange Then Begin
