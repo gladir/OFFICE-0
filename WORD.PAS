@@ -12054,6 +12054,119 @@ Begin
 End;
 
 
+Procedure ShowHelpContents;
+Const
+ Topics: Array[1..7] of String[16] =
+  ('Documents','Edition','Affichage','Insertion','Mise en forme','Orthographe','Statistiques');
+ HelpText: Array[1..7,1..5] of String[43] = (
+  ('Ctrl+O ouvre un document.',
+   'Ctrl+S enregistre le document courant.',
+   'Fichier > Enregistrer sous permet de',
+   'choisir un autre nom ou format.',
+   'Alt+X quitte WorDium.'),
+  ('Ctrl+X coupe et Ctrl+C copie.',
+   'Ctrl+V colle le texte.',
+   'Ctrl+Z annule la derniere modification.',
+   'Ctrl+Y retablit une modification.',
+   'F3 recherche la prochaine occurrence.'),
+  ('Le menu Affichage permet de changer',
+   'de vue, de zoom ou de masquer la regle.',
+   'Utilisez le mode Page pour visualiser',
+   'la disposition sur la feuille.',
+   ''),
+  ('Insertion > Symbole ouvre la grille.',
+   'Choisissez un caractere puis Inserer.',
+   'Le menu permet aussi d''inserer une',
+   'image ou un tableau.',
+   'Ctrl+Entree insere un saut de page.'),
+  ('Format > Police regle taille et couleur.',
+   'Ctrl+B active ou desactive le gras.',
+   'Ctrl+I gere l''italique et Ctrl+U souligne.',
+   'Format > Paragraphe regle alignement,',
+   'retrait, bordure et saut de page.'),
+  ('F7 lance le correcteur orthographique.',
+   'Choisissez une suggestion puis Remplacer.',
+   'Ignorer passe au mot suivant.',
+   'Outils > Options permet de choisir',
+   'la langue du correcteur.'),
+  ('Outils > Statistiques affiche les',
+   'decomptes du document.',
+   'Le tableau indique les pages, mots,',
+   'caracteres, paragraphes, lignes,',
+   'tableaux, cellules et images.'));
+Var
+ Topic, Row, Y: Integer;
+ Key: Word;
+ PreviousButtons: LongInt;
+ Done, Repaint: Boolean;
+
+ Procedure Paint;
+ Var I, TopY, Ink: Integer;
+ Begin
+  EraseSoftCursor;
+  FillRectArea(47,102,593,373,CLR_3D_FACE);
+  DrawButton3D(47,102,593,373,False);
+  FillRectArea(50,105,590,124,Blue);
+  DrawTextAt(58,110,'Sommaire de l''aide WorDium',White);
+  FillRectArea(60,138,216,310,White);
+  DrawSunkenRect(59,137,217,311);
+  For I:=1 To 7 Do Begin
+   TopY:=140+(I-1)*24;
+   Ink:=Black;
+   If I=Topic Then Begin
+    FillRectArea(61,TopY,215,TopY+23,Blue);
+    Ink:=White;
+   End;
+   DrawTextAt(68,TopY+8,Topics[I],Ink);
+  End;
+  FillRectArea(227,138,580,310,White);
+  DrawSunkenRect(226,137,581,311);
+  DrawTextAt(237,151,Topics[Topic],Blue);
+  For I:=1 To 5 Do DrawTextAt(237,174+(I-1)*19,HelpText[Topic,I],Black);
+  DrawTextAt(61,340,'Fleches : choisir une rubrique',DarkGray);
+  DrawButton3D(482,330,580,358,False);
+  DrawTextAt(507,340,'Fermer',Black);
+ End;
+
+Begin
+ Topic:=1; Done:=False; PreviousButtons:=MsBtn;
+ Paint;
+ Repeat
+  Repaint:=False;
+  If KeyPressed Then Begin
+   Key:=ReadKeyEx;
+   Repaint:=True;
+   Case Key Of
+    KEY_ESC,KEY_ENTER: Done:=True;
+    KEY_UP: If Topic>1 Then Dec(Topic);
+    KEY_DOWN,KEY_TAB: If Topic<7 Then Inc(Topic) Else Topic:=1;
+    KEY_HOME: Topic:=1;
+    KEY_END: Topic:=7;
+   End;
+  End;
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If ((MsBtn and MB_LEFT)<>0) And ((PreviousButtons and MB_LEFT)=0) Then Begin
+   Y:=MsY;
+   If (MsX>=61) And (MsX<=215) And (Y>=140) And (Y<308) Then Begin
+    Row:=1+(Y-140) div 24;
+    Repaint:=Topic<>Row;
+    Topic:=Row;
+   End;
+   If (MsX>=482) And (MsX<=580) And (Y>=330) And (Y<=358) Then Done:=True;
+  End;
+  PreviousButtons:=MsBtn;
+  If Not Done Then Begin
+   If Repaint Then Paint;
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ EraseSoftCursor;
+ NeedsRedraw:=True;
+End;
+
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -12279,7 +12392,7 @@ Begin
 
   ACT_WIN_CASCADE : StatusMsg := 'Cascade (single-doc)';
 
-  ACT_HLP_CONTENT : ShowMessage('Help Contents (a venir)');
+  ACT_HLP_CONTENT : ShowHelpContents;
   ACT_HLP_ABOUT   : ShowMessage('WorDium v1.0 - Pascal/Graph');
  Else
   StatusMsg := 'Action non implementee';
