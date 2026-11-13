@@ -9625,32 +9625,113 @@ Begin
  CountWordsInStr := N;
 End;
 
-Procedure CountDocStats(Var Words, Chars, ParaCnt, PageCnt: LongInt);
-Var I: Integer; T: String;
-Begin
- Words := 0; Chars := 0;
- ParaCnt := Doc.ParaCount;
- PageCnt := Doc.PageCount;
- For I := 1 To Doc.ParaCount Do Begin
-  If Doc.Paragraphs[I].IsImage Then Continue;
-  T := ParaText(I);
-  Inc(Words, CountWordsInStr(T));
-  Inc(Chars, Length(T));
+Procedure ShowWordCountDialog;
+Const
+ Labels: Array[1..9] of String[32] = (
+  'Pages','Mots','Caract'+#138+'res (avec espaces)',
+  'Caract'+#138+'res (sans espaces)','Paragraphes','Lignes de texte',
+  'Tableaux','Cellules','Images');
+ Colors: Array[1..9] of Word = (Blue,Red,Green,Magenta,Cyan,Brown,DarkGray,LightRed,LightBlue);
+Var
+ Totals: Array[1..9] of LongInt;
+ P, I, R, C, T, Y, Ink: Integer;
+ Total, Running: LongInt;
+ StartAngle, EndAngle: Integer;
+ ValueText: String;
+ PrevButtons: LongInt;
+ Done: Boolean;
+
+ Procedure CountText(Const S: String);
+ Var J: Integer;
+ Begin
+  Inc(Totals[2],CountWordsInStr(S));
+  Inc(Totals[3],Length(S));
+  For J:=1 To Length(S) Do
+   If Not (S[J] in [#9..#13,' ',#255]) Then Inc(Totals[4]);
  End;
+
+Begin
+ If NeedsRelayout Then LayoutDocument;
+ FillChar(Totals,SizeOf(Totals),0);
+ Totals[1]:=Doc.PageCount;
+ For P:=1 To Doc.ParaCount Do Begin
+  If Doc.Paragraphs[P].IsImage Then Inc(Totals[9])
+  Else If ParaIsTable(P) Then Begin
+   Inc(Totals[7]);
+   T:=Doc.Paragraphs[P].TableIdx;
+   Inc(Totals[8],LongInt(Tables[T].Rows)*Tables[T].Cols);
+   For R:=1 To Tables[T].Rows Do
+    For C:=1 To Tables[T].Cols Do CountText(CellTextOf(P,R,C));
+  End Else Begin
+   Inc(Totals[5]);
+   CountText(ParaText(P));
+  End;
+ End;
+ For I:=1 To VLineCount Do
+  If Not (VLines[I].IsImage Or VLines[I].IsTable) Then Inc(Totals[6]);
+
+ EraseSoftCursor;
+ FillRectArea(38,92,602,385,CLR_3D_FACE);
+ DrawButton3D(38,92,602,385,False);
+ FillRectArea(41,95,599,113,Blue);
+ DrawTextAt(50,100,'Statistiques du document',White);
+ FillRectArea(53,126,383,148,DarkGray);
+ DrawTextAt(65,134,'Mesure',White);
+ DrawTextAt(327,134,'Total',White);
+ For I:=1 To 9 Do Begin
+  Y:=149+(I-1)*21;
+  Ink:=White;
+  If Odd(I) Then Ink:=LightGray;
+  FillRectArea(53,Y,383,Y+19,Ink);
+  FillRectArea(61,Y+6,70,Y+14,Colors[I]);
+  DrawTextAt(77,Y+6,Labels[I],Black);
+  Str(Totals[I],ValueText);
+  DrawTextAt(370-TextWidth(ValueText),Y+6,ValueText,Black);
+ End;
+ SetColor(DarkGray);
+ Line(307,126,307,337);
+ DrawSunkenRect(52,125,384,338);
+ Total:=0;
+ For I:=1 To 9 Do Inc(Total,Totals[I]);
+ DrawTextAt(416,134,'Valeurs relatives',Black);
+ If Total>0 Then Begin
+  Running:=0;
+  StartAngle:=0;
+  For I:=1 To 9 Do Begin
+   Inc(Running,Totals[I]);
+   EndAngle:=Round(360.0*Running/Total);
+   If EndAngle>StartAngle Then Begin
+    SetColor(Colors[I]);
+    SetFillStyle(SolidFill,Colors[I]);
+    If EndAngle-StartAngle=360 Then FillEllipse(492,236,83,83)
+    Else PieSlice(492,236,StartAngle,EndAngle,83);
+   End;
+   StartAngle:=EndAngle;
+  End;
+ End;
+ SetColor(DarkGray);
+ Circle(492,236,83);
+ DrawTextAt(408,325,'Unites differentes',DarkGray);
+ DrawButton3D(414,349,515,374,False);
+ DrawTextAt(435,358,'Fermer',Black);
+
+ PrevButtons:=MsBtn;
+ Repeat
+  Done:=False;
+  If KeyPressed Then Done:=ReadKeyEx in [KEY_ENTER,KEY_ESC,32];
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If ((MsBtn and MB_LEFT)<>0) And ((PrevButtons and MB_LEFT)=0) Then
+   If (MsX>=414) And (MsX<=515) And (MsY>=349) And (MsY<=374) Then Done:=True;
+  PrevButtons:=MsBtn;
+  If Not Done Then Begin
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ NeedsRedraw:=True;
 End;
 
-Procedure ShowWordCountDialog;
-Var
- W, C, P, Pg : LongInt;
- SW, SC, SP, SPg : String[16];
- Msg : String;
-Begin
- CountDocStats(W, C, P, Pg);
- Str(W, SW); Str(C, SC); Str(P, SP); Str(Pg, SPg);
- Msg := 'Words: ' + SW + '  Chars: ' + SC +
-        '  Paras: ' + SP + '  Pages: ' + SPg;
- ShowMessage(Msg);
-End;
 
 { ---- Recherche dans le document ---- }
 
