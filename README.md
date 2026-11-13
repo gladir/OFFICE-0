@@ -104,15 +104,15 @@ Aperçu du clone de Quattro :
 	</tr>
 </table>
 
-Aperçu du clone de Sample Accounting :
+Aperçu de Sample Accounting :
 
 <img width="642" height="484" alt="image" src="https://github.com/user-attachments/assets/5c732dbb-452c-46ed-bb6d-c8849fefd947" />
 
-Aperçu du clone de Visior :
+Aperçu de Visior :
 
 <img width="641" height="477" alt="image" src="https://github.com/user-attachments/assets/d6ffcfca-2fd2-4146-97fb-763b3d4f3629" />
 
-Aperçu du clone de Word :
+Aperçu de WorDium :
 
 <img width="642" height="479" alt="image" src="https://github.com/user-attachments/assets/3208cc06-676b-47c4-a09f-a85fe45563f8" />
 
@@ -199,7 +199,7 @@ Voici la liste des différents fichiers proposés dans OFFICE-0 :
     </tr>    
     <tr>
       <td><b>WORD.PAS</b></td>
-      <td>Cette commande permet de lancer un clone de Word.</td>
+      <td>Cette commande permet de lancer un WorDium.</td>
     </tr>  
 </table>
 
