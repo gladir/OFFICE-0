@@ -9996,6 +9996,153 @@ Begin
  NeedsRedraw:=True;
 End;
 
+Procedure ShowSymbolDialog;
+Const
+ GridX = 108; GridY = 120;
+ Cols = 16; Rows = 14;
+ CellW = 26; CellH = 19;
+ FirstCode = 33; LastCode = 254;
+Var
+ Code, I, X, Y, OldPos: Integer;
+ K: Word;
+ PreviousButtons: LongInt;
+ Done, Accepted, Repaint: Boolean;
+
+ Function HexDigit(N: Integer): Char;
+ Const Digits = '0123456789ABCDEF';
+ Begin
+  HexDigit := Digits[N+1];
+ End;
+
+ Function UnicodeLabel(N: Word): String;
+ Begin
+  UnicodeLabel := 'U+' + HexDigit(N shr 12) +
+    HexDigit((N shr 8) and 15) + HexDigit((N shr 4) and 15) +
+    HexDigit(N and 15);
+ End;
+
+ Procedure Paint;
+ Var J, BX, BY, Ink: Integer; Number: String;
+ Begin
+  EraseSoftCursor;
+  FillRectArea(96,76,536,454,CLR_3D_FACE);
+  DrawButton3D(96,76,536,454,False);
+  FillRectArea(99,79,533,97,Blue);
+  DrawTextAt(106,83,'Insertion de symbole',White);
+  DrawTextAt(108,105,'Choisir un caractere CP437',Black);
+
+  For J := FirstCode To LastCode Do Begin
+   { 127 est DEL, reserve aux commandes de controle. }
+   If J <> 127 Then Begin
+    BX := GridX + ((J-FirstCode) mod Cols)*CellW;
+    BY := GridY + ((J-FirstCode) div Cols)*CellH;
+    Ink := Black;
+    If J = Code Then Begin
+     FillRectArea(BX,BY,BX+CellW-2,BY+CellH-2,Blue);
+     Ink := White;
+    End Else DrawButton3D(BX,BY,BX+CellW-2,BY+CellH-2,False);
+    DrawTextAt(BX+9,BY+5,Chr(J),Ink);
+   End;
+  End;
+
+  Str(Code,Number);
+  DrawTextAt(108,396,'Apercu : '+Chr(Code)+'   CP437 '+Number+
+    '   '+UnicodeLabel(Cp437ToUni(Code)),Black);
+  DrawButton3D(326,420,417,443,False);
+  DrawTextAt(339,428,'Inserer',Black);
+  DrawButton3D(427,420,524,443,False);
+  DrawTextAt(443,428,'Annuler',Black);
+ End;
+
+ Procedure MoveSelection(Delta: Integer);
+ Begin
+  Inc(Code,Delta);
+  If Code < FirstCode Then Code := FirstCode;
+  If Code > LastCode Then Code := LastCode;
+  If Code = 127 Then
+   If Delta < 0 Then Dec(Code) Else Inc(Code);
+ End;
+
+Begin
+ Code := 130;
+ Done := False;
+ Accepted := False;
+ PreviousButtons := MsBtn;
+ Paint;
+ Repeat
+  Repaint := False;
+  If KeyPressed Then Begin
+   K := ReadKeyEx;
+   I := Code;
+   Case K Of
+    KEY_ESC: Done := True;
+    KEY_ENTER: Begin Accepted := True; Done := True; End;
+    KEY_LEFT: MoveSelection(-1);
+    KEY_RIGHT,KEY_TAB: MoveSelection(1);
+    KEY_UP: MoveSelection(-Cols);
+    KEY_DOWN: MoveSelection(Cols);
+    KEY_HOME: Code := FirstCode;
+    KEY_END: Code := LastCode;
+    KEY_PGUP: Code := 128;
+    KEY_PGDN: Code := 224;
+   End;
+   Repaint := I <> Code;
+  End;
+
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If (Not Done) And ((MsBtn and MB_LEFT) <> 0) And
+     ((PreviousButtons and MB_LEFT) = 0) Then Begin
+   X := MsX-GridX;
+   Y := MsY-GridY;
+   If (X >= 0) And (X < Cols*CellW) And
+      (Y >= 0) And (Y < Rows*CellH) Then Begin
+    I := FirstCode + (Y div CellH)*Cols + X div CellW;
+    If (I <= LastCode) And (I <> 127) Then Begin
+     Code := I;
+     Repaint := True;
+    End;
+   End;
+   If (MsY >= 420) And (MsY <= 443) Then Begin
+    If (MsX >= 326) And (MsX <= 417) Then Begin
+     Accepted := True;
+     Done := True;
+    End;
+    If (MsX >= 427) And (MsX <= 524) Then Done := True;
+   End;
+  End;
+  PreviousButtons := MsBtn;
+  If Not Done Then Begin
+   If Repaint Then Paint;
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ EraseSoftCursor;
+ NeedsRedraw := True;
+
+ If Accepted Then Begin
+  OldPos := Cursor.CharIdx;
+  If CursorInTable Then Begin
+   GetCursorCell(X,Y);
+   If Length(CellTextOf(Cursor.ParaIdx,X,Y)) >= MAX_CELL_TEXT_LEN Then Begin
+    ShowMessage('Cette cellule est pleine.');
+    Exit;
+   End;
+  End Else If Length(ParaText(Cursor.ParaIdx)) >= MAX_TEXT_LEN Then Begin
+   ShowMessage('Ce paragraphe est plein.');
+   Exit;
+  End;
+  SelClear;
+  PushUndoSnapshot;
+  ResetMutation;
+  InsertCharAtCursor(Chr(Code));
+  If Cursor.CharIdx = OldPos Then
+   ShowMessage('Insertion impossible : trop de segments de style.');
+ End;
+End;
+
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -10116,7 +10263,7 @@ Begin
                      End;
                      NeedsRedraw := True;
                     End;
-  ACT_INS_SYMBOL  : ShowMessage('Insert Symbol: a venir');
+  ACT_INS_SYMBOL  : ShowSymbolDialog;
   ACT_INS_TABLE   : Begin
                      MarkMutation(2);
                      InsertTableAtCursor(3, 3);
