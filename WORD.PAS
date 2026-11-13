@@ -189,7 +189,17 @@ Type
  End;
 
  { --- Paragraphe = liste de runs + alignement (+ image en Phase 6) --- }
+ TPDFPlacement = Record
+  Active: Boolean;
+  Page, X, Y, Height, Width: Integer;
+  Face: String[31];
+ End;
+ TPDFGraphic = Record
+  Page, X1,Y1,X2,Y2: Integer;
+  Kind, Color: Byte; { 1=line, 2=filled rectangle }
+ End;
  TParagraph = Record
+  PDF: TPDFPlacement;
   Runs            : Array[1..MAX_RUNS_PER_PARA] Of TRun;
   RunCount        : Integer;
   Alignment       : Byte;
@@ -217,6 +227,8 @@ Type
 
  { --- Document --- }
  TDocument = Record
+  PDFPageCount, PDFGraphicCount: Integer;
+  PDFGraphics: Array[1..2048] of TPDFGraphic;
   Paragraphs : Array[1..MAX_PARAS_PER_DOC] Of TParagraph;
   ParaCount  : Integer;
   PageCount  : Integer;
@@ -1386,12 +1398,18 @@ End;
 { Largeur reelle (en pixels) d'une plage de caracteres du paragraphe P,
   en tenant compte du gras (qui ajoute +1 px par caractere car dessine
   deux fois avec un decalage de 1 px). StartIdx 1-based dans ParaText. }
+Function PDFTextWidth(Const S,Face:String;H:Integer;Style:Byte):Integer; Forward;
+
 Function StyledRangeWidth(P, StartIdx, Len: Integer): Integer;
 Var
  I, EndIdx, W, RunPos, RunLen           : Integer;
  OvStart, OvEnd, OvLen, LocalStart      : Integer;
  Sub                                    : String;
 Begin
+ If Doc.Paragraphs[P].PDF.Active Then Begin
+  StyledRangeWidth:=PDFTextWidth(Copy(ParaText(P),StartIdx,Len),Doc.Paragraphs[P].PDF.Face,
+   Doc.Paragraphs[P].PDF.Height,Doc.Paragraphs[P].Runs[1].Style.Style);Exit;
+ End;
  W := 0;
  If Len <= 0 Then Begin StyledRangeWidth := 0; Exit; End;
  EndIdx := StartIdx + Len - 1;
@@ -1663,6 +1681,114 @@ End;
 
 { Applique la fonte/agrandissement n?cessaires ? un style donn?.
   Phase 3 : tailles toutes ? mag 1, gras simul? par overstrike. }
+{ Native Windows font metrics and antialiased glyphs for positioned PDF text. }
+{$IFDEF WINDOWS}
+Type
+ TPDFBitmapInfo = Record
+  Size:LongWord;Width,Height:LongInt;Planes,BitCount:Word;
+  Compression,ImageSize:LongWord;XPels,YPels:LongInt;Colors,Important:LongWord;
+ End;
+ TPDFSize = Record CX,CY:LongInt;End;
+Function PDFCreateDC(DC:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'CreateCompatibleDC';
+Function PDFDeleteDC(DC:LongWord):LongBool;stdcall;external 'gdi32.dll' name 'DeleteDC';
+Function PDFSelect(DC,Obj:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SelectObject';
+Function PDFDelete(Obj:LongWord):LongBool;stdcall;external 'gdi32.dll' name 'DeleteObject';
+Function PDFDIB(DC:LongWord;Var Info:TPDFBitmapInfo;Usage:LongWord;Var Bits:Pointer;
+ Section:LongWord;Offset:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'CreateDIBSection';
+Function PDFFont(H,W,E,O,Weight:LongInt;Italic,Underline,Strike,Charset,OutP,ClipP,Quality,Pitch:LongWord;
+ Face:PChar):LongWord;stdcall;external 'gdi32.dll' name 'CreateFontA';
+Function PDFText(DC:LongWord;X,Y:LongInt;Text:PChar;Count:LongInt):LongBool;
+ stdcall;external 'gdi32.dll' name 'TextOutA';
+Function PDFExtent(DC:LongWord;Text:PChar;Count:LongInt;Var Size:TPDFSize):LongBool;
+ stdcall;external 'gdi32.dll' name 'GetTextExtentPoint32A';
+Function PDFTextColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SetTextColor';
+Function PDFBkColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SetBkColor';
+Function PDFFlush:LongBool;stdcall;external 'gdi32.dll' name 'GdiFlush';
+{$ENDIF}
+
+Function PDFPalette(R,G,B:Integer):Byte;
+Const Colors:Array[0..15,0..2] of Byte=(
+ (0,0,0),(0,0,170),(0,170,0),(0,170,170),(170,0,0),(170,0,170),(170,85,0),(170,170,170),
+ (85,85,85),(85,85,255),(85,255,85),(85,255,255),(255,85,85),(255,85,255),(255,255,85),(255,255,255));
+Var I,Best:Integer;D,MinD:LongInt;
+Begin
+ Best:=0;MinD:=MaxLongInt;
+ For I:=0 To 15 Do Begin
+  D:=Sqr(LongInt(R)-Colors[I,0])+Sqr(LongInt(G)-Colors[I,1])+Sqr(LongInt(B)-Colors[I,2]);
+  If D<MinD Then Begin MinD:=D;Best:=I;End;
+ End;
+ PDFPalette:=Best;
+End;
+
+Function PDFTextWidth(Const S,Face:String;H:Integer;Style:Byte):Integer;
+{$IFDEF WINDOWS}
+Var DC,Font,Old:LongWord;FN:Array[0..63] of Char;T:Array[0..255] of Char;
+ Size:TPDFSize;I,Weight:Integer;
+{$ENDIF}
+Begin
+ PDFTextWidth:=Length(S)*H div 2;
+ {$IFDEF WINDOWS}
+ FillChar(FN,SizeOf(FN),0);For I:=1 To Length(Face) Do If I<=63 Then FN[I-1]:=Face[I];
+ FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
+ Weight:=400;If (Style and STY_BOLD)<>0 Then Weight:=700;
+ DC:=PDFCreateDC(0);If DC=0 Then Exit;
+ Font:=PDFFont(-H,0,0,0,Weight,Ord((Style and STY_ITALIC)<>0),0,0,0,0,0,4,0,@FN[0]);
+ If Font<>0 Then Begin
+  Old:=PDFSelect(DC,Font);
+  If PDFExtent(DC,@T[0],Length(S),Size) Then PDFTextWidth:=Size.CX;
+  PDFSelect(DC,Old);PDFDelete(Font);
+ End;
+ PDFDeleteDC(DC);
+ {$ENDIF}
+End;
+
+Procedure DrawPDFText(P,X,Y:Integer);
+{$IFDEF WINDOWS}
+Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
+ FN:Array[0..63] of Char;T:Array[0..255] of Char;Pixel:^LongWord;
+ S:String;I,J,W,H,Weight,C,R,G,B:Integer;Sty:TCharStyle;
+{$ENDIF}
+Begin
+ {$IFDEF WINDOWS}
+ S:=ParaText(P);Sty:=Doc.Paragraphs[P].Runs[1].Style;
+ W:=PDFTextWidth(S,Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,Sty.Style)+3;
+ H:=Doc.Paragraphs[P].PDF.Height+5;
+ If (W<1) or (W>4096) or (H<1) or (H>512) Then Exit;
+ FillChar(FN,SizeOf(FN),0);
+ For I:=1 To Length(Doc.Paragraphs[P].PDF.Face) Do FN[I-1]:=Doc.Paragraphs[P].PDF.Face[I];
+ FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
+ DC:=PDFCreateDC(0);If DC=0 Then Exit;
+ FillChar(Info,SizeOf(Info),0);Info.Size:=40;Info.Width:=W;Info.Height:=-H;
+ Info.Planes:=1;Info.BitCount:=32;
+ Bitmap:=PDFDIB(DC,Info,0,Bits,0,0);
+ If Bitmap=0 Then Begin PDFDeleteDC(DC);Exit;End;
+ FillChar(Bits^,LongInt(W)*H*4,255);OldBitmap:=PDFSelect(DC,Bitmap);
+ Weight:=400;If (Sty.Style and STY_BOLD)<>0 Then Weight:=700;
+ Font:=PDFFont(-Doc.Paragraphs[P].PDF.Height,0,0,0,Weight,
+  Ord((Sty.Style and STY_ITALIC)<>0),0,0,0,0,0,4,0,@FN[0]);
+ If Font<>0 Then Begin
+  OldFont:=PDFSelect(DC,Font);C:=Sty.Color;
+  R:=0;G:=0;B:=0;
+  If C=Blue Then B:=170 Else If C=DarkGray Then Begin R:=85;G:=85;B:=85;End
+  Else If C=LightGray Then Begin R:=170;G:=170;B:=170;End
+  Else If C=White Then Begin R:=255;G:=255;B:=255;End;
+  PDFTextColor(DC,R+G*256+LongWord(B)*65536);PDFBkColor(DC,$FFFFFF);
+  PDFText(DC,0,0,@T[0],Length(S));PDFFlush;
+  Pixel:=Bits;
+  For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
+   If (Y+J>=DOCAREA_TOP) and (Y+J<=DOCAREA_BOTTOM) and (X+I>=0) and (X+I<SCREEN_W) Then
+    If (Pixel^ and $FFFFFF)<>$FFFFFF Then
+     PutPixel(X+I,Y+J,PDFPalette((Pixel^ shr 16) and 255,(Pixel^ shr 8) and 255,Pixel^ and 255));
+   Inc(Pixel);
+  End;
+  PDFSelect(DC,OldFont);PDFDelete(Font);
+ End;
+ PDFSelect(DC,OldBitmap);PDFDelete(Bitmap);PDFDeleteDC(DC);
+ {$ELSE}
+ SetColor(Doc.Paragraphs[P].Runs[1].Style.Color);OutTextXY(X,Y,ParaText(P));
+ {$ENDIF}
+End;
+
 Procedure ApplyRunStyle(Const Sty: TCharStyle);
 Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
@@ -1972,6 +2098,16 @@ Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
 
  For P := 1 To Doc.ParaCount Do Begin
+  If Doc.Paragraphs[P].PDF.Active Then Begin
+   PageIdx:=Doc.Paragraphs[P].PDF.Page;
+   PageTopAbs:=DOCAREA_TOP+8+(PageIdx-1)*(PAGE_H+12);
+   EmitLine(P,1,Length(ParaText(P)),PageX1+Doc.Paragraphs[P].PDF.X,
+    PageTopAbs+Doc.Paragraphs[P].PDF.Y,
+    PDFTextWidth(ParaText(P),Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,
+     Doc.Paragraphs[P].Runs[1].Style.Style),
+    Doc.Paragraphs[P].PDF.Height,ALIGN_LEFT,False);
+   Continue;
+  End;
   { Saut de page dur avant ce paragraphe }
   If Doc.Paragraphs[P].PageBreakBefore And (P > 1) Then Begin
    Inc(PageIdx);
@@ -2091,6 +2227,7 @@ Begin
   End;
  End;
 
+ If Doc.PDFPageCount>PageIdx Then PageIdx:=Doc.PDFPageCount;
  If PageIdx > MAX_PAGES Then PageIdx := MAX_PAGES;
  Doc.PageCount := PageIdx;
  NeedsRelayout := False;
@@ -2411,6 +2548,26 @@ End;
 
 { ----- Rendu texte du document --------------------------------- }
 
+Procedure RenderPDFGraphics;
+Var I,ScreenY,LineL,LineR:Integer;
+Begin
+ For I:=1 To Doc.PDFGraphicCount Do Begin
+  With Doc.PDFGraphics[I] Do Begin
+   ScreenY:=DOCAREA_TOP+8+(Page-1)*(PAGE_H+12)-ScrollY;
+   If (ScreenY+Y2>=DOCAREA_TOP) and (ScreenY+Y1<=DOCAREA_BOTTOM) Then Begin
+    LineL:=Y1+ScreenY;LineR:=Y2+ScreenY;
+    If LineL<DOCAREA_TOP Then LineL:=DOCAREA_TOP;
+    If LineR>DOCAREA_BOTTOM Then LineR:=DOCAREA_BOTTOM;
+    SetColor(Color);
+    If Kind=2 Then Begin SetFillStyle(SolidFill,Color);
+     Bar((SCREEN_W-PAGE_W) div 2+X1,LineL,(SCREEN_W-PAGE_W) div 2+X2,LineR);
+    End Else If (Y1+ScreenY>=DOCAREA_TOP) and (Y2+ScreenY<=DOCAREA_BOTTOM) Then
+     Line((SCREEN_W-PAGE_W) div 2+X1,Y1+ScreenY,(SCREEN_W-PAGE_W) div 2+X2,Y2+ScreenY);
+   End;
+  End;
+ End;
+End;
+
 Procedure RenderDocText;
 Var
  I, ScreenY, ScreenX  : Integer;
@@ -2435,11 +2592,17 @@ Var
  CellW, CellX, CellY, TextX, TextY        : Integer;
  CellTxt                                  : String;
 Begin
+ RenderPDFGraphics;
  SetTextStyle(DefaultFont, HorizDir, 1);
  For I := 1 To VLineCount Do Begin
   ScreenY := VLines[I].Y - ScrollY;
   If (ScreenY + VLines[I].Height < DOCAREA_TOP) Or
      (ScreenY > DOCAREA_BOTTOM) Then Continue;
+
+  P:=VLines[I].ParaIdx;
+  If Doc.Paragraphs[P].PDF.Active Then Begin
+   DrawPDFText(P,VLines[I].X,ScreenY);Continue;
+  End;
 
   { Image line ? }
   If VLines[I].IsImage Then Begin
@@ -5815,11 +5978,11 @@ Begin
 
   { Marges en pointill??s discrets }
   SetColor(LightGray);
-  Rectangle(PX1+PAGE_MARGIN_L, PY1+PAGE_MARGIN_T,
+  If Doc.PDFPageCount=0 Then Rectangle(PX1+PAGE_MARGIN_L, PY1+PAGE_MARGIN_T,
             PX2-PAGE_MARGIN_R, PY2-PAGE_MARGIN_B);
 
   { En-tete DOCX (si charge depuis word/header*.xml) }
-  If Length(DocxHeaderText) > 0 Then Begin
+  If (Doc.PDFPageCount=0) and (Length(DocxHeaderText)>0) Then Begin
    SetColor(DarkGray);
    OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxHeaderText) Div 2,
              PY1 + (PAGE_MARGIN_T Div 2) - 4, DocxHeaderText);
@@ -5829,11 +5992,11 @@ Begin
   SetColor(DarkGray);
   Str(P, StatusMsg);    { r??utilisation tampon }
   StatusMsg := 'Page ' + StatusMsg;
-  OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,
-            PY2-12, StatusMsg);
+  If Doc.PDFPageCount=0 Then
+   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,PY2-12,StatusMsg);
 
   { Pied de page DOCX (au-dessus du numero de page) }
-  If Length(DocxFooterText) > 0 Then Begin
+  If (Doc.PDFPageCount=0) and (Length(DocxFooterText)>0) Then Begin
    SetColor(DarkGray);
    OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxFooterText) Div 2,
              PY2 - 12 - 10, DocxFooterText);
@@ -5927,9 +6090,12 @@ Begin
  {$I-} Assign(F, FName); Rewrite(F, 1); {$I+}
  If IOResult <> 0 Then Begin SaveDocumentToFile := False; Exit; End;
  BlockWrite(F, Magic, 6);
- W := 2;             BlockWrite(F, W, 2);     { version 2 = avec images }
+ W := 3;             BlockWrite(F, W, 2);     { version 3 = PDF positions and vectors }
  W := Doc.ParaCount; BlockWrite(F, W, 2);
+ W:=Doc.PDFPageCount;BlockWrite(F,W,2);W:=Doc.PDFGraphicCount;BlockWrite(F,W,2);
+ For P:=1 To Doc.PDFGraphicCount Do BlockWrite(F,Doc.PDFGraphics[P],SizeOf(TPDFGraphic));
  For P := 1 To Doc.ParaCount Do Begin
+  BlockWrite(F,Doc.Paragraphs[P].PDF,SizeOf(TPDFPlacement));
   B := Doc.Paragraphs[P].Alignment;                BlockWrite(F, B, 1);
   If Doc.Paragraphs[P].PageBreakBefore Then B:=1 Else B:=0;
   BlockWrite(F, B, 1);
@@ -5962,7 +6128,7 @@ Function LoadDocumentFromFile(Const FName: String): Boolean;
 Var
  F        : File;
  Magic    : Array[1..6] Of Char;
- V, PCnt  : Word;
+ V, PCnt, PDFPages, PDFGfx: Word;
  P, R, I  : Integer;
  B, RunCnt: Byte;
  TextLen  : Byte;
@@ -5989,7 +6155,14 @@ Begin
  FillChar(Doc, SizeOf(Doc), 0);
  Doc.ParaCount := PCnt;
  Doc.PageCount := 1;
+ If V>=3 Then Begin
+  BlockRead(F,PDFPages,2);BlockRead(F,PDFGfx,2);
+  If (PDFPages>MAX_PAGES) or (PDFGfx>2048) Then Begin Close(F);LoadDocumentFromFile:=False;Exit;End;
+  Doc.PDFPageCount:=PDFPages;Doc.PDFGraphicCount:=PDFGfx;
+  For P:=1 To PDFGfx Do BlockRead(F,Doc.PDFGraphics[P],SizeOf(TPDFGraphic));
+ End;
  For P := 1 To PCnt Do Begin
+  If V>=3 Then BlockRead(F,Doc.Paragraphs[P].PDF,SizeOf(TPDFPlacement));
   BlockRead(F, B, 1); Doc.Paragraphs[P].Alignment      := B;
   BlockRead(F, B, 1); Doc.Paragraphs[P].PageBreakBefore:= B <> 0;
   IsImg := 0;
@@ -8125,140 +8298,513 @@ Begin
  ExtIsPDF:=E='.PDF';
 End;
 
+{ PDF object/page reader. Positions stay attached to editable text paragraphs. }
 Function LoadPDFfromFile(Const FN:String):Boolean;
-Const MaxPDF=16777216;MaxStream=4194304;MaxImport=110000;
-Var F:File;Data,Decoded,Output:Pointer;Size,Got,P,Q,A,B,D,N,O,I:LongInt;
- ParaIdx,RunIdx:Integer;PendingPB,OK:Boolean;Dict:String;
- Function Ch(Buffer:Pointer;Index:LongInt):Char;
- Begin Ch:=Char(ImgPByteAt(Buffer,Index));End;
- Function Match(Index:LongInt;Const Token:String):Boolean;
- Var K:Integer;
+Const Limit=16777216;StreamLimit=4194304;MaxObjects=4096;
+Type
+ TObjectEntry=Record ID:LongInt;Start,Stop,Stream,Count:LongInt;End;
+ TPDFUnicodeMap=Array[0..65535] of Word;
+ PPDFUnicodeMap=^TPDFUnicodeMap;
+ TPDFFontMap=Record ID:Integer;Wide:Boolean;Map:PPDFUnicodeMap;End;
+ TNumbers=Array[1..32] of Real;
+ TMatrix=Record A,B,C,D,E,F:Real;End;
+ TState=Record M:TMatrix;Fill,Stroke:Byte;End;
+Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
+ Objects:Array[1..MaxObjects] of TObjectEntry;ObjectCount:Integer;
+ Pages:Array[1..MAX_PAGES] of Integer;PageCountPDF:Integer;
+ NewDoc:^TDocument;Good:Boolean;
+ FontMaps:Array[1..64] of TPDFFontMap;FontMapCount:Integer;PageNo,ResourceObject:Integer;
+ PageW,PageH:Real;
+ Function C(Buffer:Pointer;P:LongInt):Char;
+ Begin C:=Char(ImgPByteAt(Buffer,P));End;
+ Function Hex(Ch:Char):Integer;
+ Begin Case Ch Of '0'..'9':Hex:=Ord(Ch)-48;'A'..'F':Hex:=Ord(Ch)-55;
+  'a'..'f':Hex:=Ord(Ch)-87;Else Hex:=-1;End;End;
+ { One bounded lexical reader, also used for object dictionaries. }
+ Function Token(Buffer:Pointer;Var P:LongInt;Stop:LongInt;Var Kind:Char):String;
+ Var S:String;Ch:Char;Depth,V,J,H:Integer;
  Begin
-  Match:=False;If (Index<0) or (Index+Length(Token)>Size) Then Exit;
-  For K:=1 To Length(Token) Do If Ch(Data,Index+K-1)<>Token[K] Then Exit;
-  Match:=True;
- End;
- Procedure Emit(C:Char);
- Begin
-  If O>=MaxImport Then Begin OK:=False;Exit;End;
-  If C=#13 Then C:=#10;
-  If (C=#10) and (O>0) Then If Ch(Output,O-1)=#10 Then Exit;
-  If (C>=#32) or (C=#10) or (C=#9) Then Begin ImgPByteSet(Output,O,Ord(C));Inc(O);End;
- End;
- Function Hex(C:Char):Integer;
- Begin
-  Case C Of '0'..'9':Hex:=Ord(C)-48;'a'..'f':Hex:=Ord(C)-87;
-   'A'..'F':Hex:=Ord(C)-55;Else Hex:=-1;End;
- End;
- Procedure Extract(Buffer:Pointer;Count:LongInt);
- Var K,Depth,V,H1,H2,J:LongInt;C:Char;InText:Boolean;Token:String;
- Begin
-  K:=0;InText:=False;
-  While (K<Count) and OK Do Begin
-   C:=Ch(Buffer,K);Inc(K);
-   If C='%' Then Begin
-    While K<Count Do Begin C:=Ch(Buffer,K);Inc(K);If C in [#10,#13] Then Break;End;
-   End Else If C='(' Then Begin
-    Depth:=1;
-    While (K<Count) and (Depth>0) Do Begin
-     C:=Ch(Buffer,K);Inc(K);
-     If C='\' Then Begin
-      If K>=Count Then Break;C:=Ch(Buffer,K);Inc(K);
-      Case C Of
-       'n':C:=#10;'r':C:=#13;'t':C:=#9;
-       #10:Continue;
-       #13:Begin If K<Count Then If Ch(Buffer,K)=#10 Then Inc(K);Continue;End;
-       '0'..'7':Begin
-        V:=Ord(C)-48;J:=1;
-        While (J<3) and (K<Count) Do Begin
-         C:=Ch(Buffer,K);If Not (C in ['0'..'7']) Then Break;
-         V:=V*8+Ord(C)-48;Inc(K);Inc(J);
-        End;C:=Char(V and 255);
-       End;
+  S:='';Kind:=#0;
+  While P<Stop Do Begin
+   Ch:=C(Buffer,P);
+   If Ch='%' Then Begin
+    While P<Stop Do Begin Ch:=C(Buffer,P);Inc(P);If Ch in [#10,#13] Then Break;End;
+   End Else If Ch<=#32 Then Inc(P) Else Break;
+  End;
+  If P>=Stop Then Begin Token:='';Exit;End;
+  Ch:=C(Buffer,P);Inc(P);Kind:=Ch;
+  If Ch='(' Then Begin
+   Kind:='s';Depth:=1;
+   While (P<Stop) and (Depth>0) Do Begin
+    Ch:=C(Buffer,P);Inc(P);
+    If Ch='\' Then Begin
+     If P>=Stop Then Break;Ch:=C(Buffer,P);Inc(P);
+     Case Ch Of
+      'n':Ch:=#10;'r':Ch:=#13;'t':Ch:=#9;'b':Ch:=#8;'f':Ch:=#12;
+      #10:Continue;
+      #13:Begin If P<Stop Then If C(Buffer,P)=#10 Then Inc(P);Continue;End;
+      '0'..'7':Begin
+       V:=Ord(Ch)-48;J:=1;
+       While (J<3) and (P<Stop) Do Begin
+        Ch:=C(Buffer,P);If Not (Ch in ['0'..'7']) Then Break;
+        V:=V*8+Ord(Ch)-48;Inc(P);Inc(J);
+       End;Ch:=Char(V and 255);
       End;
-     End Else If C='(' Then Inc(Depth)
-     Else If C=')' Then Begin Dec(Depth);If Depth=0 Then Break;End;
-     If InText Then Emit(C);
-    End;
-   End Else If (C='<') and InText Then Begin
-    H1:=-1;
-    While K<Count Do Begin
-     C:=Ch(Buffer,K);Inc(K);If C='>' Then Break;
-     H2:=Hex(C);If H2<0 Then Continue;
-     If H1<0 Then H1:=H2 Else Begin Emit(Char(H1*16+H2));H1:=-1;End;
-    End;
-    If H1>=0 Then Emit(Char(H1*16));
-   End Else If C>#32 Then Begin
-    If Not (C in ['[',']','<','>','/']) Then Begin
-     Token:=C;
-     While K<Count Do Begin
-      C:=Ch(Buffer,K);If (C<=#32) or (C in ['(',')','[',']','<','>','/','%']) Then Break;
-      If Length(Token)<40 Then Token:=Token+C;Inc(K);
      End;
-     If Token='BT' Then InText:=True
-     Else If Token='ET' Then Begin If InText Then Emit(#10);InText:=False;End
-     Else If InText Then Begin
-      If (Token='Td') or (Token='TD') or (Token='T*') or (Token='Tm') or
-         (Token=#39) or (Token='"') Then Emit(#10);
+    End Else If Ch='(' Then Inc(Depth)
+    Else If Ch=')' Then Begin Dec(Depth);If Depth=0 Then Break;End;
+    If Length(S)<240 Then S:=S+Ch Else Good:=False;
+   End;
+   If Depth<>0 Then Good:=False;
+  End Else If Ch='<' Then Begin
+   If P<Stop Then If C(Buffer,P)='<' Then Begin Inc(P);Token:='<<';Exit;End;
+   Kind:='s';H:=-1;
+   While P<Stop Do Begin
+    Ch:=C(Buffer,P);Inc(P);If Ch='>' Then Break;
+    V:=Hex(Ch);If V<0 Then Continue;
+    If H<0 Then H:=V Else Begin
+     If Length(S)<240 Then S:=S+Char(H*16+V) Else Good:=False;H:=-1;
+    End;
+   End;
+   If H>=0 Then S:=S+Char(H*16);
+  End Else If Ch='>' Then Begin
+   S:='>';If P<Stop Then If C(Buffer,P)='>' Then Begin S:='>>';Inc(P);End;
+  End Else If Ch in ['[',']','{','}'] Then S:=Ch
+  Else Begin
+   If Ch='/' Then Begin Kind:='a';S:='';End
+   Else Begin Kind:='k';S:=Ch;If Ch in ['0'..'9','-','+','.'] Then Kind:='n';End;
+   While P<Stop Do Begin
+    Ch:=C(Buffer,P);If (Ch<=#32) or (Ch in ['(',')','<','>','[',']','/','%']) Then Break;
+    If Length(S)<240 Then S:=S+Ch;Inc(P);
+   End;
+  End;
+  Token:=S;
+ End;
+ Function ObjIndex(ID:LongInt):Integer;
+ Var J:Integer;
+ Begin ObjIndex:=0;For J:=1 To ObjectCount Do If Objects[J].ID=ID Then ObjIndex:=J;End;
+ Function Number(Const S:String):Real;
+ Var V:Real;Err:Integer;
+ Begin Val(S,V,Err);If Err<>0 Then V:=0;Number:=V;End;
+ Function KeyAt(Obj:Integer;Const Name:String):LongInt;
+ Var P,Stop:LongInt;K:Char;S:String;
+ Begin
+  KeyAt:=0;If Obj<1 Then Exit;P:=Objects[Obj].Start;Stop:=Objects[Obj].Stop;
+  If Objects[Obj].Stream>0 Then Stop:=Objects[Obj].Stream;
+  While P<Stop Do Begin
+   S:=Token(Data,P,Stop,K);
+   If (K='a') and (S=Name) Then Begin KeyAt:=P;Exit;End;
+  End;
+ End;
+ Function RefAt(Var P:LongInt;Stop:LongInt):Integer;
+ Var S:String;K:Char;ID:LongInt;
+ Begin
+  RefAt:=0;S:=Token(Data,P,Stop,K);If K<>'n' Then Exit;ID:=Round(Number(S));
+  S:=Token(Data,P,Stop,K);If K<>'n' Then Exit;
+  S:=Token(Data,P,Stop,K);If S='R' Then RefAt:=ObjIndex(ID);
+ End;
+ Function TypeIs(Obj:Integer;Const Name:String):Boolean;
+ Var P:LongInt;S:String;K:Char;
+ Begin
+  TypeIs:=False;P:=KeyAt(Obj,'Type');If P=0 Then Exit;
+  S:=Token(Data,P,Objects[Obj].Stop,K);TypeIs:=(K='a') and (S=Name);
+ End;
+ Procedure VisitPages(Obj,Depth:Integer);
+ Var P,Save:LongInt;S:String;K:Char;Child:Integer;
+ Begin
+  If (Obj=0) or (Depth>32) or (PageCountPDF>=MAX_PAGES) Then Begin Good:=False;Exit;End;
+  If TypeIs(Obj,'Page') Then Begin Inc(PageCountPDF);Pages[PageCountPDF]:=Obj;Exit;End;
+  P:=KeyAt(Obj,'Kids');If P=0 Then Exit;
+  S:=Token(Data,P,Objects[Obj].Stop,K);If S<>'[' Then Exit;
+  While P<Objects[Obj].Stop Do Begin
+   Save:=P;S:=Token(Data,P,Objects[Obj].Stop,K);If S=']' Then Break;
+   P:=Save;Child:=RefAt(P,Objects[Obj].Stop);If Child=0 Then Break;
+   VisitPages(Child,Depth+1);
+  End;
+ End;
+ Function InheritedKey(Obj:Integer;Const Name:String):LongInt;
+ Var P:LongInt;Depth:Integer;
+ Begin
+  InheritedKey:=0;Depth:=0;
+  While (Obj>0) and (Depth<32) Do Begin
+   P:=KeyAt(Obj,Name);If P>0 Then Begin InheritedKey:=P;Exit;End;
+   P:=KeyAt(Obj,'Parent');If P=0 Then Exit;
+   Obj:=RefAt(P,FileSizePDF);Inc(Depth);
+  End;
+ End;
+ Function StreamData(Obj:Integer;Var Buffer:Pointer;Var Count:LongInt):Boolean;
+ Var P:LongInt;S:String;K:Char;
+ Begin
+  StreamData:=False;If (Obj<1) or (Objects[Obj].Stream=0) Then Exit;
+  Count:=Objects[Obj].Count;Buffer:=Pointer(PtrUInt(Data)+Objects[Obj].Stream);
+  P:=KeyAt(Obj,'Filter');
+  If P>0 Then Begin
+   S:=Token(Data,P,Objects[Obj].Stop,K);
+   If S='[' Then S:=Token(Data,P,Objects[Obj].Stop,K);
+   If S<>'FlateDecode' Then Exit;
+   If Count<6 Then Exit;
+   If Not InflateBuf(Pointer(PtrUInt(Buffer)+2),Count-6,Decoded,StreamLimit) Then Exit;
+   Buffer:=Decoded;Count:=InfOutPos;
+  End;
+  StreamData:=True;
+ End;
+ Function StringCode(Const S:String):LongInt;
+ Var I:Integer;V:LongInt;
+ Begin
+  V:=0;For I:=1 To Length(S) Do V:=V*256+Ord(S[I]);StringCode:=V;
+ End;
+ Procedure ExpandObjectStreams;
+ Var I,J,CountObjects:Integer;First,Offset,NextOffset:LongInt;
+ P,Count,Base,OldEnd:LongInt;Buffer:Pointer;K:Char;S:String;
+ IDs,Offsets:Array[1..MaxObjects] of LongInt;
+ Begin
+  OldEnd:=ObjectCount;
+  For I:=1 To OldEnd Do If TypeIs(I,'ObjStm') Then Begin
+   P:=KeyAt(I,'N');If P=0 Then Begin Good:=False;Exit;End;
+   S:=Token(Data,P,FileSizePDF,K);CountObjects:=Round(Number(S));
+   P:=KeyAt(I,'First');If P=0 Then Begin Good:=False;Exit;End;
+   S:=Token(Data,P,FileSizePDF,K);First:=Round(Number(S));
+   If (CountObjects<1) or (CountObjects>MaxObjects-ObjectCount) Then Begin Good:=False;Exit;End;
+   If Not StreamData(I,Buffer,Count) Then Begin Good:=False;Exit;End;
+   If (First<0) or (First>=Count) or (Count>Limit-FileSizePDF) Then Begin Good:=False;Exit;End;
+   Base:=FileSizePDF;Move(Buffer^,Pointer(PtrUInt(Data)+Base)^,Count);Inc(FileSizePDF,Count);
+   P:=Base;
+   For J:=1 To CountObjects Do Begin
+    S:=Token(Data,P,Base+First,K);IDs[J]:=Round(Number(S));
+    S:=Token(Data,P,Base+First,K);Offsets[J]:=Round(Number(S));
+   End;
+   For J:=1 To CountObjects Do Begin
+    Offset:=Offsets[J];NextOffset:=Count-First;
+    If J<CountObjects Then NextOffset:=Offsets[J+1];
+    If (Offset<0) or (NextOffset<Offset) or (First+NextOffset>Count) Then Begin Good:=False;Exit;End;
+    Inc(ObjectCount);
+    With Objects[ObjectCount] Do Begin
+     ID:=IDs[J];Start:=Base+First+Offset;Stop:=Base+First+NextOffset;Stream:=0;Objects[ObjectCount].Count:=0;
+    End;
+   End;
+  End;
+ End;
+ Procedure PrepareFontMap(Obj:Integer);
+ Var P,Count:LongInt;Buffer:Pointer;K:Char;S,A,B,U:String;
+ Index:Integer;First,Last,V,Code:LongInt;InChars,InRanges:Boolean;
+ Begin
+  If FontMapCount>=64 Then Exit;
+  If KeyAt(Obj,'BaseFont')=0 Then Exit;
+  Inc(FontMapCount);Index:=FontMapCount;FontMaps[Index].ID:=Obj;
+  P:=KeyAt(Obj,'Subtype');If P>0 Then Begin
+   S:=Token(Data,P,FileSizePDF,K);FontMaps[Index].Wide:=S='Type0';
+  End;
+  P:=KeyAt(Obj,'ToUnicode');If P=0 Then Exit;
+  V:=RefAt(P,FileSizePDF);If Not StreamData(V,Buffer,Count) Then Exit;
+  New(FontMaps[Index].Map);FillChar(FontMaps[Index].Map^,SizeOf(TPDFUnicodeMap),0);
+  P:=0;InChars:=False;InRanges:=False;
+  While P<Count Do Begin
+   S:=Token(Buffer,P,Count,K);
+   If S='beginbfchar' Then InChars:=True
+   Else If S='endbfchar' Then InChars:=False
+   Else If S='beginbfrange' Then InRanges:=True
+   Else If S='endbfrange' Then InRanges:=False
+   Else If (K='s') and (InChars or InRanges) Then Begin
+    First:=StringCode(S);If (First<0) or (First>65535) Then Continue;
+    A:=Token(Buffer,P,Count,K);
+    If InChars Then Begin
+     V:=StringCode(A);If (V>=0) and (V<=65535) Then FontMaps[Index].Map^[First]:=V;
+    End Else Begin
+     Last:=StringCode(A);B:=Token(Buffer,P,Count,K);
+     If (Last<First) or (Last>65535) Then Continue;
+     If B='[' Then Begin
+      For Code:=First To Last Do Begin
+       U:=Token(Buffer,P,Count,K);If K<>'s' Then Break;
+       V:=StringCode(U);If (V>=0) and (V<=65535) Then FontMaps[Index].Map^[Code]:=V;
+      End;
+     End Else Begin
+      V:=StringCode(B);
+      For Code:=First To Last Do If (V+Code-First>=0) and (V+Code-First<=65535) Then
+       FontMaps[Index].Map^[Code]:=V+Code-First;
      End;
     End;
    End;
   End;
  End;
+ Function WinAnsi(W:Word):Char;
+ Begin
+  If W<=255 Then WinAnsi:=Char(W) Else Case W Of
+   $20AC:WinAnsi:=#128;$201A:WinAnsi:=#130;$0192:WinAnsi:=#131;$201E:WinAnsi:=#132;
+   $2026:WinAnsi:=#133;$2020:WinAnsi:=#134;$2021:WinAnsi:=#135;$02C6:WinAnsi:=#136;
+   $2030:WinAnsi:=#137;$0160:WinAnsi:=#138;$2039:WinAnsi:=#139;$0152:WinAnsi:=#140;
+   $017D:WinAnsi:=#142;$2018:WinAnsi:=#145;$2019:WinAnsi:=#146;$201C:WinAnsi:=#147;
+   $201D:WinAnsi:=#148;$2022:WinAnsi:=#149;$2013:WinAnsi:=#150;$2014:WinAnsi:=#151;
+   $02DC:WinAnsi:=#152;$2122:WinAnsi:=#153;$0161:WinAnsi:=#154;$203A:WinAnsi:=#155;
+   $0153:WinAnsi:=#156;$017E:WinAnsi:=#158;$0178:WinAnsi:=#159;
+   Else WinAnsi:='?';End;
+ End;
+ Procedure FontInfo(Const Name:String;Var Face:String;Var Style:Byte;Var MapIndex:Integer);
+ Var P,Q,Save:LongInt;S:String;K:Char;Obj,J:Integer;
+ Begin
+  Face:='Arial';Style:=0;MapIndex:=0;
+  { Prefer the resource dictionary of the current page. }
+  Obj:=ResourceObject;
+  P:=KeyAt(Obj,'Font');
+  If P>0 Then Begin
+   Save:=P;S:=Token(Data,P,FileSizePDF,K);
+   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then P:=Objects[J].Start;End;
+   For J:=1 To 128 Do Begin
+    S:=Token(Data,P,FileSizePDF,K);If S='>>' Then Break;
+    If (K='a') and (S=Name) Then Begin
+     Obj:=RefAt(P,FileSizePDF);Break;
+    End;
+   End;
+  End;
+  For J:=1 To FontMapCount Do If FontMaps[J].ID=Obj Then MapIndex:=J;
+  Q:=KeyAt(Obj,'BaseFont');If Q=0 Then Exit;
+  S:=Token(Data,Q,FileSizePDF,K);
+  If Pos('Bold',S)>0 Then Style:=Style or STY_BOLD;
+  If (Pos('Italic',S)>0) or (Pos('Oblique',S)>0) Then Style:=Style or STY_ITALIC;
+  If Pos('Times',S)>0 Then Face:='Times New Roman'
+  Else If Pos('Courier',S)>0 Then Face:='Courier New';
+ End;
+ Procedure ReadContent(Buffer:Pointer;Count:LongInt);
+ Var P:LongInt;K:Char;S,Text,Face,FontName:String;Nums:TNumbers;N,SP:Integer;
+ State:TState;Stack:Array[1..32] of TState;MapIndex:Integer;
+ Tx,Ty,LX,LY,FS,Leading,Rise:Real;Style:Byte;InText,ArrayText:Boolean;
+ PathX1,PathY1,PathX2,PathY2:Real;PathKind:Byte;
+ Procedure Transform(X,Y:Real;Var OX,OY:Real);
+ Begin OX:=State.M.A*X+State.M.C*Y+State.M.E;OY:=State.M.B*X+State.M.D*Y+State.M.F;End;
+ Procedure ShowText(Const Value:String);
+ Var J,PI,W,H,Code,V:Integer;X,Y:Real;S:String;
+ Begin
+  If Not InText or (Value='') Then Exit;
+  If NewDoc^.ParaCount>=MAX_PARAS_PER_DOC Then Begin Good:=False;Exit;End;
+  S:=Value;
+  If MapIndex>0 Then If FontMaps[MapIndex].Map<>Nil Then Begin
+   S:='';J:=1;
+   While J<=Length(Value) Do Begin
+    Code:=Ord(Value[J]);Inc(J);
+    If FontMaps[MapIndex].Wide Then Begin
+     If J>Length(Value) Then Break;Code:=Code*256+Ord(Value[J]);Inc(J);
+    End;
+    V:=FontMaps[MapIndex].Map^[Code];If V=0 Then V:=Code;
+    S:=S+WinAnsi(V);
+   End;
+  End;
+  { Simple fonts use WinAnsi. UTF-16 strings are decoded when explicitly marked. }
+  If (Length(S)>=2) and (S[1]=#$FE) and (S[2]=#$FF) Then Begin
+   S:='';J:=3;While J<Length(Value) Do Begin
+    If Value[J]=#0 Then S:=S+Value[J+1] Else S:=S+'?';Inc(J,2);
+   End;
+  End;
+  Transform(Tx,Ty+Rise,X,Y);
+  Inc(NewDoc^.ParaCount);PI:=NewDoc^.ParaCount;
+  H:=Round(Abs(FS*State.M.D)*PAGE_W/PageW);If H<4 Then H:=4;If H>255 Then H:=255;
+  W:=PDFTextWidth(S,Face,H,Style);
+  With NewDoc^.Paragraphs[PI] Do Begin
+   RunCount:=1;Runs[1].Text:=S;Runs[1].Style.FontSize:=Round(FS);
+   Runs[1].Style.Style:=Style;Runs[1].Style.Color:=State.Fill;
+   PDF.Active:=True;PDF.Page:=PageNo;PDF.X:=Round(X*PAGE_W/PageW);
+   PDF.Y:=Round((PageH-Y)*PAGE_H/PageH)-Round(H*0.8);
+   PDF.Height:=H;PDF.Width:=W;PDF.Face:=Face;
+  End;
+  Tx:=Tx+W*PageW/PAGE_W;
+ End;
+ Procedure Graphic(GKind,GColor:Byte);
+ Var J,Tmp:Integer;AX,AY,BX,BY:Real;
+ Begin
+  If NewDoc^.PDFGraphicCount>=2048 Then Begin Good:=False;Exit;End;
+  Transform(PathX1,PathY1,AX,AY);Transform(PathX2,PathY2,BX,BY);
+  Inc(NewDoc^.PDFGraphicCount);J:=NewDoc^.PDFGraphicCount;
+  With NewDoc^.PDFGraphics[J] Do Begin
+   Page:=PageNo;Kind:=GKind;Color:=GColor;
+   X1:=Round(AX*PAGE_W/PageW);X2:=Round(BX*PAGE_W/PageW);
+   Y1:=Round((PageH-AY)*PAGE_H/PageH);Y2:=Round((PageH-BY)*PAGE_H/PageH);
+   If (GKind=2) and (Y1>Y2) Then Begin Tmp:=Y1;Y1:=Y2;
+    Y2:=Tmp;End;
+   If (GKind=2) and (X1>X2) Then Begin
+    Tmp:=X1;X1:=X2;X2:=Tmp;End;
+  End;
+ End;
+ Procedure ExecutePDFOperator;
+ Var M:TMatrix;AX,AY,BX,BY:Real;
+ Begin
+  If S='BT' Then Begin InText:=True;Tx:=0;Ty:=0;LX:=0;LY:=0;End
+  Else If S='ET' Then InText:=False
+  Else If S='q' Then Begin If SP<32 Then Begin Inc(SP);Stack[SP]:=State;End;End
+  Else If S='Q' Then Begin If SP>0 Then Begin State:=Stack[SP];Dec(SP);End;End
+  Else If (S='cm') and (N>=6) Then Begin
+   M:=State.M;
+   State.M.A:=Nums[1]*M.A+Nums[2]*M.C;State.M.B:=Nums[1]*M.B+Nums[2]*M.D;
+   State.M.C:=Nums[3]*M.A+Nums[4]*M.C;State.M.D:=Nums[3]*M.B+Nums[4]*M.D;
+   State.M.E:=Nums[5]*M.A+Nums[6]*M.C+M.E;State.M.F:=Nums[5]*M.B+Nums[6]*M.D+M.F;
+  End
+  Else If (S='Tf') and (N>=1) Then Begin FS:=Nums[N];FontInfo(FontName,Face,Style,MapIndex);End
+  Else If (S='Tm') and (N>=6) Then Begin Tx:=Nums[5];Ty:=Nums[6];LX:=Tx;LY:=Ty;End
+  Else If ((S='Td') or (S='TD')) and (N>=2) Then Begin
+   LX:=LX+Nums[N-1];LY:=LY+Nums[N];Tx:=LX;Ty:=LY;
+   If S='TD' Then Leading:=-Nums[N];
+  End
+  Else If (S='TL') and (N>0) Then Leading:=Nums[N]
+  Else If (S='T*') or (S=#39) or (S='"') Then Begin
+   LY:=LY-Leading;Tx:=LX;Ty:=LY;If S<>'T*' Then ShowText(Text);
+  End
+  Else If S='Tj' Then ShowText(Text)
+  Else If (S='Ts') and (N>0) Then Rise:=Nums[N]
+  Else If ((S='rg') or (S='RG')) and (N>=3) Then Begin
+   If S='rg' Then State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),Round(Nums[3]*255))
+   Else State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),Round(Nums[3]*255));
+  End
+  Else If ((S='g') or (S='G')) and (N>0) Then Begin
+   If S='g' Then State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),Round(Nums[1]*255))
+   Else State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),Round(Nums[1]*255));
+  End
+  Else If (S='m') and (N>=2) Then Begin PathX1:=Nums[1];PathY1:=Nums[2];PathKind:=1;End
+  Else If (S='l') and (N>=2) Then Begin PathX2:=Nums[1];PathY2:=Nums[2];PathKind:=1;End
+  Else If (S='re') and (N>=4) Then Begin
+   PathX1:=Nums[1];PathY1:=Nums[2];PathX2:=PathX1+Nums[3];PathY2:=PathY1+Nums[4];PathKind:=2;
+  End
+  Else If (S='S') or (S='s') Then Begin
+   If PathKind=1 Then Graphic(1,State.Stroke)
+   Else If PathKind=2 Then Begin
+    AX:=PathX1;AY:=PathY1;BX:=PathX2;BY:=PathY2;
+    PathY2:=AY;Graphic(1,State.Stroke);
+    PathX1:=BX;PathY1:=AY;PathY2:=BY;Graphic(1,State.Stroke);
+    PathY1:=BY;PathX2:=AX;Graphic(1,State.Stroke);
+    PathX1:=AX;PathY2:=AY;Graphic(1,State.Stroke);
+    PathX1:=AX;PathY1:=AY;PathX2:=BX;PathY2:=BY;
+   End;PathKind:=0;
+  End
+  Else If (S='f') or (S='f*') or (S='F') Then Begin If PathKind=2 Then Graphic(2,State.Fill);PathKind:=0;End;
+ End;
+ Begin
+  FillChar(State,SizeOf(State),0);State.M.A:=1;State.M.D:=1;SP:=0;
+  Tx:=0;Ty:=0;LX:=0;LY:=0;FS:=12;Leading:=14;Rise:=0;Style:=0;MapIndex:=0;Face:='Arial';
+  P:=0;N:=0;InText:=False;ArrayText:=False;Text:='';FontName:='';PathKind:=0;
+  While (P<Count) and Good Do Begin
+   S:=Token(Buffer,P,Count,K);
+   If K='n' Then Begin
+    If ArrayText Then Tx:=Tx-Number(S)*FS/1000
+    Else If N<32 Then Begin Inc(N);Nums[N]:=Number(S);End;
+   End Else If K='a' Then FontName:=S
+   Else If K='s' Then Begin If ArrayText Then ShowText(S) Else Text:=S;End
+   Else If S='[' Then ArrayText:=True
+   Else If S=']' Then ArrayText:=False
+   Else Begin ExecutePDFOperator;N:=0;End;
+  End;
+ End;
+ Procedure ReadPage(Obj:Integer);
+ Var P,Save:LongInt;S:String;K:Char;J:Integer;Buffer:Pointer;Count:LongInt;
+ Procedure ReadOne(ID:Integer);
+ Begin
+  If Not StreamData(ID,Buffer,Count) Then Begin Good:=False;Exit;End;
+  ReadContent(Buffer,Count);
+ End;
+ Begin
+  PageW:=595;PageH:=842;
+  P:=InheritedKey(Obj,'MediaBox');
+  If P>0 Then Begin
+   S:=Token(Data,P,FileSizePDF,K);
+   S:=Token(Data,P,FileSizePDF,K);S:=Token(Data,P,FileSizePDF,K);
+   S:=Token(Data,P,FileSizePDF,K);PageW:=Number(S);
+   S:=Token(Data,P,FileSizePDF,K);PageH:=Number(S);
+  End;
+  If (PageW<1) or (PageH<1) Then Begin Good:=False;Exit;End;
+  ResourceObject:=Obj;P:=InheritedKey(Obj,'Resources');
+  If P>0 Then Begin
+   Save:=P;S:=Token(Data,P,FileSizePDF,K);
+   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then ResourceObject:=J;End;
+  End;
+  P:=KeyAt(Obj,'Contents');If P=0 Then Exit;
+  Save:=P;S:=Token(Data,P,FileSizePDF,K);
+  If S='[' Then Begin
+   While (P<Objects[Obj].Stop) and Good Do Begin
+    Save:=P;S:=Token(Data,P,FileSizePDF,K);If S=']' Then Break;
+    P:=Save;J:=RefAt(P,FileSizePDF);If J=0 Then Begin Good:=False;Break;End;ReadOne(J);
+   End;
+  End Else Begin P:=Save;J:=RefAt(P,FileSizePDF);ReadOne(J);End;
+ End;
+Var P,Start,ObjID,LengthPos:LongInt;S,S2,S3:String;K:Char;
+ I,J,Catalog:Integer;SwapPara:TParagraph;
 Begin
- LoadPDFfromFile:=False;Decoded:=Nil;Output:=Nil;
- {$I-} Assign(F,FN);Reset(F,1);{$I+} If IOResult<>0 Then Exit;
- Size:=FileSize(F);
- If (Size<8) or (Size>MaxPDF) Then Begin Close(F);Exit;End;
- GetMem(Data,Size);{$I-} BlockRead(F,Data^,Size,Got);Close(F);{$I+}
- OK:=(IOResult=0) and (Got=Size);
- If OK Then OK:=Match(0,'%PDF-');
- If OK Then Begin
-  GetMem(Decoded,MaxStream);GetMem(Output,MaxImport);O:=0;P:=0;D:=0;
-  While (P<Size) and OK Do Begin
-   If Match(P,'/Encrypt') Then Begin OK:=False;Break;End;
-   If Match(P,'<<') Then D:=P;
-   If Match(P,'stream') Then Begin
-    A:=P+6;
-    If A<Size Then If Ch(Data,A)=#13 Then Inc(A);
-    If A<Size Then If Ch(Data,A)=#10 Then Inc(A);
-    Q:=A;While Q<Size Do Begin If Match(Q,'endstream') Then Break;Inc(Q);End;
-    If Q>=Size Then Begin OK:=False;Break;End;
-    Dict:='';B:=D;While (B<P) and (Length(Dict)<255) Do Begin Dict:=Dict+Ch(Data,B);Inc(B);End;
-    N:=Q-A;
-    If Pos('/FlateDecode',Dict)>0 Then Begin
-     If N<6 Then OK:=False Else Begin
-      OK:=InflateBuf(Pointer(PtrUInt(Data)+A+2),N-6,Decoded,MaxStream);
-      If OK Then Extract(Decoded,InfOutPos);
+ LoadPDFfromFile:=False;Good:=True;ObjectCount:=0;PageCountPDF:=0;
+ FontMapCount:=0;FillChar(FontMaps,SizeOf(FontMaps),0);
+ {$I-}Assign(F,FN);Reset(F,1);{$I+}If IOResult<>0 Then Exit;
+ FileSizePDF:=FileSize(F);
+ If (FileSizePDF<8) or (FileSizePDF>Limit) Then Begin Close(F);Exit;End;
+ GetMem(Data,Limit);GetMem(Decoded,StreamLimit);
+ {$I-}BlockRead(F,Data^,FileSizePDF,Got);Close(F);{$I+}
+ If (IOResult<>0) or (Got<>FileSizePDF) Then Good:=False;
+ If Good Then If (C(Data,0)<>'%') or (C(Data,1)<>'P') or (C(Data,2)<>'D') or (C(Data,3)<>'F') Then Good:=False;
+ P:=0;
+ While (P<FileSizePDF) and Good Do Begin
+  S:=Token(Data,P,FileSizePDF,K);
+  If (K='a') and (S='Encrypt') Then Begin Good:=False;Break;End;
+  If K<>'n' Then Continue;
+  ObjID:=Round(Number(S));Start:=P;
+  S2:=Token(Data,P,FileSizePDF,K);If K<>'n' Then Begin P:=Start;Continue;End;
+  S3:=Token(Data,P,FileSizePDF,K);If S3<>'obj' Then Begin P:=Start;Continue;End;
+  If ObjectCount>=MaxObjects Then Begin Good:=False;Break;End;
+  Inc(ObjectCount);J:=ObjectCount;Objects[J].ID:=ObjID;Objects[J].Start:=P;
+  Objects[J].Stream:=0;Objects[J].Count:=0;LengthPos:=0;
+  While P<FileSizePDF Do Begin
+   S:=Token(Data,P,FileSizePDF,K);
+   If (K='a') and (S='Encrypt') Then Good:=False;
+   If (K='a') and (S='Length') Then Begin
+    Start:=P;S2:=Token(Data,P,FileSizePDF,K);If K='n' Then LengthPos:=Round(Number(S2));P:=Start;
+   End;
+   If S='stream' Then Begin
+    If P<FileSizePDF Then If C(Data,P)=#13 Then Inc(P);
+    If P<FileSizePDF Then If C(Data,P)=#10 Then Inc(P);
+    Objects[J].Stream:=P;
+    If (LengthPos>0) and (LengthPos<FileSizePDF-P) Then Begin
+     Objects[J].Count:=LengthPos;Inc(P,LengthPos);
+    End Else Begin
+     Start:=P;
+     While P+9<FileSizePDF Do Begin
+      If C(Data,P)='e' Then If C(Data,P+1)='n' Then If C(Data,P+2)='d' Then
+       If C(Data,P+3)='s' Then If C(Data,P+4)='t' Then Break;
+      Inc(P);
      End;
-    End Else If Pos('/Filter',Dict)=0 Then Extract(Pointer(PtrUInt(Data)+A),N);
-    P:=Q+9;
-   End Else Inc(P);
-  End;
-  { Refuser un import trop grand plutot que tronquer silencieusement le texte. }
-  ParaIdx:=1;RunIdx:=0;
-  For I:=0 To O-1 Do Begin
-   If Ch(Output,I)=#10 Then Begin Inc(ParaIdx);RunIdx:=0;End
-   Else Begin
-    If RunIdx=MAX_TEXT_LEN Then Begin Inc(ParaIdx);RunIdx:=0;End;
-    Inc(RunIdx);
+     Objects[J].Count:=P-Start;
+    End;
    End;
+   If S='endobj' Then Break;
   End;
-  If ParaIdx>MAX_PARAS_PER_DOC Then OK:=False;
-  If OK and (O>0) Then Begin
-   FreeAllDocImages;FillChar(Doc,SizeOf(Doc),0);ParaIdx:=0;RunIdx:=0;PendingPB:=False;
-   For I:=0 To O-1 Do Begin
-    If Ch(Output,I)=#10 Then DocFinishParaP(ParaIdx,RunIdx,PendingPB)
-    Else DocAppendCh(ParaIdx,RunIdx,PendingPB,Ch(Output,I));
-   End;
-   Doc.ParaCount:=ParaIdx;Doc.PageCount:=1;Doc.FileName:='';Doc.Modified:=True;
-   Cursor.ParaIdx:=1;Cursor.RunIdx:=1;Cursor.CharIdx:=0;
-   ScrollY:=0;CurrentPage:=1;NeedsRelayout:=True;LoadPDFfromFile:=True;
+  Objects[J].Stop:=P;
+ End;
+ If Good Then ExpandObjectStreams;
+ Catalog:=0;
+ If Good Then Begin
+  For I:=1 To ObjectCount Do If TypeIs(I,'Catalog') Then Catalog:=I;
+  If Catalog>0 Then Begin
+   P:=KeyAt(Catalog,'Pages');If P>0 Then VisitPages(RefAt(P,FileSizePDF),0);
+  End;
+  If PageCountPDF=0 Then For I:=1 To ObjectCount Do If TypeIs(I,'Page') Then Begin
+   If PageCountPDF>=MAX_PAGES Then Begin Good:=False;Break;End;
+   Inc(PageCountPDF);Pages[PageCountPDF]:=I;
   End;
  End;
- If Output<>Nil Then FreeMem(Output,MaxImport);
- If Decoded<>Nil Then FreeMem(Decoded,MaxStream);
- FreeMem(Data,Size);
+ If Good Then For I:=1 To ObjectCount Do PrepareFontMap(I);
+ New(NewDoc);FillChar(NewDoc^,SizeOf(TDocument),0);
+ For PageNo:=1 To PageCountPDF Do If Good Then ReadPage(Pages[PageNo]);
+ If Good and (NewDoc^.ParaCount>0) Then Begin
+  For I:=2 To NewDoc^.ParaCount Do Begin
+   J:=I;
+   While J>1 Do Begin
+    With NewDoc^ Do Begin
+     If (Paragraphs[J].PDF.Page>Paragraphs[J-1].PDF.Page) Then Break;
+     If Paragraphs[J].PDF.Page=Paragraphs[J-1].PDF.Page Then Begin
+      If Paragraphs[J].PDF.Y>Paragraphs[J-1].PDF.Y Then Break;
+      If (Paragraphs[J].PDF.Y=Paragraphs[J-1].PDF.Y) and
+         (Paragraphs[J].PDF.X>=Paragraphs[J-1].PDF.X) Then Break;
+     End;
+     SwapPara:=Paragraphs[J];Paragraphs[J]:=Paragraphs[J-1];Paragraphs[J-1]:=SwapPara;
+    End;Dec(J);
+   End;
+  End;
+  FreeAllDocImages;Doc:=NewDoc^;Doc.PDFPageCount:=PageCountPDF;Doc.PageCount:=PageCountPDF;
+  Doc.FileName:='';Doc.Modified:=True;Cursor.ParaIdx:=1;Cursor.RunIdx:=1;Cursor.CharIdx:=0;
+  ScrollY:=0;CurrentPage:=1;NeedsRelayout:=True;LoadPDFfromFile:=True;
+ End;
+ For I:=1 To FontMapCount Do If FontMaps[I].Map<>Nil Then Dispose(FontMaps[I].Map);
+ Dispose(NewDoc);FreeMem(Decoded,StreamLimit);FreeMem(Data,Limit);
 End;
 
 Function LoadAnyDocument(Const FName: String): Boolean;

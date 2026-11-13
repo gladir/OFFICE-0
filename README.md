@@ -460,6 +460,21 @@ l'éditeur de texte, les rendez-vous et les entrées. Sous Windows, le presse-pa
 Outils &gt; Console SQL ou <code>MAXIMIZE /SQL "requête"</code>. Le dossier <code>EXEMPLE</code> est créé avec des données d'exemple.</li>
 </ul>
 
+<h2>WORD : lecture des PDF</h2>
+
+<p>Le filtre PDF de Fichier / Ouvrir importe du texte modifiable en conservant ses positions,
+les tailles de police, le gras, l'italique, les pages et les elements graphiques simples
+(traits et rectangles remplis). Sous Windows, les caracteres sont dessines avec les polices
+Windows ; les polices standard PDF sont remplacees par Arial, Times New Roman ou Courier New.
+Les tables ToUnicode des polices incorporees sont utilisees pour les caracteres representables
+par l'encodage Windows occidental. Les flux FlateDecode et les dictionnaires d'objets
+compresses sont pris en charge.</p>
+<p>Les positions et les elements graphiques sont conserves dans les fichiers WPD version 3.
+Le PDF original reste intact : l'import doit etre enregistre sous un nouveau nom.
+Les images, les formulaires XObject, les tracés complexes, les rotations, les polices exactes
+incorporees, l'OCR et les fichiers chiffres ne sont pas encore restitues integralement.
+La palette graphique reste limitee a seize couleurs.</p>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>
