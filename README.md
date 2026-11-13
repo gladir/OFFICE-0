@@ -482,6 +482,15 @@ a la souris et au clavier (fleches, Tab, Entree, Echap). Le zoom concerne unique
 l'affichage : contenu, positions PDF et mise en page enregistree restent inchanges.
 Une barre de deplacement horizontal apparait si la page agrandie depasse la fenetre.</p>
 
+<h2>WORD : modes d'affichage et regle</h2>
+<p>Affichage / Normal affiche le texte en continu, sans cadres de page ni espaces entre
+les pages. Affichage / Mise en page restaure les pages, leurs marges et leur disposition,
+y compris les positions natives des PDF. Ces options ne modifient pas les sauts de page
+ni le contenu du document.</p>
+<p>Affichage / Regle affiche ou masque la regle horizontale. La zone du document recupere
+la hauteur liberee. Les options actives sont indiquees dans le menu classique et le ruban.
+Les deux vues fonctionnent avec le zoom et l'edition a la souris.</p>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>

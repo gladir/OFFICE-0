@@ -79,6 +79,8 @@ Const
  DOCAREA_BG            = 8;          { gris fonc?? (autour de la page) }
 
  { --- Page virtuelle (Letter 8.5"x11" ?? ~50 dpi visuel) --- }
+ PageLayoutView: Boolean = True;
+ RulerVisible: Boolean = True;
  ZoomPercent: Integer = 100;
  ZoomPanX: Integer = 0;
  PAGE_W                = 460;        { largeur page ?? l'??cran }
@@ -1056,6 +1058,16 @@ End;
 { =====================  DESSIN INTERFACE  =================== }
 { ============================================================ }
 
+Function ViewActionChecked(Act:Integer):Boolean;
+Begin
+ ViewActionChecked:=False;
+ Case Act Of
+  ACT_VIEW_NORMAL:ViewActionChecked:=Not PageLayoutView;
+  ACT_VIEW_PAGE:ViewActionChecked:=PageLayoutView;
+  ACT_VIEW_RULER:ViewActionChecked:=RulerVisible;
+ End;
+End;
+
 Function RibbonActionEnabled(Act: Integer): Boolean;
 Begin
  RibbonActionEnabled:=False;
@@ -1064,7 +1076,7 @@ Begin
   ACT_EDIT_UNDO,ACT_EDIT_REDO,ACT_EDIT_FIND,ACT_EDIT_FIND_NEXT,ACT_EDIT_REPL,
   ACT_INS_PAGEBRK,ACT_INS_IMAGE,ACT_INS_TABLE,ACT_TBL_INSERT,ACT_TBL_DELETE,
   ACT_FMT_BOLD,ACT_FMT_ITALIC,ACT_FMT_UNDER,ACT_FMT_LEFT,ACT_FMT_CENTER,
-  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT,ACT_VIEW_ZOOM:
+  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT,ACT_VIEW_ZOOM,ACT_VIEW_NORMAL,ACT_VIEW_PAGE,ACT_VIEW_RULER:
    RibbonActionEnabled:=True;
  End;
 End;
@@ -1169,7 +1181,7 @@ Begin
  For I:=1 To RibbonItemCount Do Begin
   Item:=RibbonMenuItem(I);Act:=RibbonEntryAction(I);RibbonButtonBox(I,X,Y,W,H);Color:=Black;
   If Not RibbonEntryEnabled(I) Then Color:=DarkGray
-  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Then Begin
+  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Or ViewActionChecked(Act) Then Begin
    FillRectArea(X,Y,X+W-5,Y+H-3,MENUBAR_HL_BG);Color:=White;
   End;
   DrawRibbonActionIcon(Act,X+12,Y+11,Color);
@@ -1252,6 +1264,10 @@ Begin
     If Item.Shortcut <> '' Then
      DrawTextAt(X2 - TextWidth(Item.Shortcut) - 8, ItY+3,
                 Item.Shortcut, CLR_3D_DARK);
+   End;
+   If ViewActionChecked(Item.ActionId) Then Begin
+    If MenuItemHover=I Then SetColor(MENUBAR_HL_FG) Else SetColor(MENUBAR_FG);
+    Line(X1+3,ItY+8,X1+5,ItY+10);Line(X1+5,ItY+10,X1+7,ItY+5);
    End;
   End;
  End;
@@ -1379,6 +1395,7 @@ Var
  I, X, PageX1, PageX2 : Integer;
  PMx                  : Integer;
 Begin
+ If Not RulerVisible Then Exit;
  FillRectArea(0, RULER_TOP, SCREEN_W-1,
               RULER_TOP+RULER_HEIGHT-1, RULER_BG);
  DrawHLine(0, SCREEN_W-1, RULER_TOP+RULER_HEIGHT-1, CLR_3D_DARK);
@@ -1798,7 +1815,7 @@ Begin
  {$ENDIF}
 End;
 
-Procedure DrawPDFText(P,X,Y:Integer);
+Procedure DrawPDFTextFragment(P,X,Y,First,Count:Integer);
 {$IFDEF WINDOWS}
 Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
  FN:Array[0..63] of Char;T:Array[0..255] of Char;Pixel:^LongWord;
@@ -1806,7 +1823,7 @@ Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
 {$ENDIF}
 Begin
  {$IFDEF WINDOWS}
- S:=ParaText(P);Sty:=Doc.Paragraphs[P].Runs[1].Style;
+ S:=Copy(ParaText(P),First,Count);Sty:=Doc.Paragraphs[P].Runs[1].Style;
  W:=PDFTextWidth(S,Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,Sty.Style)+3;
  H:=Doc.Paragraphs[P].PDF.Height+5;
  If (W<1) or (W>4096) or (H<1) or (H>512) Then Exit;
@@ -1844,6 +1861,9 @@ Begin
  SetColor(Doc.Paragraphs[P].Runs[1].Style.Color);OutTextXY(X,Y,ParaText(P));
  {$ENDIF}
 End;
+
+Procedure DrawPDFText(P,X,Y:Integer);
+Begin DrawPDFTextFragment(P,X,Y,1,Length(ParaText(P)));End;
 
 Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word);
 {$IFDEF WINDOWS}
@@ -2137,7 +2157,7 @@ Var
  PageTopAbs                            : Integer;
  SettledLineEnd                        : Integer;
  PAlign                                : Byte;
- TblP, TblR                            : Integer;
+ TblP, TblR, I, NormalY, LineH: Integer;
 
  Function ComputeLineX(LW: Integer; AL: Byte): Integer;
  Begin
@@ -2198,7 +2218,11 @@ Begin
  SetTextStyle(DefaultFont, HorizDir, 1);
 
  For P := 1 To Doc.ParaCount Do Begin
-  If Doc.Paragraphs[P].PDF.Active Then Begin
+  If Not PageLayoutView and Doc.Paragraphs[P].PDF.Active Then Begin
+   If PageIdx<>Doc.Paragraphs[P].PDF.Page Then CurY:=PAGE_MARGIN_T;
+   PageIdx:=Doc.Paragraphs[P].PDF.Page;
+  End;
+  If PageLayoutView and Doc.Paragraphs[P].PDF.Active Then Begin
    PageIdx:=Doc.Paragraphs[P].PDF.Page;
    PageTopAbs:=DOCAREA_TOP+8+(PageIdx-1)*(PAGE_H+12);
    EmitLine(P,1,Length(ParaText(P)),PageX1+Doc.Paragraphs[P].PDF.X,
@@ -2250,18 +2274,20 @@ Begin
   End;
 
   ParaStr := ParaText(P);
+  LineH:=LINE_HEIGHT;
+  If Doc.Paragraphs[P].PDF.Active Then LineH:=Doc.Paragraphs[P].PDF.Height+4;
 
   If Length(ParaStr) = 0 Then Begin
    { Paragraphe vide = 1 ligne vide }
-   If CurY + LINE_HEIGHT > PageContentBottom Then Begin
+   If CurY + LineH > PageContentBottom Then Begin
     Inc(PageIdx);
     CurY := PAGE_MARGIN_T;
    End;
    PageTopAbs := DOCAREA_TOP + 8 + (PageIdx-1)*(PAGE_H + 12);
    LineYAbs := PageTopAbs + CurY;
    EmitLine(P, 1, 0, ComputeLineX(0, PAlign), LineYAbs, 0,
-            LINE_HEIGHT, PAlign, False);
-   Inc(CurY, LINE_HEIGHT);
+            LineH, PAlign, False);
+   Inc(CurY, LineH);
    Continue;
   End;
 
@@ -2287,7 +2313,8 @@ Begin
    While Pos <= Length(ParaStr) Do Begin
     Ch := ParaStr[Pos];
     CharW := TextWidth(Ch);
-    If (CharStyleAt(P, Pos) And STY_BOLD) <> 0 Then Inc(CharW);
+    If Doc.Paragraphs[P].PDF.Active Then CharW:=StyledRangeWidth(P,Pos,1)
+    Else If (CharStyleAt(P, Pos) And STY_BOLD) <> 0 Then Inc(CharW);
     If W + CharW > AvailW Then Begin
      If LastSpace >= LineStart Then
       SettledLineEnd := LastSpace
@@ -2314,15 +2341,15 @@ Begin
     ALIGN_RIGHT  : LineX := PageContentR - LineW;
    End;
 
-   If CurY + LINE_HEIGHT > PageContentBottom Then Begin
+   If CurY + LineH > PageContentBottom Then Begin
     Inc(PageIdx);
     CurY := PAGE_MARGIN_T;
    End;
    PageTopAbs := DOCAREA_TOP + 8 + (PageIdx-1)*(PAGE_H + 12);
    LineYAbs := PageTopAbs + CurY;
    EmitLine(P, LineStart, LineEnd - LineStart + 1,
-            LineX, LineYAbs, LineW, LINE_HEIGHT, PAlign, False);
-   Inc(CurY, LINE_HEIGHT);
+            LineX, LineYAbs, LineW, LineH, PAlign, False);
+   Inc(CurY, LineH);
    LineStart := LineEnd + 1;
   End;
  End;
@@ -2330,6 +2357,14 @@ Begin
  If Doc.PDFPageCount>PageIdx Then PageIdx:=Doc.PDFPageCount;
  If PageIdx > MAX_PAGES Then PageIdx := MAX_PAGES;
  Doc.PageCount := PageIdx;
+ If Not PageLayoutView Then Begin
+  NormalY:=DOCAREA_TOP+12;
+  For I:=1 To VLineCount Do Begin
+   VLines[I].Y:=NormalY;
+   Inc(NormalY,VLines[I].Height);
+   If I<VLineCount Then If VLines[I].ParaIdx<>VLines[I+1].ParaIdx Then Inc(NormalY,4);
+  End;
+ End;
  NeedsRelayout := False;
 End;
 
@@ -2692,7 +2727,7 @@ Var
  CellW, CellX, CellY, TextX, TextY        : Integer;
  CellTxt                                  : String;
 Begin
- RenderPDFGraphics;
+ If PageLayoutView Then RenderPDFGraphics;
  SetTextStyle(DefaultFont, HorizDir, 1);
  For I := 1 To VLineCount Do Begin
   ScreenY := VLines[I].Y - ScrollY;
@@ -2701,7 +2736,7 @@ Begin
 
   P:=VLines[I].ParaIdx;
   If Doc.Paragraphs[P].PDF.Active Then Begin
-   DrawPDFText(P,VLines[I].X,ScreenY);Continue;
+   DrawPDFTextFragment(P,VLines[I].X,ScreenY,VLines[I].CharStart,VLines[I].CharLen);Continue;
   End;
 
   { Image line ? }
@@ -6062,6 +6097,11 @@ Var
 Begin
  { Fond zone document }
  FillRectArea(0, DOCAREA_TOP, SCREEN_W-1, DOCAREA_BOTTOM, DOCAREA_BG);
+
+ If Not PageLayoutView Then Begin
+  FillRectArea(0,DOCAREA_TOP,SCREEN_W-1,DOCAREA_BOTTOM,PAGE_BG);
+  RenderDocText;RenderSelection;RenderTextCursor;Exit;
+ End;
 
  { Page centr??e horizontalement, position verticale d??pend de CurrentPage }
  PX1 := (SCREEN_W - PAGE_W) Div 2;
@@ -9848,6 +9888,25 @@ Begin
  End;
 End;
 
+Procedure UpdateViewGeometry;
+Begin
+ DOCAREA_TOP:=RULER_TOP+1;
+ If RulerVisible Then Inc(DOCAREA_TOP,RULER_HEIGHT);
+End;
+
+Procedure ChangeDocumentView(LayoutMode:Boolean);
+Begin
+ If PageLayoutView=LayoutMode Then Exit;
+ PageLayoutView:=LayoutMode;ZoomPanX:=0;ScrollY:=0;
+ NeedsRelayout:=True;NeedsRedraw:=True;CursorBlinkOn:=True;
+End;
+
+Procedure ToggleDocumentRuler;
+Begin
+ RulerVisible:=Not RulerVisible;UpdateViewGeometry;
+ NeedsRelayout:=True;NeedsRedraw:=True;CursorBlinkOn:=True;
+End;
+
 Function SetViewZoom(Value:Integer;FitPage:Boolean):Boolean;
 Var CenterY,OldZoom,Visible:LongInt;
 Begin
@@ -9855,6 +9914,7 @@ Begin
  OldZoom:=ZoomValue;Visible:=DOCAREA_BOTTOM-DOCAREA_TOP;
  CenterY:=ScrollY+Visible*100 div OldZoom div 2;
  ZoomPercent:=Value;ZoomPanX:=0;
+ If FitPage Then Begin PageLayoutView:=True;NeedsRelayout:=True;End;
  If FitPage Then ScrollY:=(CurrentPage-1)*(PAGE_H+12)
  Else ScrollY:=CenterY-Visible*100 div Value div 2;
  If ScrollY<0 Then ScrollY:=0;
@@ -10016,9 +10076,9 @@ Begin
   ACT_EDIT_REPL   : DoReplaceDialog;
   ACT_EDIT_FIND_NEXT : DoFindNext;
 
-  ACT_VIEW_NORMAL : StatusMsg := 'View: Normal';
-  ACT_VIEW_PAGE   : StatusMsg := 'View: Page Layout';
-  ACT_VIEW_RULER  : StatusMsg := 'Toggle Ruler';
+  ACT_VIEW_NORMAL : ChangeDocumentView(False);
+  ACT_VIEW_PAGE   : ChangeDocumentView(True);
+  ACT_VIEW_RULER  : ToggleDocumentRuler;
   ACT_VIEW_ZOOM   : ShowZoomDialog;
 
   ACT_INS_PAGEBRK : Begin
@@ -10911,6 +10971,7 @@ Begin
  STDBAR_TOP:=CLASSIC_STDBAR_TOP;FMTBAR_TOP:=CLASSIC_FMTBAR_TOP;
  RULER_TOP:=CLASSIC_RULER_TOP;DOCAREA_TOP:=CLASSIC_DOCAREA_TOP;
  If RibbonMode Then Begin STDBAR_TOP:=108;FMTBAR_TOP:=108;RULER_TOP:=108;DOCAREA_TOP:=123;End;
+ UpdateViewGeometry;
 End;
 
 BEGIN
