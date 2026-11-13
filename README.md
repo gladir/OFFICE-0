@@ -475,6 +475,13 @@ Les images, les formulaires XObject, les tracés complexes, les rotations, les p
 incorporees, l'OCR et les fichiers chiffres ne sont pas encore restitues integralement.
 La palette graphique reste limitee a seize couleurs.</p>
 
+<h2>WORD : zoom</h2>
+<p>Affichage / Zoom propose les valeurs 50, 75, 100, 125, 150 et 200 %, une valeur
+personnalisee de 25 a 300 %, l'ajustement a la page et a sa largeur. La boite est utilisable
+a la souris et au clavier (fleches, Tab, Entree, Echap). Le zoom concerne uniquement
+l'affichage : contenu, positions PDF et mise en page enregistree restent inchanges.
+Une barre de deplacement horizontal apparait si la page agrandie depasse la fenetre.</p>
+
 <h2>Licence</h2>
 <ul>
  <li>Le code source est publié sous la licence <a href="https://github.com/gladir/OFFICE-0/blob/main/LICENSE">MIT</a>.</li>

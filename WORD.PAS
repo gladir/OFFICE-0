@@ -79,6 +79,8 @@ Const
  DOCAREA_BG            = 8;          { gris fonc?? (autour de la page) }
 
  { --- Page virtuelle (Letter 8.5"x11" ?? ~50 dpi visuel) --- }
+ ZoomPercent: Integer = 100;
+ ZoomPanX: Integer = 0;
  PAGE_W                = 460;        { largeur page ?? l'??cran }
  PAGE_H                = 600;        { hauteur page ?? l'??cran }
  { Marges en pixels - typed const, donc modifiables a l'execution selon sectPr }
@@ -1062,7 +1064,7 @@ Begin
   ACT_EDIT_UNDO,ACT_EDIT_REDO,ACT_EDIT_FIND,ACT_EDIT_FIND_NEXT,ACT_EDIT_REPL,
   ACT_INS_PAGEBRK,ACT_INS_IMAGE,ACT_INS_TABLE,ACT_TBL_INSERT,ACT_TBL_DELETE,
   ACT_FMT_BOLD,ACT_FMT_ITALIC,ACT_FMT_UNDER,ACT_FMT_LEFT,ACT_FMT_CENTER,
-  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT:
+  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT,ACT_VIEW_ZOOM:
    RibbonActionEnabled:=True;
  End;
 End;
@@ -1318,6 +1320,60 @@ Begin
  End;
 End;
 
+Function ZoomValue:Integer;
+Begin ZoomValue:=ZoomPercent;If (ZoomPercent<25) or (ZoomPercent>300) Then ZoomValue:=100;End;
+Function ZoomX(X:Integer):Integer;
+Begin ZoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2-ZoomPanX)*ZoomValue div 100;End;
+Function ZoomY(Y:Integer):Integer;
+Begin ZoomY:=DOCAREA_TOP+LongInt(Y-DOCAREA_TOP)*ZoomValue div 100;End;
+Function UnzoomX(X:Integer):Integer;
+Begin UnzoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2)*100 div ZoomValue+ZoomPanX;End;
+Function UnzoomY(Y:Integer):Integer;
+Begin UnzoomY:=DOCAREA_TOP+LongInt(Y-DOCAREA_TOP)*100 div ZoomValue;End;
+Function DocPhysicalBottom:Integer;
+Begin
+ DocPhysicalBottom:=DOCAREA_BOTTOM;
+ If LongInt(PAGE_W)*ZoomValue div 100>SCREEN_W-16 Then DocPhysicalBottom:=DOCAREA_BOTTOM-12;
+End;
+Function DocBottom:Integer;
+Begin DocBottom:=UnzoomY(DocPhysicalBottom);End;
+Function ZoomPanLimit:Integer;
+Begin
+ ZoomPanLimit:=(PAGE_W-(SCREEN_W-16)*100 div ZoomValue) div 2;
+ If ZoomPanLimit<0 Then ZoomPanLimit:=0;
+End;
+
+Procedure ZoomLine(X1,Y1,X2,Y2:Integer);
+Var VP:ViewPortType;
+Begin
+ GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,ClipOn);
+ Line(ZoomX(X1),ZoomY(Y1)-DOCAREA_TOP,ZoomX(X2),ZoomY(Y2)-DOCAREA_TOP);
+ SetViewPort(VP.X1,VP.Y1,VP.X2,VP.Y2,VP.Clip);
+End;
+Procedure ZoomBar(X1,Y1,X2,Y2:Integer);
+Var VP:ViewPortType;
+Begin
+ GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,ClipOn);
+ Bar(ZoomX(X1),ZoomY(Y1)-DOCAREA_TOP,ZoomX(X2+1)-1,ZoomY(Y2+1)-DOCAREA_TOP-1);
+ SetViewPort(VP.X1,VP.Y1,VP.X2,VP.Y2,VP.Clip);
+End;
+Procedure ZoomRectangle(X1,Y1,X2,Y2:Integer);
+Begin ZoomLine(X1,Y1,X2,Y1);ZoomLine(X2,Y1,X2,Y2);
+ ZoomLine(X2,Y2,X1,Y2);ZoomLine(X1,Y2,X1,Y1);End;
+Procedure ZoomFillRect(X1,Y1,X2,Y2,Color:Integer);
+Begin SetFillStyle(SolidFill,Color);ZoomBar(X1,Y1,X2,Y2);End;
+Procedure ZoomFrameRect(X1,Y1,X2,Y2,Color:Integer);
+Begin SetColor(Color);ZoomRectangle(X1,Y1,X2,Y2);End;
+Procedure ZoomPixel(X,Y:Integer;Color:Word);
+Var X1,Y1,X2,Y2:Integer;
+Begin
+ X1:=ZoomX(X);X2:=ZoomX(X+1)-1;Y1:=ZoomY(Y);Y2:=ZoomY(Y+1)-1;
+ If (X2<X1) or (Y2<Y1) Then Exit;
+ If X1<0 Then X1:=0;If X2>=SCREEN_W Then X2:=SCREEN_W-1;
+ If Y1<DOCAREA_TOP Then Y1:=DOCAREA_TOP;If Y2>DocPhysicalBottom Then Y2:=DocPhysicalBottom;
+ If (X1<=X2) and (Y1<=Y2) Then Begin SetFillStyle(SolidFill,Color);Bar(X1,Y1,X2,Y2);End;
+End;
+
 Procedure DrawRuler;
 Var
  I, X, PageX1, PageX2 : Integer;
@@ -1333,8 +1389,8 @@ Begin
  PMx := 50;   { 1 pouce visuel = 50 pixels }
  SetColor(RULER_FG);
  For I := 0 To 9 Do Begin
-  X := PageX1 + PAGE_MARGIN_L + I*PMx;
-  If X < PageX2 Then Begin
+  X := ZoomX(PageX1 + PAGE_MARGIN_L + I*PMx);
+  If (X>=0) and (X<ZoomX(PageX2)) and (X<SCREEN_W) Then Begin
    Line(X, RULER_TOP+9, X, RULER_TOP+12);
    { num??ros impairs / pairs }
    If I > 0 Then Begin
@@ -1345,10 +1401,10 @@ Begin
  End;
  { Indication marges }
  SetColor(DarkGray);
- Line(PageX1+PAGE_MARGIN_L, RULER_TOP+1,
-      PageX1+PAGE_MARGIN_L, RULER_TOP+RULER_HEIGHT-2);
- Line(PageX2-PAGE_MARGIN_R, RULER_TOP+1,
-      PageX2-PAGE_MARGIN_R, RULER_TOP+RULER_HEIGHT-2);
+ Line(ZoomX(PageX1+PAGE_MARGIN_L), RULER_TOP+1,
+      ZoomX(PageX1+PAGE_MARGIN_L), RULER_TOP+RULER_HEIGHT-2);
+ Line(ZoomX(PageX2-PAGE_MARGIN_R), RULER_TOP+1,
+      ZoomX(PageX2-PAGE_MARGIN_R), RULER_TOP+RULER_HEIGHT-2);
 End;
 
 { ============================================================ }
@@ -1776,9 +1832,9 @@ Begin
   PDFText(DC,0,0,@T[0],Length(S));PDFFlush;
   Pixel:=Bits;
   For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
-   If (Y+J>=DOCAREA_TOP) and (Y+J<=DOCAREA_BOTTOM) and (X+I>=0) and (X+I<SCREEN_W) Then
+   If (Y+J>=DOCAREA_TOP) and (Y+J<=DocBottom) and (X+I>=0) and (X+I<SCREEN_W) Then
     If (Pixel^ and $FFFFFF)<>$FFFFFF Then
-     PutPixel(X+I,Y+J,PDFPalette((Pixel^ shr 16) and 255,(Pixel^ shr 8) and 255,Pixel^ and 255));
+     ZoomPixel(X+I,Y+J,PDFPalette((Pixel^ shr 16) and 255,(Pixel^ shr 8) and 255,Pixel^ and 255));
    Inc(Pixel);
   End;
   PDFSelect(DC,OldFont);PDFDelete(Font);
@@ -1788,6 +1844,47 @@ Begin
  SetColor(Doc.Paragraphs[P].Runs[1].Style.Color);OutTextXY(X,Y,ParaText(P));
  {$ENDIF}
 End;
+
+Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word);
+{$IFDEF WINDOWS}
+Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
+ T:Array[0..255] of Char;Face:Array[0..15] of Char;Pixel:^LongWord;
+ I,J,W,H,PX,PY,Weight:Integer;
+{$ENDIF}
+Begin
+ If ZoomValue=100 Then Begin OutTextXY(X-ZoomPanX,Y,S);Exit;End;
+ {$IFDEF WINDOWS}
+ PX:=ZoomX(X);PY:=ZoomY(Y);W:=Length(S)*8*ZoomValue div 100+8;H:=14*ZoomValue div 100+4;
+ If (W<1) or (W>8192) Then Exit;
+ FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
+ FillChar(Face,SizeOf(Face),0);Face[0]:='C';Face[1]:='o';Face[2]:='u';Face[3]:='r';
+ Face[4]:='i';Face[5]:='e';Face[6]:='r';Face[7]:=' ';Face[8]:='N';Face[9]:='e';Face[10]:='w';
+ DC:=PDFCreateDC(0);If DC=0 Then Exit;
+ FillChar(Info,SizeOf(Info),0);Info.Size:=40;Info.Width:=W;Info.Height:=-H;
+ Info.Planes:=1;Info.BitCount:=32;Bitmap:=PDFDIB(DC,Info,0,Bits,0,0);
+ If Bitmap=0 Then Begin PDFDeleteDC(DC);Exit;End;
+ FillChar(Bits^,LongInt(W)*H*4,255);OldBitmap:=PDFSelect(DC,Bitmap);
+ Weight:=400;If (Style and STY_BOLD)<>0 Then Weight:=700;
+ Font:=PDFFont(-12*ZoomValue div 100,8*ZoomValue div 100,0,0,Weight,
+  Ord((Style and STY_ITALIC)<>0),0,0,0,0,0,4,0,@Face[0]);
+ If Font<>0 Then Begin
+  OldFont:=PDFSelect(DC,Font);PDFTextColor(DC,0);PDFBkColor(DC,$FFFFFF);
+  PDFText(DC,0,0,@T[0],Length(S));PDFFlush;Pixel:=Bits;
+  For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
+   If (PY+J>=DOCAREA_TOP) and (PY+J<=DocPhysicalBottom) and (PX+I>=0) and (PX+I<SCREEN_W) Then
+    If (Pixel^ and $FFFFFF)<>$FFFFFF Then PutPixel(PX+I,PY+J,Color);
+   Inc(Pixel);
+  End;
+  PDFSelect(DC,OldFont);PDFDelete(Font);
+ End;
+ PDFSelect(DC,OldBitmap);PDFDelete(Bitmap);PDFDeleteDC(DC);
+ {$ELSE}
+ SetTextStyle(DefaultFont,HorizDir,ZoomValue div 100);OutTextXY(ZoomX(X),ZoomY(Y),S);
+ SetTextStyle(DefaultFont,HorizDir,1);
+ {$ENDIF}
+End;
+Procedure ZoomOutTextXY(X,Y:Integer;Const S:String);
+Begin ZoomText(X,Y,S,0,GetColor);End;
 
 Procedure ApplyRunStyle(Const Sty: TCharStyle);
 Begin
@@ -1806,6 +1903,9 @@ Var
  VP : ViewPortType;
  TW : Integer;
 Begin
+ If (ZoomValue<>100) or (ZoomPanX<>0) Then Begin
+  ZoomText(X,Y,S,Sty.Style,Sty.Color);Exit;
+ End;
  If (Sty.Style And STY_ITALIC) <> 0 Then Begin
   TW := TextWidth(S);
   If (Sty.Style And STY_BOLD) <> 0 Then Inc(TW);
@@ -2554,15 +2654,15 @@ Begin
  For I:=1 To Doc.PDFGraphicCount Do Begin
   With Doc.PDFGraphics[I] Do Begin
    ScreenY:=DOCAREA_TOP+8+(Page-1)*(PAGE_H+12)-ScrollY;
-   If (ScreenY+Y2>=DOCAREA_TOP) and (ScreenY+Y1<=DOCAREA_BOTTOM) Then Begin
+   If (ScreenY+Y2>=DOCAREA_TOP) and (ScreenY+Y1<=DocBottom) Then Begin
     LineL:=Y1+ScreenY;LineR:=Y2+ScreenY;
     If LineL<DOCAREA_TOP Then LineL:=DOCAREA_TOP;
-    If LineR>DOCAREA_BOTTOM Then LineR:=DOCAREA_BOTTOM;
+    If LineR>DocBottom Then LineR:=DocBottom;
     SetColor(Color);
     If Kind=2 Then Begin SetFillStyle(SolidFill,Color);
-     Bar((SCREEN_W-PAGE_W) div 2+X1,LineL,(SCREEN_W-PAGE_W) div 2+X2,LineR);
-    End Else If (Y1+ScreenY>=DOCAREA_TOP) and (Y2+ScreenY<=DOCAREA_BOTTOM) Then
-     Line((SCREEN_W-PAGE_W) div 2+X1,Y1+ScreenY,(SCREEN_W-PAGE_W) div 2+X2,Y2+ScreenY);
+     ZoomBar((SCREEN_W-PAGE_W) div 2+X1,LineL,(SCREEN_W-PAGE_W) div 2+X2,LineR);
+    End Else If (Y1+ScreenY>=DOCAREA_TOP) and (Y2+ScreenY<=DocBottom) Then
+     ZoomLine((SCREEN_W-PAGE_W) div 2+X1,Y1+ScreenY,(SCREEN_W-PAGE_W) div 2+X2,Y2+ScreenY);
    End;
   End;
  End;
@@ -2597,7 +2697,7 @@ Begin
  For I := 1 To VLineCount Do Begin
   ScreenY := VLines[I].Y - ScrollY;
   If (ScreenY + VLines[I].Height < DOCAREA_TOP) Or
-     (ScreenY > DOCAREA_BOTTOM) Then Continue;
+     (ScreenY > DocBottom) Then Continue;
 
   P:=VLines[I].ParaIdx;
   If Doc.Paragraphs[P].PDF.Active Then Begin
@@ -2613,12 +2713,12 @@ Begin
    PB := Doc.Paragraphs[P].ImgData;
    For IyImg := 0 To IH-1 Do Begin
     If (ScreenY + IyImg < DOCAREA_TOP) Or
-       (ScreenY + IyImg > DOCAREA_BOTTOM) Then Begin
+       (ScreenY + IyImg > DocBottom) Then Begin
      Inc(PB, IW);
      Continue;
     End;
     For IxImg := 0 To IW-1 Do Begin
-     PutPixel(VLines[I].X + IxImg, ScreenY + IyImg, PB^ And 15);
+     ZoomPixel(VLines[I].X + IxImg, ScreenY + IyImg, PB^ And 15);
      Inc(PB);
     End;
    End;
@@ -2640,19 +2740,19 @@ Begin
    For ColC := 1 To NColsRen Do Begin
     CellX := VLines[I].X + (ColC-1) * CellW;
     SetColor(Black);
-    Line(CellX, CellY, CellX + CellW, CellY);
-    Line(CellX, CellY, CellX, CellY + TBL_CELL_HEIGHT);
+    ZoomLine(CellX, CellY, CellX + CellW, CellY);
+    ZoomLine(CellX, CellY, CellX, CellY + TBL_CELL_HEIGHT);
     If ColC = NColsRen Then
-     Line(CellX + CellW, CellY, CellX + CellW, CellY + TBL_CELL_HEIGHT);
+     ZoomLine(CellX + CellW, CellY, CellX + CellW, CellY + TBL_CELL_HEIGHT);
     If RowR = NRowsRen Then
-     Line(CellX, CellY + TBL_CELL_HEIGHT, CellX + CellW, CellY + TBL_CELL_HEIGHT);
+     ZoomLine(CellX, CellY + TBL_CELL_HEIGHT, CellX + CellW, CellY + TBL_CELL_HEIGHT);
     CellTxt := Tables[TblPRen].Cells[RowR, ColC];
     If Length(CellTxt) > 0 Then Begin
      TextX := CellX + TBL_CELL_PAD;
      TextY := CellY + (TBL_CELL_HEIGHT - 8) Div 2;
      SetTextStyle(DefaultFont, HorizDir, 1);
      SetColor(Black);
-     OutTextXY(TextX, TextY, CellTxt);
+     ZoomOutTextXY(TextX, TextY, CellTxt);
     End;
    End;
    Continue;
@@ -2665,7 +2765,7 @@ Begin
        (VLines[I].ParaIdx <= Doc.ParaCount) Then
      If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
       SetColor(DarkGray);
-      Line((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
+      ZoomLine((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
            ScreenY + LINE_HEIGHT - 1,
            (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
            ScreenY + LINE_HEIGHT - 1);
@@ -2674,7 +2774,7 @@ Begin
    Continue;
   End;
   If (ScreenY < DOCAREA_TOP) Or
-     (ScreenY + LINE_HEIGHT - 1 > DOCAREA_BOTTOM) Then Continue;
+     (ScreenY + LINE_HEIGHT - 1 > DocBottom) Then Continue;
 
   P := VLines[I].ParaIdx;
   RC := Doc.Paragraphs[P].RunCount;
@@ -2716,7 +2816,7 @@ Begin
     SegW := TextWidth(Sub);
     If (Sty.Style And STY_UNDERLINE) <> 0 Then Begin
      SetColor(Sty.Color);
-     Line(ScreenX, ScreenY + LINE_HEIGHT - 2,
+     ZoomLine(ScreenX, ScreenY + LINE_HEIGHT - 2,
           ScreenX + SegW - 1, ScreenY + LINE_HEIGHT - 2);
     End;
     Inc(ScreenX, SegW);
@@ -2744,7 +2844,7 @@ Begin
     End;
     If (Sty.Style And STY_UNDERLINE) <> 0 Then Begin
      SetColor(Sty.Color);
-     Line(SegStartX, ScreenY + LINE_HEIGHT - 2,
+     ZoomLine(SegStartX, ScreenY + LINE_HEIGHT - 2,
           ScreenX - 1, ScreenY + LINE_HEIGHT - 2);
     End;
     { Pas d'incr?ment ScreenX r?siduel : d?j? mis ? jour char par char. }
@@ -2760,7 +2860,7 @@ Begin
        (VLines[I].ParaIdx <= Doc.ParaCount) Then
      If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
       SetColor(DarkGray);
-      Line((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
+      ZoomLine((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
            ScreenY + LINE_HEIGHT - 1,
            (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
            ScreenY + LINE_HEIGHT - 1);
@@ -2780,9 +2880,9 @@ Begin
  If L = 0 Then Exit;
  X := CursorScreenX(L);
  Y := VLines[L].Y - ScrollY;
- If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DOCAREA_BOTTOM) Then Exit;
+ If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DocBottom) Then Exit;
  SetColor(Black);
- Line(X, Y, X, Y + LINE_HEIGHT - 2);
+ ZoomLine(X, Y, X, Y + LINE_HEIGHT - 2);
 End;
 
 { Rendu de la selection : inversion video (XOR avec blanc) sur les
@@ -2814,11 +2914,11 @@ Begin
   X2 := LineCharScreenX(I, SegR);
   If X2 <= X1 Then Continue;
   Y := VLines[I].Y - ScrollY;
-  If (Y + LINE_HEIGHT - 1 < DOCAREA_TOP) Or (Y > DOCAREA_BOTTOM) Then Continue;
+  If (Y + LINE_HEIGHT - 1 < DOCAREA_TOP) Or (Y > DocBottom) Then Continue;
   SetWriteMode(XORPut);
   SetColor(White);
   For YY := Y To Y + LINE_HEIGHT - 1 Do
-   Line(X1, YY, X2 - 1, YY);
+   ZoomLine(X1, YY, X2 - 1, YY);
   SetWriteMode(NormalPut);
  End;
  SetColor(Black);
@@ -2834,11 +2934,11 @@ Begin
  If L = 0 Then Exit;
  X := CursorScreenX(L);
  Y := VLines[L].Y - ScrollY;
- If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DOCAREA_BOTTOM) Then Exit;
+ If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DocBottom) Then Exit;
  {$IFDEF FPC} EraseSoftCursor; {$ENDIF}
  SetWriteMode(XORPut);
  SetColor(White);
- Line(X, Y, X, Y + LINE_HEIGHT - 2);
+ ZoomLine(X, Y, X, Y + LINE_HEIGHT - 2);
  SetWriteMode(NormalPut);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 End;
@@ -2855,9 +2955,16 @@ Begin
  ScreenY := VLines[L].Y - ScrollY;
  If ScreenY < DOCAREA_TOP + 4 Then
   ScrollY := VLines[L].Y - DOCAREA_TOP - 4;
- If ScreenY + LINE_HEIGHT > DOCAREA_BOTTOM - 4 Then
-  ScrollY := VLines[L].Y + LINE_HEIGHT - DOCAREA_BOTTOM + 4;
+ If ScreenY + LINE_HEIGHT > DocBottom - 4 Then
+  ScrollY := VLines[L].Y + LINE_HEIGHT - DocBottom + 4;
  If ScrollY < 0 Then ScrollY := 0;
+ If ZoomPanLimit>0 Then Begin
+  If ZoomX(CursorScreenX(L))<12 Then ZoomPanX:=CursorScreenX(L)-SCREEN_W div 2+30000 div ZoomValue;
+  If ZoomX(CursorScreenX(L))>SCREEN_W-12 Then
+   ZoomPanX:=CursorScreenX(L)-SCREEN_W div 2-30000 div ZoomValue;
+  If ZoomPanX< -ZoomPanLimit Then ZoomPanX:=-ZoomPanLimit;
+  If ZoomPanX>ZoomPanLimit Then ZoomPanX:=ZoomPanLimit;
+ End;
 End;
 
 { ----- Edition de texte (Phase 3 : multi-run) ----------------- }
@@ -3283,13 +3390,13 @@ End;
 Procedure CursorPageUp;
 Var I: Integer;
 Begin
- For I := 1 To 18 Do CursorVerticalMove(-1);
+ For I := 1 To (DocBottom-DOCAREA_TOP) div LINE_HEIGHT Do CursorVerticalMove(-1);
 End;
 
 Procedure CursorPageDown;
 Var I: Integer;
 Begin
- For I := 1 To 18 Do CursorVerticalMove(1);
+ For I := 1 To (DocBottom-DOCAREA_TOP) div LINE_HEIGHT Do CursorVerticalMove(1);
 End;
 
 Procedure CursorDocStart;
@@ -5966,25 +6073,25 @@ Begin
   PX2 := PX1 + PAGE_W;
 
   { Skip si enti??rement hors zone }
-  If (PY2 < DOCAREA_TOP) Or (PY1 > DOCAREA_BOTTOM) Then Continue;
+  If (PY2 < DOCAREA_TOP) Or (PY1 > DocBottom) Then Continue;
 
   { Ombre droite et bas }
-  FillRectArea(PX2+1, PY1+3, PX2+3, PY2+3, PAGE_SHADOW);
-  FillRectArea(PX1+3, PY2+1, PX2+3, PY2+3, PAGE_SHADOW);
+  ZoomFillRect(PX2+1, PY1+3, PX2+3, PY2+3, PAGE_SHADOW);
+  ZoomFillRect(PX1+3, PY2+1, PX2+3, PY2+3, PAGE_SHADOW);
 
   { Page blanche }
-  FillRectArea(PX1, PY1, PX2, PY2, PAGE_BG);
-  DrawFrameRect(PX1, PY1, PX2, PY2, PAGE_BORDER);
+  ZoomFillRect(PX1, PY1, PX2, PY2, PAGE_BG);
+  ZoomFrameRect(PX1, PY1, PX2, PY2, PAGE_BORDER);
 
   { Marges en pointill??s discrets }
   SetColor(LightGray);
-  If Doc.PDFPageCount=0 Then Rectangle(PX1+PAGE_MARGIN_L, PY1+PAGE_MARGIN_T,
+  If Doc.PDFPageCount=0 Then ZoomRectangle(PX1+PAGE_MARGIN_L, PY1+PAGE_MARGIN_T,
             PX2-PAGE_MARGIN_R, PY2-PAGE_MARGIN_B);
 
   { En-tete DOCX (si charge depuis word/header*.xml) }
   If (Doc.PDFPageCount=0) and (Length(DocxHeaderText)>0) Then Begin
    SetColor(DarkGray);
-   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxHeaderText) Div 2,
+   ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxHeaderText) Div 2,
              PY1 + (PAGE_MARGIN_T Div 2) - 4, DocxHeaderText);
   End;
 
@@ -5993,12 +6100,12 @@ Begin
   Str(P, StatusMsg);    { r??utilisation tampon }
   StatusMsg := 'Page ' + StatusMsg;
   If Doc.PDFPageCount=0 Then
-   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,PY2-12,StatusMsg);
+   ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,PY2-12,StatusMsg);
 
   { Pied de page DOCX (au-dessus du numero de page) }
   If (Doc.PDFPageCount=0) and (Length(DocxFooterText)>0) Then Begin
    SetColor(DarkGray);
-   OutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxFooterText) Div 2,
+   ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(DocxFooterText) Div 2,
              PY2 - 12 - 10, DocxFooterText);
   End;
  End;
@@ -6008,6 +6115,18 @@ Begin
  RenderDocText;
  RenderSelection;
  RenderTextCursor;
+End;
+
+Procedure DrawZoomPan;
+Var MaxPan,Thumb,TX,Y:Integer;
+Begin
+ MaxPan:=ZoomPanLimit;If MaxPan=0 Then Exit;
+ Y:=DOCAREA_BOTTOM-11;
+ FillRectArea(0,Y,SCREEN_W-1,DOCAREA_BOTTOM,LightGray);
+ DrawFrameRect(0,Y,SCREEN_W-1,DOCAREA_BOTTOM,DarkGray);
+ Thumb:=60;TX:=20+(LongInt(ZoomPanX+MaxPan)*(SCREEN_W-40-Thumb)) div (2*MaxPan);
+ FillRectArea(TX,Y+1,TX+Thumb,Y+10,DarkGray);
+ DrawTextAt(4,Y+2,'<',Black);DrawTextAt(SCREEN_W-12,Y+2,'>',Black);
 End;
 
 Procedure DrawStatusBar;
@@ -6038,6 +6157,7 @@ Begin
 
  DrawTextAt(220, STATUSBAR_TOP+5, StatusMsg, STATUSBAR_FG);
 
+ Str(ZoomValue,SP);DrawTextAt(SCREEN_W-125,STATUSBAR_TOP+5,SP+' %',STATUSBAR_FG);
  If Doc.Modified Then
   DrawTextAt(SCREEN_W-50, STATUSBAR_TOP+5, '[MOD]', Red);
 End;
@@ -9728,6 +9848,94 @@ Begin
  End;
 End;
 
+Function SetViewZoom(Value:Integer;FitPage:Boolean):Boolean;
+Var CenterY,OldZoom,Visible:LongInt;
+Begin
+ SetViewZoom:=False;If (Value<25) or (Value>300) Then Exit;
+ OldZoom:=ZoomValue;Visible:=DOCAREA_BOTTOM-DOCAREA_TOP;
+ CenterY:=ScrollY+Visible*100 div OldZoom div 2;
+ ZoomPercent:=Value;ZoomPanX:=0;
+ If FitPage Then ScrollY:=(CurrentPage-1)*(PAGE_H+12)
+ Else ScrollY:=CenterY-Visible*100 div Value div 2;
+ If ScrollY<0 Then ScrollY:=0;
+ CursorBlinkOn:=True;CursorBlinkCnt:=0;NeedsRedraw:=True;
+ SetViewZoom:=True;
+End;
+
+Procedure ShowZoomDialog;
+Const Values:Array[1..8] of Integer=(50,75,100,125,150,200,0,-1);
+Var Value,Choice,I,X,Y:Integer;K:Word;Text,LabelText:String;
+ Done,Apply:Boolean;PrevButton:LongInt;
+ Procedure Paint;
+ Var J,BX,BY:Integer;
+ Begin
+  EraseSoftCursor;
+  FillRectArea(155,125,485,350,CLR_3D_FACE);DrawButton3D(155,125,485,350,False);
+  FillRectArea(158,128,482,146,Blue);DrawTextAt(165,132,'Zoom',White);
+  DrawTextAt(170,161,'Pourcentage (25 a 300 %) :',Black);
+  FillRectArea(170,180,265,200,White);DrawSunkenRect(170,180,265,200);
+  DrawTextAt(176,186,Text+' %',Black);
+  For J:=1 To 8 Do Begin
+   BX:=170+((J-1) mod 4)*75;BY:=216+((J-1) div 4)*30;
+   DrawButton3D(BX,BY,BX+68,BY+23,Choice=J);
+   If J=7 Then LabelText:='Page' Else If J=8 Then LabelText:='Largeur'
+   Else Begin Str(Values[J],LabelText);LabelText:=LabelText+' %';End;
+   DrawTextAt(BX+5,BY+7,LabelText,Black);
+  End;
+  DrawButton3D(285,313,365,336,False);DrawTextAt(315,320,'OK',Black);
+  DrawButton3D(385,313,470,336,False);DrawTextAt(397,320,'Annuler',Black);
+  {$IFDEF FPC} DrawSoftCursor(MsX,MsY);{$ENDIF}
+ End;
+ Procedure Pick(Index:Integer);
+ Begin
+  Choice:=Index;Value:=Values[Index];
+  If Value=0 Then Value:=(DOCAREA_BOTTOM-DOCAREA_TOP-16)*100 div PAGE_H;
+  If Value=-1 Then Value:=(SCREEN_W-24)*100 div PAGE_W;
+  If Value<25 Then Value:=25;If Value>300 Then Value:=300;
+  Str(Value,Text);
+ End;
+Begin
+ Str(ZoomValue,Text);Choice:=0;Done:=False;Apply:=False;PrevButton:=MsBtn;
+ EraseSoftCursor;Paint;
+ Repeat
+  If KeyPressed Then Begin
+   K:=ReadKeyEx;
+   Case K Of
+    KEY_ESC:Done:=True;
+    KEY_ENTER:Begin
+     Val(Text,Value,I);
+     If (I=0) and (Value>=25) and (Value<=300) Then Begin Apply:=True;Done:=True;End;
+    End;
+    KEY_LEFT,KEY_UP:Begin If Choice<=1 Then Pick(8) Else Pick(Choice-1);Paint;End;
+    KEY_RIGHT,KEY_DOWN,KEY_TAB:Begin If Choice>=8 Then Pick(1) Else Pick(Choice+1);Paint;End;
+    KEY_BACKSPACE:Begin If Length(Text)>0 Then Delete(Text,Length(Text),1);Choice:=0;Paint;End;
+    48..57:Begin
+     If Choice<>0 Then Text:='';Choice:=0;
+     If Length(Text)>=3 Then Text:='';Text:=Text+Char(K);Paint;
+    End;
+   End;
+  End;
+  EraseSoftCursor;GetMouseStateLI(MsX,MsY,MsBtn);
+  If ((MsBtn and MB_LEFT)<>0) and ((PrevButton and MB_LEFT)=0) Then Begin
+   For I:=1 To 8 Do Begin
+    X:=170+((I-1) mod 4)*75;Y:=216+((I-1) div 4)*30;
+    If (MsX>=X) and (MsX<=X+68) and (MsY>=Y) and (MsY<=Y+23) Then Begin Pick(I);Paint;End;
+   End;
+   If (MsY>=313) and (MsY<=336) Then Begin
+    If (MsX>=385) and (MsX<=470) Then Done:=True;
+    If (MsX>=285) and (MsX<=365) Then Begin
+     Val(Text,Value,I);
+     If (I=0) and (Value>=25) and (Value<=300) Then Begin Apply:=True;Done:=True;End;
+    End;
+   End;
+  End;
+  PrevButton:=MsBtn;{$IFDEF FPC} DrawSoftCursor(MsX,MsY);{$ENDIF}
+ Until Done;
+ EraseSoftCursor;
+ If Apply Then Apply:=SetViewZoom(Value,Choice=7);
+ NeedsRedraw:=True;
+End;
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -9811,7 +10019,7 @@ Begin
   ACT_VIEW_NORMAL : StatusMsg := 'View: Normal';
   ACT_VIEW_PAGE   : StatusMsg := 'View: Page Layout';
   ACT_VIEW_RULER  : StatusMsg := 'Toggle Ruler';
-  ACT_VIEW_ZOOM   : ShowMessage('Zoom: a venir');
+  ACT_VIEW_ZOOM   : ShowZoomDialog;
 
   ACT_INS_PAGEBRK : Begin
                      If Doc.ParaCount < MAX_PARAS_PER_DOC Then Begin
@@ -10301,6 +10509,7 @@ Var
  ParaStr, Pre, CellTxt              : String;
  TIdx, NCols, CellW, ColC, RowR     : Integer;
 Begin
+ Mx:=UnzoomX(Mx);My:=UnzoomY(My);
  P := 0; C := 0;
  If VLineCount = 0 Then Begin MouseToDocPos := False; Exit; End;
  Best := 0;
@@ -10352,7 +10561,7 @@ Begin
  BestDist := 32767;
  For Off := 0 To VLines[Best].CharLen Do Begin
   Pre := Copy(ParaStr, VLines[Best].CharStart, Off);
-  TestX := VLines[Best].X + TextWidth(Pre);
+  TestX := VLines[Best].X + StyledRangeWidth(P,VLines[Best].CharStart,Off);
   D := TestX - Mx;
   If D < 0 Then D := -D;
   If D < BestDist Then Begin BestDist := D; BestOff := Off; End;
@@ -10363,7 +10572,7 @@ End;
 
 Function PointInDocArea(X, Y: LongInt): Boolean;
 Begin
- PointInDocArea := (Y >= DOCAREA_TOP) And (Y <= DOCAREA_BOTTOM);
+ PointInDocArea := (Y >= DOCAREA_TOP) And (Y <= DocPhysicalBottom);
 End;
 
 Procedure HandleMouse;
@@ -10378,6 +10587,14 @@ Begin
  LeftDown     := (MsBtn And MB_LEFT) <> 0;
  LeftPressed  := LeftDown And ((LastMsBtn And MB_LEFT) = 0);
  LeftReleased := (Not LeftDown) And ((LastMsBtn And MB_LEFT) <> 0);
+ If LeftPressed and (ZoomPanLimit>0) and (MsY>DocPhysicalBottom) and (MsY<=DOCAREA_BOTTOM) Then Begin
+  If MsX<20 Then Dec(ZoomPanX,30)
+  Else If MsX>SCREEN_W-20 Then Inc(ZoomPanX,30)
+  Else ZoomPanX:=-ZoomPanLimit+LongInt(MsX-20)*2*ZoomPanLimit div (SCREEN_W-40);
+  If ZoomPanX< -ZoomPanLimit Then ZoomPanX:=-ZoomPanLimit;
+  If ZoomPanX>ZoomPanLimit Then ZoomPanX:=ZoomPanLimit;
+  NeedsRedraw:=True;Exit;
+ End;
  RightDown    := (MsBtn And MB_RIGHT) <> 0;
 
  If RibbonMode Then Begin
@@ -10523,6 +10740,7 @@ Begin
  SetViewPort(0, 0, SCREEN_W-1, SCREEN_H-1, ClipOn);
 
  DrawDocArea;
+ DrawZoomPan;
  DrawRuler;
  If RibbonMode Then DrawRibbon
  Else Begin DrawStdToolbar;DrawFmtToolbar;End;
