@@ -1473,6 +1473,24 @@ End;
   deux fois avec un decalage de 1 px). StartIdx 1-based dans ParaText. }
 Function PDFTextWidth(Const S,Face:String;H:Integer;Style:Byte):Integer; Forward;
 
+Function RunHeight(Const Sty: TCharStyle): Integer;
+Var Points: Integer;
+Begin
+ Points:=Sty.FontSize;
+ If Points<6 Then Points:=12;
+ If Points>72 Then Points:=72;
+ {$IFDEF WINDOWS}
+ RunHeight:=(Points*2+1) div 3;
+ {$ELSE}
+ RunHeight:=8*((Points+6) div 12);
+ {$ENDIF}
+End;
+
+Function RunAdvance(Const Sty: TCharStyle): Integer;
+Begin
+ RunAdvance:=RunHeight(Sty)+Ord((Sty.Style and STY_BOLD)<>0);
+End;
+
 Function StyledRangeWidth(P, StartIdx, Len: Integer): Integer;
 Var
  I, EndIdx, W, RunPos, RunLen           : Integer;
@@ -1498,9 +1516,7 @@ Begin
     OvLen := OvEnd - OvStart + 1;
     LocalStart := OvStart - RunPos + 1;
     Sub := Copy(Doc.Paragraphs[P].Runs[I].Text, LocalStart, OvLen);
-    Inc(W, TextWidth(Sub));
-    If (Doc.Paragraphs[P].Runs[I].Style.Style And STY_BOLD) <> 0 Then
-     Inc(W, OvLen);
+    Inc(W, OvLen*RunAdvance(Doc.Paragraphs[P].Runs[I].Style));
    End;
   End;
   Inc(RunPos, RunLen);
@@ -1865,16 +1881,28 @@ End;
 Procedure DrawPDFText(P,X,Y:Integer);
 Begin DrawPDFTextFragment(P,X,Y,1,Length(ParaText(P)));End;
 
-Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word);
+Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word; PreviewHeight:Integer; DocumentHeight:Integer);
 {$IFDEF WINDOWS}
 Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
  T:Array[0..255] of Char;Face:Array[0..15] of Char;Pixel:^LongWord;
- I,J,W,H,PX,PY,Weight:Integer;
+ I,J,W,H,PX,PY,Weight,FontH,FontW:Integer;
 {$ENDIF}
 Begin
- If ZoomValue=100 Then Begin OutTextXY(X-ZoomPanX,Y,S);Exit;End;
+ If (PreviewHeight=0) And (DocumentHeight=0) And (ZoomValue=100) Then Begin OutTextXY(X-ZoomPanX,Y,S);Exit;End;
  {$IFDEF WINDOWS}
- PX:=ZoomX(X);PY:=ZoomY(Y);W:=Length(S)*8*ZoomValue div 100+8;H:=14*ZoomValue div 100+4;
+ If PreviewHeight>0 Then Begin
+  PX:=X; PY:=Y;
+  FontH:=PreviewHeight; FontW:=(PreviewHeight+1) div 2;
+ End Else Begin
+  PX:=ZoomX(X); PY:=ZoomY(Y);
+  If DocumentHeight>0 Then Begin
+   FontH:=DocumentHeight*ZoomValue div 100;
+   FontW:=(DocumentHeight+Ord((Style and STY_BOLD)<>0))*ZoomValue div 100;
+  End Else Begin
+   FontH:=12*ZoomValue div 100; FontW:=8*ZoomValue div 100;
+  End;
+ End;
+ W:=(Length(S)+1)*(FontW+1)+8; H:=FontH+8;
  If (W<1) or (W>8192) Then Exit;
  FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
  FillChar(Face,SizeOf(Face),0);Face[0]:='C';Face[1]:='o';Face[2]:='u';Face[3]:='r';
@@ -1885,13 +1913,17 @@ Begin
  If Bitmap=0 Then Begin PDFDeleteDC(DC);Exit;End;
  FillChar(Bits^,LongInt(W)*H*4,255);OldBitmap:=PDFSelect(DC,Bitmap);
  Weight:=400;If (Style and STY_BOLD)<>0 Then Weight:=700;
- Font:=PDFFont(-12*ZoomValue div 100,8*ZoomValue div 100,0,0,Weight,
+ Font:=PDFFont(-FontH,FontW,0,0,Weight,
   Ord((Style and STY_ITALIC)<>0),0,0,0,0,0,4,0,@Face[0]);
  If Font<>0 Then Begin
   OldFont:=PDFSelect(DC,Font);PDFTextColor(DC,0);PDFBkColor(DC,$FFFFFF);
-  PDFText(DC,0,0,@T[0],Length(S));PDFFlush;Pixel:=Bits;
+  If DocumentHeight>0 Then
+   For I:=0 To Length(S)-1 Do
+    PDFText(DC,ZoomX(X+I*(DocumentHeight+Ord((Style and STY_BOLD)<>0)))-PX,0,@T[I],1)
+  Else PDFText(DC,0,0,@T[0],Length(S));
+  PDFFlush;Pixel:=Bits;
   For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
-   If (PY+J>=DOCAREA_TOP) and (PY+J<=DocPhysicalBottom) and (PX+I>=0) and (PX+I<SCREEN_W) Then
+   If (PreviewHeight>0) Or ((PY+J>=DOCAREA_TOP) and (PY+J<=DocPhysicalBottom) and (PX+I>=0) and (PX+I<SCREEN_W)) Then
     If (Pixel^ and $FFFFFF)<>$FFFFFF Then PutPixel(PX+I,PY+J,Color);
    Inc(Pixel);
   End;
@@ -1899,12 +1931,19 @@ Begin
  End;
  PDFSelect(DC,OldBitmap);PDFDelete(Bitmap);PDFDeleteDC(DC);
  {$ELSE}
- SetTextStyle(DefaultFont,HorizDir,ZoomValue div 100);OutTextXY(ZoomX(X),ZoomY(Y),S);
+ If PreviewHeight>0 Then Begin
+  SetTextStyle(DefaultFont,HorizDir,PreviewHeight div 8);
+  OutTextXY(X,Y,S);
+ End Else Begin
+  If DocumentHeight>0 Then SetTextStyle(DefaultFont,HorizDir,(DocumentHeight*ZoomValue+400) div 800)
+  Else SetTextStyle(DefaultFont,HorizDir,ZoomValue div 100);
+  OutTextXY(ZoomX(X),ZoomY(Y),S);
+ End;
  SetTextStyle(DefaultFont,HorizDir,1);
  {$ENDIF}
 End;
 Procedure ZoomOutTextXY(X,Y:Integer;Const S:String);
-Begin ZoomText(X,Y,S,0,GetColor);End;
+Begin ZoomText(X,Y,S,0,GetColor,0,0);End;
 
 Procedure ApplyRunStyle(Const Sty: TCharStyle);
 Begin
@@ -1923,8 +1962,8 @@ Var
  VP : ViewPortType;
  TW : Integer;
 Begin
- If (ZoomValue<>100) or (ZoomPanX<>0) Then Begin
-  ZoomText(X,Y,S,Sty.Style,Sty.Color);Exit;
+ If (ZoomValue<>100) or (ZoomPanX<>0) or (RunHeight(Sty)<>8) Then Begin
+  ZoomText(X,Y,S,Sty.Style,Sty.Color,0,RunHeight(Sty));Exit;
  End;
  If (Sty.Style And STY_ITALIC) <> 0 Then Begin
   TW := TextWidth(S);
@@ -2312,9 +2351,7 @@ Begin
    SettledLineEnd := 0;
    While Pos <= Length(ParaStr) Do Begin
     Ch := ParaStr[Pos];
-    CharW := TextWidth(Ch);
-    If Doc.Paragraphs[P].PDF.Active Then CharW:=StyledRangeWidth(P,Pos,1)
-    Else If (CharStyleAt(P, Pos) And STY_BOLD) <> 0 Then Inc(CharW);
+    CharW:=StyledRangeWidth(P,Pos,1);
     If W + CharW > AvailW Then Begin
      If LastSpace >= LineStart Then
       SettledLineEnd := LastSpace
@@ -2333,6 +2370,17 @@ Begin
    Else
     LineEnd := SettledLineEnd;
 
+   If Not Doc.Paragraphs[P].PDF.Active Then Begin
+    LineH:=LINE_HEIGHT;
+    W:=1;
+    For Pos:=1 To Doc.Paragraphs[P].RunCount Do Begin
+     CharW:=Length(Doc.Paragraphs[P].Runs[Pos].Text);
+     If (CharW>0) And (W<=LineEnd) And (W+CharW>LineStart) Then
+      If RunHeight(Doc.Paragraphs[P].Runs[Pos].Style)+4>LineH Then
+       LineH:=RunHeight(Doc.Paragraphs[P].Runs[Pos].Style)+4;
+     Inc(W,CharW);
+    End;
+   End;
    LineW := StyledRangeWidth(P, LineStart, LineEnd - LineStart + 1);
    { Alignement : Center/Right utilisent ComputeLineX dans la fenetre
      restante (X..PageContentR), pas la pleine largeur de page.        }
@@ -2801,15 +2849,15 @@ Begin
      If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
       SetColor(DarkGray);
       ZoomLine((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
-           ScreenY + LINE_HEIGHT - 1,
+           ScreenY + VLines[I].Height - 1,
            (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
-           ScreenY + LINE_HEIGHT - 1);
+           ScreenY + VLines[I].Height - 1);
       SetColor(Black);
      End;
    Continue;
   End;
   If (ScreenY < DOCAREA_TOP) Or
-     (ScreenY + LINE_HEIGHT - 1 > DocBottom) Then Continue;
+     (ScreenY + VLines[I].Height - 1 > DocBottom) Then Continue;
 
   P := VLines[I].ParaIdx;
   RC := Doc.Paragraphs[P].RunCount;
@@ -2848,21 +2896,20 @@ Begin
 
    If Not Justify Then Begin
     DrawStyledText(ScreenX, ScreenY, Sub, Sty);
-    SegW := TextWidth(Sub);
+    SegW := SegLen*RunAdvance(Sty);
     If (Sty.Style And STY_UNDERLINE) <> 0 Then Begin
      SetColor(Sty.Color);
-     ZoomLine(ScreenX, ScreenY + LINE_HEIGHT - 2,
-          ScreenX + SegW - 1, ScreenY + LINE_HEIGHT - 2);
+     ZoomLine(ScreenX, ScreenY + RunHeight(Sty)+2,
+          ScreenX + SegW - 1, ScreenY + RunHeight(Sty)+2);
     End;
     Inc(ScreenX, SegW);
-    If (Sty.Style And STY_BOLD) <> 0 Then Inc(ScreenX);
    End Else Begin
     { Justifi? : rendu char par char avec extras sur espaces. }
     SegStartX := ScreenX;
     For SegOff := 1 To SegLen Do Begin
      OneCh := Copy(Sub, SegOff, 1);
      DrawStyledText(ScreenX, ScreenY, OneCh, Sty);
-     CharW := TextWidth(OneCh);
+     CharW := RunAdvance(Sty);
      ExtraThis := 0;
      If OneCh[1] = ' ' Then Begin
       { (SegStart + SegOff) = position 1-based dans le para de ce char.
@@ -2875,12 +2922,11 @@ Begin
       End;
      End;
      Inc(ScreenX, CharW + ExtraThis);
-     If (Sty.Style And STY_BOLD) <> 0 Then Inc(ScreenX);
     End;
     If (Sty.Style And STY_UNDERLINE) <> 0 Then Begin
      SetColor(Sty.Color);
-     ZoomLine(SegStartX, ScreenY + LINE_HEIGHT - 2,
-          ScreenX - 1, ScreenY + LINE_HEIGHT - 2);
+     ZoomLine(SegStartX, ScreenY + RunHeight(Sty)+2,
+          ScreenX - 1, ScreenY + RunHeight(Sty)+2);
     End;
     { Pas d'incr?ment ScreenX r?siduel : d?j? mis ? jour char par char. }
     J := 0;     { dummy: silence "unused J" }
@@ -2896,9 +2942,9 @@ Begin
      If Doc.Paragraphs[VLines[I].ParaIdx].BorderBottom Then Begin
       SetColor(DarkGray);
       ZoomLine((SCREEN_W - PAGE_W) Div 2 + PAGE_MARGIN_L,
-           ScreenY + LINE_HEIGHT - 1,
+           ScreenY + VLines[I].Height - 1,
            (SCREEN_W - PAGE_W) Div 2 + PAGE_W - PAGE_MARGIN_R - 1,
-           ScreenY + LINE_HEIGHT - 1);
+           ScreenY + VLines[I].Height - 1);
       SetColor(Black);
      End;
  End;
@@ -2915,9 +2961,9 @@ Begin
  If L = 0 Then Exit;
  X := CursorScreenX(L);
  Y := VLines[L].Y - ScrollY;
- If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DocBottom) Then Exit;
+ If (Y < DOCAREA_TOP) Or (Y + VLines[L].Height > DocBottom) Then Exit;
  SetColor(Black);
- ZoomLine(X, Y, X, Y + LINE_HEIGHT - 2);
+ ZoomLine(X, Y, X, Y + VLines[L].Height - 2);
 End;
 
 { Rendu de la selection : inversion video (XOR avec blanc) sur les
@@ -2949,10 +2995,10 @@ Begin
   X2 := LineCharScreenX(I, SegR);
   If X2 <= X1 Then Continue;
   Y := VLines[I].Y - ScrollY;
-  If (Y + LINE_HEIGHT - 1 < DOCAREA_TOP) Or (Y > DocBottom) Then Continue;
+  If (Y + VLines[I].Height - 1 < DOCAREA_TOP) Or (Y > DocBottom) Then Continue;
   SetWriteMode(XORPut);
   SetColor(White);
-  For YY := Y To Y + LINE_HEIGHT - 1 Do
+  For YY := Y To Y + VLines[I].Height - 1 Do
    ZoomLine(X1, YY, X2 - 1, YY);
   SetWriteMode(NormalPut);
  End;
@@ -2969,11 +3015,11 @@ Begin
  If L = 0 Then Exit;
  X := CursorScreenX(L);
  Y := VLines[L].Y - ScrollY;
- If (Y < DOCAREA_TOP) Or (Y + LINE_HEIGHT > DocBottom) Then Exit;
+ If (Y < DOCAREA_TOP) Or (Y + VLines[L].Height > DocBottom) Then Exit;
  {$IFDEF FPC} EraseSoftCursor; {$ENDIF}
  SetWriteMode(XORPut);
  SetColor(White);
- ZoomLine(X, Y, X, Y + LINE_HEIGHT - 2);
+ ZoomLine(X, Y, X, Y + VLines[L].Height - 2);
  SetWriteMode(NormalPut);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 End;
@@ -2990,8 +3036,8 @@ Begin
  ScreenY := VLines[L].Y - ScrollY;
  If ScreenY < DOCAREA_TOP + 4 Then
   ScrollY := VLines[L].Y - DOCAREA_TOP - 4;
- If ScreenY + LINE_HEIGHT > DocBottom - 4 Then
-  ScrollY := VLines[L].Y + LINE_HEIGHT - DocBottom + 4;
+ If ScreenY + VLines[L].Height > DocBottom - 4 Then
+  ScrollY := VLines[L].Y + VLines[L].Height - DocBottom + 4;
  If ScrollY < 0 Then ScrollY := 0;
  If ZoomPanLimit>0 Then Begin
   If ZoomX(CursorScreenX(L))<12 Then ZoomPanX:=CursorScreenX(L)-SCREEN_W div 2+30000 div ZoomValue;
@@ -10179,7 +10225,7 @@ Var
  End;
 
  Procedure Paint;
- Var I,X,Y,Ink: Integer; Sample: String;
+ Var I,X,Y,Ink,PreviewSize,Height: Integer; Sample: String;
  Begin
   EraseSoftCursor;
   FillRectArea(110,94,530,404,CLR_3D_FACE);
@@ -10209,12 +10255,25 @@ Var
   End;
   FillRectArea(128,253,512,337,White);
   DrawSunkenRect(128,253,512,337);
-  Sample:='AaBb 123';
+  Sample:='AaBb';
+  PreviewSize:=Draft.FontSize;
+  If ListOpen Then PreviewSize:=Choice;
+  { Scale the sample to fit the fixed-height preview at 72 pt. }
+  Height:=(PreviewSize*2+1) div 3;
   ApplyRunStyle(Draft);
-  DrawStyledText(141,261,Sample,Draft);
-  If (Draft.Style and STY_UNDERLINE)<>0 Then
-   Line(141,261+8,140+Length(Sample)*8,
-     261+8);
+  {$IFNDEF WINDOWS}
+  Height:=((Height+4) div 8)*8;
+  Sample:='Aa';
+  {$ENDIF}
+  ZoomText(384,261,Sample,Draft.Style,Draft.Color,Height,0);
+  If (Draft.Style and STY_UNDERLINE)<>0 Then Begin
+   SetColor(Draft.Color);
+   {$IFDEF WINDOWS}
+   Line(384,263+Height,383+Length(Sample)*((Height+1) div 2),263+Height);
+   {$ELSE}
+   Line(384,263+Height,383+Length(Sample)*Height,263+Height);
+   {$ENDIF}
+  End;
   DrawTextAt(128,345,'Tab : option   Espace : ouvrir / basculer',Black);
   DrawButton3D(329,370,414,393,False);
   DrawButton3D(421,370,512,393,False);
@@ -10956,7 +11015,7 @@ Begin
   If VLines[I].IsImage Then Continue;
   LineY := VLines[I].Y - ScrollY;
   If My < LineY Then D := LineY - My
-  Else If My > LineY + LINE_HEIGHT - 1 Then D := My - (LineY + LINE_HEIGHT - 1)
+  Else If My > LineY + VLines[I].Height - 1 Then D := My - (LineY + VLines[I].Height - 1)
   Else D := 0;
   If D < BestDist Then Begin BestDist := D; Best := I; End;
  End;
