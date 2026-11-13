@@ -11495,6 +11495,37 @@ Begin
  Suggestions[P] := W; Scores[P] := Score
 End;
 
+Function ElidesInFrench(Const Prefix, Rest: TWord): Boolean;
+Begin
+ ElidesInFrench:=False;
+ If Rest='' Then Exit;
+ If Not (Rest[1] in ['a','e','i','o','u','y','h',#195,#197]) Then Exit;
+ ElidesInFrench:=(Prefix='d') Or (Prefix='l') Or (Prefix='j') Or
+  (Prefix='m') Or (Prefix='n') Or (Prefix='s') Or (Prefix='t') Or
+  (Prefix='c') Or (Prefix='qu') Or (Prefix='jusqu') Or
+  (Prefix='lorsqu') Or (Prefix='puisqu');
+End;
+
+Procedure SuggestWordBoundaries(Const W: TWord);
+Var Cut: Integer; LeftWord, RightWord: TWord;
+Begin
+ { Keep every letter when the missing separator explains the error. }
+ For Cut:=1 To Length(W)-1 Do Begin
+  LeftWord:=Copy(W,1,Cut);
+  RightWord:=Copy(W,Cut+1,Length(W)-Cut);
+  If Known(RightWord) Then Begin
+   If (DictName='fr_FR') And ElidesInFrench(LeftWord,RightWord) Then Begin
+    InsertSuggestion(LeftWord+#39+RightWord,1);
+    { Also offer a plural in -s when the lexicon confirms it. }
+    If Known(RightWord+'s') Then
+     InsertSuggestion(LeftWord+#39+RightWord+'s',35);
+   End;
+   If (Cut>=2) And (Length(RightWord)>=2) And Known(LeftWord) Then
+    InsertSuggestion(LeftWord+' '+RightWord,2);
+  End;
+ End;
+End;
+
 Procedure Suggest(W: TWord);
 Var
  N,D,Limit: Integer;
@@ -11572,6 +11603,7 @@ Begin
   If W='beutiful' Then Preferred := 'beautiful'
  End;
  If Preferred<>'' Then InsertSuggestion(Preferred,0);
+ If Length(W)<80 Then SuggestWordBoundaries(W);
  Limit := 2; If Length(F)<5 Then Limit := 1;
  For N := 1 To WordCount Do Begin
   K := RankingKey(Dictionary[N]^);
@@ -11633,7 +11665,7 @@ Function ChooseSpelling(P, First, Last: Integer; Const Original: String;
                         Const Picks: TSpellPicks; Count: Integer): Integer;
 Var
  SavedCursor: TCursorPos;
- L, A, B, Y, TopY, I, Selected, ResultCode, RowY: Integer;
+ L, A, B, Y, TopY, I, Selected, ResultCode, RowY, WaveX, WaveEnd, WaveY: Integer;
  Key: Word;
  PreviousButtons: LongInt;
  Repaint: Boolean;
@@ -11682,7 +11714,14 @@ Begin
    Y:=VLines[L].Y-ScrollY+VLines[L].Height-2;
    If (A<B) And (ZoomY(Y)>=DOCAREA_TOP) And (ZoomY(Y)<=DocPhysicalBottom) Then Begin
     SetColor(Red);
-    ZoomLine(LineCharScreenX(L,A),Y,LineCharScreenX(L,B)-1,Y);
+    WaveX:=ZoomX(LineCharScreenX(L,A));
+    WaveEnd:=ZoomX(LineCharScreenX(L,B))-1;
+    If WaveX<0 Then WaveX:=0;
+    If WaveEnd>=SCREEN_W Then WaveEnd:=SCREEN_W-1;
+    WaveY:=ZoomY(Y);
+    For I:=WaveX To WaveEnd Do
+     If WaveY-((I-WaveX) mod 4 div 2)>=DOCAREA_TOP Then
+      PutPixel(I,WaveY-((I-WaveX) mod 4 div 2),Red);
    End;
   End;
  Cursor:=SavedCursor;
@@ -11753,12 +11792,24 @@ Begin
   While Stop<=Length(S) Do Begin
    If Not SpellLetter(S[Stop]) Then Begin Inc(Stop); Continue; End;
    Start:=Stop;
-   While (Stop<=Length(S)) And SpellLetter(S[Stop]) Do Inc(Stop);
+   While Stop<=Length(S) Do Begin
+    If SpellLetter(S[Stop]) Then Inc(Stop)
+    Else If (S[Stop]=#39) And (Stop<Length(S)) Then Begin
+     If Not SpellLetter(S[Stop+1]) Then Break;
+     Inc(Stop);
+    End Else Break;
+   End;
    Original:=Copy(S,Start,Stop-Start);
    Candidate:=SpellEncode(Original);
    If Length(Candidate)>80 Then Continue;
    Encoded:=Candidate;
    If Known(Encoded) Then Continue;
+   I:=Pos(#39,Encoded);
+   If (I>0) And (DictName='fr_FR') Then Begin
+    Candidate:=Copy(Encoded,I+1,80);
+    If ElidesInFrench(Lower(Copy(Encoded,1,I-1)),Lower(Candidate)) And
+       Known(Candidate) Then Continue;
+   End;
    Suggest(Encoded);
    Count:=0;
    For I:=1 To SuggestionCount Do Begin
