@@ -2076,7 +2076,7 @@ Begin
  Case A Of
   ACT_NEW,ACT_OPEN,ACT_SAVE,ACT_SAVEAS,ACT_QUIT,ACT_HELP_ABOUT,ACT_INS_TASK,ACT_DELETE,ACT_INDENT,ACT_OUTDENT,
   ACT_LINK,ACT_UNLINK,ACT_ZOOM_IN,ACT_ZOOM_OUT,ACT_ZOOM_FIT,ACT_SCROLL_TASK,ACT_VIEW_GANTT,ACT_VIEW_NET,
-  ACT_VIEW_RES,ACT_VIEW_USAGE,ACT_VIEW_CAL,ACT_PROJ_INFO,ACT_PROPS,ACT_TASKINFO,ACT_RES_SHEET,ACT_TOOL_BASE,
+  ACT_VIEW_RES,ACT_VIEW_USAGE,ACT_VIEW_CAL,ACT_PROJ_INFO,ACT_PROPS,ACT_CUT,ACT_COPY,ACT_PASTE,ACT_TASKINFO,ACT_RES_SHEET,ACT_TOOL_BASE,
   ACT_TOOL_LEVEL,ACT_TOOL_TRACK,ACT_INS_PIC,ACT_PRINT,ACT_REPORTS,ACT_RPT_SUM,ACT_RPT_TASKS,ACT_RPT_CRIT,
   ACT_RPT_RES,ACT_RPT_COST,ACT_RPT_MS,ACT_HELP_TOPIC,ACT_HELP_TUTOR:
    RibbonActionEnabled:=True;
@@ -3848,10 +3848,11 @@ Begin
    End;
   End;
   Inc(TickCount);
-  If TickCount Mod 8 = 0 Then Begin
+  If (Not Done) And (TickCount Mod 40 = 0) Then Begin
    BlinkState := Not BlinkState;
    If Focus <= 5 Then DrawDlg;
   End;
+  Delay(10);
  Until Done;
  NeedFullRedraw := True;
 End;
@@ -4606,10 +4607,14 @@ Begin
    While LeftPressed Do UpdateMouse;
   End;
   Inc(TickCount);
-  If (Not Done) And (TickCount Mod 12 = 0) Then Begin
+  If (Not Done) And (TickCount Mod 40 = 0) Then Begin
    BlinkState := Not BlinkState;
    Fi := CurField;
-   If (Fi > 0) And (PrF[Fi].Kind In [PK_TEXT, PK_NUM, PK_DATE]) Then DrawDlg;
+   If (Fi > 0) And (PrF[Fi].Kind In [PK_TEXT, PK_NUM, PK_DATE]) Then Begin
+    HideMouse;
+    DrawField(Fi, True);
+    ShowMouse;
+   End;
   End;
   Delay(10);
  Until Done;
@@ -5531,6 +5536,7 @@ Var X1, Y1, X2, Y2: Integer;
     EditX1, EditY1, EditX2, EditY2: Integer;
     FltX1, FltY1, FltX2, FltY2: Integer;
     I, J: Integer;
+    ClkX, ClkY: Integer; ClkTick: LongInt;
 
   Procedure Refresh;
   Begin
@@ -5581,6 +5587,14 @@ Var X1, Y1, X2, Y2: Integer;
           'OK', False, Focus = 3);
    DlgBtn(BtnCnX1, BtnCnY1, BtnCnX2, BtnCnY2,
           'Annuler', False, Focus = 4);
+   ShowMouse;
+  End;
+
+  Procedure DrawNameOnly;
+  Begin
+   HideMouse;
+   DlgEdit (EditX1, EditY1, EditX2, EditY2, Buf, Focus = 0,
+            Caret * Ord(Focus = 0));
    ShowMouse;
   End;
 
@@ -5643,7 +5657,7 @@ Var X1, Y1, X2, Y2: Integer;
   End;
 
 Begin
- X1 := 70; Y1 := 60; X2 := 570; Y2 := 410;
+ X1 := 70; Y1 := 40; X2 := 570; Y2 := 450;
  LstX1 := X1 + 12; LstY1 := Y1 + 52; LstX2 := X2 - 12; LstY2 := Y1 + 252;
  EditX1 := X1 + 120; EditY1 := LstY2 + 26;
  EditX2 := X2 - 12; EditY2 := EditY1 + 18;
@@ -5660,6 +5674,7 @@ Begin
  Sel := 1; ScrY := 0;
  Refresh;
  Done := False; Result := False;
+ ClkX := -100; ClkY := -100; ClkTick := -10000;
  DrawDlg;
  Repeat
   UpdateMouse;
@@ -5720,7 +5735,7 @@ Begin
      End;
     End;
    BlinkState := True;
-   DrawDlg;
+   If Not Done Then DrawDlg;
   End;
   If LeftPressed Then Begin
    If InRect(Mouse.X, Mouse.Y, BtnOkX1, BtnOkY1, BtnOkX2, BtnOkY2) Then
@@ -5738,17 +5753,20 @@ Begin
     I := (Mouse.Y - LstY1 - 2) Div 14;
     J := ScrY + I + 1;
     If (J >= 1) And (J <= FDlgCount) Then Begin
-     If (Sel = J) And DoubleClicked Then ActivateSel
+     If (Sel = J) And (AbsI(Mouse.X - ClkX) <= 4) And (AbsI(Mouse.Y - ClkY) <= 4)
+        And ((TickCount - ClkTick) < 50) Then ActivateSel
      Else Sel := J;
+     ClkX := Mouse.X; ClkY := Mouse.Y; ClkTick := TickCount;
     End;
    End;
-   DrawDlg;
+   If Not Done Then DrawDlg;
   End;
   Inc(TickCount);
-  If TickCount Mod 8 = 0 Then Begin
+  If (Not Done) And (TickCount Mod 40 = 0) Then Begin
    BlinkState := Not BlinkState;
-   If Focus = 0 Then DrawDlg;
+   If Focus = 0 Then DrawNameOnly;
   End;
+  Delay(10);
  Until Done;
  DoFileDialog := Result;
  NeedFullRedraw := True;
@@ -8005,6 +8023,1788 @@ Begin
  NeedFullRedraw := True;
 End;
 
+{ ====================================================================== }
+{          PRESSE-PAPIER (systeme sous WINDOWS, interne sinon)           }
+{ ====================================================================== }
+{ Aucune unite supplementaire : les fonctions Win32 sont declarees        }
+{ directement (external) lorsque la directive WINDOWS est definie.        }
+
+Procedure RedrawAll; Forward;
+
+{$IFDEF WINDOWS}
+Function CB_OpenClipboard(hWnd: PtrUInt): LongBool; StdCall;
+ External 'user32.dll' Name 'OpenClipboard';
+Function CB_CloseClipboard: LongBool; StdCall;
+ External 'user32.dll' Name 'CloseClipboard';
+Function CB_EmptyClipboard: LongBool; StdCall;
+ External 'user32.dll' Name 'EmptyClipboard';
+Function CB_GetClipboardData(Fmt: LongWord): PtrUInt; StdCall;
+ External 'user32.dll' Name 'GetClipboardData';
+Function CB_SetClipboardData(Fmt: LongWord; Hnd: PtrUInt): PtrUInt; StdCall;
+ External 'user32.dll' Name 'SetClipboardData';
+Function CB_IsFormatAvailable(Fmt: LongWord): LongBool; StdCall;
+ External 'user32.dll' Name 'IsClipboardFormatAvailable';
+Function CB_GlobalAlloc(Flags: LongWord; Bytes: PtrUInt): PtrUInt; StdCall;
+ External 'kernel32.dll' Name 'GlobalAlloc';
+Function CB_GlobalLock(Hnd: PtrUInt): Pointer; StdCall;
+ External 'kernel32.dll' Name 'GlobalLock';
+Function CB_GlobalUnlock(Hnd: PtrUInt): LongBool; StdCall;
+ External 'kernel32.dll' Name 'GlobalUnlock';
+Function CB_GlobalSize(Hnd: PtrUInt): PtrUInt; StdCall;
+ External 'kernel32.dll' Name 'GlobalSize';
+{$ENDIF}
+
+Const
+ CB_MAXL    = 400;
+ CB_RICHMAX = 64;
+ CF_TEXT_ID = 1;
+ GMEM_MOVEABLE_ID = 2;
+
+Var
+ CBL        : Array[1..CB_MAXL] Of String[255];
+ CBN        : Integer;
+ CBRich     : Array[1..CB_RICHMAX] Of PTask;
+ CBRichN    : Integer;
+ CBRichSig  : LongInt;
+ CBRichId0  : LongInt;
+
+Function CBSignature: LongInt;
+Var I, J: Integer; Sig: LongInt;
+Begin
+ Sig := CBN;
+ For I := 1 To CBN Do Begin
+  For J := 1 To Length(CBL[I]) Do
+   Sig := (Sig * 31 + Ord(CBL[I][J])) And $7FFFFFF;
+  Sig := (Sig * 31 + 10) And $7FFFFFF;
+ End;
+ CBSignature := Sig;
+End;
+
+Procedure CBFreeRich;
+Var I: Integer;
+Begin
+ For I := 1 To CBRichN Do
+  If CBRich[I] <> Nil Then Begin
+   FreeMem(CBRich[I], SizeOf(TTask));
+   CBRich[I] := Nil;
+  End;
+ CBRichN := 0;
+End;
+
+{ Envoie CBL[1..CBN] au presse-papier }
+Procedure CBCommit;
+{$IFDEF WINDOWS}
+Var Tot: LongInt; I, P: LongInt; Hnd: PtrUInt; Buf: PChar;
+Begin
+ Tot := 1;
+ For I := 1 To CBN Do Tot := Tot + Length(CBL[I]) + 2;
+ Hnd := CB_GlobalAlloc(GMEM_MOVEABLE_ID, Tot);
+ If Hnd = 0 Then Exit;
+ Buf := PChar(CB_GlobalLock(Hnd));
+ If Buf = Nil Then Exit;
+ P := 0;
+ For I := 1 To CBN Do Begin
+  If Length(CBL[I]) > 0 Then Move(CBL[I][1], Buf[P], Length(CBL[I]));
+  P := P + Length(CBL[I]);
+  Buf[P] := #13; Buf[P + 1] := #10;
+  P := P + 2;
+ End;
+ Buf[P] := #0;
+ CB_GlobalUnlock(Hnd);
+ If CB_OpenClipboard(0) Then Begin
+  CB_EmptyClipboard;
+  CB_SetClipboardData(CF_TEXT_ID, Hnd);
+  CB_CloseClipboard;
+ End;
+End;
+{$ELSE}
+Begin
+ { presse-papier interne : CBL est deja le tampon }
+End;
+{$ENDIF}
+
+{ Lit le presse-papier dans CBL ; retourne False s'il n'y a pas de texte }
+Function CBFetch: Boolean;
+{$IFDEF WINDOWS}
+Var Hnd: PtrUInt; Buf: PChar; Sz, I: LongInt; Cur: String; C: Char;
+    PrevCR: Boolean;
+ Procedure Flush;
+ Begin
+  If CBN < CB_MAXL Then Begin Inc(CBN); CBL[CBN] := Cur; End;
+  Cur := '';
+ End;
+Begin
+ CBFetch := False;
+ If Not CB_IsFormatAvailable(CF_TEXT_ID) Then Exit;
+ If Not CB_OpenClipboard(0) Then Exit;
+ Hnd := CB_GetClipboardData(CF_TEXT_ID);
+ If Hnd <> 0 Then Begin
+  Buf := PChar(CB_GlobalLock(Hnd));
+  If Buf <> Nil Then Begin
+   Sz := CB_GlobalSize(Hnd);
+   CBN := 0; Cur := ''; PrevCR := False;
+   I := 0;
+   While (I < Sz) And (Buf[I] <> #0) Do Begin
+    C := Buf[I];
+    If C = #13 Then Begin Flush; PrevCR := True; End
+    Else If C = #10 Then Begin
+     If Not PrevCR Then Flush;
+     PrevCR := False;
+    End
+    Else Begin
+     PrevCR := False;
+     If Length(Cur) < 255 Then Cur := Cur + C;
+    End;
+    Inc(I);
+   End;
+   If Cur <> '' Then Flush;
+   CB_GlobalUnlock(Hnd);
+   CBFetch := CBN > 0;
+  End;
+ End;
+ CB_CloseClipboard;
+End;
+{$ELSE}
+Begin
+ CBFetch := CBN > 0;
+End;
+{$ENDIF}
+
+Function CBHasText: Boolean;
+Begin
+{$IFDEF WINDOWS}
+ CBHasText := CB_IsFormatAvailable(CF_TEXT_ID);
+{$ELSE}
+ CBHasText := CBN > 0;
+{$ENDIF}
+End;
+
+Function SplitTabs(Const L: String; Var F: Array Of String): Integer;
+Var I, N: Integer; Cur: String;
+Begin
+ N := 0; Cur := '';
+ For I := 1 To Length(L) Do Begin
+  If L[I] = #9 Then Begin
+   If N <= High(F) Then F[N] := Cur;
+   Inc(N); Cur := '';
+  End Else Cur := Cur + L[I];
+ End;
+ If N <= High(F) Then F[N] := Cur;
+ Inc(N);
+ If N > High(F) + 1 Then N := High(F) + 1;
+ SplitTabs := N;
+End;
+
+{ ====================================================================== }
+{          BOITE DE SAISIE SIMPLE                                        }
+{ ====================================================================== }
+
+Function InputDlg(Const Title, Prompt: String; Var S: String; MaxLen: Integer): Boolean;
+Var X1, Y1, X2, Y2, Caret: Integer; Buf: String; K, K2: Char; Done, Res: Boolean;
+
+ Procedure Paint;
+ Begin
+  HideMouse;
+  DlgFrame(X1, Y1, X2, Y2, Title);
+  DlgLabel(X1 + 14, Y1 + 34, Prompt);
+  DlgEdit(X1 + 14, Y1 + 52, X2 - 14, Y1 + 70, Buf, True, Caret);
+  DlgBtn(X2 - 180, Y2 - 34, X2 - 110, Y2 - 10, 'OK', False, True);
+  DlgBtn(X2 - 100, Y2 - 34, X2 - 30, Y2 - 10, 'Annuler', False, False);
+  ShowMouse;
+ End;
+
+ Procedure PaintEdit;
+ Begin
+  HideMouse;
+  DlgEdit(X1 + 14, Y1 + 52, X2 - 14, Y1 + 70, Buf, True, Caret);
+  ShowMouse;
+ End;
+
+Begin
+ X1 := 110; Y1 := 170; X2 := 530; Y2 := 290;
+ Buf := S; Caret := Length(Buf);
+ Done := False; Res := False;
+ BlinkState := True;
+ Paint;
+ Repeat
+  UpdateMouse;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #75: If Caret > 0 Then Dec(Caret);
+     #77: If Caret < Length(Buf) Then Inc(Caret);
+     #71: Caret := 0;
+     #79: Caret := Length(Buf);
+     #83: If Caret < Length(Buf) Then Delete(Buf, Caret + 1, 1);
+    End;
+   End
+   Else Case K Of
+    #13: Begin Res := True; Done := True; End;
+    #27: Done := True;
+    #8:  If Caret > 0 Then Begin Delete(Buf, Caret, 1); Dec(Caret); End;
+   Else
+    If (K >= ' ') And (Length(Buf) < MaxLen) Then Begin
+     Insert(K, Buf, Caret + 1); Inc(Caret);
+    End;
+   End;
+   BlinkState := True;
+   If Not Done Then PaintEdit;
+  End;
+  If LeftPressed Then Begin
+   If InRect(Mouse.X, Mouse.Y, X2 - 180, Y2 - 34, X2 - 110, Y2 - 10) Then Begin
+    Res := True; Done := True;
+   End Else If InRect(Mouse.X, Mouse.Y, X2 - 100, Y2 - 34, X2 - 30, Y2 - 10) Then
+    Done := True;
+  End;
+  Inc(TickCount);
+  If (Not Done) And (TickCount Mod 40 = 0) Then Begin
+   BlinkState := Not BlinkState;
+   PaintEdit;
+  End;
+  Delay(10);
+ Until Done;
+ If Res Then S := Buf;
+ InputDlg := Res;
+ NeedFullRedraw := True;
+End;
+
+{ ====================================================================== }
+{          OPERATIONS SUR LES TACHES (coller, couper, deplacer...)       }
+{ ====================================================================== }
+
+Const
+ ACT_COPY_CELL  = 200; ACT_PASTE_CELL = 201; ACT_CLEAR_CELL = 202;
+ ACT_DUP_TASK   = 204; ACT_MOVE_UP    = 205; ACT_MOVE_DN    = 206;
+ ACT_PCT_0      = 210; ACT_PCT_25     = 211; ACT_PCT_50     = 212;
+ ACT_PCT_75     = 213; ACT_PCT_100    = 214;
+ ACT_SET_PRED   = 215; ACT_SET_NOTES  = 216; ACT_SET_PRIO   = 217;
+ ACT_SET_WBS    = 218; ACT_TOGGLE_MS  = 219;
+ ACT_COL_HIDE   = 220; ACT_COL_FIT    = 221; ACT_COL_FITALL = 222;
+ ACT_COL_RESET  = 223; ACT_COL_WIDTH  = 224; ACT_COL_RENAME = 225;
+ ACT_COL_SHOW   = 240;   { + numero de champ (1..21) }
+ ACT_GOTO_TODAY = 270; ACT_GANTT_START = 271; ACT_GANTT_END = 272;
+ ACT_RV_NEW     = 280; ACT_RV_DEL     = 281; ACT_RV_COPY    = 282;
+ ACT_RV_PASTE   = 283; ACT_RV_EDIT    = 284; ACT_RV_DUP     = 285;
+ ACT_RV_COPYCELL= 286; ACT_RV_PASTECELL = 287; ACT_RV_CLEARCELL = 288;
+ ACT_RV_CUT     = 289;
+
+Function CtxCurTask: PTask;
+Begin
+ CtxCurTask := Nil;
+ If (CurTaskIdx >= 1) And (CurTaskIdx <= Project.TaskCount) Then
+  CtxCurTask := Project.Tasks[CurTaskIdx];
+End;
+
+Procedure CtxEnsureVisible;
+Var Vis: Integer;
+Begin
+ Vis := VisibleRowCount;
+ If CurTaskIdx - 1 < GridScrollY Then GridScrollY := CurTaskIdx - 1;
+ If CurTaskIdx - 1 >= GridScrollY + Vis Then GridScrollY := CurTaskIdx - Vis;
+ If GridScrollY < 0 Then GridScrollY := 0;
+End;
+
+Procedure CtxChanged;
+Begin
+ Project.Dirty := True;
+ CPMRecompute;
+ NeedGridRedraw := True;
+ NeedGanttRedraw := True;
+ NeedStatRedraw := True;
+End;
+
+{ Fin de la branche (la tache et ses sous-taches si recapitulative) }
+Function BranchEnd(Idx: Integer): Integer;
+Var E: Integer; T, U: PTask;
+Begin
+ E := Idx;
+ T := Project.Tasks[Idx];
+ If (T <> Nil) And T^.IsSummary Then Begin
+  While E < Project.TaskCount Do Begin
+   U := Project.Tasks[E + 1];
+   If (U = Nil) Or (U^.OutlineLv <= T^.OutlineLv) Then Break;
+   Inc(E);
+  End;
+ End;
+ BranchEnd := E;
+End;
+
+{ Insere T a la position Pos en mettant a jour les identifiants et liens }
+Procedure InsertTaskAt(Pos: Integer; T: PTask);
+Var I, J: Integer; U: PTask;
+Begin
+ If (Project.TaskCount >= MAX_TASKS) Or (T = Nil) Then Begin
+  If T <> Nil Then FreeMem(T, SizeOf(TTask));
+  Exit;
+ End;
+ If Pos < 1 Then Pos := 1;
+ If Pos > Project.TaskCount + 1 Then Pos := Project.TaskCount + 1;
+ For I := Project.TaskCount DownTo Pos Do Project.Tasks[I + 1] := Project.Tasks[I];
+ Inc(Project.TaskCount);
+ Project.Tasks[Pos] := T;
+ For I := 1 To Project.TaskCount Do Begin
+  U := Project.Tasks[I];
+  If U = Nil Then Continue;
+  U^.Id := I;
+  If I <> Pos Then
+   For J := 1 To U^.PredCount Do
+    If U^.Pred[J].TaskId >= Pos Then Inc(U^.Pred[J].TaskId);
+ End;
+End;
+
+{ Supprime la tache Idx ; retire les liens qui la visent }
+Procedure RemoveTaskAt(Idx: Integer);
+Var I, J, K: Integer; U: PTask;
+Begin
+ If (Idx < 1) Or (Idx > Project.TaskCount) Then Exit;
+ If Project.Tasks[Idx] <> Nil Then FreeMem(Project.Tasks[Idx], SizeOf(TTask));
+ For I := Idx To Project.TaskCount - 1 Do Project.Tasks[I] := Project.Tasks[I + 1];
+ Project.Tasks[Project.TaskCount] := Nil;
+ Dec(Project.TaskCount);
+ For I := 1 To Project.TaskCount Do Begin
+  U := Project.Tasks[I];
+  If U = Nil Then Continue;
+  U^.Id := I;
+  K := 0;
+  For J := 1 To U^.PredCount Do Begin
+   If U^.Pred[J].TaskId = Idx Then Continue;
+   Inc(K);
+   U^.Pred[K] := U^.Pred[J];
+   If U^.Pred[K].TaskId > Idx Then Dec(U^.Pred[K].TaskId);
+  End;
+  U^.PredCount := K;
+ End;
+End;
+
+{ Memorise les taches Idx..EndIdx dans le presse-papier riche interne }
+Procedure RichCopy(Idx, EndIdx: Integer);
+Var I, N: Integer; T: PTask;
+Begin
+ CBFreeRich;
+ N := 0;
+ For I := Idx To EndIdx Do Begin
+  If N >= CB_RICHMAX Then Break;
+  If Project.Tasks[I] = Nil Then Continue;
+  GetMem(T, SizeOf(TTask));
+  Move(Project.Tasks[I]^, T^, SizeOf(TTask));
+  Inc(N);
+  CBRich[N] := T;
+ End;
+ CBRichN := N;
+ CBRichId0 := Idx;
+End;
+
+{ Colle le contenu riche apres la position Pos (0 = au debut) }
+Procedure RichPasteAt(Pos: Integer);
+Var K, J, Cnt, Orig, NewId: Integer; T: PTask;
+Begin
+ Cnt := 0;
+ For K := 1 To CBRichN Do Begin
+  If Project.TaskCount >= MAX_TASKS Then Break;
+  GetMem(T, SizeOf(TTask));
+  Move(CBRich[K]^, T^, SizeOf(TTask));
+  T^.PredCount := 0;
+  InsertTaskAt(Pos + K, T);
+  Inc(Cnt);
+ End;
+ { reconstitue les liens internes au bloc copie }
+ For K := 1 To Cnt Do Begin
+  T := Project.Tasks[Pos + K];
+  If T = Nil Then Continue;
+  For J := 1 To CBRich[K]^.PredCount Do Begin
+   Orig := CBRich[K]^.Pred[J].TaskId;
+   If (Orig >= CBRichId0) And (Orig < CBRichId0 + Cnt) Then Begin
+    NewId := Pos + (Orig - CBRichId0) + 1;
+    If (T^.PredCount < MAX_PRED) And (NewId <> T^.Id) Then Begin
+     Inc(T^.PredCount);
+     T^.Pred[T^.PredCount] := CBRich[K]^.Pred[J];
+     T^.Pred[T^.PredCount].TaskId := NewId;
+    End;
+   End;
+  End;
+ End;
+ If Cnt > 0 Then Begin
+  CurTaskIdx := Pos + 1;
+  CtxEnsureVisible;
+  CtxChanged;
+ End;
+End;
+
+Function DurNumStr(D: LongInt): String;
+Begin
+ If D Mod 10 = 0 Then DurNumStr := IntToStr(D Div 10)
+ Else DurNumStr := IntToStr(D Div 10) + ',' + IntToStr(D Mod 10);
+End;
+
+Function TaskToLine(T: PTask): String;
+Var S: String;
+Begin
+ S := IntToStr(T^.OutlineLv) + #9 + T^.Name + #9 + DurNumStr(T^.Duration) + #9
+      + ShortDateStr(T^.Start) + #9 + ShortDateStr(T^.Finish) + #9
+      + IntToStr(T^.PercentDone) + #9 + IntToStr(T^.Cost Div 100) + #9
+      + IntToStr(T^.Work Div 10) + #9 + T^.Resources + #9
+      + Copy(T^.Notes, 1, 40) + #9 + IntToStr(Ord(T^.IsMilestone)) + #9
+      + IntToStr(Ord(T^.IsSummary));
+ TaskToLine := S;
+End;
+
+{ Construit une tache a partir d'une ligne de texte (format interne ou libre) }
+Function TaskFromLine(Const L: String): PTask;
+Var F: Array[0..15] Of String; N, I, Lv: Integer; T: PTask; D: TDate; V: LongInt;
+    Mine: Boolean; Nm: String;
+Begin
+ TaskFromLine := Nil;
+ If TrimStr(L) = '' Then Exit;
+ For I := 0 To 15 Do F[I] := '';
+ N := SplitTabs(L, F);
+ T := NewTask;
+ Mine := (N >= 12) And (StrToIntDef(F[0], 0) >= 1) And (StrToIntDef(F[0], 0) <= 9);
+ T^.Start := Project.StartDate;
+ If Mine Then Begin
+  T^.OutlineLv := StrToIntDef(F[0], 1);
+  T^.Name := Copy(F[1], 1, 60);
+  If ParseDurStr(F[2], V) Then T^.Duration := V;
+  If ParseDateStr(F[3], D) Then T^.Start := D;
+  If ParseDateStr(F[4], D) Then T^.Finish := D Else T^.Finish := T^.Start;
+  V := StrToIntDef(F[5], 0);
+  If V < 0 Then V := 0; If V > 100 Then V := 100;
+  T^.PercentDone := V;
+  T^.Cost := StrToIntDef(F[6], 0) * 100;
+  T^.Work := StrToIntDef(F[7], 0) * 10;
+  T^.Resources := Copy(F[8], 1, 60);
+  T^.Notes := Copy(F[9], 1, 120);
+  T^.IsMilestone := (F[10] = '1');
+  T^.IsSummary := (F[11] = '1');
+ End
+ Else Begin
+  Nm := F[0];
+  Lv := 1;
+  While (Length(Nm) > 1) And (Nm[1] = ' ') Do Begin Delete(Nm, 1, 1); End;
+  I := Length(F[0]) - Length(Nm);
+  Lv := I Div 2 + 1;
+  If Lv > 9 Then Lv := 9;
+  T^.OutlineLv := Lv;
+  T^.Name := Copy(TrimStr(Nm), 1, 60);
+  If (N >= 2) And ParseDurStr(F[1], V) Then T^.Duration := V;
+  If (N >= 3) And ParseDateStr(F[2], D) Then T^.Start := D;
+ End;
+ If T^.Name = '' Then T^.Name := 'Nouvelle tache';
+ If T^.Duration = 0 Then Begin T^.IsMilestone := True; T^.Finish := T^.Start; End
+ Else If (T^.Finish < T^.Start) Or (Not Mine) Then Begin
+  T^.Finish := T^.Start + (T^.Duration Div 10) - 1;
+  If T^.Finish < T^.Start Then T^.Finish := T^.Start;
+ End;
+ TaskFromLine := T;
+End;
+
+Procedure ActionCopyTask;
+Var E, I: Integer; T: PTask;
+Begin
+ If CtxCurTask = Nil Then Exit;
+ E := BranchEnd(CurTaskIdx);
+ RichCopy(CurTaskIdx, E);
+ CBN := 0;
+ For I := CurTaskIdx To E Do Begin
+  T := Project.Tasks[I];
+  If (T <> Nil) And (CBN < CB_MAXL) Then Begin
+   Inc(CBN); CBL[CBN] := TaskToLine(T);
+  End;
+ End;
+ CBRichSig := CBSignature;
+ CBCommit;
+ StatusMsg := IntToStr(E - CurTaskIdx + 1) + ' tache(s) copiee(s)';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionCutTask;
+Var E, I: Integer;
+Begin
+ If CtxCurTask = Nil Then Exit;
+ ActionCopyTask;
+ E := BranchEnd(CurTaskIdx);
+ For I := E DownTo CurTaskIdx Do RemoveTaskAt(CurTaskIdx);
+ If CurTaskIdx > Project.TaskCount Then CurTaskIdx := Project.TaskCount;
+ If CurTaskIdx < 1 Then CurTaskIdx := 1;
+ CtxChanged;
+ StatusMsg := 'Tache(s) coupee(s)';
+End;
+
+Procedure ActionPasteTask;
+Var I, Pos, Cnt: Integer; T: PTask;
+Begin
+ If Not CBFetch Then Begin
+  StatusMsg := 'Le presse-papier ne contient pas de texte';
+  NeedStatRedraw := True; Exit;
+ End;
+ If (CurTaskIdx < 0) Or (CurTaskIdx > Project.TaskCount) Then CurTaskIdx := Project.TaskCount;
+ Pos := CurTaskIdx;
+ If (Pos >= 1) And (Pos <= Project.TaskCount) And (Project.Tasks[Pos] <> Nil)
+    And Project.Tasks[Pos]^.IsSummary Then Pos := BranchEnd(Pos);
+ If (CBRichN > 0) And (CBSignature = CBRichSig) Then Begin
+  RichPasteAt(Pos);
+  StatusMsg := 'Tache(s) collee(s)';
+ End Else Begin
+  Cnt := 0;
+  For I := 1 To CBN Do Begin
+   If Project.TaskCount >= MAX_TASKS Then Break;
+   T := TaskFromLine(CBL[I]);
+   If T <> Nil Then Begin
+    InsertTaskAt(Pos + Cnt + 1, T);
+    Inc(Cnt);
+   End;
+  End;
+  If Cnt > 0 Then Begin
+   CurTaskIdx := Pos + 1;
+   CtxEnsureVisible;
+   CtxChanged;
+   StatusMsg := IntToStr(Cnt) + ' ligne(s) collee(s) depuis le presse-papier';
+  End Else StatusMsg := 'Rien a coller';
+ End;
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionDuplicateTask;
+Var E: Integer;
+Begin
+ If CtxCurTask = Nil Then Exit;
+ E := BranchEnd(CurTaskIdx);
+ RichCopy(CurTaskIdx, E);
+ RichPasteAt(E);
+ StatusMsg := 'Tache dupliquee';
+ NeedStatRedraw := True;
+End;
+
+Function CellPlainText(T: PTask; F: Byte): String;
+Begin
+ If F = FLD_NAME Then CellPlainText := T^.Name
+ Else CellPlainText := TrimStr(FieldStr(T, F));
+End;
+
+Procedure ActionCopyCell;
+Var T: PTask;
+Begin
+ T := CtxCurTask;
+ If (T = Nil) Or (CurColIdx < 1) Or (CurColIdx > ColCount) Then Exit;
+ CBN := 1;
+ CBL[1] := CellPlainText(T, Cols[CurColIdx].Field);
+ CBRichN := 0;
+ CBCommit;
+ StatusMsg := 'Cellule copiee';
+ NeedStatRedraw := True;
+End;
+
+Procedure CtxApplyCell(Const Txt: String);
+Var T: PTask; S: String; I: Integer;
+Begin
+ T := CtxCurTask;
+ If (T = Nil) Or (CurColIdx < 1) Or (CurColIdx > ColCount) Then Exit;
+ If Not FieldIsEditable(Cols[CurColIdx].Field) Then Begin
+  StatusMsg := 'Cette colonne n''est pas modifiable';
+  NeedStatRedraw := True; Exit;
+ End;
+ S := Txt;
+ If Cols[CurColIdx].Field = FLD_PERCENT Then Begin
+  I := 1;
+  While I <= Length(S) Do
+   If (S[I] < '0') Or (S[I] > '9') Then Delete(S, I, 1) Else Inc(I);
+ End;
+ If Cols[CurColIdx].Field = FLD_DUR Then Begin
+  I := 1;
+  While (I <= Length(S)) And ((S[I] In ['0'..'9']) Or (S[I] = ',') Or (S[I] = '.')) Do Inc(I);
+  S := Copy(S, 1, I - 1);
+ End;
+ BeginEdit(CurTaskIdx, CurColIdx);
+ If EditMode Then Begin
+  EditBuf := Copy(S, 1, 120);
+  CommitEdit;
+ End;
+End;
+
+Procedure ActionPasteCell;
+Var I: Integer; S: String;
+Begin
+ If Not CBFetch Then Begin
+  StatusMsg := 'Le presse-papier ne contient pas de texte';
+  NeedStatRedraw := True; Exit;
+ End;
+ S := CBL[1];
+ I := Pos(#9, S);
+ If I > 0 Then S := Copy(S, 1, I - 1);
+ CtxApplyCell(TrimStr(S));
+End;
+
+Procedure ActionClearCell;
+Var F: Byte;
+Begin
+ If (CtxCurTask = Nil) Or (CurColIdx < 1) Or (CurColIdx > ColCount) Then Exit;
+ F := Cols[CurColIdx].Field;
+ Case F Of
+  FLD_RES, FLD_NOTES, FLD_WBS: CtxApplyCell('');
+  FLD_PERCENT: CtxApplyCell('0');
+ Else
+  StatusMsg := 'Impossible d''effacer cette cellule';
+  NeedStatRedraw := True;
+ End;
+End;
+
+Procedure ActionMoveTask(Dir: Integer);
+Var A, B, I, J: Integer; T: PTask; U: PTask;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ If T^.IsSummary Then Begin
+  StatusMsg := 'Deplacement des taches recapitulatives non disponible';
+  NeedStatRedraw := True; Exit;
+ End;
+ A := CurTaskIdx; B := A + Dir;
+ If (B < 1) Or (B > Project.TaskCount) Then Exit;
+ If Project.Tasks[B] = Nil Then Exit;
+ Project.Tasks[A] := Project.Tasks[B];
+ Project.Tasks[B] := T;
+ For I := 1 To Project.TaskCount Do Begin
+  U := Project.Tasks[I];
+  If U = Nil Then Continue;
+  U^.Id := I;
+  For J := 1 To U^.PredCount Do
+   If U^.Pred[J].TaskId = A Then U^.Pred[J].TaskId := B
+   Else If U^.Pred[J].TaskId = B Then U^.Pred[J].TaskId := A;
+ End;
+ CurTaskIdx := B;
+ CtxEnsureVisible;
+ CtxChanged;
+End;
+
+Procedure ActionSetPercent(P: Integer);
+Var T: PTask;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ T^.PercentDone := P;
+ UpdateActualsFromPercent(T);
+ CtxChanged;
+End;
+
+Procedure ActionToggleMilestone;
+Var T: PTask;
+Begin
+ T := CtxCurTask;
+ If (T = Nil) Or T^.IsSummary Then Exit;
+ If T^.IsMilestone Then Begin
+  T^.IsMilestone := False;
+  T^.Duration := 10;
+  T^.Finish := T^.Start;
+ End Else Begin
+  T^.IsMilestone := True;
+  T^.Duration := 0;
+  T^.Finish := T^.Start;
+ End;
+ CtxChanged;
+End;
+
+Procedure ActionInsertMilestone;
+Var T: PTask;
+Begin
+ ActionInsTask;
+ T := CtxCurTask;
+ If T <> Nil Then Begin
+  T^.Name := 'Nouveau jalon';
+  T^.IsMilestone := True;
+  T^.Duration := 0;
+  T^.Finish := T^.Start;
+  CtxChanged;
+ End;
+End;
+
+Procedure ActionInsertSummary;
+Var T: PTask;
+Begin
+ ActionInsTask;
+ T := CtxCurTask;
+ If T <> Nil Then Begin
+  T^.Name := 'Nouvelle tache recapitulative';
+  T^.IsSummary := True;
+  CtxChanged;
+ End;
+End;
+
+Procedure ActionSetPredecessors;
+Var S, Part: String; I, Id, Cnt: Integer; T: PTask;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ S := '';
+ For I := 1 To T^.PredCount Do Begin
+  If S <> '' Then S := S + ';';
+  S := S + IntToStr(T^.Pred[I].TaskId);
+ End;
+ If Not InputDlg('Predecesseurs', 'Numeros de taches (ex : 2;5), vide = aucun :', S, 40) Then Exit;
+ T^.PredCount := 0;
+ Cnt := 0;
+ Part := '';
+ S := S + ';';
+ For I := 1 To Length(S) Do Begin
+  If (S[I] = ';') Or (S[I] = ',') Or (S[I] = ' ') Then Begin
+   If Part <> '' Then Begin
+    Id := StrToIntDef(Part, 0);
+    If (Id >= 1) And (Id <= Project.TaskCount) And (Id <> CurTaskIdx) And (Cnt < MAX_PRED) Then Begin
+     SetPredecessor(CurTaskIdx, Id, LT_FS, 0);
+     Inc(Cnt);
+    End;
+    Part := '';
+   End;
+  End Else Part := Part + S[I];
+ End;
+ CtxChanged;
+End;
+
+Procedure ActionSetNotes;
+Var S: String; T: PTask;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ S := T^.Notes;
+ If InputDlg('Notes de la tache', 'Notes :', S, 120) Then Begin
+  T^.Notes := S; CtxChanged;
+ End;
+End;
+
+Procedure ActionSetPriority;
+Var S: String; T: PTask; V: LongInt;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ S := IntToStr(T^.Priority);
+ If InputDlg('Priorite', 'Priorite (0 a 1000) :', S, 4) Then Begin
+  V := StrToIntDef(S, T^.Priority);
+  If V < 0 Then V := 0; If V > 1000 Then V := 1000;
+  T^.Priority := V; CtxChanged;
+ End;
+End;
+
+Procedure ActionSetWBS;
+Var S: String; T: PTask;
+Begin
+ T := CtxCurTask;
+ If T = Nil Then Exit;
+ S := T^.WBS;
+ If InputDlg('Code WBS', 'Code WBS :', S, 20) Then Begin
+  T^.WBS := S; CtxChanged;
+ End;
+End;
+
+Procedure ActionDeleteTaskFix;
+Begin
+ If CtxCurTask = Nil Then Exit;
+ RemoveTaskAt(CurTaskIdx);
+ If CurTaskIdx > Project.TaskCount Then CurTaskIdx := Project.TaskCount;
+ If CurTaskIdx < 1 Then CurTaskIdx := 1;
+ CtxChanged;
+End;
+
+{ ---- Colonnes ---- }
+
+Function ColIndexOfField(F: Byte): Integer;
+Var I: Integer;
+Begin
+ ColIndexOfField := 0;
+ For I := 1 To ColCount Do If Cols[I].Field = F Then Begin ColIndexOfField := I; Exit; End;
+End;
+
+Procedure FieldDefaults(F: Byte; Var Title: String; Var W: Integer);
+Begin
+ W := 60;
+ Case F Of
+  FLD_ID:     Begin Title := 'ID'; W := 24; End;
+  FLD_NAME:   Begin Title := 'Nom de la tache'; W := 130; End;
+  FLD_DUR:    Begin Title := 'Duree'; W := 40; End;
+  FLD_START:  Begin Title := 'Debut'; W := 56; End;
+  FLD_FINISH: Begin Title := 'Fin'; W := 56; End;
+  FLD_PRED:   Begin Title := 'Pred.'; W := 40; End;
+  FLD_RES:    Begin Title := 'Ressources'; W := 80; End;
+  FLD_PERCENT:Begin Title := '%'; W := 28; End;
+  FLD_WBS:    Begin Title := 'WBS'; W := 50; End;
+  FLD_COST:   Begin Title := 'Cout'; W := 56; End;
+  FLD_WORK:   Begin Title := 'Travail'; W := 56; End;
+  FLD_PRIO:   Begin Title := 'Prio.'; W := 40; End;
+  FLD_NOTES:  Begin Title := 'Notes'; W := 120; End;
+  FLD_TSLACK: Begin Title := 'Marge tot.'; W := 64; End;
+  FLD_FSLACK: Begin Title := 'Marge lib.'; W := 64; End;
+  FLD_ES:     Begin Title := 'Debut tot'; W := 56; End;
+  FLD_EF:     Begin Title := 'Fin tot'; W := 56; End;
+  FLD_LS:     Begin Title := 'Debut tard'; W := 60; End;
+  FLD_LF:     Begin Title := 'Fin tard'; W := 56; End;
+  FLD_CRIT:   Begin Title := 'Critique'; W := 52; End;
+ Else Title := '?';
+ End;
+End;
+
+Procedure ColHideAt(I: Integer);
+Var J: Integer;
+Begin
+ If (I < 1) Or (I > ColCount) Or (ColCount <= 2) Then Exit;
+ If Cols[I].Field = FLD_NAME Then Begin
+  StatusMsg := 'La colonne Nom de la tache ne peut pas etre masquee';
+  NeedStatRedraw := True; Exit;
+ End;
+ For J := I To ColCount - 1 Do Cols[J] := Cols[J + 1];
+ Dec(ColCount);
+ If CurColIdx > ColCount Then CurColIdx := ColCount;
+ If CurColIdx < 1 Then CurColIdx := 1;
+ If GridScrollX < 0 Then GridScrollX := 0;
+ NeedFullRedraw := True;
+End;
+
+Procedure ColToggleField(F: Byte);
+Var I: Integer; Tt: String; W: Integer;
+Begin
+ I := ColIndexOfField(F);
+ If I > 0 Then ColHideAt(I)
+ Else If ColCount < MAX_COLS Then Begin
+  FieldDefaults(F, Tt, W);
+  Inc(ColCount);
+  Cols[ColCount].Title := Copy(Tt, 1, 16);
+  Cols[ColCount].Width := W;
+  Cols[ColCount].Field := F;
+  NeedFullRedraw := True;
+ End Else Begin
+  StatusMsg := 'Nombre maximum de colonnes atteint';
+  NeedStatRedraw := True;
+ End;
+End;
+
+Procedure ColFitAt(I: Integer);
+Var W, W2, J: Integer; T: PTask; S: String;
+Begin
+ If (I < 1) Or (I > ColCount) Then Exit;
+ W := TextWidth(Cols[I].Title);
+ For J := 1 To Project.TaskCount Do Begin
+  T := Project.Tasks[J];
+  If T = Nil Then Continue;
+  S := FieldStr(T, Cols[I].Field);
+  W2 := TextWidth(S);
+  If W2 > W Then W := W2;
+ End;
+ W := W + 10;
+ If W < 16 Then W := 16;
+ If W > 400 Then W := 400;
+ Cols[I].Width := W;
+ NeedFullRedraw := True;
+End;
+
+Procedure ActionColWidth;
+Var S: String; V: LongInt;
+Begin
+ If (CurColIdx < 1) Or (CurColIdx > ColCount) Then Exit;
+ S := IntToStr(Cols[CurColIdx].Width);
+ If InputDlg('Largeur de colonne', 'Largeur en pixels (16 a 400) :', S, 3) Then Begin
+  V := StrToIntDef(S, Cols[CurColIdx].Width);
+  If V < 16 Then V := 16; If V > 400 Then V := 400;
+  Cols[CurColIdx].Width := V;
+  NeedFullRedraw := True;
+ End;
+End;
+
+Procedure ActionColRename;
+Var S: String;
+Begin
+ If (CurColIdx < 1) Or (CurColIdx > ColCount) Then Exit;
+ S := Cols[CurColIdx].Title;
+ If InputDlg('Titre de colonne', 'Nouveau titre :', S, 16) Then Begin
+  Cols[CurColIdx].Title := Copy(S, 1, 16);
+  NeedFullRedraw := True;
+ End;
+End;
+
+{ ---- Diagramme de Gantt : defilement ---- }
+
+Procedure ActionGotoToday;
+Begin
+ GanttOriginDt := TodayJDN - 3;
+ NeedGanttRedraw := True;
+End;
+
+Procedure ActionGanttStart;
+Begin
+ GanttOriginDt := Project.StartDate - 2;
+ NeedGanttRedraw := True;
+End;
+
+Procedure ActionGanttEnd;
+Begin
+ GanttOriginDt := Project.FinishDate - ((GanttX2 - GanttX1) Div DayPx) + 4;
+ NeedGanttRedraw := True;
+End;
+
+{ ---- Ressources ---- }
+
+Function RVCur: PResource;
+Begin
+ RVCur := Nil;
+ If (ResViewSelRow >= 1) And (ResViewSelRow <= Project.ResCount) Then
+  RVCur := Project.Resources[ResViewSelRow];
+End;
+
+Procedure RVEnsureVisible;
+Var Vis: Integer;
+Begin
+ Vis := (WorkY2 - WorkY1 - RV_ROW_H) Div RV_ROW_H;
+ If ResViewSelRow - 1 < ResViewScrollY Then ResViewScrollY := ResViewSelRow - 1;
+ If ResViewSelRow - 1 >= ResViewScrollY + Vis Then ResViewScrollY := ResViewSelRow - Vis;
+ If ResViewScrollY < 0 Then ResViewScrollY := 0;
+End;
+
+Procedure RVChanged;
+Begin
+ Project.Dirty := True;
+ NeedGridRedraw := True;
+ NeedGanttRedraw := True;
+End;
+
+Procedure ActionRVNew;
+Var R: PResource;
+Begin
+ If Project.ResCount >= MAX_RESOURCES Then Exit;
+ R := NewResource;
+ Inc(Project.ResCount);
+ R^.Id := Project.ResCount;
+ R^.Name := 'Nouvelle ressource';
+ R^.Initials := 'NR';
+ R^.MaxUnits := 100;
+ R^.StdRate := 5000;
+ Project.Resources[Project.ResCount] := R;
+ ResViewSelRow := Project.ResCount;
+ RVEnsureVisible;
+ RVChanged;
+End;
+
+Procedure ActionRVDelete;
+Var I: Integer;
+Begin
+ If RVCur = Nil Then Exit;
+ FreeMem(Project.Resources[ResViewSelRow], SizeOf(TResource));
+ For I := ResViewSelRow To Project.ResCount - 1 Do Begin
+  Project.Resources[I] := Project.Resources[I + 1];
+  If Project.Resources[I] <> Nil Then Project.Resources[I]^.Id := I;
+ End;
+ Project.Resources[Project.ResCount] := Nil;
+ Dec(Project.ResCount);
+ If ResViewSelRow > Project.ResCount Then ResViewSelRow := Project.ResCount;
+ If ResViewSelRow < 1 Then ResViewSelRow := 1;
+ RVChanged;
+End;
+
+Function ResToLine(R: PResource): String;
+Begin
+ ResToLine := R^.Name + #9 + R^.Initials + #9 + R^.Grp + #9
+              + IntToStr(R^.MaxUnits) + #9 + IntToStr(R^.StdRate Div 100);
+End;
+
+Procedure ResFromLine(Const L: String);
+Var F: Array[0..7] Of String; N, I: Integer; R: PResource; V: LongInt;
+Begin
+ If TrimStr(L) = '' Then Exit;
+ If Project.ResCount >= MAX_RESOURCES Then Exit;
+ For I := 0 To 7 Do F[I] := '';
+ N := SplitTabs(L, F);
+ R := NewResource;
+ R^.Name := Copy(TrimStr(F[0]), 1, 40);
+ If R^.Name = '' Then R^.Name := 'Nouvelle ressource';
+ If N >= 2 Then R^.Initials := Copy(F[1], 1, 8);
+ If R^.Initials = '' Then R^.Initials := Copy(UpCase(R^.Name[1]) + Copy(R^.Name, 2, 1), 1, 2);
+ If N >= 3 Then R^.Grp := Copy(F[2], 1, 20);
+ If N >= 4 Then Begin
+  V := StrToIntDef(F[3], 100);
+  If V < 0 Then V := 0; If V > 1000 Then V := 1000;
+  R^.MaxUnits := V;
+ End;
+ If N >= 5 Then R^.StdRate := StrToIntDef(F[4], 0) * 100;
+ Inc(Project.ResCount);
+ R^.Id := Project.ResCount;
+ Project.Resources[Project.ResCount] := R;
+ ResViewSelRow := Project.ResCount;
+End;
+
+Procedure ActionRVCopy;
+Begin
+ If RVCur = Nil Then Exit;
+ CBN := 1;
+ CBL[1] := ResToLine(RVCur);
+ CBRichN := 0;
+ CBCommit;
+ StatusMsg := 'Ressource copiee';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionRVCut;
+Begin
+ If RVCur = Nil Then Exit;
+ ActionRVCopy;
+ ActionRVDelete;
+End;
+
+Procedure ActionRVPaste;
+Var I, Before: Integer;
+Begin
+ If Not CBFetch Then Begin
+  StatusMsg := 'Le presse-papier ne contient pas de texte';
+  NeedStatRedraw := True; Exit;
+ End;
+ Before := Project.ResCount;
+ For I := 1 To CBN Do ResFromLine(CBL[I]);
+ If Project.ResCount > Before Then Begin
+  RVEnsureVisible;
+  RVChanged;
+  StatusMsg := IntToStr(Project.ResCount - Before) + ' ressource(s) collee(s)';
+ End Else StatusMsg := 'Rien a coller';
+ NeedStatRedraw := True;
+End;
+
+Procedure ActionRVDuplicate;
+Begin
+ If RVCur = Nil Then Exit;
+ ResFromLine(ResToLine(RVCur));
+ RVEnsureVisible;
+ RVChanged;
+End;
+
+Procedure ActionRVEdit;
+Begin
+ RVStartEdit;
+ NeedGanttRedraw := True;
+End;
+
+Procedure ActionRVCopyCell;
+Var S: String;
+Begin
+ If (RVCur = Nil) Or (ResViewCol < 0) Then Exit;
+ RVCellText(RVCur, ResViewCol, S);
+ CBN := 1; CBL[1] := S; CBRichN := 0;
+ CBCommit;
+ StatusMsg := 'Cellule copiee';
+ NeedStatRedraw := True;
+End;
+
+Procedure RVApplyCell(Const Txt: String);
+Begin
+ If (RVCur = Nil) Or (ResViewCol < 1) Then Exit;
+ ResViewBuf := Copy(Txt, 1, 60);
+ ResViewCaret := Length(ResViewBuf);
+ ResViewEdit := True;
+ RVCommitEdit;
+ NeedGanttRedraw := True;
+End;
+
+Procedure ActionRVPasteCell;
+Var S: String; I: Integer;
+Begin
+ If Not CBFetch Then Begin
+  StatusMsg := 'Le presse-papier ne contient pas de texte';
+  NeedStatRedraw := True; Exit;
+ End;
+ S := CBL[1];
+ I := Pos(#9, S);
+ If I > 0 Then S := Copy(S, 1, I - 1);
+ RVApplyCell(TrimStr(S));
+End;
+
+Procedure ActionRVClearCell;
+Begin
+ If ResViewCol In [2, 3] Then RVApplyCell('')
+ Else If ResViewCol = 5 Then RVApplyCell('0')
+ Else Begin
+  StatusMsg := 'Impossible d''effacer cette cellule';
+  NeedStatRedraw := True;
+ End;
+End;
+
+{ ====================================================================== }
+{          MENU CONTEXTUEL (infrastructure)                              }
+{ ====================================================================== }
+
+Const
+ CTX_MAXM   = 9;
+ CTX_MAXI   = 28;
+ CTX_MAXLVL = 3;
+ CTX_ITEM_H = 16;
+ CTX_SEP_H  = 7;
+
+Type
+ TCtxItem = Record
+  Cap : String[40];
+  Sh  : String[14];
+  Act : Integer;
+  Sep, Dis, Chk : Boolean;
+  Sub : Integer;
+ End;
+ TCtxMenu = Record
+  N  : Integer;
+  It : Array[1..CTX_MAXI] Of TCtxItem;
+ End;
+ TCtxPanel = Record
+  Mi, X1, Y1, X2, Y2, Sel : Integer;
+ End;
+
+Var
+ CtxM : Array[0..CTX_MAXM] Of TCtxMenu;
+
+Procedure CtxReset;
+Var I: Integer;
+Begin
+ For I := 0 To CTX_MAXM Do CtxM[I].N := 0;
+End;
+
+Procedure CtxAddEx(M: Integer; Const pCap, pSh: String; pAct: Integer;
+                   pDis, pChk, pSep: Boolean; pSub: Integer);
+Begin
+ If CtxM[M].N >= CTX_MAXI Then Exit;
+ Inc(CtxM[M].N);
+ CtxM[M].It[CtxM[M].N].Cap := Copy(pCap, 1, 40);
+ CtxM[M].It[CtxM[M].N].Sh  := Copy(pSh, 1, 14);
+ CtxM[M].It[CtxM[M].N].Act := pAct;
+ CtxM[M].It[CtxM[M].N].Dis := pDis;
+ CtxM[M].It[CtxM[M].N].Chk := pChk;
+ CtxM[M].It[CtxM[M].N].Sep := pSep;
+ CtxM[M].It[CtxM[M].N].Sub := pSub;
+End;
+
+Procedure CtxAdd(M: Integer; Const Cap, Sh: String; Act: Integer; Dis: Boolean);
+Begin CtxAddEx(M, Cap, Sh, Act, Dis, False, False, 0); End;
+
+Procedure CtxAddChk(M: Integer; Const Cap, Sh: String; Act: Integer;
+                    Dis, Chk: Boolean);
+Begin CtxAddEx(M, Cap, Sh, Act, Dis, Chk, False, 0); End;
+
+Procedure CtxSep(M: Integer);
+Begin
+ If (CtxM[M].N > 0) And (Not CtxM[M].It[CtxM[M].N].Sep) Then
+  CtxAddEx(M, '', '', 0, True, False, True, 0);
+End;
+
+Procedure CtxSubMenu(M: Integer; Const Cap: String; SubM: Integer; Dis: Boolean);
+Begin CtxAddEx(M, Cap, '', 0, Dis, False, False, SubM); End;
+
+Function CtxPlain(Const S: String): String;
+Var I: Integer; R: String;
+Begin
+ R := '';
+ For I := 1 To Length(S) Do If S[I] <> '~' Then R := R + S[I];
+ CtxPlain := R;
+End;
+
+Function CtxHotkey(Const S: String): Char;
+Var I: Integer;
+Begin
+ CtxHotkey := #0;
+ I := Pos('~', S);
+ If (I > 0) And (I < Length(S)) Then CtxHotkey := UpCase(S[I + 1]);
+End;
+
+Function CtxItemTop(Const P: TCtxPanel; Idx: Integer): Integer;
+Var I, Y: Integer;
+Begin
+ Y := P.Y1 + 3;
+ For I := 1 To Idx - 1 Do
+  If CtxM[P.Mi].It[I].Sep Then Y := Y + CTX_SEP_H Else Y := Y + CTX_ITEM_H;
+ CtxItemTop := Y;
+End;
+
+Procedure CtxMeasure(Var P: TCtxPanel; Mi: Integer; X, Y: Integer);
+Var I, W, W2, H: Integer;
+Begin
+ W := 120; H := 6;
+ For I := 1 To CtxM[Mi].N Do
+  With CtxM[Mi].It[I] Do Begin
+   If Sep Then H := H + CTX_SEP_H
+   Else Begin
+    H := H + CTX_ITEM_H;
+    W2 := TextWidth(CtxPlain(Cap)) + TextWidth(Sh) + 56;
+    If W2 > W Then W := W2;
+   End;
+  End;
+ P.Mi := Mi; P.Sel := 0;
+ P.X1 := X; P.Y1 := Y; P.X2 := X + W; P.Y2 := Y + H;
+ If P.X2 > SCREEN_W - 6 Then Begin
+  P.X1 := SCREEN_W - 6 - W; P.X2 := SCREEN_W - 6;
+ End;
+ If P.X1 < 0 Then Begin P.X1 := 0; P.X2 := W; End;
+ If P.Y2 > SCREEN_H - 6 Then Begin
+  P.Y1 := SCREEN_H - 6 - H; P.Y2 := SCREEN_H - 6;
+ End;
+ If P.Y1 < 0 Then Begin P.Y1 := 0; P.Y2 := H; End;
+End;
+
+Procedure CtxPaintPanel(Const P: TCtxPanel);
+Var I, Y, Ih, Bg, Fg: Integer; Cur: TCtxItem;
+Begin
+ FillBox(P.X1 + 3, P.Y2, P.X2 + 3, P.Y2 + 2, CLR_BLACK);
+ FillBox(P.X2, P.Y1 + 3, P.X2 + 2, P.Y2 + 2, CLR_BLACK);
+ DrawRaised(P.X1, P.Y1, P.X2, P.Y2, CLR_MENU_BG, CLR_WIN_HI, CLR_WIN_LO);
+ Y := P.Y1 + 3;
+ For I := 1 To CtxM[P.Mi].N Do Begin
+  Cur := CtxM[P.Mi].It[I];
+  If Cur.Sep Then Begin
+   HLine(P.X1 + 4, P.X2 - 4, Y + 2, CLR_WIN_LO);
+   HLine(P.X1 + 4, P.X2 - 4, Y + 3, CLR_WIN_HI);
+   Y := Y + CTX_SEP_H;
+  End Else Begin
+   Ih := CTX_ITEM_H;
+   If (I = P.Sel) And (Not Cur.Dis) Then Begin Bg := CLR_MENU_SEL_BG; Fg := CLR_MENU_SEL_FG; End
+   Else Begin
+    Bg := CLR_MENU_BG;
+    If Cur.Dis Then Fg := CLR_DGRAY Else Fg := CLR_MENU_FG;
+   End;
+   FillBox(P.X1 + 2, Y, P.X2 - 2, Y + Ih - 1, Bg);
+   If Cur.Chk Then Begin
+    SetColor(Fg);
+    Line(P.X1 + 6, Y + 8, P.X1 + 9, Y + 11);
+    Line(P.X1 + 9, Y + 11, P.X1 + 15, Y + 4);
+    Line(P.X1 + 6, Y + 9, P.X1 + 9, Y + 12);
+    Line(P.X1 + 9, Y + 12, P.X1 + 15, Y + 5);
+   End;
+   DrawMenuCaption(P.X1 + 22, Y + 4, Cur.Cap, Fg);
+   If Cur.Sh <> '' Then Begin
+    SetColor(Fg);
+    OutTextXY(P.X2 - TextWidth(Cur.Sh) - 8, Y + 4, Cur.Sh);
+   End;
+   If Cur.Sub > 0 Then Begin
+    SetColor(Fg);
+    Line(P.X2 - 10, Y + 4, P.X2 - 10, Y + 11);
+    Line(P.X2 - 9, Y + 5, P.X2 - 9, Y + 10);
+    Line(P.X2 - 8, Y + 6, P.X2 - 8, Y + 9);
+    Line(P.X2 - 7, Y + 7, P.X2 - 7, Y + 8);
+   End;
+   Y := Y + Ih;
+  End;
+ End;
+End;
+
+Function CtxItemAt(Const P: TCtxPanel; X, Y: Integer): Integer;
+Var I, YY, Ih: Integer;
+Begin
+ CtxItemAt := 0;
+ If Not InRect(X, Y, P.X1, P.Y1, P.X2, P.Y2) Then Exit;
+ YY := P.Y1 + 3;
+ For I := 1 To CtxM[P.Mi].N Do Begin
+  If CtxM[P.Mi].It[I].Sep Then Ih := CTX_SEP_H Else Ih := CTX_ITEM_H;
+  If (Y >= YY) And (Y < YY + Ih) Then Begin
+   If Not CtxM[P.Mi].It[I].Sep Then CtxItemAt := I;
+   Exit;
+  End;
+  YY := YY + Ih;
+ End;
+End;
+
+{ Affiche le menu 0 en (X, Y) ; retourne l'action choisie ou 0 }
+Function RunCtxMenu(X, Y: Integer): Integer;
+Var
+ P: Array[1..CTX_MAXLVL] Of TCtxPanel;
+ Lv, L, I, Res, LastX, LastY: Integer;
+ Done: Boolean;
+ K, K2, HK: Char;
+
+ Procedure PaintAll;
+ Var J: Integer;
+ Begin
+  HideMouse;
+  For J := 1 To Lv Do CtxPaintPanel(P[J]);
+  ShowMouse;
+ End;
+
+ Procedure OpenSub(FromLv, ItemIdx: Integer);
+ Var Sm, Yy: Integer;
+ Begin
+  If FromLv >= CTX_MAXLVL Then Exit;
+  Sm := CtxM[P[FromLv].Mi].It[ItemIdx].Sub;
+  If Sm = 0 Then Exit;
+  Yy := CtxItemTop(P[FromLv], ItemIdx) - 3;
+  CtxMeasure(P[FromLv + 1], Sm, P[FromLv].X2 - 3, Yy);
+  If P[FromLv + 1].X2 > SCREEN_W - 7 Then Begin
+   CtxMeasure(P[FromLv + 1], Sm, P[FromLv].X1 - (P[FromLv + 1].X2 - P[FromLv + 1].X1) + 3, Yy);
+  End;
+  Lv := FromLv + 1;
+  P[Lv].Sel := 0;
+  PaintAll;
+ End;
+
+ Procedure CloseTo(NewLv: Integer);
+ Begin
+  If NewLv >= Lv Then Exit;
+  Lv := NewLv;
+  RedrawAll;
+  PaintAll;
+ End;
+
+ Function FirstEnabled(Lvl: Integer; Dir: Integer; StartAt: Integer): Integer;
+ Var J, Cnt, N: Integer;
+ Begin
+  FirstEnabled := 0;
+  N := CtxM[P[Lvl].Mi].N;
+  J := StartAt;
+  For Cnt := 1 To N Do Begin
+   J := J + Dir;
+   If J < 1 Then J := N;
+   If J > N Then J := 1;
+   If (Not CtxM[P[Lvl].Mi].It[J].Sep) And (Not CtxM[P[Lvl].Mi].It[J].Dis) Then Begin
+    FirstEnabled := J; Exit;
+   End;
+  End;
+ End;
+
+ Procedure Activate(Lvl, Idx: Integer);
+ Begin
+  If (Idx < 1) Or (Idx > CtxM[P[Lvl].Mi].N) Then Exit;
+  With CtxM[P[Lvl].Mi].It[Idx] Do Begin
+   If Dis Or Sep Then Exit;
+   If Sub > 0 Then Begin
+    If (Lv = Lvl) Then Begin
+     OpenSub(Lvl, Idx);
+     P[Lv].Sel := FirstEnabled(Lv, 1, 0);
+     PaintAll;
+    End;
+   End Else Begin
+    Res := Act; Done := True;
+   End;
+  End;
+ End;
+
+ Procedure Hover(Lvl, Idx: Integer);
+ Begin
+  If Idx = 0 Then Exit;
+  If CtxM[P[Lvl].Mi].It[Idx].Dis Then Begin
+   If Lvl < Lv Then CloseTo(Lvl);
+   If P[Lvl].Sel <> Idx Then Begin P[Lvl].Sel := Idx; PaintAll; End;
+   Exit;
+  End;
+  If Lvl < Lv Then Begin
+   If (P[Lvl].Sel = Idx) And (CtxM[P[Lvl].Mi].It[Idx].Sub > 0)
+      And (CtxM[P[Lvl].Mi].It[Idx].Sub = P[Lvl + 1].Mi) Then Exit;
+   CloseTo(Lvl);
+  End;
+  If P[Lvl].Sel <> Idx Then Begin
+   P[Lvl].Sel := Idx;
+   If CtxM[P[Lvl].Mi].It[Idx].Sub > 0 Then OpenSub(Lvl, Idx) Else PaintAll;
+  End Else If (CtxM[P[Lvl].Mi].It[Idx].Sub > 0) And (Lv = Lvl) Then OpenSub(Lvl, Idx);
+ End;
+
+Begin
+ Res := 0; Done := False;
+ If CtxM[0].N = 0 Then Begin RunCtxMenu := 0; Exit; End;
+ Lv := 1;
+ CtxMeasure(P[1], 0, X, Y);
+ PaintAll;
+ LastX := -1; LastY := -1;
+ { evite qu'un bouton deja enfonce ne valide aussitot }
+ UpdateMouse;
+ Repeat
+  UpdateMouse;
+  If (Mouse.X <> LastX) Or (Mouse.Y <> LastY) Then Begin
+   LastX := Mouse.X; LastY := Mouse.Y;
+   For L := Lv DownTo 1 Do Begin
+    I := CtxItemAt(P[L], Mouse.X, Mouse.Y);
+    If I > 0 Then Begin Hover(L, I); Break; End;
+    If InRect(Mouse.X, Mouse.Y, P[L].X1, P[L].Y1, P[L].X2, P[L].Y2) Then Break;
+   End;
+  End;
+  If LeftPressed Or RightPressed Then Begin
+   I := 0; L := Lv;
+   While L >= 1 Do Begin
+    If InRect(Mouse.X, Mouse.Y, P[L].X1, P[L].Y1, P[L].X2, P[L].Y2) Then Begin
+     I := CtxItemAt(P[L], Mouse.X, Mouse.Y);
+     Break;
+    End;
+    Dec(L);
+   End;
+   If L < 1 Then Done := True   { clic en dehors : on ferme }
+   Else If I > 0 Then Activate(L, I);
+  End;
+  If KeyPressed Then Begin
+   K := ReadKey;
+   If K = #0 Then Begin
+    K2 := ReadKey;
+    Case K2 Of
+     #72: Begin I := FirstEnabled(Lv, -1, P[Lv].Sel); If I > 0 Then Begin P[Lv].Sel := I; PaintAll; End; End;
+     #80: Begin I := FirstEnabled(Lv, 1, P[Lv].Sel); If I > 0 Then Begin P[Lv].Sel := I; PaintAll; End; End;
+     #71: Begin I := FirstEnabled(Lv, 1, 0); If I > 0 Then Begin P[Lv].Sel := I; PaintAll; End; End;
+     #79: Begin I := FirstEnabled(Lv, -1, CtxM[P[Lv].Mi].N + 1); If I > 0 Then Begin P[Lv].Sel := I; PaintAll; End; End;
+     #77: If (P[Lv].Sel > 0) And (CtxM[P[Lv].Mi].It[P[Lv].Sel].Sub > 0) Then
+           Activate(Lv, P[Lv].Sel);
+     #75: If Lv > 1 Then CloseTo(Lv - 1) Else Done := True;
+    End;
+   End Else Begin
+    Case K Of
+     #13, ' ': Activate(Lv, P[Lv].Sel);
+     #27: If Lv > 1 Then CloseTo(Lv - 1) Else Done := True;
+    Else
+     HK := UpCase(K);
+     For I := 1 To CtxM[P[Lv].Mi].N Do
+      If (Not CtxM[P[Lv].Mi].It[I].Sep) And (CtxHotkey(CtxM[P[Lv].Mi].It[I].Cap) = HK) Then Begin
+       P[Lv].Sel := I;
+       Activate(Lv, I);
+       Break;
+      End;
+    End;
+   End;
+  End;
+  Delay(5);
+ Until Done;
+ NeedFullRedraw := True;
+ RunCtxMenu := Res;
+End;
+
+{ ====================================================================== }
+{          MENU CONTEXTUEL (contenu selon la zone)                       }
+{ ====================================================================== }
+
+Const
+ CM_INSERT = 1; CM_PERCENT = 2; CM_LINKS = 3; CM_PROPS = 4;
+ CM_COLS = 5;   CM_VIEWS = 6;   CM_ZOOM = 7;  CM_NAV = 8;
+
+Procedure CtxViewsSub;
+Begin
+ CtxAddChk(CM_VIEWS, '~D~iagramme de Gantt',   '', ACT_VIEW_GANTT, False, CurView = VIEW_GANTT);
+ CtxAddChk(CM_VIEWS, '~R~eseau (PERT)',        '', ACT_VIEW_NET,   False, CurView = VIEW_NETWORK);
+ CtxAddChk(CM_VIEWS, 'R~e~ssources',           '', ACT_VIEW_RES,   False, CurView = VIEW_RESOURCE);
+ CtxAddChk(CM_VIEWS, '~U~tilisation',          '', ACT_VIEW_USAGE, False, CurView = VIEW_USAGE);
+ CtxAddChk(CM_VIEWS, '~C~alendrier',           '', ACT_VIEW_CAL,   False, CurView = VIEW_CALENDAR);
+End;
+
+Procedure CtxColsSub;
+Var F: Integer; Tt: String; W: Integer;
+Begin
+ For F := 1 To 21 Do Begin
+  If F = FLD_IND Then Continue;
+  FieldDefaults(F, Tt, W);
+  CtxAddChk(CM_COLS, Tt, '', ACT_COL_SHOW + F, F = FLD_NAME, ColIndexOfField(F) > 0);
+ End;
+ CtxSep(CM_COLS);
+ CtxAdd(CM_COLS, '~R~etablir les colonnes par defaut', '', ACT_COL_RESET, False);
+End;
+
+Procedure CtxPercentSub;
+Var T: PTask; P: Integer;
+Begin
+ T := CtxCurTask;
+ If T <> Nil Then P := T^.PercentDone Else P := -1;
+ CtxAddChk(CM_PERCENT, '~0~ %',   '', ACT_PCT_0,   T = Nil, P = 0);
+ CtxAddChk(CM_PERCENT, '~2~5 %',  '', ACT_PCT_25,  T = Nil, P = 25);
+ CtxAddChk(CM_PERCENT, '~5~0 %',  '', ACT_PCT_50,  T = Nil, P = 50);
+ CtxAddChk(CM_PERCENT, '~7~5 %',  '', ACT_PCT_75,  T = Nil, P = 75);
+ CtxAddChk(CM_PERCENT, '~1~00 %', '', ACT_PCT_100, T = Nil, P = 100);
+End;
+
+Procedure CtxLinksSub;
+Var NoTsk: Boolean;
+Begin
+ NoTsk := CtxCurTask = Nil;
+ CtxAdd(CM_LINKS, '~L~ier a la tache precedente', 'Ctrl+F2', ACT_LINK, (CurTaskIdx < 2) Or NoTsk);
+ CtxAdd(CM_LINKS, '~D~elier les predecesseurs',   '',        ACT_UNLINK, NoTsk);
+ CtxAdd(CM_LINKS, 'D~e~finir les predecesseurs...', '',      ACT_SET_PRED, NoTsk);
+End;
+
+Procedure CtxPropsSub;
+Var T: PTask; NoTsk: Boolean;
+Begin
+ T := CtxCurTask; NoTsk := T = Nil;
+ CtxAdd(CM_PROPS, '~N~otes...',     '', ACT_SET_NOTES, NoTsk);
+ CtxAdd(CM_PROPS, '~P~riorite...',  '', ACT_SET_PRIO,  NoTsk);
+ CtxAdd(CM_PROPS, 'Code ~W~BS...',  '', ACT_SET_WBS,   NoTsk);
+ CtxSep(CM_PROPS);
+ CtxAddChk(CM_PROPS, 'Considerer comme ~j~alon', '', ACT_TOGGLE_MS,
+           NoTsk Or ((T <> Nil) And T^.IsSummary), (T <> Nil) And T^.IsMilestone);
+End;
+
+Procedure CtxInsertSub;
+Begin
+ CtxAdd(CM_INSERT, 'Nouvelle ~t~ache',           'Inser', ACT_INS_TASK, False);
+ CtxAdd(CM_INSERT, 'Nouveau ~j~alon',            '',      ACT_INS_MS,   False);
+ CtxAdd(CM_INSERT, 'Tache ~r~ecapitulative',     '',      ACT_INS_SUM,  False);
+ CtxSep(CM_INSERT);
+ CtxAdd(CM_INSERT, '~I~mage...',                 '',      ACT_INS_PIC,  False);
+End;
+
+Procedure CtxZoomSub;
+Begin
+ CtxAdd(CM_ZOOM, 'Zoom a~v~ant',          '+', ACT_ZOOM_IN,  False);
+ CtxAdd(CM_ZOOM, 'Zoom a~r~riere',        '-', ACT_ZOOM_OUT, False);
+ CtxAdd(CM_ZOOM, 'Tout le ~p~rojet',      '*', ACT_ZOOM_FIT, False);
+End;
+
+Procedure CtxNavSub;
+Begin
+ CtxAdd(CM_NAV, 'Aller a ~a~ujourd''hui',  '', ACT_GOTO_TODAY,  False);
+ CtxAdd(CM_NAV, 'Aller au ~d~ebut du projet', '', ACT_GANTT_START, False);
+ CtxAdd(CM_NAV, 'Aller a la ~f~in du projet', '', ACT_GANTT_END,   False);
+ CtxAdd(CM_NAV, 'Aller a la ~t~ache selectionnee', '', ACT_SCROLL_TASK, CtxCurTask = Nil);
+End;
+
+{ Menu des cellules de la grille des taches }
+Procedure BuildTaskMenu;
+Var T: PTask; NoTsk, NoPaste, NoEdit: Boolean;
+Begin
+ CtxReset;
+ T := CtxCurTask; NoTsk := T = Nil;
+ NoPaste := Not CBHasText;
+ NoEdit := NoTsk Or (CurColIdx < 1) Or (CurColIdx > ColCount);
+ If Not NoEdit Then NoEdit := Not FieldIsEditable(Cols[CurColIdx].Field);
+ CtxAdd(0, '~I~nformations sur la tache...', 'Dbl-clic', ACT_TASKINFO, NoTsk);
+ CtxSep(0);
+ CtxAdd(0, 'Co~u~per',                 'Ctrl+X', ACT_CUT,  NoTsk);
+ CtxAdd(0, 'Co~p~ier la tache',        'Ctrl+C', ACT_COPY, NoTsk);
+ CtxAdd(0, 'Copier la ~c~ellule',      '',       ACT_COPY_CELL, NoTsk);
+ CtxAdd(0, 'Co~l~ler',                 'Ctrl+V', ACT_PASTE, NoPaste);
+ CtxAdd(0, 'Coller dans la cellu~l~e', '',       ACT_PASTE_CELL, NoPaste Or NoEdit);
+ CtxAdd(0, '~E~ffacer la cellule',     '',       ACT_CLEAR_CELL, NoEdit);
+ CtxAdd(0, '~D~upliquer la tache',     'Ctrl+D', ACT_DUP_TASK, NoTsk);
+ CtxSep(0);
+ CtxSubMenu(0, 'Inse~r~er', CM_INSERT, False);
+ CtxAdd(0, '~S~upprimer la tache',     'Suppr',  ACT_DELETE, NoTsk);
+ CtxSep(0);
+ CtxAdd(0, '~M~onter la tache',        '', ACT_MOVE_UP, NoTsk Or (CurTaskIdx <= 1) Or ((T <> Nil) And T^.IsSummary));
+ CtxAdd(0, 'D~e~scendre la tache',     '', ACT_MOVE_DN, NoTsk Or (CurTaskIdx >= Project.TaskCount) Or ((T <> Nil) And T^.IsSummary));
+ CtxAdd(0, '~A~baisser le niveau (retrait)', '', ACT_INDENT, NoTsk);
+ CtxAdd(0, 'Re~m~onter le niveau',     '', ACT_OUTDENT, NoTsk);
+ CtxSep(0);
+ CtxSubMenu(0, '% ~a~chevement',       CM_PERCENT, NoTsk);
+ CtxSubMenu(0, '~L~iens',              CM_LINKS,   NoTsk);
+ CtxSubMenu(0, 'Pro~p~rietes de la tache', CM_PROPS, NoTsk);
+ CtxSep(0);
+ CtxSubMenu(0, '~C~olonnes',           CM_COLS,  False);
+ CtxSubMenu(0, 'Af~f~ichage',          CM_VIEWS, False);
+ CtxInsertSub; CtxPercentSub; CtxLinksSub; CtxPropsSub; CtxColsSub; CtxViewsSub;
+End;
+
+{ Menu de l'en-tete de colonnes }
+Procedure BuildHeaderMenu;
+Var Valid: Boolean;
+Begin
+ CtxReset;
+ Valid := (CurColIdx >= 1) And (CurColIdx <= ColCount);
+ CtxAdd(0, '~A~juster la largeur de la colonne', '', ACT_COL_FIT, Not Valid);
+ CtxAdd(0, 'Ajuster ~t~outes les colonnes',      '', ACT_COL_FITALL, False);
+ CtxAdd(0, '~D~efinir la largeur...',            '', ACT_COL_WIDTH, Not Valid);
+ CtxAdd(0, '~R~enommer la colonne...',           '', ACT_COL_RENAME, Not Valid);
+ CtxSep(0);
+ CtxAdd(0, '~M~asquer la colonne',               '', ACT_COL_HIDE,
+        (Not Valid) Or ((Valid) And (Cols[CurColIdx].Field = FLD_NAME)));
+ CtxSubMenu(0, 'A~f~ficher les colonnes', CM_COLS, False);
+ CtxSep(0);
+ CtxAdd(0, 'Retablir les ~c~olonnes par defaut', '', ACT_COL_RESET, False);
+ CtxColsSub;
+End;
+
+{ Menu de la zone du diagramme de Gantt }
+Procedure BuildGanttMenu;
+Var T: PTask; NoTsk: Boolean;
+Begin
+ CtxReset;
+ T := CtxCurTask; NoTsk := T = Nil;
+ CtxAdd(0, '~I~nformations sur la tache...', 'Dbl-clic', ACT_TASKINFO, NoTsk);
+ CtxSep(0);
+ CtxAdd(0, 'Co~u~per',                 'Ctrl+X', ACT_CUT,  NoTsk);
+ CtxAdd(0, 'Co~p~ier la tache',        'Ctrl+C', ACT_COPY, NoTsk);
+ CtxAdd(0, 'Co~l~ler',                 'Ctrl+V', ACT_PASTE, Not CBHasText);
+ CtxAdd(0, '~D~upliquer la tache',     'Ctrl+D', ACT_DUP_TASK, NoTsk);
+ CtxSubMenu(0, 'Inse~r~er', CM_INSERT, False);
+ CtxAdd(0, '~S~upprimer la tache',     'Suppr',  ACT_DELETE, NoTsk);
+ CtxSep(0);
+ CtxSubMenu(0, '% ~a~chevement', CM_PERCENT, NoTsk);
+ CtxSubMenu(0, '~L~iens',        CM_LINKS,   NoTsk);
+ CtxSep(0);
+ CtxSubMenu(0, '~N~aviguer',     CM_NAV,  False);
+ CtxSubMenu(0, '~Z~oom',         CM_ZOOM, False);
+ CtxSubMenu(0, 'Af~f~ichage',    CM_VIEWS, False);
+ CtxInsertSub; CtxPercentSub; CtxLinksSub; CtxNavSub; CtxZoomSub; CtxViewsSub;
+End;
+
+{ Menu de la feuille de ressources }
+Procedure BuildResourceMenu;
+Var NoR, NoPaste: Boolean;
+Begin
+ CtxReset;
+ NoR := RVCur = Nil;
+ NoPaste := Not CBHasText;
+ CtxAdd(0, '~N~ouvelle ressource',       'Inser', ACT_RV_NEW, False);
+ CtxAdd(0, '~M~odifier la cellule',      'F2',    ACT_RV_EDIT, NoR Or (ResViewCol < 1));
+ CtxSep(0);
+ CtxAdd(0, 'Co~u~per la ressource',      'Ctrl+X', ACT_RV_CUT, NoR);
+ CtxAdd(0, 'Co~p~ier la ressource',      'Ctrl+C', ACT_RV_COPY, NoR);
+ CtxAdd(0, 'Copier la ~c~ellule',        '',       ACT_RV_COPYCELL, NoR);
+ CtxAdd(0, 'Co~l~ler',                   'Ctrl+V', ACT_RV_PASTE, NoPaste);
+ CtxAdd(0, 'Coller dans la cellu~l~e',   '',       ACT_RV_PASTECELL, NoPaste Or NoR Or (ResViewCol < 1));
+ CtxAdd(0, '~E~ffacer la cellule',       '',       ACT_RV_CLEARCELL, NoR Or (ResViewCol < 1));
+ CtxAdd(0, '~D~upliquer la ressource',   '',       ACT_RV_DUP, NoR);
+ CtxSep(0);
+ CtxAdd(0, '~S~upprimer la ressource',   'Suppr',  ACT_RV_DEL, NoR);
+ CtxSep(0);
+ CtxAdd(0, 'Feuille de ressources ~d~etaillee...', '', ACT_RES_SHEET, False);
+ CtxAdd(0, 'Nivellement des ~r~essources', '', ACT_TOOL_LEVEL, False);
+ CtxSep(0);
+ CtxSubMenu(0, 'Af~f~ichage', CM_VIEWS, False);
+ CtxViewsSub;
+End;
+
+{ Menu des autres vues (reseau, utilisation, calendrier) }
+Procedure BuildViewMenu;
+Var NoTsk: Boolean;
+Begin
+ CtxReset;
+ NoTsk := CtxCurTask = Nil;
+ CtxAdd(0, '~I~nformations sur la tache...', '', ACT_TASKINFO, NoTsk);
+ CtxAdd(0, 'Co~p~ier la tache',              'Ctrl+C', ACT_COPY, NoTsk);
+ CtxAdd(0, 'Co~l~ler',                       'Ctrl+V', ACT_PASTE, Not CBHasText);
+ CtxSep(0);
+ CtxSubMenu(0, 'Af~f~ichage', CM_VIEWS, False);
+ CtxAdd(0, 'Proprietes du ~p~rojet...', '', ACT_PROPS, False);
+ CtxAdd(0, '~R~apports...',             '', ACT_REPORTS, False);
+ CtxViewsSub;
+End;
+
+{ Selectionne la ligne/colonne sous le curseur puis affiche le menu }
+Procedure ShowContextMenu(Area: Integer; X, Y: Integer);
+Var Act: Integer;
+Begin
+ Case Area Of
+  1: BuildTaskMenu;
+  2: BuildHeaderMenu;
+  3: BuildGanttMenu;
+  4: BuildResourceMenu;
+ Else BuildViewMenu;
+ End;
+ RedrawAll;
+ Act := RunCtxMenu(X, Y);
+ If Act > 0 Then DoAction(Act);
+ NeedFullRedraw := True;
+End;
+
+Procedure HandleRightClick;
+Var Idx, Col, Row: Integer;
+Begin
+ If EditMode Then CommitEdit;
+ If ResViewEdit Then RVCommitEdit;
+ { barres de menus / outils : pas de menu contextuel }
+ If (Mouse.Y < WorkY1) Or (Mouse.Y > WorkY2) Then Exit;
+ If CurView = VIEW_RESOURCE Then Begin
+  Row := (Mouse.Y - WorkY1 - RV_ROW_H) Div RV_ROW_H + ResViewScrollY + 1;
+  If Mouse.Y >= WorkY1 + RV_ROW_H Then Begin
+   If (Row >= 1) And (Row <= Project.ResCount) Then ResViewSelRow := Row;
+   For Col := 1 To 5 Do
+    If (Mouse.X >= RVColX[Col]) And (Mouse.X < RVColX[Col + 1]) Then ResViewCol := Col;
+  End;
+  ShowContextMenu(4, Mouse.X, Mouse.Y);
+  Exit;
+ End;
+ If CurView <> VIEW_GANTT Then Begin
+  ShowContextMenu(5, Mouse.X, Mouse.Y);
+  Exit;
+ End;
+ If InRect(Mouse.X, Mouse.Y, GridX1, GridHdrY1, GridX2, GridHdrY2) Then Begin
+  Col := ColHit(Mouse.X);
+  If Col > 0 Then CurColIdx := Col;
+  ShowContextMenu(2, Mouse.X, Mouse.Y);
+  Exit;
+ End;
+ If InRect(Mouse.X, Mouse.Y, GridX1, GridBodyY1, GridX2, GridBodyY2) Then Begin
+  Idx := GridScrollY + ((Mouse.Y - GridBodyY1) Div ROW_H) + 1;
+  Col := ColHit(Mouse.X);
+  If (Idx >= 1) And (Idx <= Project.TaskCount) Then CurTaskIdx := Idx;
+  If Col > 0 Then CurColIdx := Col;
+  ShowContextMenu(1, Mouse.X, Mouse.Y);
+  Exit;
+ End;
+ If InRect(Mouse.X, Mouse.Y, GanttX1, GanttBodyY1, GanttX2, GanttBodyY2) Then Begin
+  Idx := GridScrollY + ((Mouse.Y - GanttBodyY1) Div ROW_H) + 1;
+  If (Idx >= 1) And (Idx <= Project.TaskCount) Then CurTaskIdx := Idx;
+  ShowContextMenu(3, Mouse.X, Mouse.Y);
+  Exit;
+ End;
+End;
+
+{ Shift+F10 : menu contextuel a la position de la cellule selectionnee }
+Procedure OpenContextAtSelection;
+Var X, Y: Integer;
+Begin
+ If CurView = VIEW_RESOURCE Then Begin
+  Y := WorkY1 + RV_ROW_H + (ResViewSelRow - 1 - ResViewScrollY) * RV_ROW_H + RV_ROW_H;
+  If (ResViewCol >= 0) And (ResViewCol <= 5) Then X := RVColX[ResViewCol] + 10 Else X := 10;
+  ShowContextMenu(4, X, Y);
+  Exit;
+ End;
+ If CurView <> VIEW_GANTT Then Begin ShowContextMenu(5, 200, 150); Exit; End;
+ X := ColScreenX(CurColIdx) + 10;
+ Y := GridBodyY1 + (CurTaskIdx - 1 - GridScrollY) * ROW_H + ROW_H;
+ If Y < GridBodyY1 Then Y := GridBodyY1;
+ ShowContextMenu(1, X, Y);
+End;
+
+{ Clic gauche dans la feuille de ressources : selection de la cellule }
+Procedure RVMouseClick;
+Var Row, Col: Integer;
+Begin
+ If Mouse.Y < WorkY1 + RV_ROW_H Then Exit;
+ Row := (Mouse.Y - WorkY1 - RV_ROW_H) Div RV_ROW_H + ResViewScrollY + 1;
+ If (Row >= 1) And (Row <= Project.ResCount) Then ResViewSelRow := Row;
+ For Col := 1 To 5 Do
+  If (Mouse.X >= RVColX[Col]) And (Mouse.X < RVColX[Col + 1]) Then Begin
+   ResViewCol := Col;
+   If DoubleClicked Then RVStartEdit;
+  End;
+ NeedGanttRedraw := True;
+End;
+
+{ Action dispatcher pour les nouvelles commandes }
+Function CtxDispatch(A: Integer): Boolean;
+Var I: Integer;
+Begin
+ CtxDispatch := True;
+ Case A Of
+  ACT_CUT:   If CurView = VIEW_RESOURCE Then ActionRVCut Else ActionCutTask;
+  ACT_COPY:  If CurView = VIEW_RESOURCE Then ActionRVCopy Else ActionCopyTask;
+  ACT_PASTE: If CurView = VIEW_RESOURCE Then ActionRVPaste Else ActionPasteTask;
+  ACT_COPY_CELL:  ActionCopyCell;
+  ACT_PASTE_CELL: ActionPasteCell;
+  ACT_CLEAR_CELL: ActionClearCell;
+  ACT_DUP_TASK:   ActionDuplicateTask;
+  ACT_MOVE_UP:    ActionMoveTask(-1);
+  ACT_MOVE_DN:    ActionMoveTask(1);
+  ACT_PCT_0:      ActionSetPercent(0);
+  ACT_PCT_25:     ActionSetPercent(25);
+  ACT_PCT_50:     ActionSetPercent(50);
+  ACT_PCT_75:     ActionSetPercent(75);
+  ACT_PCT_100:    ActionSetPercent(100);
+  ACT_SET_PRED:   ActionSetPredecessors;
+  ACT_SET_NOTES:  ActionSetNotes;
+  ACT_SET_PRIO:   ActionSetPriority;
+  ACT_SET_WBS:    ActionSetWBS;
+  ACT_TOGGLE_MS:  ActionToggleMilestone;
+  ACT_INS_MS:     ActionInsertMilestone;
+  ACT_INS_SUM:    ActionInsertSummary;
+  ACT_COL_HIDE:   ColHideAt(CurColIdx);
+  ACT_COL_FIT:    ColFitAt(CurColIdx);
+  ACT_COL_FITALL: Begin For I := 1 To ColCount Do ColFitAt(I); End;
+  ACT_COL_RESET:  Begin InitColumns; CurColIdx := 3; GridScrollX := 0; NeedFullRedraw := True; End;
+  ACT_COL_WIDTH:  ActionColWidth;
+  ACT_COL_RENAME: ActionColRename;
+  ACT_GOTO_TODAY: ActionGotoToday;
+  ACT_GANTT_START:ActionGanttStart;
+  ACT_GANTT_END:  ActionGanttEnd;
+  ACT_RV_NEW:     ActionRVNew;
+  ACT_RV_DEL:     ActionRVDelete;
+  ACT_RV_COPY:    ActionRVCopy;
+  ACT_RV_CUT:     ActionRVCut;
+  ACT_RV_PASTE:   ActionRVPaste;
+  ACT_RV_EDIT:    ActionRVEdit;
+  ACT_RV_DUP:     ActionRVDuplicate;
+  ACT_RV_COPYCELL:  ActionRVCopyCell;
+  ACT_RV_PASTECELL: ActionRVPasteCell;
+  ACT_RV_CLEARCELL: ActionRVClearCell;
+ Else
+  If (A > ACT_COL_SHOW) And (A <= ACT_COL_SHOW + 21) Then ColToggleField(A - ACT_COL_SHOW)
+  Else CtxDispatch := False;
+ End;
+End;
+
 Procedure DoAction(A: Integer);
 Begin
  Case A Of
@@ -8015,7 +9815,7 @@ Begin
   ACT_QUIT:       ActionQuit;
   ACT_HELP_ABOUT: ActionAbout;
   ACT_INS_TASK:   ActionInsTask;
-  ACT_DELETE:     ActionDeleteTask;
+  ACT_DELETE:     ActionDeleteTaskFix;
   ACT_INDENT:     ActionIndent;
   ACT_OUTDENT:    ActionOutdent;
   ACT_LINK:       ActionLink;
@@ -8048,8 +9848,10 @@ Begin
   ACT_HELP_TOPIC: ActionAbout;
   ACT_HELP_TUTOR: ActionAbout;
  Else
-  StatusMsg := 'Action non implementee : ' + IntToStr(A);
-  NeedStatRedraw := True;
+  If Not CtxDispatch(A) Then Begin
+   StatusMsg := 'Action non implementee : ' + IntToStr(A);
+   NeedStatRedraw := True;
+  End;
  End;
 End;
 
@@ -8126,6 +9928,7 @@ Begin
  K2:=#0;If K=#0 Then K2:=ReadKey;
  If HandleRibbonKey(K,K2) Then Exit;
  If EditMode Then Begin HandleEditKey(K,K2); Exit; End;
+ If (K = #0) And (K2 = #93) Then Begin OpenContextAtSelection; Exit; End;
  { --- Vues non Gantt : navigation specifique --- }
  If CurView <> VIEW_GANTT Then Begin
   If K = #0 Then Begin
@@ -8158,8 +9961,10 @@ Begin
            Else If ResViewCol < 5 Then Inc(ResViewCol);
       #71: If ResViewEdit Then ResViewCaret := 0;
       #79: If ResViewEdit Then ResViewCaret := Length(ResViewBuf);
-      #83: If ResViewEdit And (ResViewCaret < Length(ResViewBuf)) Then
-            Delete(ResViewBuf, ResViewCaret + 1, 1);
+      #83: If ResViewEdit Then Begin
+            If ResViewCaret < Length(ResViewBuf) Then Delete(ResViewBuf, ResViewCaret + 1, 1);
+           End Else ActionRVDelete;
+      #82: If Not ResViewEdit Then ActionRVNew;
       #107: ActionQuit;
      End;
     VIEW_USAGE:
@@ -8187,6 +9992,9 @@ Begin
   End
   Else
    Case K Of
+    #3:  CtxDispatch(ACT_COPY);
+    #24: CtxDispatch(ACT_CUT);
+    #22: CtxDispatch(ACT_PASTE);
     #13: Begin
           If CurView = VIEW_RESOURCE Then Begin
            If ResViewEdit Then Begin RVCommitEdit;
@@ -8240,7 +10048,7 @@ Begin
               If CurTaskIdx > Project.TaskCount Then CurTaskIdx := Project.TaskCount;
               EnsureCurVisible; NeedGridRedraw := True; NeedGanttRedraw := True; End;
    #82: ActionInsTask;
-   #83: ActionDeleteTask;
+   #83: ActionDeleteTaskFix;
    #59: MessageBox('Aide', 'F2=editer, Tab=colonne, Inser/Del, +/-, Esc=quitter');
    #60: BeginEdit(CurTaskIdx, CurColIdx);
    #63: ActionZoomFit;
@@ -8253,6 +10061,10 @@ Begin
  End
  Else
   Case K Of
+   #3:  ActionCopyTask;
+   #24: ActionCutTask;
+   #22: ActionPasteTask;
+   #4:  ActionDuplicateTask;
    #13: BeginEdit(CurTaskIdx, CurColIdx);
    #27: ActionQuit;
    #9:  Begin
@@ -8322,6 +10134,10 @@ Begin
  If (Mouse.Y >= ToolY1) And (Mouse.Y <= ToolY2) Then Begin
   I := ToolAtXY(Mouse.X, Mouse.Y);
   If I > 0 Then DoAction(Tools[I].Action);
+  Exit;
+ End;
+ If CurView = VIEW_RESOURCE Then Begin
+  If (Mouse.Y >= WorkY1) And (Mouse.Y <= WorkY2) Then RVMouseClick;
   Exit;
  End;
  If InRect(Mouse.X, Mouse.Y, SplitX, WorkY1, SplitX + SPLIT_W - 1, WorkY2) Then Begin
@@ -8527,7 +10343,8 @@ Begin
    ClickPrevY := Mouse.Y;
    ClickPrevTick := TickCount;
    DoubleClicked := False;
-  End;
+  End
+  Else If RightPressed Then HandleRightClick;
   If KeyPressed Then Begin
    K := ReadKey;
    HandleKey(K);

@@ -8117,16 +8117,162 @@ Begin
     (UpCase(E[3]) = 'O') And (UpCase(E[4]) = 'C') Then ExtIsDoc := True;
 End;
 
+{ PDF text import: unfiltered and FlateDecode streams, no external application. }
+Function ExtIsPDF(Const FN:String):Boolean;
+Var E:String;I:Integer;
+Begin
+ E:=Copy(FN,Length(FN)-3,4);For I:=1 To Length(E) Do E[I]:=UpCase(E[I]);
+ ExtIsPDF:=E='.PDF';
+End;
+
+Function LoadPDFfromFile(Const FN:String):Boolean;
+Const MaxPDF=16777216;MaxStream=4194304;MaxImport=110000;
+Var F:File;Data,Decoded,Output:Pointer;Size,Got,P,Q,A,B,D,N,O,I:LongInt;
+ ParaIdx,RunIdx:Integer;PendingPB,OK:Boolean;Dict:String;
+ Function Ch(Buffer:Pointer;Index:LongInt):Char;
+ Begin Ch:=Char(ImgPByteAt(Buffer,Index));End;
+ Function Match(Index:LongInt;Const Token:String):Boolean;
+ Var K:Integer;
+ Begin
+  Match:=False;If (Index<0) or (Index+Length(Token)>Size) Then Exit;
+  For K:=1 To Length(Token) Do If Ch(Data,Index+K-1)<>Token[K] Then Exit;
+  Match:=True;
+ End;
+ Procedure Emit(C:Char);
+ Begin
+  If O>=MaxImport Then Begin OK:=False;Exit;End;
+  If C=#13 Then C:=#10;
+  If (C=#10) and (O>0) Then If Ch(Output,O-1)=#10 Then Exit;
+  If (C>=#32) or (C=#10) or (C=#9) Then Begin ImgPByteSet(Output,O,Ord(C));Inc(O);End;
+ End;
+ Function Hex(C:Char):Integer;
+ Begin
+  Case C Of '0'..'9':Hex:=Ord(C)-48;'a'..'f':Hex:=Ord(C)-87;
+   'A'..'F':Hex:=Ord(C)-55;Else Hex:=-1;End;
+ End;
+ Procedure Extract(Buffer:Pointer;Count:LongInt);
+ Var K,Depth,V,H1,H2,J:LongInt;C:Char;InText:Boolean;Token:String;
+ Begin
+  K:=0;InText:=False;
+  While (K<Count) and OK Do Begin
+   C:=Ch(Buffer,K);Inc(K);
+   If C='%' Then Begin
+    While K<Count Do Begin C:=Ch(Buffer,K);Inc(K);If C in [#10,#13] Then Break;End;
+   End Else If C='(' Then Begin
+    Depth:=1;
+    While (K<Count) and (Depth>0) Do Begin
+     C:=Ch(Buffer,K);Inc(K);
+     If C='\' Then Begin
+      If K>=Count Then Break;C:=Ch(Buffer,K);Inc(K);
+      Case C Of
+       'n':C:=#10;'r':C:=#13;'t':C:=#9;
+       #10:Continue;
+       #13:Begin If K<Count Then If Ch(Buffer,K)=#10 Then Inc(K);Continue;End;
+       '0'..'7':Begin
+        V:=Ord(C)-48;J:=1;
+        While (J<3) and (K<Count) Do Begin
+         C:=Ch(Buffer,K);If Not (C in ['0'..'7']) Then Break;
+         V:=V*8+Ord(C)-48;Inc(K);Inc(J);
+        End;C:=Char(V and 255);
+       End;
+      End;
+     End Else If C='(' Then Inc(Depth)
+     Else If C=')' Then Begin Dec(Depth);If Depth=0 Then Break;End;
+     If InText Then Emit(C);
+    End;
+   End Else If (C='<') and InText Then Begin
+    H1:=-1;
+    While K<Count Do Begin
+     C:=Ch(Buffer,K);Inc(K);If C='>' Then Break;
+     H2:=Hex(C);If H2<0 Then Continue;
+     If H1<0 Then H1:=H2 Else Begin Emit(Char(H1*16+H2));H1:=-1;End;
+    End;
+    If H1>=0 Then Emit(Char(H1*16));
+   End Else If C>#32 Then Begin
+    If Not (C in ['[',']','<','>','/']) Then Begin
+     Token:=C;
+     While K<Count Do Begin
+      C:=Ch(Buffer,K);If (C<=#32) or (C in ['(',')','[',']','<','>','/','%']) Then Break;
+      If Length(Token)<40 Then Token:=Token+C;Inc(K);
+     End;
+     If Token='BT' Then InText:=True
+     Else If Token='ET' Then Begin If InText Then Emit(#10);InText:=False;End
+     Else If InText Then Begin
+      If (Token='Td') or (Token='TD') or (Token='T*') or (Token='Tm') or
+         (Token=#39) or (Token='"') Then Emit(#10);
+     End;
+    End;
+   End;
+  End;
+ End;
+Begin
+ LoadPDFfromFile:=False;Decoded:=Nil;Output:=Nil;
+ {$I-} Assign(F,FN);Reset(F,1);{$I+} If IOResult<>0 Then Exit;
+ Size:=FileSize(F);
+ If (Size<8) or (Size>MaxPDF) Then Begin Close(F);Exit;End;
+ GetMem(Data,Size);{$I-} BlockRead(F,Data^,Size,Got);Close(F);{$I+}
+ OK:=(IOResult=0) and (Got=Size);
+ If OK Then OK:=Match(0,'%PDF-');
+ If OK Then Begin
+  GetMem(Decoded,MaxStream);GetMem(Output,MaxImport);O:=0;P:=0;D:=0;
+  While (P<Size) and OK Do Begin
+   If Match(P,'/Encrypt') Then Begin OK:=False;Break;End;
+   If Match(P,'<<') Then D:=P;
+   If Match(P,'stream') Then Begin
+    A:=P+6;
+    If A<Size Then If Ch(Data,A)=#13 Then Inc(A);
+    If A<Size Then If Ch(Data,A)=#10 Then Inc(A);
+    Q:=A;While Q<Size Do Begin If Match(Q,'endstream') Then Break;Inc(Q);End;
+    If Q>=Size Then Begin OK:=False;Break;End;
+    Dict:='';B:=D;While (B<P) and (Length(Dict)<255) Do Begin Dict:=Dict+Ch(Data,B);Inc(B);End;
+    N:=Q-A;
+    If Pos('/FlateDecode',Dict)>0 Then Begin
+     If N<6 Then OK:=False Else Begin
+      OK:=InflateBuf(Pointer(PtrUInt(Data)+A+2),N-6,Decoded,MaxStream);
+      If OK Then Extract(Decoded,InfOutPos);
+     End;
+    End Else If Pos('/Filter',Dict)=0 Then Extract(Pointer(PtrUInt(Data)+A),N);
+    P:=Q+9;
+   End Else Inc(P);
+  End;
+  { Refuser un import trop grand plutot que tronquer silencieusement le texte. }
+  ParaIdx:=1;RunIdx:=0;
+  For I:=0 To O-1 Do Begin
+   If Ch(Output,I)=#10 Then Begin Inc(ParaIdx);RunIdx:=0;End
+   Else Begin
+    If RunIdx=MAX_TEXT_LEN Then Begin Inc(ParaIdx);RunIdx:=0;End;
+    Inc(RunIdx);
+   End;
+  End;
+  If ParaIdx>MAX_PARAS_PER_DOC Then OK:=False;
+  If OK and (O>0) Then Begin
+   FreeAllDocImages;FillChar(Doc,SizeOf(Doc),0);ParaIdx:=0;RunIdx:=0;PendingPB:=False;
+   For I:=0 To O-1 Do Begin
+    If Ch(Output,I)=#10 Then DocFinishParaP(ParaIdx,RunIdx,PendingPB)
+    Else DocAppendCh(ParaIdx,RunIdx,PendingPB,Ch(Output,I));
+   End;
+   Doc.ParaCount:=ParaIdx;Doc.PageCount:=1;Doc.FileName:='';Doc.Modified:=True;
+   Cursor.ParaIdx:=1;Cursor.RunIdx:=1;Cursor.CharIdx:=0;
+   ScrollY:=0;CurrentPage:=1;NeedsRelayout:=True;LoadPDFfromFile:=True;
+  End;
+ End;
+ If Output<>Nil Then FreeMem(Output,MaxImport);
+ If Decoded<>Nil Then FreeMem(Decoded,MaxStream);
+ FreeMem(Data,Size);
+End;
+
 Function LoadAnyDocument(Const FName: String): Boolean;
 Begin
- If      ExtIsDocx(FName) Then LoadAnyDocument := LoadDocxFromFile(FName)
+ If ExtIsPDF(FName) Then LoadAnyDocument:=LoadPDFfromFile(FName)
+ Else If ExtIsDocx(FName) Then LoadAnyDocument := LoadDocxFromFile(FName)
  Else If ExtIsDoc (FName) Then LoadAnyDocument := LoadDocFromFile(FName)
  Else                          LoadAnyDocument := LoadDocumentFromFile(FName);
 End;
 
 Function SaveAnyDocument(Const FName: String): Boolean;
 Begin
- If      ExtIsDocx(FName) Then SaveAnyDocument := SaveDocxToFile(FName)
+ If ExtIsPDF(FName) Then SaveAnyDocument:=False
+ Else If ExtIsDocx(FName) Then SaveAnyDocument := SaveDocxToFile(FName)
  Else If ExtIsDoc (FName) Then SaveAnyDocument := False
  Else                          SaveAnyDocument := SaveDocumentToFile(FName);
 End;
@@ -8210,6 +8356,8 @@ Var
  FltDisp         : String;
  LastBtn         : Word;
  NeedRescan      : Boolean;
+ FltOpen, FltFocus, MouseConsumed: Boolean;
+ FltHover, PopupY1, PopupY2, OldHover: Integer;
 
  Procedure ParseFilter;
  Var P, L, J: Integer; Seg: String;
@@ -8301,6 +8449,35 @@ Var
   DrawTextAt(FX2-12, FY1+3, #25, Black);
  End;
 
+ { La liste se deploie vers le haut pour rester dans la boite de dialogue. }
+ Procedure DrawFilterPopup;
+ Var J,Y:Integer;FG,BG:Word;
+ Begin
+  PopupY2:=FY1-1;PopupY1:=PopupY2-FltCount*ROW_H-2;
+  FillRectArea(FX1,PopupY1,FX2,PopupY2,White);
+  DrawFrameRect(FX1,PopupY1,FX2,PopupY2,Black);
+  For J:=1 To FltCount Do Begin
+   Y:=PopupY1+1+(J-1)*ROW_H;
+   If J=FltHover Then Begin BG:=Blue;FG:=White;End Else Begin BG:=White;FG:=Black;End;
+   FillRectArea(FX1+1,Y,FX2-1,Y+ROW_H-1,BG);
+   DrawTextAt(FX1+5,Y+3,Copy(FltLabels[J],1,54),FG);
+  End;
+ End;
+
+ Procedure CloseFilterPopup(Apply:Boolean);
+ Begin
+  If Apply and (FltHover>=1) and (FltHover<=FltCount) Then Begin
+   If FltCur<>FltHover Then Begin FltCur:=FltHover;NeedRescan:=True;End;
+  End;
+  FltOpen:=False;
+  RedrawList;RedrawFilter;
+ End;
+
+ Procedure OpenFilterPopup;
+ Begin
+  FltOpen:=True;FltFocus:=True;FltHover:=FltCur;DrawFilterPopup;
+ End;
+
  Procedure RedrawDir;
  Begin
   FillRectArea(X1+15, Y1+38, X2-15, Y1+52, CLR_3D_FACE);
@@ -8385,7 +8562,7 @@ Begin
  OkX1 := X2-180;
  CnX1 := X2-90;
  ParseFilter;
- FltCur := 1;
+ FltCur := 1;FltOpen:=False;FltFocus:=False;FltHover:=1;
  { Separer le repertoire et le nom dans FName. }
  CurDir := '';
  Inp    := FName;
@@ -8429,6 +8606,23 @@ Begin
   NeedRescan := False;
   If KeyPressed Then Begin
    K := ReadKeyEx;
+   If FltOpen Then Begin
+    Case K Of
+     KEY_UP:If FltHover>1 Then Dec(FltHover);
+     KEY_DOWN:If FltHover<FltCount Then Inc(FltHover);
+     KEY_HOME:FltHover:=1;
+     KEY_END:FltHover:=FltCount;
+     KEY_ENTER,KEY_TAB:CloseFilterPopup(True);
+     KEY_ESC,KEY_F4:CloseFilterPopup(False);
+    End;
+    If FltOpen Then DrawFilterPopup;
+   End Else If (K=KEY_F4) or ((K=KEY_ENTER) and FltFocus) or
+               ((K=KEY_DOWN) and FltFocus) or ((K=32) and FltFocus) Then OpenFilterPopup
+   Else If K=KEY_TAB Then Begin
+    FltFocus:=Not FltFocus;
+    If FltFocus Then OpenFilterPopup;
+   End Else Begin
+   FltFocus:=False;
    Case K Of
     KEY_ESC   : Begin OK:=False; Done:=True; End;
     KEY_ENTER : If (Sel >= 1) And (Sel <= FileCount) And FileIsDir[Sel] Then Begin
@@ -8459,17 +8653,32 @@ Begin
     End;
    End;
   End;
+   End;
   GetMouseStateLI(MsX, MsY, MsBtn);
-  If ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT) = 0) Then Begin
+  MouseConsumed:=False;
+  If FltOpen Then Begin
+   If (MsX>=FX1) and (MsX<=FX2) and (MsY>PopupY1) and (MsY<PopupY2) Then Begin
+    OldHover:=FltHover;FltHover:=(MsY-PopupY1-1) div ROW_H+1;
+    If FltHover>FltCount Then FltHover:=FltCount;
+    If OldHover<>FltHover Then DrawFilterPopup;
+   End;
+   If ((MsBtn and MB_LEFT)<>0) and ((LastBtn and MB_LEFT)=0) Then Begin
+    MouseConsumed:=True;
+    CloseFilterPopup((MsX>=FX1) and (MsX<=FX2) and
+                     (MsY>PopupY1) and (MsY<PopupY2));
+   End;
+  End;
+  If Not MouseConsumed and ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT) = 0) Then Begin
    If (MsX>=OkX1) And (MsX<=OkX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     If Length(Inp)>0 Then Begin OK:=True; Done:=True; End;
    End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     OK:=False; Done:=True;
    End Else If (MsX>=FX1) And (MsX<=FX2) And (MsY>=FY1) And (MsY<=FY2) Then Begin
-    Inc(FltCur); If FltCur > FltCount Then FltCur := 1;
-    NeedRescan := True;
-    RedrawFilter;
+    OpenFilterPopup;
+   End Else If (MsX>=IX1) and (MsX<=IX2) and (MsY>=IY1) and (MsY<=IY2) Then Begin
+    FltFocus:=False;
    End Else If (MsX>=LX1) And (MsX<=LX2) And (MsY>=LY1) And (MsY<=LY2) Then Begin
+    FltFocus:=False;
     Idx := Top + (MsY - LY1 - 1) Div ROW_H;
     If (Idx >= 1) And (Idx <= FileCount) Then Begin
      If FileIsDir[Idx] Then Begin
@@ -8995,14 +9204,14 @@ Begin
                      If Doc.Modified Then
                       If Not ShowConfirmYN('Discard unsaved changes?') Then Exit;
                      FNameTmp := '';
-                     If ShowFileDialog('Open Document', False, 'Documents Word (*.WPD;*.DOCX;*.DOC)|*.WPD;*.DOCX;*.DOC|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
+                     If ShowFileDialog('Open Document', False, 'Documents Word (*.WPD;*.DOCX;*.DOC;*.PDF)|*.WPD;*.DOCX;*.DOC;*.PDF|PDF (*.PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If LoadAnyDocument(FNameTmp) Then Begin
                        LayoutDocument;
                        ClearAllUndo;
                        StatusMsg := 'Opened ' + FNameTmp;
                       End Else
-                       ShowMessage('Cannot open file: ' + FNameTmp);
+                       ShowMessage('Cannot open file (PDF: readable text required): ' + FNameTmp);
                      End;
                      NeedsRedraw := True;
                     End;
@@ -9951,8 +10160,9 @@ BEGIN
  LastFindStr := ''; LastReplStr := '';
  { Argument ligne de commande : nom de fichier a ouvrir au demarrage. }
  If CommandLineFile<>'' Then Begin
-  If LoadAnyDocument(CommandLineFile) Then
-   Doc.FileName := CommandLineFile
+  If LoadAnyDocument(CommandLineFile) Then Begin
+   If Not ExtIsPDF(CommandLineFile) Then Doc.FileName := CommandLineFile;
+  End
   Else
    ShowMessage('Cannot open file: ' + CommandLineFile);
  End;
