@@ -12167,6 +12167,91 @@ Begin
 End;
 
 
+Procedure ShowAboutDialog;
+Var
+ PreviousButtons: LongInt;
+ Key: Word;
+ Done: Boolean;
+
+ Procedure DrawIllustration;
+ Var I,X: Integer;
+ Begin
+  FillRectArea(125,112,515,246,DarkGray);
+  { Two overlapping sheets and handwritten lines. }
+  FillRectArea(208,135,346,219,Brown);
+  FillRectArea(196,142,333,228,LightGray);
+  FillRectArea(214,128,359,218,Yellow);
+  SetColor(Brown);
+  Rectangle(214,128,359,218);
+  Rectangle(220,134,353,212);
+  DrawTextAt(229,144,'Aa',Brown);
+  For I:=0 To 4 Do
+   Line(230,162+I*8,336-(I mod 3)*13,162+I*8);
+
+  { Feather silhouette drawn in nested strokes along the shaft. }
+  For I:=0 To 63 Do Begin
+   X:=330+I;
+   SetColor(Brown);
+   Line(X,197-I-I div 5,X,211-I+I div 9);
+   SetColor(LightGray);
+   Line(X,199-I-I div 5,X,209-I+I div 9);
+  End;
+  SetColor(White);
+  Line(334,204,393,130);
+  SetColor(Brown);
+  Line(316,227,402,118);
+  Line(317,227,403,118);
+  For I:=0 To 5 Do Begin
+   X:=343+I*8;
+   Line(X,193-I*10,X+4,181-I*10);
+   Line(X,193-I*10,X+10,195-I*10);
+  End;
+ End;
+
+Begin
+ EraseSoftCursor;
+ FillRectArea(110,76,530,414,CLR_3D_FACE);
+ DrawButton3D(110,76,530,414,False);
+ FillRectArea(113,79,527,98,Blue);
+ DrawTextAt(122,84,'A propos de WorDium',White);
+ DrawIllustration;
+ ApplyRunStyle(CurrentStyle);
+ DrawTextAt(126,259,'WorDium  1.00',Blue);
+ DrawTextAt(126,277,'Traitement de texte graphique en Pascal',Black);
+ SetColor(DarkGray);
+ Line(126,293,514,293);
+ DrawTextAt(126,306,'Auteur',DarkGray);
+ DrawTextAt(235,306,'Sylvain Maltais',Black);
+ DrawTextAt(126,324,'Licence',DarkGray);
+ DrawTextAt(235,324,'MIT',Black);
+ DrawTextAt(126,342,'Creation',DarkGray);
+ DrawTextAt(235,342,'2026',Black);
+ DrawTextAt(126,360,'Site',DarkGray);
+ DrawTextAt(235,360,'www.gladir.com/office-0',Blue);
+ DrawButton3D(415,378,515,404,False);
+ DrawTextAt(440,387,'Fermer',Black);
+
+ PreviousButtons:=MsBtn;
+ Repeat
+  Done:=False;
+  If KeyPressed Then Begin
+   Key:=ReadKeyEx;
+   Done:=(Key=KEY_ENTER) Or (Key=KEY_ESC) Or (Key=32);
+  End;
+  EraseSoftCursor;
+  GetMouseStateLI(MsX,MsY,MsBtn);
+  If ((MsBtn and MB_LEFT)<>0) And ((PreviousButtons and MB_LEFT)=0) Then
+   If (MsX>=415) And (MsX<=515) And (MsY>=378) And (MsY<=404) Then Done:=True;
+  PreviousButtons:=MsBtn;
+  If Not Done Then Begin
+   {$IFDEF FPC} DrawSoftCursor(MsX,MsY); {$ENDIF}
+   Delay(10);
+  End;
+ Until Done;
+ NeedsRedraw:=True;
+End;
+
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -12393,7 +12478,7 @@ Begin
   ACT_WIN_CASCADE : StatusMsg := 'Cascade (single-doc)';
 
   ACT_HLP_CONTENT : ShowHelpContents;
-  ACT_HLP_ABOUT   : ShowMessage('WorDium v1.0 - Pascal/Graph');
+  ACT_HLP_ABOUT   : ShowAboutDialog;
  Else
   StatusMsg := 'Action non implementee';
  End;
