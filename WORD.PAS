@@ -213,11 +213,15 @@ Type
   ImgW, ImgH      : Integer;
   ImgData         : Pointer;     { palette indices 0..15, W*H octets }
   TableIdx        : Integer;     { 0 = pas table; sinon index dans Tables }
-  LeftIndent      : Integer;     { hang indent en pixels (lignes 2+ d'une liste) }
-  FirstLineHang   : Boolean;     { True => 1re ligne aussi indentee (continuation) }
+  LeftIndent      : Integer;     { hang indent en pixels (lignes 2+ d'une liste)
+    }
+  FirstLineHang   : Boolean;     { True => 1re ligne aussi indentee
+    (continuation) }
   BorderBottom    : Boolean;     { trait horizontal sous le paragraphe }
-  ContinuesPrev   : Boolean;     { sous-paragraphe artificiel (split ShortString) }
-  ContinuesNext   : Boolean;     { ce paragraphe est suivi d'un sous-para artificiel }
+  ContinuesPrev   : Boolean;     { sous-paragraphe artificiel (split
+    ShortString) }
+  ContinuesNext   : Boolean;     { ce paragraphe est suivi d'un sous-para
+    artificiel }
  End;
 
  { --- Cellule de tableau : texte simple (Phase 11) --- }
@@ -599,7 +603,8 @@ Begin
   Line(UX, Y+8, UX + UW - 1, Y+8);
   Exit;
  End;
- { Aucun '&' explicite : utiliser AltCh par recherche du premier caractere correspondant. }
+ { Aucun '&' explicite : utiliser AltCh par recherche du premier caractere
+   correspondant. }
  If AltCh = #0 Then Exit;
  Found := False;
  Px := X;
@@ -726,7 +731,8 @@ Begin
  SetMenuItem(2,5,'&Copier',               'Ctrl+C','C',False, ACT_EDIT_COPY);
  SetMenuItem(2,6,'Co&ller',               'Ctrl+V','L',False, ACT_EDIT_PASTE);
  SetMenuItem(2,7,'Rec&hercher...',        'Ctrl+F','H',False, ACT_EDIT_FIND);
- SetMenuItem(2,8,'Rechercher &suivant',   'F3',    'S',False, ACT_EDIT_FIND_NEXT);
+ SetMenuItem(2,8,'Rechercher &suivant',   'F3',    'S',False,
+   ACT_EDIT_FIND_NEXT);
  SetMenuItem(2,9,'Re&mplacer...',         'Ctrl+H','M',False, ACT_EDIT_REPL);
 
  { Affichage }
@@ -738,7 +744,8 @@ Begin
 
  { Insertion }
  Menus[4].ItemCount := 4;
- SetMenuItem(4,1,'&Saut de page',         'Ctrl+Enter','S',False, ACT_INS_PAGEBRK);
+ SetMenuItem(4,1,'&Saut de page',         'Ctrl+Enter','S',False,
+   ACT_INS_PAGEBRK);
  SetMenuItem(4,2,'&Image...',             '',      'I',False, ACT_INS_IMAGE);
  SetMenuItem(4,3,'Symbo&le...',           '',      'L',False, ACT_INS_SYMBOL);
  SetMenuItem(4,4,'&Tableau...',           '',      'T',False, ACT_INS_TABLE);
@@ -1077,7 +1084,8 @@ Begin
   ACT_EDIT_UNDO,ACT_EDIT_REDO,ACT_EDIT_FIND,ACT_EDIT_FIND_NEXT,ACT_EDIT_REPL,
   ACT_INS_PAGEBRK,ACT_INS_IMAGE,ACT_INS_TABLE,ACT_TBL_INSERT,ACT_TBL_DELETE,
   ACT_FMT_BOLD,ACT_FMT_ITALIC,ACT_FMT_UNDER,ACT_FMT_LEFT,ACT_FMT_CENTER,
-  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT,ACT_VIEW_ZOOM,ACT_VIEW_NORMAL,ACT_VIEW_PAGE,ACT_VIEW_RULER:
+  ACT_FMT_RIGHT,ACT_FMT_JUSTIFY,ACT_FMT_COLOR,ACT_TLS_WORDS,ACT_HLP_ABOUT,
+    ACT_VIEW_ZOOM,ACT_VIEW_NORMAL,ACT_VIEW_PAGE,ACT_VIEW_RULER:
    RibbonActionEnabled:=True;
  End;
 End;
@@ -1093,7 +1101,8 @@ Function RibbonMenuItem(Index: Integer): Integer;
 Var I,N: Integer;
 Begin
  RibbonMenuItem:=0;N:=0;
- For I:=1 To Menus[RibbonTab].ItemCount Do If Not Menus[RibbonTab].Items[I].Separator Then Begin
+ For I:=1 To Menus[RibbonTab].ItemCount Do If Not
+   Menus[RibbonTab].Items[I].Separator Then Begin
   Inc(N);If N=Index Then Begin RibbonMenuItem:=I;Exit;End;
  End;
 End;
@@ -1107,7 +1116,8 @@ Function RibbonEntryEnabled(Index: Integer): Boolean;
 Begin
  RibbonEntryEnabled:=RibbonActionEnabled(RibbonEntryAction(Index));
  If (Index>=1) And (Index<=RibbonItemCount) Then
-  RibbonEntryEnabled:=RibbonEntryEnabled And Menus[RibbonTab].Items[RibbonMenuItem(Index)].Enabled;
+  RibbonEntryEnabled:=RibbonEntryEnabled And
+    Menus[RibbonTab].Items[RibbonMenuItem(Index)].Enabled;
 End;
 Procedure RibbonButtonBox(Index: Integer;Var X,Y,W,H: Integer);
 Var Columns: Integer;
@@ -1123,15 +1133,18 @@ Begin
  RibbonHitAt:=0;If Not RibbonMode Then Exit;
  For I:=1 To RibbonItemCount Do Begin
   RibbonButtonBox(I,BX,BY,W,H);
-  If (X>=BX) And (X<BX+W-4) And (Y>=BY) And (Y<BY+H-2) Then Begin RibbonHitAt:=I;Exit;End;
+  If (X>=BX) And (X<BX+W-4) And (Y>=BY) And (Y<BY+H-2) Then Begin
+    RibbonHitAt:=I;Exit;End;
  End;
 End;
 Function RibbonActionIcon(Act: Integer): Integer;
 Var I,Icon: Integer;
 Begin
  Icon:=0;
- For I:=1 To StdBarCount Do If StdBar[I].ActionId=Act Then Icon:=StdBar[I].IconId;
- For I:=1 To FmtBarCount Do If FmtBar[I].ActionId=Act Then Icon:=FmtBar[I].IconId;
+ For I:=1 To StdBarCount Do If StdBar[I].ActionId=Act Then
+   Icon:=StdBar[I].IconId;
+ For I:=1 To FmtBarCount Do If FmtBar[I].ActionId=Act Then
+   Icon:=FmtBar[I].IconId;
  Case Act Of
   ACT_FILE_SAVEAS: Icon:=ICN_SAVE;
   ACT_TBL_INSERT,ACT_TBL_DELETE: Icon:=ICN_TABLE;
@@ -1180,9 +1193,11 @@ Var I,Item,Act,X,Y,W,H,Color: Integer;Caption,SizeText: String;
 Begin
  FillRectArea(0,MENUBAR_HEIGHT,SCREEN_W-1,STDBAR_TOP-1,MENUBAR_BG);
  For I:=1 To RibbonItemCount Do Begin
-  Item:=RibbonMenuItem(I);Act:=RibbonEntryAction(I);RibbonButtonBox(I,X,Y,W,H);Color:=Black;
+  Item:=RibbonMenuItem(I);Act:=RibbonEntryAction(I);RibbonButtonBox(I,X,Y,W,H);
+    Color:=Black;
   If Not RibbonEntryEnabled(I) Then Color:=DarkGray
-  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Or ViewActionChecked(Act) Then Begin
+  Else If (RibbonHover=I) Or (RibbonKeyboard And (RibbonFocus=I)) Or
+    ViewActionChecked(Act) Then Begin
    FillRectArea(X,Y,X+W-5,Y+H-3,MENUBAR_HL_BG);Color:=White;
   End;
   DrawRibbonActionIcon(Act,X+12,Y+11,Color);
@@ -1338,19 +1353,23 @@ Begin
 End;
 
 Function ZoomValue:Integer;
-Begin ZoomValue:=ZoomPercent;If (ZoomPercent<25) or (ZoomPercent>300) Then ZoomValue:=100;End;
+Begin ZoomValue:=ZoomPercent;If (ZoomPercent<25) or (ZoomPercent>300) Then
+  ZoomValue:=100;End;
 Function ZoomX(X:Integer):Integer;
-Begin ZoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2-ZoomPanX)*ZoomValue div 100;End;
+Begin ZoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2-ZoomPanX)*ZoomValue div
+  100;End;
 Function ZoomY(Y:Integer):Integer;
 Begin ZoomY:=DOCAREA_TOP+LongInt(Y-DOCAREA_TOP)*ZoomValue div 100;End;
 Function UnzoomX(X:Integer):Integer;
-Begin UnzoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2)*100 div ZoomValue+ZoomPanX;End;
+Begin UnzoomX:=SCREEN_W div 2+LongInt(X-SCREEN_W div 2)*100 div
+  ZoomValue+ZoomPanX;End;
 Function UnzoomY(Y:Integer):Integer;
 Begin UnzoomY:=DOCAREA_TOP+LongInt(Y-DOCAREA_TOP)*100 div ZoomValue;End;
 Function DocPhysicalBottom:Integer;
 Begin
  DocPhysicalBottom:=DOCAREA_BOTTOM;
- If LongInt(PAGE_W)*ZoomValue div 100>SCREEN_W-16 Then DocPhysicalBottom:=DOCAREA_BOTTOM-12;
+ If LongInt(PAGE_W)*ZoomValue div 100>SCREEN_W-16 Then
+   DocPhysicalBottom:=DOCAREA_BOTTOM-12;
 End;
 Function DocBottom:Integer;
 Begin DocBottom:=UnzoomY(DocPhysicalBottom);End;
@@ -1363,14 +1382,16 @@ End;
 Procedure ZoomLine(X1,Y1,X2,Y2:Integer);
 Var VP:ViewPortType;
 Begin
- GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,ClipOn);
+ GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,
+   ClipOn);
  Line(ZoomX(X1),ZoomY(Y1)-DOCAREA_TOP,ZoomX(X2),ZoomY(Y2)-DOCAREA_TOP);
  SetViewPort(VP.X1,VP.Y1,VP.X2,VP.Y2,VP.Clip);
 End;
 Procedure ZoomBar(X1,Y1,X2,Y2:Integer);
 Var VP:ViewPortType;
 Begin
- GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,ClipOn);
+ GetViewSettings(VP);SetViewPort(0,DOCAREA_TOP,SCREEN_W-1,DocPhysicalBottom,
+   ClipOn);
  Bar(ZoomX(X1),ZoomY(Y1)-DOCAREA_TOP,ZoomX(X2+1)-1,ZoomY(Y2+1)-DOCAREA_TOP-1);
  SetViewPort(VP.X1,VP.Y1,VP.X2,VP.Y2,VP.Clip);
 End;
@@ -1387,8 +1408,10 @@ Begin
  X1:=ZoomX(X);X2:=ZoomX(X+1)-1;Y1:=ZoomY(Y);Y2:=ZoomY(Y+1)-1;
  If (X2<X1) or (Y2<Y1) Then Exit;
  If X1<0 Then X1:=0;If X2>=SCREEN_W Then X2:=SCREEN_W-1;
- If Y1<DOCAREA_TOP Then Y1:=DOCAREA_TOP;If Y2>DocPhysicalBottom Then Y2:=DocPhysicalBottom;
- If (X1<=X2) and (Y1<=Y2) Then Begin SetFillStyle(SolidFill,Color);Bar(X1,Y1,X2,Y2);End;
+ If Y1<DOCAREA_TOP Then Y1:=DOCAREA_TOP;If Y2>DocPhysicalBottom Then
+   Y2:=DocPhysicalBottom;
+ If (X1<=X2) and (Y1<=Y2) Then Begin
+   SetFillStyle(SolidFill,Color);Bar(X1,Y1,X2,Y2);End;
 End;
 
 Procedure DrawRuler;
@@ -1472,7 +1495,8 @@ End;
 { Largeur reelle (en pixels) d'une plage de caracteres du paragraphe P,
   en tenant compte du gras (qui ajoute +1 px par caractere car dessine
   deux fois avec un decalage de 1 px). StartIdx 1-based dans ParaText. }
-Function PDFTextWidth(Const S,Face:String;H:Integer;Style:Byte):Integer; Forward;
+Function PDFTextWidth(Const S,Face:String;H:Integer;Style:Byte):Integer;
+  Forward;
 
 Function RunHeight(Const Sty: TCharStyle): Integer;
 Var Points: Integer;
@@ -1499,7 +1523,8 @@ Var
  Sub                                    : String;
 Begin
  If Doc.Paragraphs[P].PDF.Active Then Begin
-  StyledRangeWidth:=PDFTextWidth(Copy(ParaText(P),StartIdx,Len),Doc.Paragraphs[P].PDF.Face,
+  StyledRangeWidth:=PDFTextWidth(Copy(ParaText(P),StartIdx,Len),
+    Doc.Paragraphs[P].PDF.Face,
    Doc.Paragraphs[P].PDF.Height,Doc.Paragraphs[P].Runs[1].Style.Style);Exit;
  End;
  W := 0;
@@ -1779,32 +1804,46 @@ Type
   Compression,ImageSize:LongWord;XPels,YPels:LongInt;Colors,Important:LongWord;
  End;
  TPDFSize = Record CX,CY:LongInt;End;
-Function PDFCreateDC(DC:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'CreateCompatibleDC';
-Function PDFDeleteDC(DC:LongWord):LongBool;stdcall;external 'gdi32.dll' name 'DeleteDC';
-Function PDFSelect(DC,Obj:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SelectObject';
-Function PDFDelete(Obj:LongWord):LongBool;stdcall;external 'gdi32.dll' name 'DeleteObject';
-Function PDFDIB(DC:LongWord;Var Info:TPDFBitmapInfo;Usage:LongWord;Var Bits:Pointer;
- Section:LongWord;Offset:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'CreateDIBSection';
-Function PDFFont(H,W,E,O,Weight:LongInt;Italic,Underline,Strike,Charset,OutP,ClipP,Quality,Pitch:LongWord;
+Function PDFCreateDC(DC:LongWord):LongWord;stdcall;external 'gdi32.dll' name
+  'CreateCompatibleDC';
+Function PDFDeleteDC(DC:LongWord):LongBool;stdcall;external 'gdi32.dll' name
+  'DeleteDC';
+Function PDFSelect(DC,Obj:LongWord):LongWord;stdcall;external 'gdi32.dll' name
+  'SelectObject';
+Function PDFDelete(Obj:LongWord):LongBool;stdcall;external 'gdi32.dll' name
+  'DeleteObject';
+Function PDFDIB(DC:LongWord;Var Info:TPDFBitmapInfo;Usage:LongWord;Var
+  Bits:Pointer;
+ Section:LongWord;Offset:LongWord):LongWord;stdcall;external 'gdi32.dll' name
+   'CreateDIBSection';
+Function
+  PDFFont(H,W,E,O,Weight:LongInt;Italic,Underline,Strike,Charset,OutP,ClipP,
+  Quality,Pitch:LongWord;
  Face:PChar):LongWord;stdcall;external 'gdi32.dll' name 'CreateFontA';
 Function PDFText(DC:LongWord;X,Y:LongInt;Text:PChar;Count:LongInt):LongBool;
  stdcall;external 'gdi32.dll' name 'TextOutA';
-Function PDFExtent(DC:LongWord;Text:PChar;Count:LongInt;Var Size:TPDFSize):LongBool;
+Function PDFExtent(DC:LongWord;Text:PChar;Count:LongInt;Var
+  Size:TPDFSize):LongBool;
  stdcall;external 'gdi32.dll' name 'GetTextExtentPoint32A';
-Function PDFTextColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SetTextColor';
-Function PDFBkColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll' name 'SetBkColor';
+Function PDFTextColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll'
+  name 'SetTextColor';
+Function PDFBkColor(DC,Color:LongWord):LongWord;stdcall;external 'gdi32.dll'
+  name 'SetBkColor';
 Function PDFFlush:LongBool;stdcall;external 'gdi32.dll' name 'GdiFlush';
 {$ENDIF}
 
 Function PDFPalette(R,G,B:Integer):Byte;
 Const Colors:Array[0..15,0..2] of Byte=(
- (0,0,0),(0,0,170),(0,170,0),(0,170,170),(170,0,0),(170,0,170),(170,85,0),(170,170,170),
- (85,85,85),(85,85,255),(85,255,85),(85,255,255),(255,85,85),(255,85,255),(255,255,85),(255,255,255));
+ (0,0,0),(0,0,170),(0,170,0),(0,170,170),(170,0,0),(170,0,170),(170,85,0),(170,
+   170,170),
+ (85,85,85),(85,85,255),(85,255,85),(85,255,255),(255,85,85),(255,85,255),(255,
+   255,85),(255,255,255));
 Var I,Best:Integer;D,MinD:LongInt;
 Begin
  Best:=0;MinD:=MaxLongInt;
  For I:=0 To 15 Do Begin
-  D:=Sqr(LongInt(R)-Colors[I,0])+Sqr(LongInt(G)-Colors[I,1])+Sqr(LongInt(B)-Colors[I,2]);
+  D:=Sqr(LongInt(R)-Colors[I,0])+Sqr(LongInt(G)-Colors[I,
+    1])+Sqr(LongInt(B)-Colors[I,2]);
   If D<MinD Then Begin MinD:=D;Best:=I;End;
  End;
  PDFPalette:=Best;
@@ -1818,11 +1857,13 @@ Var DC,Font,Old:LongWord;FN:Array[0..63] of Char;T:Array[0..255] of Char;
 Begin
  PDFTextWidth:=Length(S)*H div 2;
  {$IFDEF WINDOWS}
- FillChar(FN,SizeOf(FN),0);For I:=1 To Length(Face) Do If I<=63 Then FN[I-1]:=Face[I];
+ FillChar(FN,SizeOf(FN),0);For I:=1 To Length(Face) Do If I<=63 Then
+   FN[I-1]:=Face[I];
  FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
  Weight:=400;If (Style and STY_BOLD)<>0 Then Weight:=700;
  DC:=PDFCreateDC(0);If DC=0 Then Exit;
- Font:=PDFFont(-H,0,0,0,Weight,Ord((Style and STY_ITALIC)<>0),0,0,0,0,0,4,0,@FN[0]);
+ Font:=PDFFont(-H,0,0,0,Weight,Ord((Style and
+   STY_ITALIC)<>0),0,0,0,0,0,4,0,@FN[0]);
  If Font<>0 Then Begin
   Old:=PDFSelect(DC,Font);
   If PDFExtent(DC,@T[0],Length(S),Size) Then PDFTextWidth:=Size.CX;
@@ -1841,11 +1882,13 @@ Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
 Begin
  {$IFDEF WINDOWS}
  S:=Copy(ParaText(P),First,Count);Sty:=Doc.Paragraphs[P].Runs[1].Style;
- W:=PDFTextWidth(S,Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,Sty.Style)+3;
+ W:=PDFTextWidth(S,Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,
+   Sty.Style)+3;
  H:=Doc.Paragraphs[P].PDF.Height+5;
  If (W<1) or (W>4096) or (H<1) or (H>512) Then Exit;
  FillChar(FN,SizeOf(FN),0);
- For I:=1 To Length(Doc.Paragraphs[P].PDF.Face) Do FN[I-1]:=Doc.Paragraphs[P].PDF.Face[I];
+ For I:=1 To Length(Doc.Paragraphs[P].PDF.Face) Do
+   FN[I-1]:=Doc.Paragraphs[P].PDF.Face[I];
  FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
  DC:=PDFCreateDC(0);If DC=0 Then Exit;
  FillChar(Info,SizeOf(Info),0);Info.Size:=40;Info.Width:=W;Info.Height:=-H;
@@ -1866,9 +1909,11 @@ Begin
   PDFText(DC,0,0,@T[0],Length(S));PDFFlush;
   Pixel:=Bits;
   For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
-   If (Y+J>=DOCAREA_TOP) and (Y+J<=DocBottom) and (X+I>=0) and (X+I<SCREEN_W) Then
+   If (Y+J>=DOCAREA_TOP) and (Y+J<=DocBottom) and (X+I>=0) and (X+I<SCREEN_W)
+     Then
     If (Pixel^ and $FFFFFF)<>$FFFFFF Then
-     ZoomPixel(X+I,Y+J,PDFPalette((Pixel^ shr 16) and 255,(Pixel^ shr 8) and 255,Pixel^ and 255));
+     ZoomPixel(X+I,Y+J,PDFPalette((Pixel^ shr 16) and 255,(Pixel^ shr 8) and
+       255,Pixel^ and 255));
    Inc(Pixel);
   End;
   PDFSelect(DC,OldFont);PDFDelete(Font);
@@ -1882,14 +1927,16 @@ End;
 Procedure DrawPDFText(P,X,Y:Integer);
 Begin DrawPDFTextFragment(P,X,Y,1,Length(ParaText(P)));End;
 
-Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word; PreviewHeight:Integer; DocumentHeight:Integer);
+Procedure ZoomText(X,Y:Integer;Const S:String;Style:Byte;Color:Word;
+  PreviewHeight:Integer; DocumentHeight:Integer);
 {$IFDEF WINDOWS}
 Var DC,Font,Bitmap,OldFont,OldBitmap:LongWord;Info:TPDFBitmapInfo;Bits:Pointer;
  T:Array[0..255] of Char;Face:Array[0..15] of Char;Pixel:^LongWord;
  I,J,W,H,PX,PY,Weight,FontH,FontW:Integer;
 {$ENDIF}
 Begin
- If (PreviewHeight=0) And (DocumentHeight=0) And (ZoomValue=100) Then Begin OutTextXY(X-ZoomPanX,Y,S);Exit;End;
+ If (PreviewHeight=0) And (DocumentHeight=0) And (ZoomValue=100) Then Begin
+   OutTextXY(X-ZoomPanX,Y,S);Exit;End;
  {$IFDEF WINDOWS}
  If PreviewHeight>0 Then Begin
   PX:=X; PY:=Y;
@@ -1906,8 +1953,10 @@ Begin
  W:=(Length(S)+1)*(FontW+1)+8; H:=FontH+8;
  If (W<1) or (W>8192) Then Exit;
  FillChar(T,SizeOf(T),0);For I:=1 To Length(S) Do T[I-1]:=S[I];
- FillChar(Face,SizeOf(Face),0);Face[0]:='C';Face[1]:='o';Face[2]:='u';Face[3]:='r';
- Face[4]:='i';Face[5]:='e';Face[6]:='r';Face[7]:=' ';Face[8]:='N';Face[9]:='e';Face[10]:='w';
+ FillChar(Face,SizeOf(Face),0);Face[0]:='C';Face[1]:='o';Face[2]:='u';
+   Face[3]:='r';
+ Face[4]:='i';Face[5]:='e';Face[6]:='r';Face[7]:=' ';Face[8]:='N';Face[9]:='e';
+   Face[10]:='w';
  DC:=PDFCreateDC(0);If DC=0 Then Exit;
  FillChar(Info,SizeOf(Info),0);Info.Size:=40;Info.Width:=W;Info.Height:=-H;
  Info.Planes:=1;Info.BitCount:=32;Bitmap:=PDFDIB(DC,Info,0,Bits,0,0);
@@ -1920,11 +1969,13 @@ Begin
   OldFont:=PDFSelect(DC,Font);PDFTextColor(DC,0);PDFBkColor(DC,$FFFFFF);
   If DocumentHeight>0 Then
    For I:=0 To Length(S)-1 Do
-    PDFText(DC,ZoomX(X+I*(DocumentHeight+Ord((Style and STY_BOLD)<>0)))-PX,0,@T[I],1)
+    PDFText(DC,ZoomX(X+I*(DocumentHeight+Ord((Style and
+      STY_BOLD)<>0)))-PX,0,@T[I],1)
   Else PDFText(DC,0,0,@T[0],Length(S));
   PDFFlush;Pixel:=Bits;
   For J:=0 To H-1 Do For I:=0 To W-1 Do Begin
-   If (PreviewHeight>0) Or ((PY+J>=DOCAREA_TOP) and (PY+J<=DocPhysicalBottom) and (PX+I>=0) and (PX+I<SCREEN_W)) Then
+   If (PreviewHeight>0) Or ((PY+J>=DOCAREA_TOP) and (PY+J<=DocPhysicalBottom)
+     and (PX+I>=0) and (PX+I<SCREEN_W)) Then
     If (Pixel^ and $FFFFFF)<>$FFFFFF Then PutPixel(PX+I,PY+J,Color);
    Inc(Pixel);
   End;
@@ -1936,7 +1987,8 @@ Begin
   SetTextStyle(DefaultFont,HorizDir,PreviewHeight div 8);
   OutTextXY(X,Y,S);
  End Else Begin
-  If DocumentHeight>0 Then SetTextStyle(DefaultFont,HorizDir,(DocumentHeight*ZoomValue+400) div 800)
+  If DocumentHeight>0 Then
+    SetTextStyle(DefaultFont,HorizDir,(DocumentHeight*ZoomValue+400) div 800)
   Else SetTextStyle(DefaultFont,HorizDir,ZoomValue div 100);
   OutTextXY(ZoomX(X),ZoomY(Y),S);
  End;
@@ -2209,7 +2261,8 @@ Var
   End;
  End;
 
- Procedure EmitLine(PI, CSt, CLn, LX, LY, LW, LH: Integer; AL: Byte; IsImg: Boolean);
+ Procedure EmitLine(PI, CSt, CLn, LX, LY, LW, LH: Integer; AL: Byte;
+   IsImg: Boolean);
  Begin
   If VLineCount >= MAX_VLINES Then Exit;
   Inc(VLineCount);
@@ -2267,7 +2320,8 @@ Begin
    PageTopAbs:=DOCAREA_TOP+8+(PageIdx-1)*(PAGE_H+12);
    EmitLine(P,1,Length(ParaText(P)),PageX1+Doc.Paragraphs[P].PDF.X,
     PageTopAbs+Doc.Paragraphs[P].PDF.Y,
-    PDFTextWidth(ParaText(P),Doc.Paragraphs[P].PDF.Face,Doc.Paragraphs[P].PDF.Height,
+    PDFTextWidth(ParaText(P),Doc.Paragraphs[P].PDF.Face,
+      Doc.Paragraphs[P].PDF.Height,
      Doc.Paragraphs[P].Runs[1].Style.Style),
     Doc.Paragraphs[P].PDF.Height,ALIGN_LEFT,False);
    Continue;
@@ -2411,7 +2465,8 @@ Begin
   For I:=1 To VLineCount Do Begin
    VLines[I].Y:=NormalY;
    Inc(NormalY,VLines[I].Height);
-   If I<VLineCount Then If VLines[I].ParaIdx<>VLines[I+1].ParaIdx Then Inc(NormalY,4);
+   If I<VLineCount Then If VLines[I].ParaIdx<>VLines[I+1].ParaIdx Then
+     Inc(NormalY,4);
   End;
  End;
  NeedsRelayout := False;
@@ -2461,7 +2516,8 @@ Begin
   CellW := VLines[L].Width Div NCols;
   Sub := Copy(Tables[TblP].Cells[CurRow, CurCol], 1, Cursor.CharIdx);
   SetTextStyle(DefaultFont, HorizDir, 1);
-  CursorScreenX := VLines[L].X + (CurCol - 1) * CellW + TBL_CELL_PAD + TextWidth(Sub);
+  CursorScreenX := VLines[L].X + (CurCol - 1) * CellW + TBL_CELL_PAD +
+    TextWidth(Sub);
   Exit;
  End;
  Off := Cursor.CharIdx - (VLines[L].CharStart - 1);
@@ -2509,7 +2565,8 @@ Begin
    End;
   End;
  End;
- CursorScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, Off) + Extra;
+ CursorScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx,
+   VLines[L].CharStart, Off) + Extra;
 End;
 
 { Position ecran X de la limite gauche du caractere a l'offset
@@ -2566,7 +2623,8 @@ Begin
    End;
   End;
  End;
- LineCharScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, Off) + Extra;
+ LineCharScreenX := VLines[L].X + StyledRangeWidth(VLines[L].ParaIdx,
+   VLines[L].CharStart, Off) + Extra;
 End;
 
 { ----- Helpers selection -------------------------------------- }
@@ -2676,7 +2734,8 @@ Begin
   End;
  InterSpaceCnt := Cnt;
  If LastNonSpace > 0 Then
-  EffWidth := StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart, LastNonSpace)
+  EffWidth := StyledRangeWidth(VLines[L].ParaIdx, VLines[L].CharStart,
+    LastNonSpace)
  Else
   EffWidth := 0;
 End;
@@ -2746,7 +2805,8 @@ Begin
     If Kind=2 Then Begin SetFillStyle(SolidFill,Color);
      ZoomBar((SCREEN_W-PAGE_W) div 2+X1,LineL,(SCREEN_W-PAGE_W) div 2+X2,LineR);
     End Else If (Y1+ScreenY>=DOCAREA_TOP) and (Y2+ScreenY<=DocBottom) Then
-     ZoomLine((SCREEN_W-PAGE_W) div 2+X1,Y1+ScreenY,(SCREEN_W-PAGE_W) div 2+X2,Y2+ScreenY);
+     ZoomLine((SCREEN_W-PAGE_W) div 2+X1,Y1+ScreenY,(SCREEN_W-PAGE_W) div
+       2+X2,Y2+ScreenY);
    End;
   End;
  End;
@@ -2785,7 +2845,8 @@ Begin
 
   P:=VLines[I].ParaIdx;
   If Doc.Paragraphs[P].PDF.Active Then Begin
-   DrawPDFTextFragment(P,VLines[I].X,ScreenY,VLines[I].CharStart,VLines[I].CharLen);Continue;
+   DrawPDFTextFragment(P,VLines[I].X,ScreenY,VLines[I].CharStart,
+     VLines[I].CharLen);Continue;
   End;
 
   { Image line ? }
@@ -2829,7 +2890,8 @@ Begin
     If ColC = NColsRen Then
      ZoomLine(CellX + CellW, CellY, CellX + CellW, CellY + TBL_CELL_HEIGHT);
     If RowR = NRowsRen Then
-     ZoomLine(CellX, CellY + TBL_CELL_HEIGHT, CellX + CellW, CellY + TBL_CELL_HEIGHT);
+     ZoomLine(CellX, CellY + TBL_CELL_HEIGHT, CellX + CellW,
+       CellY + TBL_CELL_HEIGHT);
     CellTxt := Tables[TblPRen].Cells[RowR, ColC];
     If Length(CellTxt) > 0 Then Begin
      TextX := CellX + TBL_CELL_PAD;
@@ -3041,7 +3103,8 @@ Begin
   ScrollY := VLines[L].Y + VLines[L].Height - DocBottom + 4;
  If ScrollY < 0 Then ScrollY := 0;
  If ZoomPanLimit>0 Then Begin
-  If ZoomX(CursorScreenX(L))<12 Then ZoomPanX:=CursorScreenX(L)-SCREEN_W div 2+30000 div ZoomValue;
+  If ZoomX(CursorScreenX(L))<12 Then ZoomPanX:=CursorScreenX(L)-SCREEN_W div
+    2+30000 div ZoomValue;
   If ZoomX(CursorScreenX(L))>SCREEN_W-12 Then
    ZoomPanX:=CursorScreenX(L)-SCREEN_W div 2-30000 div ZoomValue;
   If ZoomPanX< -ZoomPanLimit Then ZoomPanX:=-ZoomPanLimit;
@@ -3472,7 +3535,8 @@ End;
 Procedure CursorPageUp;
 Var I: Integer;
 Begin
- For I := 1 To (DocBottom-DOCAREA_TOP) div LINE_HEIGHT Do CursorVerticalMove(-1);
+ For I := 1 To (DocBottom-DOCAREA_TOP) div LINE_HEIGHT Do
+   CursorVerticalMove(-1);
 End;
 
 Procedure CursorPageDown;
@@ -3746,7 +3810,8 @@ Begin
    1: If NPlanes = 1 Then Begin
        For X := 0 To IW-1 Do Begin
         Mask := 1 Shl (7 - (X And 7));
-        If (ScanLine[X Shr 3] And Mask) <> 0 Then RowDst^ := 15 Else RowDst^ := 0;
+        If (ScanLine[X Shr 3] And Mask) <> 0 Then RowDst^ := 15 Else RowDst^ :=
+          0;
         Inc(RowDst);
        End;
       End Else Begin
@@ -3902,7 +3967,8 @@ Begin
 End;
 
 { Lit un nombre 0xXX ou décimal a partir de Pos dans S, avance Pos }
-Function XBMNextHexByte(Const S: String; Var P: Integer; Var V: LongInt): Boolean;
+Function XBMNextHexByte(Const S: String; Var P: Integer;
+  Var V: LongInt): Boolean;
 Var Base: Integer; D: Char; Found: Boolean;
 Begin
  XBMNextHexByte := False; V := 0; Base := 10; Found := False;
@@ -3920,8 +3986,10 @@ Begin
  While P <= Length(S) Do Begin
   D := S[P];
   If (D>='0') And (D<='9') Then V := V*Base + (Byte(D)-Byte('0'))
-  Else If (Base=16) And (D>='a') And (D<='f') Then V := V*Base + (Byte(D)-Byte('a')+10)
-  Else If (Base=16) And (D>='A') And (D<='F') Then V := V*Base + (Byte(D)-Byte('A')+10)
+  Else If (Base=16) And (D>='a') And (D<='f') Then V := V*Base +
+    (Byte(D)-Byte('a')+10)
+  Else If (Base=16) And (D>='A') And (D<='F') Then V := V*Base +
+    (Byte(D)-Byte('A')+10)
   Else Break;
   Inc(P);
  End;
@@ -4209,7 +4277,8 @@ Begin
        End;
        4: Begin
         Pix := SrcRow[X Shr 1];
-        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And $0F;
+        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And
+          $0F;
         Pix := Byte(255 - Pix * 17);
        End;
        8: Pix := Byte(255 - SrcRow[X]);
@@ -4227,7 +4296,8 @@ Begin
        End;
        4: Begin
         Pix := SrcRow[X Shr 1];
-        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And $0F;
+        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And
+          $0F;
         Pix := Byte(Pix * 17);
        End;
        8: Pix := SrcRow[X];
@@ -4251,13 +4321,15 @@ Begin
       Case BitsPerSample Of
        4: Begin
         Pix := SrcRow[X Shr 1];
-        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And $0F;
+        If (X And 1) = 0 Then Pix := (Pix Shr 4) And $0F Else Pix := Pix And
+          $0F;
        End;
        8: Pix := SrcRow[X];
       Else Pix := 0;
       End;
       ImgPByteSet(Buf, OutIdx + X,
-       NearestVGA(Byte(PalR[Pix] Shr 8), Byte(PalG[Pix] Shr 8), Byte(PalB[Pix] Shr 8)));
+       NearestVGA(Byte(PalR[Pix] Shr 8), Byte(PalG[Pix] Shr 8),
+         Byte(PalB[Pix] Shr 8)));
      End;
     End;
    End;
@@ -4673,7 +4745,8 @@ End;
 Function JpgPeekBits(NBits: Integer): LongInt;
 Begin
  JpgFillBits(NBits);
- JpgPeekBits := (JpgBitBuf Shr (JpgBitCnt - NBits)) And ((LongInt(1) Shl NBits) - 1);
+ JpgPeekBits := (JpgBitBuf Shr (JpgBitCnt - NBits)) And ((LongInt(1) Shl NBits)
+   - 1);
 End;
 
 Procedure JpgDropBits(NBits: Integer);
@@ -4754,14 +4827,22 @@ Var
  PI : Real;
  Cu : Real;
 Begin
- ZZ[0]:=0;  ZZ[1]:=1;  ZZ[2]:=8;  ZZ[3]:=16; ZZ[4]:=9;  ZZ[5]:=2;  ZZ[6]:=3;  ZZ[7]:=10;
- ZZ[8]:=17; ZZ[9]:=24; ZZ[10]:=32; ZZ[11]:=25; ZZ[12]:=18; ZZ[13]:=11; ZZ[14]:=4;  ZZ[15]:=5;
- ZZ[16]:=12; ZZ[17]:=19; ZZ[18]:=26; ZZ[19]:=33; ZZ[20]:=40; ZZ[21]:=48; ZZ[22]:=41; ZZ[23]:=34;
- ZZ[24]:=27; ZZ[25]:=20; ZZ[26]:=13; ZZ[27]:=6;  ZZ[28]:=7;  ZZ[29]:=14; ZZ[30]:=21; ZZ[31]:=28;
- ZZ[32]:=35; ZZ[33]:=42; ZZ[34]:=49; ZZ[35]:=56; ZZ[36]:=57; ZZ[37]:=50; ZZ[38]:=43; ZZ[39]:=36;
- ZZ[40]:=29; ZZ[41]:=22; ZZ[42]:=15; ZZ[43]:=23; ZZ[44]:=30; ZZ[45]:=37; ZZ[46]:=44; ZZ[47]:=51;
- ZZ[48]:=58; ZZ[49]:=59; ZZ[50]:=52; ZZ[51]:=45; ZZ[52]:=38; ZZ[53]:=31; ZZ[54]:=39; ZZ[55]:=46;
- ZZ[56]:=53; ZZ[57]:=60; ZZ[58]:=61; ZZ[59]:=54; ZZ[60]:=47; ZZ[61]:=55; ZZ[62]:=62; ZZ[63]:=63;
+ ZZ[0]:=0;  ZZ[1]:=1;  ZZ[2]:=8;  ZZ[3]:=16; ZZ[4]:=9;  ZZ[5]:=2;  ZZ[6]:=3;
+   ZZ[7]:=10;
+ ZZ[8]:=17; ZZ[9]:=24; ZZ[10]:=32; ZZ[11]:=25; ZZ[12]:=18; ZZ[13]:=11;
+   ZZ[14]:=4;  ZZ[15]:=5;
+ ZZ[16]:=12; ZZ[17]:=19; ZZ[18]:=26; ZZ[19]:=33; ZZ[20]:=40; ZZ[21]:=48;
+   ZZ[22]:=41; ZZ[23]:=34;
+ ZZ[24]:=27; ZZ[25]:=20; ZZ[26]:=13; ZZ[27]:=6;  ZZ[28]:=7;  ZZ[29]:=14;
+   ZZ[30]:=21; ZZ[31]:=28;
+ ZZ[32]:=35; ZZ[33]:=42; ZZ[34]:=49; ZZ[35]:=56; ZZ[36]:=57; ZZ[37]:=50;
+   ZZ[38]:=43; ZZ[39]:=36;
+ ZZ[40]:=29; ZZ[41]:=22; ZZ[42]:=15; ZZ[43]:=23; ZZ[44]:=30; ZZ[45]:=37;
+   ZZ[46]:=44; ZZ[47]:=51;
+ ZZ[48]:=58; ZZ[49]:=59; ZZ[50]:=52; ZZ[51]:=45; ZZ[52]:=38; ZZ[53]:=31;
+   ZZ[54]:=39; ZZ[55]:=46;
+ ZZ[56]:=53; ZZ[57]:=60; ZZ[58]:=61; ZZ[59]:=54; ZZ[60]:=47; ZZ[61]:=55;
+   ZZ[62]:=62; ZZ[63]:=63;
  For I := 0 To 63 Do JpgZigzag[I] := ZZ[I];
  PI := 3.14159265358979;
  For I := 0 To 7 Do Begin
@@ -5075,11 +5156,14 @@ Begin
        For PX := 0 To 7 Do Begin
         I := (BY*8 + PY) * JpgMCUW + (BX*8 + PX);
         { Si composante a sampling < max, etirer }
-        If JpgComp[Ci].HSamp = JpgHmax Then ChrX := 1 Else ChrX := JpgHmax Div JpgComp[Ci].HSamp;
-        If JpgComp[Ci].VSamp = JpgVmax Then ChrY := 1 Else ChrY := JpgVmax Div JpgComp[Ci].VSamp;
+        If JpgComp[Ci].HSamp = JpgHmax Then ChrX := 1 Else ChrX := JpgHmax Div
+          JpgComp[Ci].HSamp;
+        If JpgComp[Ci].VSamp = JpgVmax Then ChrY := 1 Else ChrY := JpgVmax Div
+          JpgComp[Ci].VSamp;
         For LumaY := 0 To ChrY - 1 Do
          For LumaX := 0 To ChrX - 1 Do Begin
-          J := ((BY*8 + PY)*ChrY + LumaY) * JpgMCUW + ((BX*8 + PX)*ChrX + LumaX);
+          J := ((BY*8 + PY)*ChrY + LumaY) * JpgMCUW + ((BX*8 + PX)*ChrX +
+            LumaX);
           If (J >= 0) And (J < 256) Then
            CompPlanes[Ci, J] := Pix[PY*8 + PX] + 128;
          End;
@@ -5111,7 +5195,8 @@ Begin
    { Restart interval }
    If JpgRSTI > 0 Then Begin
     Inc(RstCnt);
-    If (RstCnt = JpgRSTI) And ((MY < NumMCURows - 1) Or (MX < NumMCUCols - 1)) Then Begin
+    If (RstCnt = JpgRSTI) And ((MY < NumMCURows - 1) Or (MX < NumMCUCols - 1))
+      Then Begin
      RstCnt := 0;
      { Vider bits, lire marker RSTm }
      JpgBitBuf := 0; JpgBitCnt := 0;
@@ -5126,6 +5211,74 @@ Begin
  Close(JpgFh);
  Buf := OutBuf; W := JpgWidth; H := JpgHeight;
  LoadJPEG := True;
+End;
+
+{ ---------- Image GPX du MonsterBook ----------------------------- }
+{ Entete (11 octets) : 'GPX'#26, Largeur(W), Hauteur(W), Bandes(W),  }
+{ BitsParPixel(B). Puis Largeur*Bandes octets (bandes verticales de  }
+{ 8 pixels, pour l'impression) suivis de la trame : Bandes*8 lignes  }
+{ de (Largeur*Bpp+7)/8 octets, bit de poids fort = pixel de gauche.  }
+{ 1 bpp : bit a 1 = encre (noir). 4 bpp : couleur EGA. 8 bpp : gris. }
+
+Function LoadGPX(Const FName: String; Var Buf: Pointer;
+                 Var W, H: Integer): Boolean;
+Var
+ F        : File;
+ Hd       : Array[0..10] Of Byte;
+ Len, Ln, Bpp, RowB, Y, X, Rows : Integer;
+ Row      : Array[0..2047] Of Byte;
+ P        : ^Byte;
+ V        : Byte;
+ Got      : LongInt;
+Begin
+ LoadGPX := False; Buf := Nil; W := 0; H := 0;
+ {$I-} Assign(F, FName); Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ {$I-} BlockRead(F, Hd, 11, Got); {$I+}
+ If (IOResult <> 0) Or (Got <> 11) Or (Hd[0] <> 71) Or (Hd[1] <> 80) Or
+    (Hd[2] <> 88) Or (Hd[3] <> 26) Then Begin
+  {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+  Exit;
+ End;
+ Len := Hd[4] + Hd[5] * 256;
+ Ln  := Hd[8] + Hd[9] * 256;
+ Bpp := Hd[10];
+ Rows := Ln * 8;
+ If (Len < 1) Or (Rows < 1) Or (Rows > 4000) Or
+    ((Bpp <> 1) And (Bpp <> 4) And (Bpp <> 8)) Then Begin
+  {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+  Exit;
+ End;
+ RowB := (Len * Bpp + 7) Div 8;
+ If RowB > 2048 Then Begin
+  {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+  Exit;
+ End;
+ GetMem(Buf, LongInt(Len) * Rows);
+ {$I-} Seek(F, 11 + LongInt(Len) * Ln); {$I+}
+ P := Buf;
+ For Y := 0 To Rows - 1 Do Begin
+  FillChar(Row, SizeOf(Row), 0);
+  {$I-} BlockRead(F, Row, RowB, Got); {$I+}
+  If (IOResult <> 0) Or (Got <> RowB) Then Begin
+   FreeMem(Buf, LongInt(Len) * Rows); Buf := Nil;
+   {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+   Exit;
+  End;
+  For X := 0 To Len - 1 Do Begin
+   Case Bpp Of
+    1: If ((Row[X Shr 3] Shr (7 - (X And 7))) And 1) <> 0 Then V := 0 Else V :=
+      15;
+    4: If (X And 1) = 0 Then V := Row[X Shr 1] Shr 4 Else V := Row[X Shr 1] And
+      15;
+   Else V := Row[X] Shr 4;
+   End;
+   P^ := V; Inc(P);
+  End;
+ End;
+ {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+ W := Len; H := Rows;
+ LoadGPX := True;
 End;
 
 { ------------------------------------------------------------ }
@@ -5161,7 +5314,8 @@ Begin
  Else If Ext = 'TIFF' Then LoadAnyImage := LoadTIFF(FName, Buf, W, H)
  Else If Ext = 'GIF'  Then LoadAnyImage := LoadGIF(FName, Buf, W, H)
  Else If Ext = 'JPG'  Then LoadAnyImage := LoadJPEG(FName, Buf, W, H)
- Else If Ext = 'JPEG' Then LoadAnyImage := LoadJPEG(FName, Buf, W, H);
+ Else If Ext = 'JPEG' Then LoadAnyImage := LoadJPEG(FName, Buf, W, H)
+ Else If Ext = 'GPX'  Then LoadAnyImage := LoadGPX(FName, Buf, W, H);
 End;
 
 Procedure InsertImageAtCursor(Buf: Pointer; W, H: Integer);
@@ -5331,7 +5485,8 @@ Begin
  X2 := X1 + MenuW;
  Y2 := Y1 + ItemH * TBL_CTX_ITEMS + 4;
  If X2 > SCREEN_W - 4 Then Begin X2 := SCREEN_W - 4; X1 := X2 - MenuW; End;
- If Y2 > SCREEN_H - 4 Then Begin Y2 := SCREEN_H - 4; Y1 := Y2 - (ItemH*TBL_CTX_ITEMS + 4); End;
+ If Y2 > SCREEN_H - 4 Then Begin Y2 := SCREEN_H - 4;
+   Y1 := Y2 - (ItemH*TBL_CTX_ITEMS + 4); End;
  If X1 < 2 Then X1 := 2;
  If Y1 < 2 Then Y1 := 2;
  EraseSoftCursor;
@@ -5722,9 +5877,11 @@ Begin
         Else Begin
          LenIdx  := Sym - 257;
          If LenIdx > 28 Then Begin InfErr := True; Break; End;
-         MLen    := INF_LengthBase[LenIdx] + InfGetBits(INF_LengthExtra[LenIdx]);
+         MLen    := INF_LengthBase[LenIdx] +
+           InfGetBits(INF_LengthExtra[LenIdx]);
          DistIdx := InfDecodeSym(HDist);
-         If (DistIdx < 0) Or (DistIdx > 29) Then Begin InfErr := True; Break; End;
+         If (DistIdx < 0) Or (DistIdx > 29) Then Begin InfErr := True; Break;
+           End;
          MDist   := INF_DistBase[DistIdx] + InfGetBits(INF_DistExtra[DistIdx]);
          InfCopyMatch(MDist, MLen);
         End;
@@ -5741,9 +5898,11 @@ Begin
         Else Begin
          LenIdx  := Sym - 257;
          If LenIdx > 28 Then Begin InfErr := True; Break; End;
-         MLen    := INF_LengthBase[LenIdx] + InfGetBits(INF_LengthExtra[LenIdx]);
+         MLen    := INF_LengthBase[LenIdx] +
+           InfGetBits(INF_LengthExtra[LenIdx]);
          DistIdx := InfDecodeSym(HDist);
-         If (DistIdx < 0) Or (DistIdx > 29) Then Begin InfErr := True; Break; End;
+         If (DistIdx < 0) Or (DistIdx > 29) Then Begin InfErr := True; Break;
+           End;
          MDist   := INF_DistBase[DistIdx] + InfGetBits(INF_DistExtra[DistIdx]);
          InfCopyMatch(MDist, MLen);
         End;
@@ -5855,7 +6014,8 @@ Begin
  If IOResult <> 0 Then Exit;
  FileLen := FileSize(Z.F);
  If FileLen < 22 Then Begin Close(Z.F); Exit; End;
- { Recherche EOCD dans les derniers 4096 octets (suffisant si pas de commentaire) }
+ { Recherche EOCD dans les derniers 4096 octets (suffisant si pas de
+   commentaire) }
  If FileLen > 4096 Then ScanStart := FileLen - 4096
  Else                   ScanStart := 0;
  ScanLen := FileLen - ScanStart;
@@ -6187,7 +6347,8 @@ Begin
   Str(P, StatusMsg);    { r??utilisation tampon }
   StatusMsg := 'Page ' + StatusMsg;
   If Doc.PDFPageCount=0 Then
-   ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div 2,PY2-12,StatusMsg);
+   ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div
+     2,PY2-12,StatusMsg);
 
   { Pied de page DOCX (au-dessus du numero de page) }
   If (Doc.PDFPageCount=0) and (Length(DocxFooterText)>0) Then Begin
@@ -6244,7 +6405,8 @@ Begin
 
  DrawTextAt(220, STATUSBAR_TOP+5, StatusMsg, STATUSBAR_FG);
 
- Str(ZoomValue,SP);DrawTextAt(SCREEN_W-125,STATUSBAR_TOP+5,SP+' %',STATUSBAR_FG);
+ Str(ZoomValue,SP);DrawTextAt(SCREEN_W-125,STATUSBAR_TOP+5,SP+' %',
+   STATUSBAR_FG);
  If Doc.Modified Then
   DrawTextAt(SCREEN_W-50, STATUSBAR_TOP+5, '[MOD]', Red);
 End;
@@ -6297,10 +6459,12 @@ Begin
  {$I-} Assign(F, FName); Rewrite(F, 1); {$I+}
  If IOResult <> 0 Then Begin SaveDocumentToFile := False; Exit; End;
  BlockWrite(F, Magic, 6);
- W := 4;             BlockWrite(F, W, 2);     { version 4 adds paragraph formatting }
+ W := 4;             BlockWrite(F, W, 2);
+   { version 4 adds paragraph formatting }
  W := Doc.ParaCount; BlockWrite(F, W, 2);
  W:=Doc.PDFPageCount;BlockWrite(F,W,2);W:=Doc.PDFGraphicCount;BlockWrite(F,W,2);
- For P:=1 To Doc.PDFGraphicCount Do BlockWrite(F,Doc.PDFGraphics[P],SizeOf(TPDFGraphic));
+ For P:=1 To Doc.PDFGraphicCount Do
+   BlockWrite(F,Doc.PDFGraphics[P],SizeOf(TPDFGraphic));
  For P := 1 To Doc.ParaCount Do Begin
   BlockWrite(F,Doc.Paragraphs[P].PDF,SizeOf(TPDFPlacement));
   W:=Doc.Paragraphs[P].LeftIndent; BlockWrite(F,W,2);
@@ -6367,7 +6531,8 @@ Begin
  Doc.PageCount := 1;
  If V>=3 Then Begin
   BlockRead(F,PDFPages,2);BlockRead(F,PDFGfx,2);
-  If (PDFPages>MAX_PAGES) or (PDFGfx>2048) Then Begin Close(F);LoadDocumentFromFile:=False;Exit;End;
+  If (PDFPages>MAX_PAGES) or (PDFGfx>2048) Then Begin
+    Close(F);LoadDocumentFromFile:=False;Exit;End;
   Doc.PDFPageCount:=PDFPages;Doc.PDFGraphicCount:=PDFGfx;
   For P:=1 To PDFGfx Do BlockRead(F,Doc.PDFGraphics[P],SizeOf(TPDFGraphic));
  End;
@@ -6614,7 +6779,8 @@ Begin
   { <?xml ... ?> : skip jusqu'a ?> }
   If Ch = '?' Then Begin
    While DocxPos + 1 < DocxSize Do Begin
-    If (DocxByte(DocxPos) = Byte('?')) And (DocxByte(DocxPos+1) = Byte('>')) Then Begin
+    If (DocxByte(DocxPos) = Byte('?')) And (DocxByte(DocxPos+1) = Byte('>'))
+      Then Begin
      Inc(DocxPos, 2); Break;
     End;
     Inc(DocxPos);
@@ -6635,7 +6801,8 @@ Begin
      End;
      Inc(DocxPos);
     End;
-   End Else If (DocxPos+7 < DocxSize) And (DocxByte(DocxPos+1) = Byte('[')) Then Begin
+   End Else If (DocxPos+7 < DocxSize) And (DocxByte(DocxPos+1) = Byte('[')) Then
+     Begin
     Inc(DocxPos, 8);  { sauter ![CDATA[ }
     First := DocxPos;
     While DocxPos + 2 < DocxSize Do Begin
@@ -6652,7 +6819,8 @@ Begin
      Inc(DocxPos);
     End;
    End Else Begin
-    While (DocxPos < DocxSize) And (DocxByte(DocxPos) <> Byte('>')) Do Inc(DocxPos);
+    While (DocxPos < DocxSize) And (DocxByte(DocxPos) <> Byte('>')) Do
+      Inc(DocxPos);
     If DocxPos < DocxSize Then Inc(DocxPos);
    End;
    DocxNextToken; Exit;
@@ -6690,13 +6858,15 @@ Begin
   While (K <= Length(Tag)) And (Tag[K] <> ' ') And (Tag[K] <> #9) And
         (Tag[K] <> #10) And (Tag[K] <> #13) Do Inc(K);
   TokName := Copy(Tag, 1, K - 1);
-  If K <= Length(Tag) Then TokAttrs := Copy(Tag, K + 1, 255) Else TokAttrs := '';
+  If K <= Length(Tag) Then TokAttrs := Copy(Tag, K + 1,
+    255) Else TokAttrs := '';
   If HasSlash Then TokKind := DTK_EMPTY Else TokKind := DTK_START;
   Exit;
  End Else Begin
   { Texte jusqu'au prochain < }
   First := DocxPos;
-  While (DocxPos < DocxSize) And (DocxByte(DocxPos) <> Byte('<')) Do Inc(DocxPos);
+  While (DocxPos < DocxSize) And (DocxByte(DocxPos) <> Byte('<')) Do
+    Inc(DocxPos);
   Tag := '';
   For I := First To DocxPos - 1 Do
    If Length(Tag) < 240 Then Tag := Tag + Char(DocxByte(I));
@@ -6724,7 +6894,8 @@ Begin
    J := I + NLen;
    If (J <= Length(Attrs)) And (Attrs[J] = '=') Then Begin
     Inc(J);
-    If (J <= Length(Attrs)) And ((Attrs[J] = '"') Or (Attrs[J] = #39)) Then Begin
+    If (J <= Length(Attrs)) And ((Attrs[J] = '"') Or (Attrs[J] = #39)) Then
+      Begin
      Q := Attrs[J]; Inc(J); K := J;
      While (K <= Length(Attrs)) And (Attrs[K] <> Q) Do Inc(K);
      DocxGetAttr := DocxDecodeText(Copy(Attrs, J, K - J));
@@ -6738,16 +6909,120 @@ End;
 
 { ---------- DOCX writer ---------- }
 
+Var
+ DocxImgOut : Integer;     { nombre d'images ecrites dans document.xml }
+
+{ Image du document -> BMP 24 bits (palette EGA 16 couleurs) }
+Procedure DocxBuildBmp(Var B: TByteBuf; P: Integer);
+Const
+ Pal: Array[0..15, 0..2] Of Byte = (
+  (0,0,0),(0,0,170),(0,170,0),(0,170,170),
+  (170,0,0),(170,0,170),(170,85,0),(170,170,170),
+  (85,85,85),(85,85,255),(85,255,85),(85,255,255),
+  (255,85,85),(255,85,255),(255,255,85),(255,255,255));
+Var
+ Hd  : Array[0..53] Of Byte;
+ Row : Array[0..1535] Of Byte;
+ W, H, RB, X, Y : Integer;
+ Sz  : LongInt;
+ Src : ^Byte;
+ V   : Byte;
+ Base: Pointer;
+ Procedure Put32(Off: Integer; N: LongInt);
+ Var K: Integer;
+ Begin
+  For K := 0 To 3 Do Hd[Off + K] := (N Shr (8 * K)) And 255;
+ End;
+Begin
+ W := Doc.Paragraphs[P].ImgW;
+ H := Doc.Paragraphs[P].ImgH;
+ If W > 500 Then W := 500;
+ RB := ((W * 3 + 3) Div 4) * 4;
+ Sz := LongInt(RB) * H;
+ FillChar(Hd, SizeOf(Hd), 0);
+ Hd[0] := 66; Hd[1] := 77;
+ Put32(2, 54 + Sz); Put32(10, 54); Put32(14, 40);
+ Put32(18, W); Put32(22, H);
+ Hd[26] := 1; Hd[28] := 24;
+ Put32(34, Sz); Put32(38, 2835); Put32(42, 2835);
+ BufAppendBytes(B, @Hd, 54);
+ Base := Doc.Paragraphs[P].ImgData;
+ For Y := H - 1 Downto 0 Do Begin
+  FillChar(Row, SizeOf(Row), 0);
+  Src := Base; Inc(Src, LongInt(Y) * Doc.Paragraphs[P].ImgW);
+  For X := 0 To W - 1 Do Begin
+   V := Src^ And 15; Inc(Src);
+   Row[X * 3]     := Pal[V, 2];
+   Row[X * 3 + 1] := Pal[V, 1];
+   Row[X * 3 + 2] := Pal[V, 0];
+  End;
+  BufAppendBytes(B, @Row, RB);
+ End;
+End;
+
+Procedure DocxAppendImagePara(Var B: TByteBuf; P: Integer);
+Var N, CX, CY, Al: String;
+Begin
+ Inc(DocxImgOut);
+ Str(DocxImgOut, N);
+ Str(LongInt(Doc.Paragraphs[P].ImgW) * 9525, CX);
+ Str(LongInt(Doc.Paragraphs[P].ImgH) * 9525, CY);
+ Case Doc.Paragraphs[P].Alignment Of
+  ALIGN_CENTER : Al := 'center';
+  ALIGN_RIGHT  : Al := 'right';
+ Else Al := 'left';
+ End;
+ BufAppendStr(B, '<w:p><w:pPr><w:jc w:val="' + Al + '"/></w:pPr><w:r>');
+ BufAppendStr(B, '<w:drawing><wp:inline distT="0" distB="0" distL="0" ' +
+   'distR="0"><wp:extent cx="' + CX + '" cy="' + CY + '"/>');
+ BufAppendStr(B, '<wp:docPr id="' + N + '" name="Image ' + N + '"/>');
+ BufAppendStr(B, '<a:graphic xmlns:a="http://schemas.openxmlformats.org/' +
+   'drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.' +
+   'org/drawingml/2006/picture">');
+ BufAppendStr(B, '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/' +
+   'drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' + N +
+   '" name="image' + N + '.bmp"/><pic:cNvPicPr/></pic:nvPicPr>');
+ BufAppendStr(B, '<pic:blipFill><a:blip r:embed="rIdImg' + N + '"/>' +
+   '<a:stretch><a:fillRect/></a:stretch></pic:blipFill>');
+ BufAppendStr(B, '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + CX +
+   '" cy="' + CY + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/>' +
+   '</a:prstGeom></pic:spPr></pic:pic>');
+ BufAppendStr(B, '</a:graphicData></a:graphic></wp:inline></w:drawing>' +
+   '</w:r></w:p>');
+End;
+
+Procedure DocxBuildDocRels(Var B: TByteBuf; N: Integer);
+Var I: Integer; S: String;
+Begin
+ BufInit(B);
+ BufAppendStr(B, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+ BufAppendStr(B, '<Relationships xmlns="http://schemas.openxmlformats.org/' +
+   'package/2006/relationships">');
+ For I := 1 To N Do Begin
+  Str(I, S);
+  BufAppendStr(B, '<Relationship Id="rIdImg' + S + '" Type="http://schemas.' +
+    'openxmlformats.org/officeDocument/2006/relationships/image" ' +
+    'Target="media/image' + S + '.bmp"/>');
+ End;
+ BufAppendStr(B, '</Relationships>');
+End;
+
 Procedure DocxBuildContentTypes(Var B: TByteBuf);
 Begin
  BufInit(B);
  BufAppendStr(B, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
- BufAppendStr(B, '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">');
+ BufAppendStr(B,
+   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-type'+
+   's">');
  BufAppendStr(B, '<Default Extension="rels" ContentType=');
- BufAppendStr(B, '"application/vnd.openxmlformats-package.relationships+xml"/>');
+ BufAppendStr(B,
+   '"application/vnd.openxmlformats-package.relationships+xml"/>');
  BufAppendStr(B, '<Default Extension="xml" ContentType="application/xml"/>');
+ BufAppendStr(B, '<Default Extension="bmp" ContentType="image/bmp"/>');
  BufAppendStr(B, '<Override PartName="/word/document.xml" ContentType=');
- BufAppendStr(B, '"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>');
+ BufAppendStr(B,
+   '"application/vnd.openxmlformats-officedocument.wordprocessingml.document.'+
+   'main+xml"/>');
  BufAppendStr(B, '</Types>');
 End;
 
@@ -6755,9 +7030,13 @@ Procedure DocxBuildRels(Var B: TByteBuf);
 Begin
  BufInit(B);
  BufAppendStr(B, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
- BufAppendStr(B, '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">');
+ BufAppendStr(B,
+   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/rela'+
+   'tionships">');
  BufAppendStr(B, '<Relationship Id="rId1" Type=');
- BufAppendStr(B, '"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"');
+ BufAppendStr(B,
+   '"http://schemas.openxmlformats.org/officeDocument/2006/relationships/offi'+
+   'ceDocument"');
  BufAppendStr(B, ' Target="word/document.xml"/>');
  BufAppendStr(B, '</Relationships>');
 End;
@@ -6773,11 +7052,20 @@ Begin
  BufInit(B);
  BufAppendStr(B, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
  BufAppendStr(B, '<w:document xmlns:w=');
- BufAppendStr(B, '"http://schemas.openxmlformats.org/wordprocessingml/2006/main">');
+ BufAppendStr(B,
+   '"http://schemas.openxmlformats.org/wordprocessingml/2006/main"');
+ BufAppendStr(B, ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/' +
+   '2006/relationships"');
+ BufAppendStr(B, ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/' +
+   '2006/wordprocessingDrawing">');
  BufAppendStr(B, '<w:body>');
+ DocxImgOut := 0;
  For P := 1 To Doc.ParaCount Do Begin
   If Doc.Paragraphs[P].IsImage Then Begin
-   BufAppendStr(B, '<w:p/>');
+   If Doc.Paragraphs[P].ImgData <> Nil Then
+    DocxAppendImagePara(B, P)
+   Else
+    BufAppendStr(B, '<w:p/>');
    Continue;
   End;
   BufAppendStr(B, '<w:p><w:pPr>');
@@ -6809,7 +7097,8 @@ Begin
    Sty := Doc.Paragraphs[P].Runs[R].Style.Style;
    If (Sty And STY_BOLD)      <> 0 Then BufAppendStr(B, '<w:b/>');
    If (Sty And STY_ITALIC)    <> 0 Then BufAppendStr(B, '<w:i/>');
-   If (Sty And STY_UNDERLINE) <> 0 Then BufAppendStr(B, '<w:u w:val="single"/>');
+   If (Sty And STY_UNDERLINE) <> 0 Then BufAppendStr(B,
+     '<w:u w:val="single"/>');
    SzHP := Doc.Paragraphs[P].Runs[R].Style.FontSize * 2;
    If SzHP < 4 Then SzHP := 24;
    Str(SzHP, NumStr);
@@ -6829,16 +7118,39 @@ Function SaveDocxToFile(Const FName: String): Boolean;
 Var
  Z              : TZipWriter;
  BCT, BRels, BD : TByteBuf;
+ BMP, BRD       : TByteBuf;
  OK             : Boolean;
+ I, N           : Integer;
+ NS             : String;
 Begin
  SaveDocxToFile := False;
  DocxBuildContentTypes(BCT);
  DocxBuildRels(BRels);
  DocxBuildDocument(BD);
  OK := ZipWrite_Create(Z, FName);
- If OK Then OK := ZipWrite_AddDeflate(Z, '[Content_Types].xml', BCT.Data,  BCT.Size);
- If OK Then OK := ZipWrite_AddDeflate(Z, '_rels/.rels',         BRels.Data, BRels.Size);
- If OK Then OK := ZipWrite_AddDeflate(Z, 'word/document.xml',   BD.Data,   BD.Size);
+ If OK Then OK := ZipWrite_AddDeflate(Z, '[Content_Types].xml', BCT.Data,
+   BCT.Size);
+ If OK Then OK := ZipWrite_AddDeflate(Z, '_rels/.rels',         BRels.Data,
+   BRels.Size);
+ If OK Then OK := ZipWrite_AddDeflate(Z, 'word/document.xml',   BD.Data,
+   BD.Size);
+ N := 0;
+ For I := 1 To Doc.ParaCount Do
+  If OK And Doc.Paragraphs[I].IsImage And
+     (Doc.Paragraphs[I].ImgData <> Nil) Then Begin
+   Inc(N); Str(N, NS);
+   BufInit(BMP);
+   DocxBuildBmp(BMP, I);
+   OK := ZipWrite_AddStored(Z, 'word/media/image' + NS + '.bmp', BMP.Data,
+     BMP.Size);
+   BufFree(BMP);
+  End;
+ If OK And (N > 0) Then Begin
+  DocxBuildDocRels(BRD, N);
+  OK := ZipWrite_AddDeflate(Z, 'word/_rels/document.xml.rels', BRD.Data,
+    BRD.Size);
+  BufFree(BRD);
+ End;
  If OK Then OK := ZipWrite_Finish(Z);
  BufFree(BCT); BufFree(BRels); BufFree(BD);
  SaveDocxToFile := OK;
@@ -7063,7 +7375,8 @@ End;
 Function IntToRoman(N: Integer; Upper: Boolean): String;
 Const
  Vals : Array[1..13] Of Integer = (1000,900,500,400,100,90,50,40,10,9,5,4,1);
- Syms : Array[1..13] Of String[2] = ('M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I');
+ Syms : Array[1..13] Of String[2] =
+   ('M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I');
 Var R, S: String; I, K: Integer;
 Begin
  R := '';
@@ -7167,11 +7480,13 @@ Begin
     If InRPr Then Begin
      If Tn = 'w:b' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
-      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or STY_BOLD;
+      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or
+        STY_BOLD;
      End
      Else If Tn = 'w:i' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
-      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or STY_ITALIC;
+      If Not ((AttrVal='0') Or (AttrVal='false')) Then CurSty := CurSty Or
+        STY_ITALIC;
      End
      Else If Tn = 'w:u' Then Begin
       AttrVal := DocxGetAttr(TokAttrs, 'w:val');
@@ -7337,6 +7652,121 @@ Begin
  DocxExtractAllText := R;
 End;
 
+{ ----- Images DOCX : lecture (word/media/*) ----- }
+
+Const
+ MAX_DOCX_IMGS = 24;
+
+Type
+ TDocxImg = Record
+  RelId : String[40];
+  Buf   : Pointer;
+  W, H  : Integer;
+ End;
+
+Var
+ DocxImgs     : Array[1..MAX_DOCX_IMGS] Of TDocxImg;
+ DocxImgCount : Integer;
+
+Procedure DocxFreeImgs;
+Var I: Integer;
+Begin
+ For I := 1 To DocxImgCount Do
+  If DocxImgs[I].Buf <> Nil Then
+   FreeMem(DocxImgs[I].Buf, LongInt(DocxImgs[I].W) * DocxImgs[I].H);
+ DocxImgCount := 0;
+End;
+
+{ Decode une image du zip via un fichier temporaire (LoadAnyImage) }
+Function DocxDecodeImage(IBuf: Pointer; ISize: LongInt; Const Ext: String;
+                         Var Buf: Pointer; Var W, H: Integer): Boolean;
+Var F: File; TmpN: String;
+Begin
+ DocxDecodeImage := False; Buf := Nil;
+ TmpN := 'WRDIMGTMP.' + Ext;
+ {$I-} Assign(F, TmpN); Rewrite(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ {$I-} BlockWrite(F, IBuf^, ISize); Close(F); {$I+}
+ If IOResult = 0 Then DocxDecodeImage := LoadAnyImage(TmpN, Buf, W, H);
+ {$I-} Erase(F); {$I+}
+ If IOResult <> 0 Then ;
+End;
+
+Procedure DocxLoadImages(Var Z: TZipReader);
+Var
+ Idx, I, W, H, SW, SH : Integer;
+ RBuf, IBuf, Buf, Sc  : Pointer;
+ RSize, ISize         : LongInt;
+ SBuf                 : Pointer;
+ SPos, SSize          : LongInt;
+ Id, Target, Ext      : String;
+Begin
+ DocxImgCount := 0;
+ Idx := ZipRead_Find(Z, 'word/_rels/document.xml.rels');
+ If Idx <= 0 Then Exit;
+ If Not ZipRead_Extract(Z, Idx, RBuf, RSize) Then Exit;
+ SBuf := DocxBuf; SPos := DocxPos; SSize := DocxSize;
+ DocxBuf := RBuf; DocxPos := 0; DocxSize := RSize;
+ Repeat
+  DocxNextToken;
+  If ((TokKind = DTK_EMPTY) Or (TokKind = DTK_START)) And
+     (TokName = 'Relationship') And (DocxImgCount < MAX_DOCX_IMGS) Then Begin
+   Id := DocxGetAttr(TokAttrs, 'Id');
+   Target := DocxGetAttr(TokAttrs, 'Target');
+   If Pos('media/', Target) > 0 Then Begin
+    Ext := '';
+    For I := Length(Target) Downto 1 Do
+     If Target[I] = '.' Then Begin Ext := Copy(Target, I + 1, 6); Break; End;
+    If (Length(Target) > 0) And (Target[1] = '/') Then
+     Target := Copy(Target, 2, 255)
+    Else Target := 'word/' + Target;
+    Idx := ZipRead_Find(Z, Target);
+    If (Idx > 0) And (Ext <> '') And ZipRead_Extract(Z, Idx, IBuf, ISize) Then
+     Begin
+      If DocxDecodeImage(IBuf, ISize, Ext, Buf, W, H) Then Begin
+       ScaleImageNN(Buf, W, H, Sc, SW, SH);
+       FreeMem(Buf, LongInt(W) * H);
+       Inc(DocxImgCount);
+       DocxImgs[DocxImgCount].RelId := Id;
+       DocxImgs[DocxImgCount].Buf   := Sc;
+       DocxImgs[DocxImgCount].W     := SW;
+       DocxImgs[DocxImgCount].H     := SH;
+      End;
+      FreeMem(IBuf, ISize);
+     End;
+   End;
+  End;
+ Until TokKind = DTK_EOF;
+ FreeMem(RBuf, RSize);
+ DocxBuf := SBuf; DocxPos := SPos; DocxSize := SSize;
+End;
+
+{ Transforme le paragraphe ParaIdx en image (ou ajoute un paragraphe image
+  apres lui s'il contient du texte). }
+Procedure DocxPlaceImage(Var ParaIdx: Integer; Const Rel: String);
+Var I, J, P: Integer; Has: Boolean; Cp: Pointer;
+Begin
+ I := 0;
+ For J := 1 To DocxImgCount Do
+  If DocxImgs[J].RelId = Rel Then I := J;
+ If I = 0 Then Exit;
+ P := ParaIdx; Has := False;
+ For J := 1 To Doc.Paragraphs[P].RunCount Do
+  If Doc.Paragraphs[P].Runs[J].Text <> '' Then Has := True;
+ If Has Then Begin
+  If ParaIdx >= MAX_PARAS_PER_DOC Then Exit;
+  Inc(ParaIdx); P := ParaIdx;
+  Doc.Paragraphs[P].Alignment := Doc.Paragraphs[P - 1].Alignment;
+ End;
+ GetMem(Cp, LongInt(DocxImgs[I].W) * DocxImgs[I].H);
+ Move(DocxImgs[I].Buf^, Cp^, LongInt(DocxImgs[I].W) * DocxImgs[I].H);
+ Doc.Paragraphs[P].RunCount := 0;
+ Doc.Paragraphs[P].IsImage  := True;
+ Doc.Paragraphs[P].ImgW     := DocxImgs[I].W;
+ Doc.Paragraphs[P].ImgH     := DocxImgs[I].H;
+ Doc.Paragraphs[P].ImgData  := Cp;
+End;
+
 Procedure DocxLoadAuxParts(Var Z: TZipReader);
 Var
  Idx, I    : Integer;
@@ -7464,8 +7894,10 @@ Var
  M          : Integer;
  PendingTail, LastRunText : String;
  TxtPiece   : String;
+ ParaImgRel : String;
 Begin
  LoadDocxFromFile := False;
+ ParaImgRel := '';
  { Reinitialiser tables auxiliaires et marges par defaut }
  ResetDocxAux;
  PAGE_MARGIN_L := PAGE_MARGIN_DEFAULT;
@@ -7475,9 +7907,12 @@ Begin
  If Not ZipRead_Open(Z, FName) Then Exit;
  Idx := ZipRead_Find(Z, 'word/document.xml');
  If Idx < 0 Then Begin ZipRead_Close(Z); Exit; End;
- If Not ZipRead_Extract(Z, Idx, Buf, Size) Then Begin ZipRead_Close(Z); Exit; End;
- { Charger styles, numerotation, en-tete, pied avant la lecture de document.xml }
+ If Not ZipRead_Extract(Z, Idx, Buf, Size) Then Begin ZipRead_Close(Z); Exit;
+   End;
+ { Charger styles, numerotation, en-tete,
+   pied avant la lecture de document.xml }
  DocxLoadAuxParts(Z);
+ DocxLoadImages(Z);
  ZipRead_Close(Z);
 
  DocxBuf := Buf; DocxPos := 0; DocxSize := Size;
@@ -7515,10 +7950,13 @@ Begin
      Doc.Paragraphs[ParaIdx].RunCount := 0;
      Doc.Paragraphs[ParaIdx].IsImage := False;
      InP := True;
+     ParaImgRel := '';
      CurAlign := ALIGN_LEFT;
      ParaForceSty := 0; ParaForceSize := 0;
      ParaHasNum := False; ParaIlvl := 0; ParaNumId := -1;
     End
+    Else If (Tn = 'a:blip') And InP Then
+     ParaImgRel := DocxGetAttr(TokAttrs, 'r:embed')
     Else If Tn = 'w:pPr' Then InPPr := True
     Else If Tn = 'w:sectPr' Then InSectPr := True
     Else If (Tn = 'w:pBdr') And InPPr Then InPBdr := True
@@ -7545,7 +7983,9 @@ Begin
    DTK_EMPTY : Begin
     Tn := TokName;
     { Word legacy HR : <w:pict><v:rect o:hr="t" .../></w:pict> }
-    If (Tn = 'v:rect') And InP Then Begin
+    If (Tn = 'a:blip') And InP Then
+     ParaImgRel := DocxGetAttr(TokAttrs, 'r:embed')
+    Else If (Tn = 'v:rect') And InP Then Begin
      AttrVal := DocxGetAttr(TokAttrs, 'o:hr');
      If AttrVal = 't' Then Doc.Paragraphs[ParaIdx].BorderBottom := True;
     End
@@ -7604,8 +8044,10 @@ Begin
        StyIdx := FindDocxStyle(AttrVal);
        If StyIdx > 0 Then Begin
         ParaForceSty := DocxStyles[StyIdx].Sty;
-        If DocxStyles[StyIdx].Size > 0 Then ParaForceSize := DocxStyles[StyIdx].Size;
-        If DocxStyles[StyIdx].HasAlign Then CurAlign := DocxStyles[StyIdx].Align;
+        If DocxStyles[StyIdx].Size > 0 Then ParaForceSize :=
+          DocxStyles[StyIdx].Size;
+        If DocxStyles[StyIdx].HasAlign Then CurAlign :=
+          DocxStyles[StyIdx].Align;
        End;
       End;
       { Bordure inferieure : toujours interroger styles.xml meme pour les }
@@ -7638,10 +8080,14 @@ Begin
      AttrVal := DocxGetAttr(TokAttrs, 'w:right');  Val(AttrVal, PgMarR, Code);
      If Code <> 0 Then PgMarR := -1;
      { Conversion twips -> pixels (8.5 po = 12240 twips = PAGE_W pixels). }
-     If PgMarL >= 0 Then PAGE_MARGIN_L := Integer((PgMarL * LongInt(PAGE_W)) Div 12240);
-     If PgMarR >= 0 Then PAGE_MARGIN_R := Integer((PgMarR * LongInt(PAGE_W)) Div 12240);
-     If PgMarT >= 0 Then PAGE_MARGIN_T := Integer((PgMarT * LongInt(PAGE_H)) Div 15840);
-     If PgMarB >= 0 Then PAGE_MARGIN_B := Integer((PgMarB * LongInt(PAGE_H)) Div 15840);
+     If PgMarL >= 0 Then PAGE_MARGIN_L := Integer((PgMarL * LongInt(PAGE_W)) Div
+       12240);
+     If PgMarR >= 0 Then PAGE_MARGIN_R := Integer((PgMarR * LongInt(PAGE_W)) Div
+       12240);
+     If PgMarT >= 0 Then PAGE_MARGIN_T := Integer((PgMarT * LongInt(PAGE_H)) Div
+       15840);
+     If PgMarB >= 0 Then PAGE_MARGIN_B := Integer((PgMarB * LongInt(PAGE_H)) Div
+       15840);
      { Bornes raisonnables : eviter zones de texte ridiculement petites. }
      If PAGE_MARGIN_L < 10 Then PAGE_MARGIN_L := 10;
      If PAGE_MARGIN_R < 10 Then PAGE_MARGIN_R := 10;
@@ -7712,7 +8158,8 @@ Begin
         Doc.Paragraphs[ParaIdx].LeftIndent := NIv;
         Doc.Paragraphs[ParaIdx].FirstLineHang := NIv > 0;
         RunIdx := 1;
-        EffSty := RunSty; If ParaForceSty <> 0 Then EffSty := EffSty Or ParaForceSty;
+        EffSty := RunSty; If ParaForceSty <> 0 Then EffSty := EffSty Or
+          ParaForceSty;
         EffSize := RunSize;
         If (ParaForceSize > 0) And (RunSize = 12) Then EffSize := ParaForceSize;
         Doc.Paragraphs[ParaIdx].Runs[1].Text := '';
@@ -7724,10 +8171,12 @@ Begin
      End
      Else If Tn = 'w:tab' Then Begin
       { Tabulation : 4 espaces (faute de tabulateurs reels) }
-      If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) + 4 <= MAX_TEXT_LEN Then
+      If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) + 4 <= MAX_TEXT_LEN
+        Then
        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
         Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + '    '
-      Else If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) < MAX_TEXT_LEN Then
+      Else If Length(Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text) < MAX_TEXT_LEN
+        Then
        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
         Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + ' ';
      End;
@@ -7769,7 +8218,8 @@ Begin
       Doc.Paragraphs[ParaIdx].Runs[1].Style.Style    := 0;
       Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := 12;
       Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
-      { Largeur visuelle approximative du prefixe (8 px / char en DefaultFont). }
+      { Largeur visuelle approximative du prefixe (8 px / char en DefaultFont).
+        }
       Doc.Paragraphs[ParaIdx].LeftIndent := Length(BulletS) * 8;
       Doc.Paragraphs[ParaIdx].FirstLineHang := False;
      End;
@@ -7782,6 +8232,9 @@ Begin
       Doc.Paragraphs[ParaIdx].Runs[1].Style.FontSize := 12;
       Doc.Paragraphs[ParaIdx].Runs[1].Style.Color    := Black;
      End;
+     If (ParaIdx > 0) And (ParaImgRel <> '') Then
+      DocxPlaceImage(ParaIdx, ParaImgRel);
+     ParaImgRel := '';
      InP := False;
     End;
    End;
@@ -7820,10 +8273,14 @@ Begin
        Inc(ParaIdx);
        Doc.Paragraphs[ParaIdx].Alignment       := Doc.Paragraphs[K].Alignment;
        Doc.Paragraphs[ParaIdx].LeftIndent      := Doc.Paragraphs[K].LeftIndent;
-       { FirstLineHang := True => la 1re ligne du sous-paragraphe est aussi     }
-       { indentee au LeftIndent (pas de bullet en tete), preservant l'aspect    }
-       { d'une liste continuee.                                                 }
-       Doc.Paragraphs[ParaIdx].FirstLineHang   := Doc.Paragraphs[K].LeftIndent > 0;
+       { FirstLineHang := True => la 1re ligne du sous-paragraphe est aussi
+         }
+       { indentee au LeftIndent (pas de bullet en tete),
+         preservant l'aspect    }
+       { d'une liste continuee.
+         }
+       Doc.Paragraphs[ParaIdx].FirstLineHang   := Doc.Paragraphs[K].LeftIndent >
+         0;
        Doc.Paragraphs[ParaIdx].PageBreakBefore := False;
        Doc.Paragraphs[ParaIdx].ContinuesPrev   := True;
        Doc.Paragraphs[ParaIdx].RunCount        := 1;
@@ -7847,7 +8304,8 @@ Begin
        { Reculer jusqu'au dernier espace pour ne pas couper un mot. }
        K := AvailLen;
        While (K > 1) And (TxtPiece[K] <> ' ') Do Dec(K);
-       If K <= 1 Then K := AvailLen;  { aucun espace trouve : on coupe quand meme }
+       If K <= 1 Then K := AvailLen;  { aucun espace trouve : on coupe quand
+         meme }
        Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text :=
         Doc.Paragraphs[ParaIdx].Runs[RunIdx].Text + Copy(TxtPiece, 1, K);
        Inc(TotLen, K);
@@ -7876,6 +8334,7 @@ Begin
  Doc.Modified   := False;
  Cursor.ParaIdx := 1; Cursor.RunIdx := 1; Cursor.CharIdx := 0;
  ScrollY := 0; CurrentPage := 1; NeedsRelayout := True;
+ DocxFreeImgs;
  LoadDocxFromFile := OK;
 End;
 
@@ -8089,9 +8548,12 @@ End;
 
 Procedure CfbCleanup;
 Begin
- If CfbFAT  <> Nil Then Begin FreeMem(CfbFAT,  CfbFATLen * 4);  CfbFAT  := Nil; End;
- If CfbMFAT <> Nil Then Begin FreeMem(CfbMFAT, CfbMFATLen * 4); CfbMFAT := Nil; End;
- If CfbMini <> Nil Then Begin FreeMem(CfbMini, CfbMiniLen);     CfbMini := Nil; End;
+ If CfbFAT  <> Nil Then Begin FreeMem(CfbFAT,  CfbFATLen * 4);  CfbFAT  := Nil;
+   End;
+ If CfbMFAT <> Nil Then Begin FreeMem(CfbMFAT, CfbMFATLen * 4); CfbMFAT := Nil;
+   End;
+ If CfbMini <> Nil Then Begin FreeMem(CfbMini, CfbMiniLen);     CfbMini := Nil;
+   End;
  CfbFATLen := 0; CfbMFATLen := 0; CfbMiniLen := 0;
  CfbDirCnt := 0;
  If CfbFOpen Then Begin
@@ -8131,7 +8593,8 @@ Begin
  If IOResult <> 0 Then Begin CfbCleanup; Exit; End;
 
  If (Hdr[0] <> $D0) Or (Hdr[1] <> $CF) Or (Hdr[2] <> $11) Or (Hdr[3] <> $E0) Or
-    (Hdr[4] <> $A1) Or (Hdr[5] <> $B1) Or (Hdr[6] <> $1A) Or (Hdr[7] <> $E1) Then Begin
+    (Hdr[4] <> $A1) Or (Hdr[5] <> $B1) Or (Hdr[6] <> $1A) Or (Hdr[7] <> $E1)
+      Then Begin
   CfbCleanup; Exit;
  End;
 
@@ -8145,7 +8608,8 @@ Begin
  CfbDIFFst   := LongInt(CfbBufU32(@Hdr, 68));
  CfbDIFCnt   := LongInt(CfbBufU32(@Hdr, 72));
 
- If (CfbSecSize <> 512) And (CfbSecSize <> 4096) Then Begin CfbCleanup; Exit; End;
+ If (CfbSecSize <> 512) And (CfbSecSize <> 4096) Then Begin CfbCleanup; Exit;
+   End;
  If CfbMiniSz <> 64 Then Begin CfbCleanup; Exit; End;
  If (CfbFATNum <= 0) Or (CfbFATNum > 100000) Then Begin CfbCleanup; Exit; End;
 
@@ -8288,7 +8752,8 @@ End;
 
 { ---------- DOC : extraction du texte via la piece table ---------- }
 
-Procedure DocStartFirstPara(Var ParaIdx, RunIdx: Integer; Var PendingPB: Boolean);
+Procedure DocStartFirstPara(Var ParaIdx, RunIdx: Integer;
+  Var PendingPB: Boolean);
 Begin
  ParaIdx := 1;
  Doc.Paragraphs[1].Alignment := ALIGN_LEFT;
@@ -8301,7 +8766,8 @@ Begin
  RunIdx := 1;
 End;
 
-Procedure DocAppendCh(Var ParaIdx, RunIdx: Integer; Var PendingPB: Boolean; C: Char);
+Procedure DocAppendCh(Var ParaIdx, RunIdx: Integer; Var PendingPB: Boolean;
+  C: Char);
 Var L: Integer;
 Begin
  If ParaIdx = 0 Then DocStartFirstPara(ParaIdx, RunIdx, PendingPB);
@@ -8338,7 +8804,8 @@ Begin
  RunIdx := 1;
 End;
 
-Procedure DocProcessW(Var ParaIdx, RunIdx: Integer; Var PendingPB: Boolean; W: Word);
+Procedure DocProcessW(Var ParaIdx, RunIdx: Integer; Var PendingPB: Boolean;
+  W: Word);
 Begin
  Case W Of
   13 : DocFinishParaP(ParaIdx, RunIdx, PendingPB);
@@ -8529,7 +8996,8 @@ Begin
     (UpCase(E[3]) = 'O') And (UpCase(E[4]) = 'C') Then ExtIsDoc := True;
 End;
 
-{ PDF text import: unfiltered and FlateDecode streams, no external application. }
+{ PDF text import: unfiltered and FlateDecode streams,
+  no external application. }
 Function ExtIsPDF(Const FN:String):Boolean;
 Var E:String;I:Integer;
 Begin
@@ -8552,7 +9020,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
  Objects:Array[1..MaxObjects] of TObjectEntry;ObjectCount:Integer;
  Pages:Array[1..MAX_PAGES] of Integer;PageCountPDF:Integer;
  NewDoc:^TDocument;Good:Boolean;
- FontMaps:Array[1..64] of TPDFFontMap;FontMapCount:Integer;PageNo,ResourceObject:Integer;
+ FontMaps:Array[1..64] of
+   TPDFFontMap;FontMapCount:Integer;PageNo,ResourceObject:Integer;
  PageW,PageH:Real;
  Function C(Buffer:Pointer;P:LongInt):Char;
  Begin C:=Char(ImgPByteAt(Buffer,P));End;
@@ -8567,7 +9036,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   While P<Stop Do Begin
    Ch:=C(Buffer,P);
    If Ch='%' Then Begin
-    While P<Stop Do Begin Ch:=C(Buffer,P);Inc(P);If Ch in [#10,#13] Then Break;End;
+    While P<Stop Do Begin Ch:=C(Buffer,P);Inc(P);If Ch in [#10,#13] Then
+      Break;End;
    End Else If Ch<=#32 Then Inc(P) Else Break;
   End;
   If P>=Stop Then Begin Token:='';Exit;End;
@@ -8611,9 +9081,11 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   End Else If Ch in ['[',']','{','}'] Then S:=Ch
   Else Begin
    If Ch='/' Then Begin Kind:='a';S:='';End
-   Else Begin Kind:='k';S:=Ch;If Ch in ['0'..'9','-','+','.'] Then Kind:='n';End;
+   Else Begin Kind:='k';S:=Ch;If Ch in ['0'..'9','-','+','.'] Then
+     Kind:='n';End;
    While P<Stop Do Begin
-    Ch:=C(Buffer,P);If (Ch<=#32) or (Ch in ['(',')','<','>','[',']','/','%']) Then Break;
+    Ch:=C(Buffer,P);If (Ch<=#32) or (Ch in ['(',')','<','>','[',']','/','%'])
+      Then Break;
     If Length(S)<240 Then S:=S+Ch;Inc(P);
    End;
   End;
@@ -8621,7 +9093,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
  End;
  Function ObjIndex(ID:LongInt):Integer;
  Var J:Integer;
- Begin ObjIndex:=0;For J:=1 To ObjectCount Do If Objects[J].ID=ID Then ObjIndex:=J;End;
+ Begin ObjIndex:=0;For J:=1 To ObjectCount Do If Objects[J].ID=ID Then
+   ObjIndex:=J;End;
  Function Number(Const S:String):Real;
  Var V:Real;Err:Integer;
  Begin Val(S,V,Err);If Err<>0 Then V:=0;Number:=V;End;
@@ -8651,8 +9124,10 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
  Procedure VisitPages(Obj,Depth:Integer);
  Var P,Save:LongInt;S:String;K:Char;Child:Integer;
  Begin
-  If (Obj=0) or (Depth>32) or (PageCountPDF>=MAX_PAGES) Then Begin Good:=False;Exit;End;
-  If TypeIs(Obj,'Page') Then Begin Inc(PageCountPDF);Pages[PageCountPDF]:=Obj;Exit;End;
+  If (Obj=0) or (Depth>32) or (PageCountPDF>=MAX_PAGES) Then Begin
+    Good:=False;Exit;End;
+  If TypeIs(Obj,'Page') Then Begin
+    Inc(PageCountPDF);Pages[PageCountPDF]:=Obj;Exit;End;
   P:=KeyAt(Obj,'Kids');If P=0 Then Exit;
   S:=Token(Data,P,Objects[Obj].Stop,K);If S<>'[' Then Exit;
   While P<Objects[Obj].Stop Do Begin
@@ -8682,7 +9157,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
    If S='[' Then S:=Token(Data,P,Objects[Obj].Stop,K);
    If S<>'FlateDecode' Then Exit;
    If Count<6 Then Exit;
-   If Not InflateBuf(Pointer(PtrUInt(Buffer)+2),Count-6,Decoded,StreamLimit) Then Exit;
+   If Not InflateBuf(Pointer(PtrUInt(Buffer)+2),Count-6,Decoded,StreamLimit)
+     Then Exit;
    Buffer:=Decoded;Count:=InfOutPos;
   End;
   StreamData:=True;
@@ -8703,10 +9179,13 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
    S:=Token(Data,P,FileSizePDF,K);CountObjects:=Round(Number(S));
    P:=KeyAt(I,'First');If P=0 Then Begin Good:=False;Exit;End;
    S:=Token(Data,P,FileSizePDF,K);First:=Round(Number(S));
-   If (CountObjects<1) or (CountObjects>MaxObjects-ObjectCount) Then Begin Good:=False;Exit;End;
+   If (CountObjects<1) or (CountObjects>MaxObjects-ObjectCount) Then Begin
+     Good:=False;Exit;End;
    If Not StreamData(I,Buffer,Count) Then Begin Good:=False;Exit;End;
-   If (First<0) or (First>=Count) or (Count>Limit-FileSizePDF) Then Begin Good:=False;Exit;End;
-   Base:=FileSizePDF;Move(Buffer^,Pointer(PtrUInt(Data)+Base)^,Count);Inc(FileSizePDF,Count);
+   If (First<0) or (First>=Count) or (Count>Limit-FileSizePDF) Then Begin
+     Good:=False;Exit;End;
+   Base:=FileSizePDF;Move(Buffer^,Pointer(PtrUInt(Data)+Base)^,Count);
+     Inc(FileSizePDF,Count);
    P:=Base;
    For J:=1 To CountObjects Do Begin
     S:=Token(Data,P,Base+First,K);IDs[J]:=Round(Number(S));
@@ -8715,10 +9194,12 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
    For J:=1 To CountObjects Do Begin
     Offset:=Offsets[J];NextOffset:=Count-First;
     If J<CountObjects Then NextOffset:=Offsets[J+1];
-    If (Offset<0) or (NextOffset<Offset) or (First+NextOffset>Count) Then Begin Good:=False;Exit;End;
+    If (Offset<0) or (NextOffset<Offset) or (First+NextOffset>Count) Then Begin
+      Good:=False;Exit;End;
     Inc(ObjectCount);
     With Objects[ObjectCount] Do Begin
-     ID:=IDs[J];Start:=Base+First+Offset;Stop:=Base+First+NextOffset;Stream:=0;Objects[ObjectCount].Count:=0;
+     ID:=IDs[J];Start:=Base+First+Offset;Stop:=Base+First+NextOffset;Stream:=0;
+       Objects[ObjectCount].Count:=0;
     End;
    End;
   End;
@@ -8735,7 +9216,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   End;
   P:=KeyAt(Obj,'ToUnicode');If P=0 Then Exit;
   V:=RefAt(P,FileSizePDF);If Not StreamData(V,Buffer,Count) Then Exit;
-  New(FontMaps[Index].Map);FillChar(FontMaps[Index].Map^,SizeOf(TPDFUnicodeMap),0);
+  New(FontMaps[Index].Map);FillChar(FontMaps[Index].Map^,SizeOf(TPDFUnicodeMap),
+    0);
   P:=0;InChars:=False;InRanges:=False;
   While P<Count Do Begin
    S:=Token(Buffer,P,Count,K);
@@ -8747,18 +9229,21 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
     First:=StringCode(S);If (First<0) or (First>65535) Then Continue;
     A:=Token(Buffer,P,Count,K);
     If InChars Then Begin
-     V:=StringCode(A);If (V>=0) and (V<=65535) Then FontMaps[Index].Map^[First]:=V;
+     V:=StringCode(A);If (V>=0) and (V<=65535) Then
+       FontMaps[Index].Map^[First]:=V;
     End Else Begin
      Last:=StringCode(A);B:=Token(Buffer,P,Count,K);
      If (Last<First) or (Last>65535) Then Continue;
      If B='[' Then Begin
       For Code:=First To Last Do Begin
        U:=Token(Buffer,P,Count,K);If K<>'s' Then Break;
-       V:=StringCode(U);If (V>=0) and (V<=65535) Then FontMaps[Index].Map^[Code]:=V;
+       V:=StringCode(U);If (V>=0) and (V<=65535) Then
+         FontMaps[Index].Map^[Code]:=V;
       End;
      End Else Begin
       V:=StringCode(B);
-      For Code:=First To Last Do If (V+Code-First>=0) and (V+Code-First<=65535) Then
+      For Code:=First To Last Do If (V+Code-First>=0) and (V+Code-First<=65535)
+        Then
        FontMaps[Index].Map^[Code]:=V+Code-First;
      End;
     End;
@@ -8768,16 +9253,23 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
  Function WinAnsi(W:Word):Char;
  Begin
   If W<=255 Then WinAnsi:=Char(W) Else Case W Of
-   $20AC:WinAnsi:=#128;$201A:WinAnsi:=#130;$0192:WinAnsi:=#131;$201E:WinAnsi:=#132;
-   $2026:WinAnsi:=#133;$2020:WinAnsi:=#134;$2021:WinAnsi:=#135;$02C6:WinAnsi:=#136;
-   $2030:WinAnsi:=#137;$0160:WinAnsi:=#138;$2039:WinAnsi:=#139;$0152:WinAnsi:=#140;
-   $017D:WinAnsi:=#142;$2018:WinAnsi:=#145;$2019:WinAnsi:=#146;$201C:WinAnsi:=#147;
-   $201D:WinAnsi:=#148;$2022:WinAnsi:=#149;$2013:WinAnsi:=#150;$2014:WinAnsi:=#151;
-   $02DC:WinAnsi:=#152;$2122:WinAnsi:=#153;$0161:WinAnsi:=#154;$203A:WinAnsi:=#155;
+   $20AC:WinAnsi:=#128;$201A:WinAnsi:=#130;$0192:WinAnsi:=#131;
+     $201E:WinAnsi:=#132;
+   $2026:WinAnsi:=#133;$2020:WinAnsi:=#134;$2021:WinAnsi:=#135;
+     $02C6:WinAnsi:=#136;
+   $2030:WinAnsi:=#137;$0160:WinAnsi:=#138;$2039:WinAnsi:=#139;
+     $0152:WinAnsi:=#140;
+   $017D:WinAnsi:=#142;$2018:WinAnsi:=#145;$2019:WinAnsi:=#146;
+     $201C:WinAnsi:=#147;
+   $201D:WinAnsi:=#148;$2022:WinAnsi:=#149;$2013:WinAnsi:=#150;
+     $2014:WinAnsi:=#151;
+   $02DC:WinAnsi:=#152;$2122:WinAnsi:=#153;$0161:WinAnsi:=#154;
+     $203A:WinAnsi:=#155;
    $0153:WinAnsi:=#156;$017E:WinAnsi:=#158;$0178:WinAnsi:=#159;
    Else WinAnsi:='?';End;
  End;
- Procedure FontInfo(Const Name:String;Var Face:String;Var Style:Byte;Var MapIndex:Integer);
+ Procedure FontInfo(Const Name:String;Var Face:String;Var Style:Byte;Var
+   MapIndex:Integer);
  Var P,Q,Save:LongInt;S:String;K:Char;Obj,J:Integer;
  Begin
   Face:='Arial';Style:=0;MapIndex:=0;
@@ -8786,7 +9278,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   P:=KeyAt(Obj,'Font');
   If P>0 Then Begin
    Save:=P;S:=Token(Data,P,FileSizePDF,K);
-   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then P:=Objects[J].Start;End;
+   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then
+     P:=Objects[J].Start;End;
    For J:=1 To 128 Do Begin
     S:=Token(Data,P,FileSizePDF,K);If S='>>' Then Break;
     If (K='a') and (S=Name) Then Begin
@@ -8798,7 +9291,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   Q:=KeyAt(Obj,'BaseFont');If Q=0 Then Exit;
   S:=Token(Data,Q,FileSizePDF,K);
   If Pos('Bold',S)>0 Then Style:=Style or STY_BOLD;
-  If (Pos('Italic',S)>0) or (Pos('Oblique',S)>0) Then Style:=Style or STY_ITALIC;
+  If (Pos('Italic',S)>0) or (Pos('Oblique',S)>0) Then Style:=Style or
+    STY_ITALIC;
   If Pos('Times',S)>0 Then Face:='Times New Roman'
   Else If Pos('Courier',S)>0 Then Face:='Courier New';
  End;
@@ -8808,7 +9302,9 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
  Tx,Ty,LX,LY,FS,Leading,Rise:Real;Style:Byte;InText,ArrayText:Boolean;
  PathX1,PathY1,PathX2,PathY2:Real;PathKind:Byte;
  Procedure Transform(X,Y:Real;Var OX,OY:Real);
- Begin OX:=State.M.A*X+State.M.C*Y+State.M.E;OY:=State.M.B*X+State.M.D*Y+State.M.F;End;
+ Begin
+   OX:=State.M.A*X+State.M.C*Y+State.M.E;OY:=State.M.B*X+State.M.D*Y+State.M.F;
+   End;
  Procedure ShowText(Const Value:String);
  Var J,PI,W,H,Code,V:Integer;X,Y:Real;S:String;
  Begin
@@ -8826,7 +9322,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
     S:=S+WinAnsi(V);
    End;
   End;
-  { Simple fonts use WinAnsi. UTF-16 strings are decoded when explicitly marked. }
+  { Simple fonts use WinAnsi. UTF-16 strings are decoded when explicitly marked.
+    }
   If (Length(S)>=2) and (S[1]=#$FE) and (S[2]=#$FF) Then Begin
    S:='';J:=3;While J<Length(Value) Do Begin
     If Value[J]=#0 Then S:=S+Value[J+1] Else S:=S+'?';Inc(J,2);
@@ -8834,7 +9331,8 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   End;
   Transform(Tx,Ty+Rise,X,Y);
   Inc(NewDoc^.ParaCount);PI:=NewDoc^.ParaCount;
-  H:=Round(Abs(FS*State.M.D)*PAGE_W/PageW);If H<4 Then H:=4;If H>255 Then H:=255;
+  H:=Round(Abs(FS*State.M.D)*PAGE_W/PageW);If H<4 Then H:=4;If H>255 Then
+    H:=255;
   W:=PDFTextWidth(S,Face,H,Style);
   With NewDoc^.Paragraphs[PI] Do Begin
    RunCount:=1;Runs[1].Text:=S;Runs[1].Style.FontSize:=Round(FS);
@@ -8872,10 +9370,13 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
    M:=State.M;
    State.M.A:=Nums[1]*M.A+Nums[2]*M.C;State.M.B:=Nums[1]*M.B+Nums[2]*M.D;
    State.M.C:=Nums[3]*M.A+Nums[4]*M.C;State.M.D:=Nums[3]*M.B+Nums[4]*M.D;
-   State.M.E:=Nums[5]*M.A+Nums[6]*M.C+M.E;State.M.F:=Nums[5]*M.B+Nums[6]*M.D+M.F;
+   State.M.E:=Nums[5]*M.A+Nums[6]*M.C+M.E;
+     State.M.F:=Nums[5]*M.B+Nums[6]*M.D+M.F;
   End
-  Else If (S='Tf') and (N>=1) Then Begin FS:=Nums[N];FontInfo(FontName,Face,Style,MapIndex);End
-  Else If (S='Tm') and (N>=6) Then Begin Tx:=Nums[5];Ty:=Nums[6];LX:=Tx;LY:=Ty;End
+  Else If (S='Tf') and (N>=1) Then Begin
+    FS:=Nums[N];FontInfo(FontName,Face,Style,MapIndex);End
+  Else If (S='Tm') and (N>=6) Then Begin
+    Tx:=Nums[5];Ty:=Nums[6];LX:=Tx;LY:=Ty;End
   Else If ((S='Td') or (S='TD')) and (N>=2) Then Begin
    LX:=LX+Nums[N-1];LY:=LY+Nums[N];Tx:=LX;Ty:=LY;
    If S='TD' Then Leading:=-Nums[N];
@@ -8887,17 +9388,28 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   Else If S='Tj' Then ShowText(Text)
   Else If (S='Ts') and (N>0) Then Rise:=Nums[N]
   Else If ((S='rg') or (S='RG')) and (N>=3) Then Begin
-   If S='rg' Then State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),Round(Nums[3]*255))
-   Else State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),Round(Nums[3]*255));
+   If S='rg' Then
+     State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),
+     Round(Nums[3]*255))
+   Else
+     State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[2]*255),
+     Round(Nums[3]*255));
   End
   Else If ((S='g') or (S='G')) and (N>0) Then Begin
-   If S='g' Then State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),Round(Nums[1]*255))
-   Else State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),Round(Nums[1]*255));
+   If S='g' Then
+     State.Fill:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),
+     Round(Nums[1]*255))
+   Else
+     State.Stroke:=PDFPalette(Round(Nums[1]*255),Round(Nums[1]*255),
+     Round(Nums[1]*255));
   End
-  Else If (S='m') and (N>=2) Then Begin PathX1:=Nums[1];PathY1:=Nums[2];PathKind:=1;End
-  Else If (S='l') and (N>=2) Then Begin PathX2:=Nums[1];PathY2:=Nums[2];PathKind:=1;End
+  Else If (S='m') and (N>=2) Then Begin
+    PathX1:=Nums[1];PathY1:=Nums[2];PathKind:=1;End
+  Else If (S='l') and (N>=2) Then Begin
+    PathX2:=Nums[1];PathY2:=Nums[2];PathKind:=1;End
   Else If (S='re') and (N>=4) Then Begin
-   PathX1:=Nums[1];PathY1:=Nums[2];PathX2:=PathX1+Nums[3];PathY2:=PathY1+Nums[4];PathKind:=2;
+   PathX1:=Nums[1];PathY1:=Nums[2];PathX2:=PathX1+Nums[3];
+     PathY2:=PathY1+Nums[4];PathKind:=2;
   End
   Else If (S='S') or (S='s') Then Begin
    If PathKind=1 Then Graphic(1,State.Stroke)
@@ -8910,11 +9422,13 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
     PathX1:=AX;PathY1:=AY;PathX2:=BX;PathY2:=BY;
    End;PathKind:=0;
   End
-  Else If (S='f') or (S='f*') or (S='F') Then Begin If PathKind=2 Then Graphic(2,State.Fill);PathKind:=0;End;
+  Else If (S='f') or (S='f*') or (S='F') Then Begin If PathKind=2 Then
+    Graphic(2,State.Fill);PathKind:=0;End;
  End;
  Begin
   FillChar(State,SizeOf(State),0);State.M.A:=1;State.M.D:=1;SP:=0;
-  Tx:=0;Ty:=0;LX:=0;LY:=0;FS:=12;Leading:=14;Rise:=0;Style:=0;MapIndex:=0;Face:='Arial';
+  Tx:=0;Ty:=0;LX:=0;LY:=0;FS:=12;Leading:=14;Rise:=0;Style:=0;MapIndex:=0;
+    Face:='Arial';
   P:=0;N:=0;InText:=False;ArrayText:=False;Text:='';FontName:='';PathKind:=0;
   While (P<Count) and Good Do Begin
    S:=Token(Buffer,P,Count,K);
@@ -8948,14 +9462,16 @@ Var Data,Decoded:Pointer;FileSizePDF,Got:LongInt;F:File;
   ResourceObject:=Obj;P:=InheritedKey(Obj,'Resources');
   If P>0 Then Begin
    Save:=P;S:=Token(Data,P,FileSizePDF,K);
-   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then ResourceObject:=J;End;
+   If S<>'<<' Then Begin P:=Save;J:=RefAt(P,FileSizePDF);If J>0 Then
+     ResourceObject:=J;End;
   End;
   P:=KeyAt(Obj,'Contents');If P=0 Then Exit;
   Save:=P;S:=Token(Data,P,FileSizePDF,K);
   If S='[' Then Begin
    While (P<Objects[Obj].Stop) and Good Do Begin
     Save:=P;S:=Token(Data,P,FileSizePDF,K);If S=']' Then Break;
-    P:=Save;J:=RefAt(P,FileSizePDF);If J=0 Then Begin Good:=False;Break;End;ReadOne(J);
+    P:=Save;J:=RefAt(P,FileSizePDF);If J=0 Then Begin
+      Good:=False;Break;End;ReadOne(J);
    End;
   End Else Begin P:=Save;J:=RefAt(P,FileSizePDF);ReadOne(J);End;
  End;
@@ -8970,7 +9486,8 @@ Begin
  GetMem(Data,Limit);GetMem(Decoded,StreamLimit);
  {$I-}BlockRead(F,Data^,FileSizePDF,Got);Close(F);{$I+}
  If (IOResult<>0) or (Got<>FileSizePDF) Then Good:=False;
- If Good Then If (C(Data,0)<>'%') or (C(Data,1)<>'P') or (C(Data,2)<>'D') or (C(Data,3)<>'F') Then Good:=False;
+ If Good Then If (C(Data,0)<>'%') or (C(Data,1)<>'P') or (C(Data,2)<>'D') or
+   (C(Data,3)<>'F') Then Good:=False;
  P:=0;
  While (P<FileSizePDF) and Good Do Begin
   S:=Token(Data,P,FileSizePDF,K);
@@ -8986,7 +9503,8 @@ Begin
    S:=Token(Data,P,FileSizePDF,K);
    If (K='a') and (S='Encrypt') Then Good:=False;
    If (K='a') and (S='Length') Then Begin
-    Start:=P;S2:=Token(Data,P,FileSizePDF,K);If K='n' Then LengthPos:=Round(Number(S2));P:=Start;
+    Start:=P;S2:=Token(Data,P,FileSizePDF,K);If K='n' Then
+      LengthPos:=Round(Number(S2));P:=Start;
    End;
    If S='stream' Then Begin
     If P<FileSizePDF Then If C(Data,P)=#13 Then Inc(P);
@@ -9015,7 +9533,8 @@ Begin
   If Catalog>0 Then Begin
    P:=KeyAt(Catalog,'Pages');If P>0 Then VisitPages(RefAt(P,FileSizePDF),0);
   End;
-  If PageCountPDF=0 Then For I:=1 To ObjectCount Do If TypeIs(I,'Page') Then Begin
+  If PageCountPDF=0 Then For I:=1 To ObjectCount Do If TypeIs(I,'Page') Then
+    Begin
    If PageCountPDF>=MAX_PAGES Then Begin Good:=False;Break;End;
    Inc(PageCountPDF);Pages[PageCountPDF]:=I;
   End;
@@ -9034,21 +9553,553 @@ Begin
       If (Paragraphs[J].PDF.Y=Paragraphs[J-1].PDF.Y) and
          (Paragraphs[J].PDF.X>=Paragraphs[J-1].PDF.X) Then Break;
      End;
-     SwapPara:=Paragraphs[J];Paragraphs[J]:=Paragraphs[J-1];Paragraphs[J-1]:=SwapPara;
+     SwapPara:=Paragraphs[J];Paragraphs[J]:=Paragraphs[J-1];
+       Paragraphs[J-1]:=SwapPara;
     End;Dec(J);
    End;
   End;
-  FreeAllDocImages;Doc:=NewDoc^;Doc.PDFPageCount:=PageCountPDF;Doc.PageCount:=PageCountPDF;
-  Doc.FileName:='';Doc.Modified:=True;Cursor.ParaIdx:=1;Cursor.RunIdx:=1;Cursor.CharIdx:=0;
+  FreeAllDocImages;Doc:=NewDoc^;Doc.PDFPageCount:=PageCountPDF;
+    Doc.PageCount:=PageCountPDF;
+  Doc.FileName:='';Doc.Modified:=True;Cursor.ParaIdx:=1;Cursor.RunIdx:=1;
+    Cursor.CharIdx:=0;
   ScrollY:=0;CurrentPage:=1;NeedsRelayout:=True;LoadPDFfromFile:=True;
  End;
- For I:=1 To FontMapCount Do If FontMaps[I].Map<>Nil Then Dispose(FontMaps[I].Map);
+ For I:=1 To FontMapCount Do If FontMaps[I].Map<>Nil Then
+   Dispose(FontMaps[I].Map);
  Dispose(NewDoc);FreeMem(Decoded,StreamLimit);FreeMem(Data,Limit);
+End;
+
+{ ============================================================ }
+{ ============  FORMAT GAT (Genesis Ascii Typewriter)  ======= }
+{ ============================================================ }
+{ Format texte du MonsterBook :                                 }
+{   ligne 1 : ': X1 Y1 X2 Y2 [L|R|A|N] [debut] [I]'              }
+{             (';' = fichier protege par mot de passe)          }
+{   corps   : lignes ASCII (CP437) separees par CR+LF           }
+{   octet < 32 : attribut du caractere SUIVANT                  }
+{                1=gras 2=souligne 4=italique 8=inverse         }
+{                16=double largeur                              }
+{   '[AUTEUR:' '[SUJET:' '[TITRE:' '[DESCR:' : proprietes       }
+{   '[DC:' '[DD:' '[DG:' : image centree / droite / gauche      }
+
+Const
+ GAT_MAXLINE = 1024;
+ GAT_DEF_X1  = 10;
+ GAT_DEF_X2  = 120;
+
+Type
+ TGatBuf  = Array[0..16777215] Of Byte;
+ PGatBuf  = ^TGatBuf;
+
+Var
+ GatPI        : Integer;       { paragraphe courant (chargement) }
+ GatFull      : Boolean;       { limite de paragraphes atteinte }
+ GatTruncated : Boolean;       { dernier chargement tronque }
+ LnCh         : Array[1..GAT_MAXLINE] Of Char;
+ LnAt         : Array[1..GAT_MAXLINE] Of Byte;
+ LnN          : Integer;
+ GatOutF      : File;
+ GatOutBuf    : Array[0..4095] Of Byte;
+ GatOutN      : Integer;
+ GatOutErr    : Boolean;
+ GatChA       : Array[1..8192] Of Char;
+ GatAtA       : Array[1..8192] Of Byte;
+
+Function ExtIsGat(Const FN: String): Boolean;
+Var L: Integer;
+Begin
+ ExtIsGat := False;
+ L := Length(FN);
+ If L < 4 Then Exit;
+ ExtIsGat := (FN[L-3] = '.') And (UpCase(FN[L-2]) = 'G') And
+             (UpCase(FN[L-1]) = 'A') And (UpCase(FN[L]) = 'T');
+End;
+
+Procedure GatNewPara(Align: Byte; Cont: Boolean);
+Begin
+ If GatPI >= MAX_PARAS_PER_DOC Then Begin GatFull := True; Exit; End;
+ Inc(GatPI);
+ Doc.Paragraphs[GatPI].Alignment       := Align;
+ Doc.Paragraphs[GatPI].PageBreakBefore := False;
+ Doc.Paragraphs[GatPI].ContinuesPrev   := Cont;
+ Doc.Paragraphs[GatPI].RunCount        := 1;
+ Doc.Paragraphs[GatPI].Runs[1].Text           := '';
+ Doc.Paragraphs[GatPI].Runs[1].Style.Style    := 0;
+ Doc.Paragraphs[GatPI].Runs[1].Style.FontSize := 12;
+ Doc.Paragraphs[GatPI].Runs[1].Style.Color    := Black;
+End;
+
+Procedure GatAddCh(C: Char; Sty, Sz: Byte);
+Var P, R: Integer;
+Begin
+ If GatFull Then Exit;
+ P := GatPI;
+ R := Doc.Paragraphs[P].RunCount;
+ If Doc.Paragraphs[P].Runs[R].Text = '' Then Begin
+  Doc.Paragraphs[P].Runs[R].Style.Style    := Sty;
+  Doc.Paragraphs[P].Runs[R].Style.FontSize := Sz;
+ End Else If (Doc.Paragraphs[P].Runs[R].Style.Style <> Sty) Or
+             (Doc.Paragraphs[P].Runs[R].Style.FontSize <> Sz) Then Begin
+  If R < MAX_RUNS_PER_PARA Then Begin
+   Inc(Doc.Paragraphs[P].RunCount); R := Doc.Paragraphs[P].RunCount;
+   Doc.Paragraphs[P].Runs[R].Text           := '';
+   Doc.Paragraphs[P].Runs[R].Style.Style    := Sty;
+   Doc.Paragraphs[P].Runs[R].Style.FontSize := Sz;
+   Doc.Paragraphs[P].Runs[R].Style.Color    := Black;
+  End;
+ End;
+ If Length(Doc.Paragraphs[P].Runs[R].Text) >= MAX_TEXT_LEN Then Begin
+  If R < MAX_RUNS_PER_PARA Then Begin
+   Inc(Doc.Paragraphs[P].RunCount); R := Doc.Paragraphs[P].RunCount;
+   Doc.Paragraphs[P].Runs[R].Text           := '';
+   Doc.Paragraphs[P].Runs[R].Style.Style    := Sty;
+   Doc.Paragraphs[P].Runs[R].Style.FontSize := Sz;
+   Doc.Paragraphs[P].Runs[R].Style.Color    := Black;
+  End Else Begin
+   Doc.Paragraphs[P].ContinuesNext := True;
+   GatNewPara(Doc.Paragraphs[P].Alignment, True);
+   If GatFull Then Exit;
+   GatAddCh(C, Sty, Sz);
+   Exit;
+  End;
+ End;
+ Doc.Paragraphs[P].Runs[R].Text := Doc.Paragraphs[P].Runs[R].Text + C;
+End;
+
+{ Decode les octets [S,E) en caracteres + attributs (LnCh/LnAt/LnN) }
+Procedure GatDecode(B: PGatBuf; S, E: LongInt);
+Var I: LongInt; A: Byte;
+Begin
+ LnN := 0; A := 0; I := S;
+ While I < E Do Begin
+  If B^[I] < 32 Then A := B^[I]
+  Else Begin
+   If LnN < GAT_MAXLINE Then Begin
+    Inc(LnN); LnCh[LnN] := Char(B^[I]); LnAt[LnN] := A;
+   End;
+   A := 0;
+  End;
+  Inc(I);
+ End;
+End;
+
+Function GatStarts(B: PGatBuf; S, E: LongInt; Const Pat: String): Boolean;
+Var I: Integer;
+Begin
+ GatStarts := False;
+ If E - S < Length(Pat) Then Exit;
+ For I := 1 To Length(Pat) Do
+  If UpCase(Char(B^[S + I - 1])) <> Pat[I] Then Exit;
+ GatStarts := True;
+End;
+
+Function GatNextNum(B: PGatBuf; Var I: LongInt; E: LongInt): LongInt;
+Var V: LongInt; Got: Boolean;
+Begin
+ V := 0; Got := False;
+ While (I < E) And (B^[I] = 32) Do Inc(I);
+ While (I < E) And (B^[I] >= 48) And (B^[I] <= 57) Do Begin
+  If V < 100000 Then V := V * 10 + (B^[I] - 48);
+  Got := True; Inc(I);
+ End;
+ If Got Then GatNextNum := V Else GatNextNum := -1;
+End;
+
+Function GatStyleOf(A: Byte): Byte;
+Var S: Byte;
+Begin
+ S := 0;
+ If (A And 1) <> 0 Then S := S Or STY_BOLD;
+ If (A And 2) <> 0 Then S := S Or STY_UNDERLINE;
+ If (A And 4) <> 0 Then S := S Or STY_ITALIC;
+ GatStyleOf := S;
+End;
+
+Function GatSizeOf(A: Byte): Byte;
+Begin
+ If (A And 16) <> 0 Then GatSizeOf := 18 Else GatSizeOf := 12;
+End;
+
+Function LoadGpxDocument(Const FName: String): Boolean;
+Var Buf, Sc: Pointer; W, H, SW, SH: Integer;
+Begin
+ LoadGpxDocument := False;
+ If Not LoadGPX(FName, Buf, W, H) Then Exit;
+ ScaleImageNN(Buf, W, H, Sc, SW, SH);
+ FreeMem(Buf, LongInt(W) * H);
+ FreeAllDocImages;
+ FillChar(Doc, SizeOf(Doc), 0);
+ Doc.PageCount := 1;
+ Doc.ParaCount := 2;
+ Doc.Paragraphs[1].Alignment := ALIGN_CENTER;
+ Doc.Paragraphs[1].IsImage := True;
+ Doc.Paragraphs[1].ImgW := SW;
+ Doc.Paragraphs[1].ImgH := SH;
+ Doc.Paragraphs[1].ImgData := Sc;
+ Doc.Paragraphs[2].RunCount := 1;
+ Doc.Paragraphs[2].Runs[1].Text := '';
+ Doc.Paragraphs[2].Runs[1].Style.FontSize := 12;
+ Doc.Paragraphs[2].Runs[1].Style.Color := Black;
+ Doc.FileName := FName;
+ Doc.Modified := False;
+ Cursor.ParaIdx := 2; Cursor.RunIdx := 1; Cursor.CharIdx := 0;
+ ScrollY := 0; CurrentPage := 1; NeedsRelayout := True;
+ LoadGpxDocument := True;
+End;
+
+Function ExtIsGpx(Const FN: String): Boolean;
+Var L: Integer;
+Begin
+ ExtIsGpx := False; L := Length(FN);
+ If L < 4 Then Exit;
+ ExtIsGpx := (FN[L-3] = '.') And (UpCase(FN[L-2]) = 'G') And
+             (UpCase(FN[L-1]) = 'P') And (UpCase(FN[L]) = 'X');
+End;
+
+{ Recherche l'image d'un '[DC:chemin' : chemin tel quel, sinon nom de
+  fichier dans le dossier du .GAT. }
+Function GatLoadPicture(Const Path, GatFile: String; Var Buf: Pointer;
+                        Var W, H: Integer): Boolean;
+Var I, Cut: Integer; Base: String;
+Begin
+ GatLoadPicture := True;
+ If LoadAnyImage(Path, Buf, W, H) Then Exit;
+ Cut := 0;
+ For I := Length(Path) Downto 1 Do
+  If (Path[I] = '\') Or (Path[I] = '/') Or (Path[I] = ':') Then Begin Cut := I;
+    Break; End;
+ Base := Copy(Path, Cut + 1, 255);
+ Cut := 0;
+ For I := Length(GatFile) Downto 1 Do
+  If (GatFile[I] = '\') Or (GatFile[I] = '/') Then Begin Cut := I; Break; End;
+ If LoadAnyImage(Copy(GatFile, 1, Cut) + Base, Buf, W, H) Then Exit;
+ GatLoadPicture := False;
+End;
+
+Function LoadGatFromFile(Const FName: String): Boolean;
+Var
+ IBuf, ISc : Pointer;
+ IW, IH, ISW, ISH : Integer;
+ F        : File;
+ Size     : LongInt;
+ B        : PGatBuf;
+ I, LS, LE, NextLS : LongInt;
+ X1, X2, N, Wid : LongInt;
+ Lead, Last, K, J, Rel, Wd, EndCol, Spc : Integer;
+ Boxy     : Boolean;
+ Align    : Byte;
+ GatOpen  : Boolean;
+ A        : Byte;
+ Path     : String;
+Begin
+ LoadGatFromFile := False;
+ GatTruncated := False;
+ {$I-} Assign(F, FName); Reset(F, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ Size := FileSize(F);
+ If (Size < 3) Or (Size > 16000000) Then Begin
+  {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+  Exit;
+ End;
+ GetMem(B, Size);
+ {$I-} BlockRead(F, B^, Size); {$I+}
+ If IOResult <> 0 Then Begin
+  FreeMem(B, Size); {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+  Exit;
+ End;
+ {$I-} Close(F); {$I+} If IOResult <> 0 Then ;
+ { Signature : ':' = normal ; ';' = protege par mot de passe (non supporte) }
+ If B^[0] <> Ord(':') Then Begin FreeMem(B, Size); Exit; End;
+
+ { --- Entete --- }
+ LE := 0;
+ While (LE < Size) And (B^[LE] <> 10) Do Inc(LE);
+ I := 1;
+ X1 := GatNextNum(B, I, LE);
+ N  := GatNextNum(B, I, LE);      { Y1 }
+ X2 := GatNextNum(B, I, LE);
+ N  := GatNextNum(B, I, LE);      { Y2 }
+ If (X1 < 0) Or (X2 <= X1) Or (X2 > 400) Then Begin X1 := GAT_DEF_X1;
+   X2 := GAT_DEF_X2; End;
+ Wid := X2 - X1;
+ NextLS := LE + 1;
+
+ FreeAllDocImages;
+ FillChar(Doc, SizeOf(Doc), 0);
+ Doc.PageCount := 1;
+ GatPI := 0; GatFull := False; GatOpen := False;
+
+ { --- Corps --- }
+ While (NextLS < Size) And (Not GatFull) Do Begin
+  LS := NextLS;
+  LE := LS;
+  While (LE < Size) And (B^[LE] <> 10) Do Inc(LE);
+  NextLS := LE + 1;
+  If (LE > LS) And (B^[LE - 1] = 13) Then Dec(LE);   { retire le CR }
+
+  { Lignes d'information particuliere : '[...' }
+  If (LE > LS) And (B^[LS] = Ord('[')) Then Begin
+   If GatStarts(B, LS, LE, '[AUTEUR:') Or GatStarts(B, LS, LE, '[SUJET:') Or
+      GatStarts(B, LS, LE, '[TITRE:') Or GatStarts(B, LS, LE,
+        '[DESCR:') Then Begin
+    GatOpen := False;
+    Continue;                                   { proprietes : pas de texte }
+   End;
+   If GatStarts(B, LS, LE, '[DC:') Or GatStarts(B, LS, LE, '[DD:') Or
+      GatStarts(B, LS, LE, '[DG:') Then Begin
+    GatOpen := False;
+    Path := '';
+    J := 0;
+    I := LS + 4;
+    While (I < LE) And (J < 200) Do Begin
+     If B^[I] >= 32 Then Begin Path := Path + Char(B^[I]); Inc(J); End;
+     Inc(I);
+    End;
+    Case UpCase(Char(B^[LS + 2])) Of
+     'D': Align := ALIGN_RIGHT;
+     'G': Align := ALIGN_LEFT;
+    Else  Align := ALIGN_CENTER;
+    End;
+    GatNewPara(Align, False);
+    If GatFull Then Break;
+    If GatLoadPicture(Path, FName, IBuf, IW, IH) Then Begin
+     ScaleImageNN(IBuf, IW, IH, ISc, ISW, ISH);
+     FreeMem(IBuf, LongInt(IW) * IH);
+     Doc.Paragraphs[GatPI].RunCount := 0;
+     Doc.Paragraphs[GatPI].IsImage  := True;
+     Doc.Paragraphs[GatPI].ImgW     := ISW;
+     Doc.Paragraphs[GatPI].ImgH     := ISH;
+     Doc.Paragraphs[GatPI].ImgData  := ISc;
+    End Else Begin
+     Path := '[Image : ' + Path + ']';
+     For J := 1 To Length(Path) Do GatAddCh(Path[J], STY_ITALIC, 12);
+    End;
+    Continue;
+   End;
+  End;
+
+  GatDecode(B, LS, LE);
+
+  { Ligne vide }
+  Lead := 0;
+  While (Lead < LnN) And (LnCh[Lead + 1] = ' ') Do Inc(Lead);
+  Last := LnN;
+  While (Last > 0) And (LnCh[Last] = ' ') Do Dec(Last);
+  If Last <= Lead Then Begin
+   GatOpen := False;
+   GatNewPara(ALIGN_LEFT, False);
+   Continue;
+  End;
+
+  { Largeur du texte (les caracteres en double largeur comptent 2) + espaces }
+  Wd := 0; Spc := 0; Boxy := False;
+  For K := Lead + 1 To Last Do Begin
+   Inc(Wd);
+   If (LnAt[K] And 16) <> 0 Then Inc(Wd);
+   If LnCh[K] = ' ' Then Inc(Spc);
+   If (Ord(LnCh[K]) >= 176) And (Ord(LnCh[K]) <= 223) Then Boxy := True;
+  End;
+  Rel := Lead - X1;
+  If Rel < 0 Then Rel := 0;
+  EndCol := Lead + Wd;
+
+  { Detection de l'alignement }
+  Align := ALIGN_LEFT;
+  If (Rel >= 4) And (Abs(Rel - (Wid - Wd) Div 2) <= 2) Then Align :=
+    ALIGN_CENTER
+  Else If (Rel >= 6) And (Rel + Wd >= Wid - 1) Then Align := ALIGN_RIGHT;
+
+  If GatOpen And (Not Boxy) And (Align = ALIGN_LEFT) And (Rel <= 1) Then Begin
+   GatAddCh(' ', 0, 12);                         { suite du paragraphe }
+  End Else Begin
+   GatNewPara(Align, False);
+   If GatFull Then Break;
+   If Align = ALIGN_LEFT Then Begin
+    If Rel > 60 Then Rel := 60;
+    For K := 1 To Rel Do GatAddCh(' ', 0, 12);   { retrait de 1re ligne }
+   End;
+  End;
+
+  For K := Lead + 1 To Last Do Begin
+   If LnCh[K] = ' ' Then Begin
+    { l'espace herite du style des voisins s'ils sont identiques }
+    A := 0;
+    If (K > Lead + 1) And (K < Last) Then Begin
+     J := K + 1;
+     While (J < Last) And (LnCh[J] = ' ') Do Inc(J);
+     If LnAt[K - 1] = LnAt[J] Then A := LnAt[J];
+    End;
+    GatAddCh(' ', GatStyleOf(A), GatSizeOf(A));
+   End Else
+    GatAddCh(LnCh[K], GatStyleOf(LnAt[K]), GatSizeOf(LnAt[K]));
+  End;
+
+  GatOpen := (Not Boxy) And (Align = ALIGN_LEFT) And (Spc >= 3) And (EndCol >=
+    X2 - 16);
+ End;
+
+ If NextLS < Size Then GatTruncated := GatFull;
+ FreeMem(B, Size);
+ If GatPI = 0 Then GatNewPara(ALIGN_LEFT, False);
+ Doc.ParaCount  := GatPI;
+ Doc.FileName   := FName;
+ Doc.Modified   := False;
+ Cursor.ParaIdx := 1; Cursor.RunIdx := 1; Cursor.CharIdx := 0;
+ ScrollY := 0; CurrentPage := 1; NeedsRelayout := True;
+ LoadGatFromFile := True;
+End;
+
+{ ---------- Sauvegarde au format GAT ---------- }
+
+Procedure GatFlush;
+Begin
+ If GatOutN > 0 Then Begin
+  {$I-} BlockWrite(GatOutF, GatOutBuf, GatOutN); {$I+}
+  If IOResult <> 0 Then GatOutErr := True;
+  GatOutN := 0;
+ End;
+End;
+
+Procedure GatPut(V: Byte);
+Begin
+ If GatOutN > High(GatOutBuf) Then GatFlush;
+ GatOutBuf[GatOutN] := V;
+ Inc(GatOutN);
+End;
+
+Procedure GatPutStr(Const S: String);
+Var I: Integer;
+Begin
+ For I := 1 To Length(S) Do GatPut(Ord(S[I]));
+End;
+
+Procedure GatPutLn;
+Begin
+ GatPut(13); GatPut(10);
+End;
+
+Procedure GatWriteText(N: Integer; Align: Byte);
+Var
+ Pos, I, Cols, W, LastSp, LineEnd, NextPos, Wid, Wd, Off, Q : Integer;
+Begin
+ Wid := GAT_DEF_X2 - GAT_DEF_X1;
+ If N = 0 Then Begin GatPutLn; Exit; End;
+ Pos := 1;
+ While Pos <= N Do Begin
+  Cols := 0; LastSp := 0; I := Pos;
+  While I <= N Do Begin
+   W := 1;
+   If (GatAtA[I] And 16) <> 0 Then W := 2;
+   If Cols + W > Wid Then Break;
+   Cols := Cols + W;
+   If GatChA[I] = ' ' Then LastSp := I;
+   Inc(I);
+  End;
+  If I > N Then Begin LineEnd := N; NextPos := N + 1; End
+  Else If LastSp > Pos Then Begin LineEnd := LastSp - 1; NextPos := LastSp + 1;
+    End
+  Else Begin
+   LineEnd := I - 1; NextPos := I;
+   If LineEnd < Pos Then Begin LineEnd := Pos; NextPos := Pos + 1; End;
+  End;
+  While (LineEnd > Pos) And (GatChA[LineEnd] = ' ') Do Dec(LineEnd);
+  Wd := 0;
+  For Q := Pos To LineEnd Do Begin
+   Inc(Wd);
+   If (GatAtA[Q] And 16) <> 0 Then Inc(Wd);
+  End;
+  Off := 0;
+  If Align = ALIGN_CENTER Then Off := (Wid - Wd) Div 2
+  Else If Align = ALIGN_RIGHT Then Off := Wid - Wd;
+  If Off < 0 Then Off := 0;
+  For Q := 1 To GAT_DEF_X1 + Off Do GatPut(32);
+  For Q := Pos To LineEnd Do Begin
+   If GatAtA[Q] <> 0 Then GatPut(GatAtA[Q]);
+   GatPut(Ord(GatChA[Q]));
+  End;
+  GatPutLn;
+  Pos := NextPos;
+ End;
+End;
+
+Procedure GatWritePara(P: Integer);
+Var
+ R, I, N, T, RW, CL : Integer;
+ A, Sty : Byte;
+ S : String;
+Begin
+ If Doc.Paragraphs[P].IsImage Then Begin
+  S := '[Image]';
+  N := 0;
+  For I := 1 To Length(S) Do Begin
+   Inc(N); GatChA[N] := S[I]; GatAtA[N] := 4;
+  End;
+  GatWriteText(N, ALIGN_CENTER);
+  Exit;
+ End;
+ If Doc.Paragraphs[P].TableIdx > 0 Then Begin
+  T := Doc.Paragraphs[P].TableIdx;
+  If (P > 1) And (Doc.Paragraphs[P - 1].TableIdx = T) Then Exit;
+  If (T > MAX_TABLES) Or (Not Tables[T].Used) Then Exit;
+  For RW := 1 To Tables[T].Rows Do Begin
+   N := 0;
+   For CL := 1 To Tables[T].Cols Do Begin
+    S := Tables[T].Cells[RW, CL];
+    If CL > 1 Then S := ' | ' + S;
+    For I := 1 To Length(S) Do
+     If N < 8192 Then Begin
+      Inc(N);
+      If Ord(S[I]) < 32 Then GatChA[N] := ' ' Else GatChA[N] := S[I];
+      GatAtA[N] := 0;
+     End;
+   End;
+   GatWriteText(N, ALIGN_LEFT);
+  End;
+  Exit;
+ End;
+ N := 0;
+ For R := 1 To Doc.Paragraphs[P].RunCount Do Begin
+  Sty := Doc.Paragraphs[P].Runs[R].Style.Style;
+  A := 0;
+  If (Sty And STY_BOLD) <> 0 Then A := A Or 1;
+  If (Sty And STY_UNDERLINE) <> 0 Then A := A Or 2;
+  If (Sty And STY_ITALIC) <> 0 Then A := A Or 4;
+  If Doc.Paragraphs[P].Runs[R].Style.FontSize >= 18 Then A := A Or 16;
+  S := Doc.Paragraphs[P].Runs[R].Text;
+  For I := 1 To Length(S) Do
+   If N < 8192 Then Begin
+    Inc(N);
+    If Ord(S[I]) < 32 Then Begin GatChA[N] := ' '; GatAtA[N] := 0; End
+    Else Begin
+     GatChA[N] := S[I];
+     If S[I] = ' ' Then GatAtA[N] := 0 Else GatAtA[N] := A;
+    End;
+   End;
+ End;
+ GatWriteText(N, Doc.Paragraphs[P].Alignment);
+End;
+
+Function SaveGatToFile(Const FName: String): Boolean;
+Var P: Integer;
+Begin
+ SaveGatToFile := False;
+ {$I-} Assign(GatOutF, FName); Rewrite(GatOutF, 1); {$I+}
+ If IOResult <> 0 Then Exit;
+ GatOutN := 0; GatOutErr := False;
+ GatPutStr(': ' + '10 6 120 82 N 0');
+ GatPutLn;
+ For P := 1 To Doc.ParaCount Do GatWritePara(P);
+ GatFlush;
+ {$I-} Close(GatOutF); {$I+}
+ If IOResult <> 0 Then GatOutErr := True;
+ SaveGatToFile := Not GatOutErr;
 End;
 
 Function LoadAnyDocument(Const FName: String): Boolean;
 Begin
- If ExtIsPDF(FName) Then LoadAnyDocument:=LoadPDFfromFile(FName)
+ If ExtIsGat(FName) Then LoadAnyDocument := LoadGatFromFile(FName)
+ Else If ExtIsGpx(FName) Then LoadAnyDocument := LoadGpxDocument(FName)
+ Else If ExtIsPDF(FName) Then LoadAnyDocument:=LoadPDFfromFile(FName)
  Else If ExtIsDocx(FName) Then LoadAnyDocument := LoadDocxFromFile(FName)
  Else If ExtIsDoc (FName) Then LoadAnyDocument := LoadDocFromFile(FName)
  Else                          LoadAnyDocument := LoadDocumentFromFile(FName);
@@ -9056,7 +10107,8 @@ End;
 
 Function SaveAnyDocument(Const FName: String): Boolean;
 Begin
- If ExtIsPDF(FName) Then SaveAnyDocument:=False
+ If ExtIsGat(FName) Then SaveAnyDocument := SaveGatToFile(FName)
+ Else If ExtIsPDF(FName) Then SaveAnyDocument:=False
  Else If ExtIsDocx(FName) Then SaveAnyDocument := SaveDocxToFile(FName)
  Else If ExtIsDoc (FName) Then SaveAnyDocument := False
  Else                          SaveAnyDocument := SaveDocumentToFile(FName);
@@ -9092,15 +10144,18 @@ Begin
   If KeyPressed Then Begin
    K := ReadKeyEx;
    Case K Of
-    Ord('Y'),Ord('y'),Ord('O'),Ord('o'),KEY_ENTER : Begin OK:=True;  Done:=True; End;
-    Ord('N'),Ord('n'),KEY_ESC                     : Begin OK:=False; Done:=True; End;
+    Ord('Y'),Ord('y'),Ord('O'),Ord('o'),KEY_ENTER : Begin OK:=True;  Done:=True;
+      End;
+    Ord('N'),Ord('n'),KEY_ESC                     : Begin OK:=False; Done:=True;
+      End;
    End;
   End;
   GetMouseStateLI(MsX, MsY, MsBtn);
   If (MsBtn And MB_LEFT) <> 0 Then Begin
    If (MsX>=X1+100) And (MsX<=X1+180) And (MsY>=Y2-30) And (MsY<=Y2-10) Then
     Begin OK:=True; Done:=True; End
-   Else If (MsX>=X1+220) And (MsX<=X1+300) And (MsY>=Y2-30) And (MsY<=Y2-10) Then
+   Else If (MsX>=X1+220) And (MsX<=X1+300) And (MsY>=Y2-30) And (MsY<=Y2-10)
+     Then
     Begin OK:=False; Done:=True; End;
   End;
  Until Done;
@@ -9243,7 +10298,8 @@ Var
   DrawFrameRect(FX1,PopupY1,FX2,PopupY2,Black);
   For J:=1 To FltCount Do Begin
    Y:=PopupY1+1+(J-1)*ROW_H;
-   If J=FltHover Then Begin BG:=Blue;FG:=White;End Else Begin BG:=White;FG:=Black;End;
+   If J=FltHover Then Begin BG:=Blue;FG:=White;End Else Begin
+     BG:=White;FG:=Black;End;
    FillRectArea(FX1+1,Y,FX2-1,Y+ROW_H-1,BG);
    DrawTextAt(FX1+5,Y+3,Copy(FltLabels[J],1,54),FG);
   End;
@@ -9402,7 +10458,8 @@ Begin
     End;
     If FltOpen Then DrawFilterPopup;
    End Else If (K=KEY_F4) or ((K=KEY_ENTER) and FltFocus) or
-               ((K=KEY_DOWN) and FltFocus) or ((K=32) and FltFocus) Then OpenFilterPopup
+               ((K=KEY_DOWN) and FltFocus) or ((K=32) and FltFocus) Then
+                 OpenFilterPopup
    Else If K=KEY_TAB Then Begin
     FltFocus:=Not FltFocus;
     If FltFocus Then OpenFilterPopup;
@@ -9410,11 +10467,13 @@ Begin
    FltFocus:=False;
    Case K Of
     KEY_ESC   : Begin OK:=False; Done:=True; End;
-    KEY_ENTER : If (Sel >= 1) And (Sel <= FileCount) And FileIsDir[Sel] Then Begin
+    KEY_ENTER : If (Sel >= 1) And (Sel <= FileCount) And FileIsDir[Sel] Then
+      Begin
                  If Files[Sel] = '[..]' Then NavigateUp
                  Else NavigateInto(Copy(Files[Sel], 2, Length(Files[Sel])-2));
                  NeedRescan := True;
-                End Else If Length(Inp) > 0 Then Begin OK:=True; Done:=True; End;
+                End Else If Length(Inp) > 0 Then Begin OK:=True; Done:=True;
+                  End;
     KEY_UP    : If FileCount > 0 Then Begin
                  If Sel <= 1 Then Sel := 1 Else Dec(Sel);
                  If Sel < Top Then Top := Sel;
@@ -9453,16 +10512,21 @@ Begin
                      (MsY>PopupY1) and (MsY<PopupY2));
    End;
   End;
-  If Not MouseConsumed and ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT) = 0) Then Begin
+  If Not MouseConsumed and ((MsBtn And MB_LEFT) <> 0) And ((LastBtn And MB_LEFT)
+    = 0) Then Begin
    If (MsX>=OkX1) And (MsX<=OkX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     If Length(Inp)>0 Then Begin OK:=True; Done:=True; End;
-   End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
+   End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then
+     Begin
     OK:=False; Done:=True;
-   End Else If (MsX>=FX1) And (MsX<=FX2) And (MsY>=FY1) And (MsY<=FY2) Then Begin
+   End Else If (MsX>=FX1) And (MsX<=FX2) And (MsY>=FY1) And (MsY<=FY2) Then
+     Begin
     OpenFilterPopup;
-   End Else If (MsX>=IX1) and (MsX<=IX2) and (MsY>=IY1) and (MsY<=IY2) Then Begin
+   End Else If (MsX>=IX1) and (MsX<=IX2) and (MsY>=IY1) and (MsY<=IY2) Then
+     Begin
     FltFocus:=False;
-   End Else If (MsX>=LX1) And (MsX<=LX2) And (MsY>=LY1) And (MsY<=LY2) Then Begin
+   End Else If (MsX>=LX1) And (MsX<=LX2) And (MsY>=LY1) And (MsY<=LY2) Then
+     Begin
     FltFocus:=False;
     Idx := Top + (MsY - LY1 - 1) Div ROW_H;
     If (Idx >= 1) And (Idx <= FileCount) Then Begin
@@ -9597,7 +10661,8 @@ Begin
   If (MsBtn And MB_LEFT) <> 0 Then Begin
    If (MsX>=OkX1) And (MsX<=OkX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
     OK := True; Done := True;
-   End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then Begin
+   End Else If (MsX>=CnX1) And (MsX<=CnX1+80) And (MsY>=BY1) And (MsY<=BY2) Then
+     Begin
     OK := False; Done := True;
    End;
    Repeat GetMouseStateLI(MsX, MsY, MsBtn); Until (MsBtn And MB_LEFT) = 0;
@@ -9631,7 +10696,8 @@ Const
   'Pages','Mots','Caract'+#138+'res (avec espaces)',
   'Caract'+#138+'res (sans espaces)','Paragraphes','Lignes de texte',
   'Tableaux','Cellules','Images');
- Colors: Array[1..9] of Word = (Blue,Red,Green,Magenta,Cyan,Brown,DarkGray,LightRed,LightBlue);
+ Colors: Array[1..9] of Word =
+   (Blue,Red,Green,Magenta,Cyan,Brown,DarkGray,LightRed,LightBlue);
 Var
  Totals: Array[1..9] of LongInt;
  P, I, R, C, T, Y, Ink: Integer;
@@ -9789,7 +10855,8 @@ Var
 Begin
  Dst^ := Src^;
  For I := 1 To Dst^.ParaCount Do
-  If Dst^.Paragraphs[I].IsImage And (Dst^.Paragraphs[I].ImgData <> Nil) Then Begin
+  If Dst^.Paragraphs[I].IsImage And (Dst^.Paragraphs[I].ImgData <> Nil) Then
+    Begin
    Sz := Dst^.Paragraphs[I].ImgW * Dst^.Paragraphs[I].ImgH;
    If Sz > 0 Then Begin
     GetMem(NewP, Sz);
@@ -9804,7 +10871,8 @@ Procedure DocSnapshotFreeImages(Snap: TDocPtr);
 Var I, Sz: Integer;
 Begin
  For I := 1 To Snap^.ParaCount Do
-  If Snap^.Paragraphs[I].IsImage And (Snap^.Paragraphs[I].ImgData <> Nil) Then Begin
+  If Snap^.Paragraphs[I].IsImage And (Snap^.Paragraphs[I].ImgData <> Nil) Then
+    Begin
    Sz := Snap^.Paragraphs[I].ImgW * Snap^.Paragraphs[I].ImgH;
    FreeMem(Snap^.Paragraphs[I].ImgData, Sz);
    Snap^.Paragraphs[I].ImgData := Nil;
@@ -10124,11 +11192,15 @@ Begin
     KEY_ESC:Done:=True;
     KEY_ENTER:Begin
      Val(Text,Value,I);
-     If (I=0) and (Value>=25) and (Value<=300) Then Begin Apply:=True;Done:=True;End;
+     If (I=0) and (Value>=25) and (Value<=300) Then Begin
+       Apply:=True;Done:=True;End;
     End;
-    KEY_LEFT,KEY_UP:Begin If Choice<=1 Then Pick(8) Else Pick(Choice-1);Paint;End;
-    KEY_RIGHT,KEY_DOWN,KEY_TAB:Begin If Choice>=8 Then Pick(1) Else Pick(Choice+1);Paint;End;
-    KEY_BACKSPACE:Begin If Length(Text)>0 Then Delete(Text,Length(Text),1);Choice:=0;Paint;End;
+    KEY_LEFT,KEY_UP:Begin If Choice<=1 Then Pick(8) Else
+      Pick(Choice-1);Paint;End;
+    KEY_RIGHT,KEY_DOWN,KEY_TAB:Begin If Choice>=8 Then Pick(1) Else
+      Pick(Choice+1);Paint;End;
+    KEY_BACKSPACE:Begin If Length(Text)>0 Then
+      Delete(Text,Length(Text),1);Choice:=0;Paint;End;
     48..57:Begin
      If Choice<>0 Then Text:='';Choice:=0;
      If Length(Text)>=3 Then Text:='';Text:=Text+Char(K);Paint;
@@ -10139,13 +11211,15 @@ Begin
   If ((MsBtn and MB_LEFT)<>0) and ((PrevButton and MB_LEFT)=0) Then Begin
    For I:=1 To 8 Do Begin
     X:=170+((I-1) mod 4)*75;Y:=216+((I-1) div 4)*30;
-    If (MsX>=X) and (MsX<=X+68) and (MsY>=Y) and (MsY<=Y+23) Then Begin Pick(I);Paint;End;
+    If (MsX>=X) and (MsX<=X+68) and (MsY>=Y) and (MsY<=Y+23) Then Begin
+      Pick(I);Paint;End;
    End;
    If (MsY>=313) and (MsY<=336) Then Begin
     If (MsX>=385) and (MsX<=470) Then Done:=True;
     If (MsX>=285) and (MsX<=365) Then Begin
      Val(Text,Value,I);
-     If (I=0) and (Value>=25) and (Value<=300) Then Begin Apply:=True;Done:=True;End;
+     If (I=0) and (Value>=25) and (Value<=300) Then Begin
+       Apply:=True;Done:=True;End;
     End;
    End;
   End;
@@ -10476,7 +11550,8 @@ Begin
     If (MsX>=294) And (MsX<=352) And (MsY>=150) And (MsY<330) Then Begin
      Draft.FontSize:=FirstSize+(MsY-150) div 18;
      ListOpen:=False;
-    End Else If (MsX>=353) And (MsX<=376) And (MsY>=150) And (MsY<=330) Then Begin
+    End Else If (MsX>=353) And (MsX<=376) And (MsY>=150) And (MsY<=330) Then
+      Begin
      If MsY<=168 Then MoveChoice(FirstSize-1);
      If MsY>=312 Then MoveChoice(FirstSize+VisibleSizes);
     End Else ListOpen:=False;
@@ -10581,9 +11656,11 @@ Var
   FillRectArea(384,164,448,188,White);
   DrawSunkenRect(384,164,448,188);
   DrawTextAt(392,171,ValueText,Black);
-  DrawTextAt(122,202,'['+Chr(32+56*Ord(AllLines))+'] Inclure la premiere ligne',Black);
+  DrawTextAt(122,202,'['+Chr(32+56*Ord(AllLines))+'] Inclure la premiere ligne',
+    Black);
   DrawTextAt(122,225,'['+Chr(32+56*Ord(Border))+'] Bordure inferieure',Black);
-  DrawTextAt(122,248,'['+Chr(32+56*Ord(PageBreak))+'] Saut de page avant',Black);
+  DrawTextAt(122,248,'['+Chr(32+56*Ord(PageBreak))+'] Saut de page avant',
+    Black);
   If F=0 Then DrawTextAt(519,137,'*',Blue)
   Else DrawTextAt(510,171+(F-1)*23,'*',Blue);
   FillRectArea(122,272,515,335,White);
@@ -10625,7 +11702,8 @@ Var
 
  Function TextParagraph(Index: Integer): Boolean;
  Begin
-  TextParagraph:=Not Doc.Paragraphs[Index].IsImage And Not ParaIsTable(Index) And Not Doc.Paragraphs[Index].PDF.Active;
+  TextParagraph:=Not Doc.Paragraphs[Index].IsImage And Not ParaIsTable(Index)
+    And Not Doc.Paragraphs[Index].PDF.Active;
  End;
 
 Begin
@@ -10794,7 +11872,8 @@ Begin
   While (P <= Length(S)) And (S[P] <> ' ') Do Inc(P);
   If P > B Then Begin
    If WordCount = MaxWords Then Exit;
-   Inc(WordCount); New(Dictionary[WordCount]); Dictionary[WordCount]^ := Copy(S, B, P-B)
+   Inc(WordCount); New(Dictionary[WordCount]); Dictionary[WordCount]^ := Copy(S,
+     B, P-B)
   End
  End
 End;
@@ -10802,251 +11881,373 @@ End;
 Procedure FrenchWords;
 Begin
  Words(
- 'a '#195#160' ai aie aies ait as au aux avec avant apr'#195#168's assez aussi autant autre');
+ 'a '#195#160' ai aie aies ait as au aux avec avant apr'#195#168's assez auss'+
+   'i autant autre');
  Words('autres aucun aucune');
  Words('alors ainsi aller allons allez allez-vous');
  Words(
- 'avoir avons avez avaient avais avait ayant eu eue eus eues aurai auras aura aurons aurez');
+ 'avoir avons avez avaient avais avait ayant eu eue eus eues aurai auras aura'+
+   ' aurons aurez');
  Words('auront');
  Words('aurais aurait auraient');
- Words(#195#170'tre suis es est sommes '#195#170'tes sont '#195#169'tais '#195#169'tait');
- Words(#195#169'tions '#195#169'tiez '#195#169'taient '#195#169't'#195#169' serai seras');
+ Words(
+   #195#170'tre suis es est sommes '#195#170'tes sont '#195#169'tai'+
+   's '#195#169'tait');
+ Words(
+   #195#169'tions '#195#169'tiez '#195#169'taient '#195#169't'#195#169' serai'+
+   ' seras');
  Words('sera serons serez seront serait seraient sois soit soient');
  Words(
- 'bonjour bonsoir salut merci oui non peut-'#195#170'tre voici voil'#195#160' bien mal mieux');
+ 'bonjour bonsoir salut merci oui non peut-'#195#170'tre voici vo'+
+   'il'#195#160' bien mal mieux');
  Words('tr'#195#168's trop peu plus');
  Words('moins beaucoup tout tous toute toutes');
  Words(
- 'ce cet cette ces celui celle ceux celles ceci cela '#195#167'a de du des le la les un une et');
+ 'ce cet cette ces celui celle ceux celles ceci cela '#195#167'a de du des le'+
+   ' la les un une et');
  Words('ou o'#195#185);
  Words('mais donc or ni car si sinon');
  Words(
- 'je tu il elle on nous vous ils elles me te se moi toi soi lui leur leurs mon ma mes ton ta');
+ 'je tu il elle on nous vous ils elles me te se moi toi soi lui leur leurs mo'+
+   'n ma mes ton ta');
  Words('tes');
  Words('son sa ses notre nos votre vos');
  Words(
- 'dans sur sous par pour sans entre vers chez contre depuis pendant durant malgr'#195#169)
+ 'dans sur sous par pour sans entre vers chez contre depuis pendant durant ma'+
+   'lgr'#195#169)
  ;
  Words('selon parmi');
  Words('devant derri'#195#168're');
  Words(
- 'ne pas jamais rien personne aucun seulement encore d'#195#169'j'#195#160' toujours souvent');
+ 'ne pas jamais rien personne aucun seulement encore d'#195#169'j'#195#160' t'+
+   'oujours souvent');
  Words('parfois quelquefois');
  Words('maintenant aujourd'#226#128#153'hui demain hier');
  Words(
- 'ici l'#195#160' ailleurs partout ensemble quand comme comment pourquoi parce que qui quoi');
+ 'ici l'#195#160' ailleurs partout ensemble quand comme comment pourquoi parc'+
+   'e que qui quoi');
  Words('dont lequel');
  Words('laquelle lesquels lesquelles');
  Words(
- 'chaque plusieurs quelques quelque m'#195#170'me m'#195#170'mes certain certains certaine');
+ 'chaque plusieurs quelques quelque m'#195#170'me m'#195#170'mes certain cert'+
+   'ains certaine');
  Words('certaines tel telle');
  Words('tels telles');
  Words(
- 'puis peux peut pouvons pouvez peuvent pouvais pouvait pouvaient pu dois doit devons devez');
+ 'puis peux peut pouvons pouvez peuvent pouvais pouvait pouvaient pu dois doi'+
+   't devons devez');
  Words('doivent devrait devraient d'#195#187);
  Words(
- 'fais fait faisons faites font faisais faisait faisaient faire faisant vais vas va vont aller');
+ 'fais fait faisons faites font faisais faisait faisaient faire faisant vais '+
+   'vas va vont aller');
  Words('viens vient venons venez viennent venir');
  Words(
- 'veux veut voulons voulez veulent vouloir sais sait savons savez savent savoir vois voit');
+ 'veux veut voulons voulez veulent vouloir sais sait savons savez savent savo'+
+   'ir vois voit');
  Words('voyons');
  Words('voyez voient voir');
  Words(
- 'dis dit disent dire donne donnes donnent donner prends prend prendre pense penses pensent');
+ 'dis dit disent dire donne donnes donnent donner prends prend prendre pense '+
+   'penses pensent');
  Words('penser aime aimes aiment aimer');
  Words(
- 'parle parles parlent parlons parlez parler mange manges mangent mangeons mangez manger')
+ 'parle parles parlent parlons parlez parler mange manges mangent mangeons ma'+
+   'ngez manger')
  ;
  Words('travaille travaillent travailler');
  Words(
- 'habite habitent habiter regarde regardent regarder trouve trouvent trouver semble semblent');
+ 'habite habitent habiter regarde regardent regarder trouve trouvent trouver '+
+   'semble semblent');
  Words('sembler reste restent rester');
  Words(
- 'faut fallait fallait falloir pleut pleuvoir existe existent existez '#195#169'crit');
+ 'faut fallait fallait falloir pleut pleuvoir existe existent existe'+
+   'z '#195#169'crit');
  Words(#195#169'cris '#195#169'crivent');
  Words(#195#169'crire lire lis lit lisent lu lue');
  Words(
- 'bonjour monde texte textes fichier fichiers phrase phrases mot mots mot-cl'#195#169' exemple');
+ 'bonjour monde texte textes fichier fichiers phrase phrases mot mots mot-'+
+   'cl'#195#169' exemple');
  Words('exemples');
  Words('erreur erreurs faute fautes');
  Words(
- 'fran'#195#167'ais fran'#195#167'aise fran'#195#167'aises langue langues grammaire orthographe');
+ 'fran'#195#167'ais fran'#195#167'aise fran'#195#167'aises langue langues gra'+
+   'mmaire orthographe');
  Words('correction correcteur');
  Words('correcteurs dictionnaire rapport r'#195#169'sultat r'#195#169'sultats');
  Words(
- 'petit petits petite petites grand grands grande grandes bon bons bonne bonnes mauvais');
+ 'petit petits petite petites grand grands grande grandes bon bons bonne bonn'+
+   'es mauvais');
  Words('mauvaise');
  Words('mauvaises beau beaux belle belles');
  Words(
- 'nouveau nouveaux nouvelle nouvelles vieux vieille vieilles jeune jeunes joli jolis jolie');
+ 'nouveau nouveaux nouvelle nouvelles vieux vieille vieilles jeune jeunes jol'+
+   'i jolis jolie');
  Words('jolies');
  Words('heureux heureuse heureuses');
  Words(
- 'chat chats chatte chattes chien chiens chienne chiennes animal animaux cheval chevaux oiseau');
+ 'chat chats chatte chattes chien chiens chienne chiennes animal animaux chev'+
+   'al chevaux oiseau');
  Words('oiseaux poisson poissons');
  Words(
- 'maison maisons jardin jardins voiture voitures livre livres '#195#169'cole '#195#169'coles');
+ 'maison maisons jardin jardins voiture voitures livre livres '#195#169'col'+
+   'e '#195#169'coles');
  Words('classe classes');
  Words(#195#169'l'#195#168've '#195#169'l'#195#168'ves enfant enfants');
  Words(
- 'homme hommes femme femmes fille filles gar'#195#167'on gar'#195#167'ons ami amis amie amies');
+ 'homme hommes femme femmes fille filles gar'#195#167'on gar'#195#167'ons ami'+
+   ' amis amie amies');
  Words('famille familles');
  Words('p'#195#168're m'#195#168're fr'#195#168're soeur s'#197#147'ur');
  Words(
- 'jour jours nuit nuits matin matins soir soirs semaine semaines mois ann'#195#169'e');
+ 'jour jours nuit nuits matin matins soir soirs semaine semaines mois a'+
+   'nn'#195#169'e');
  Words('ann'#195#169'es an ans heure');
  Words('heures minute minutes temps');
  Words(
- 'eau pain vin lait caf'#195#169' th'#195#169' pomme pommes fruit fruits repas table tables');
+ 'eau pain vin lait caf'#195#169' th'#195#169' pomme pommes fruit fruits repa'+
+   's table tables');
  Words('chaise chaises porte');
  Words('portes fen'#195#170'tre fen'#195#170'tres');
- Words('ville villes pays rue rues route routes chemin chemins train trains avion avions')
+ Words('ville villes pays rue rues route routes chemin chemins train trains a'+
+   'vion avions')
  ;
  Words('v'#195#169'lo bateau');
  Words('bateaux travail travaux bureau bureaux');
  Words(
- 'ordinateur ordinateurs programme programmes information informations syst'#195#168'me');
+ 'ordinateur ordinateurs programme programmes information informations sy'+
+   'st'#195#168'me');
  Words('syst'#195#168'mes');
  Words('donn'#195#169'es document documents ligne lignes');
  Words(
- 'important importants importante importantes possible possibles impossible impossibles simple');
+ 'important importants importante importantes possible possibles impossible i'+
+   'mpossibles simple');
  Words('simples difficile difficiles facile faciles');
- Words('vrai vrais vraie vraies faux fausse fausses premier premiers premi'#195#168're');
+ Words('vrai vrais vraie vraies faux fausse fausses premier premiers pre'+
+   'mi'#195#168're');
  Words('premi'#195#168'res dernier');
  Words('derniers derni'#195#168're derni'#195#168'res');
  Words(
- 'rouge rouges vert verts verte vertes bleu bleus bleue bleues blanc blancs blanche blanches');
+ 'rouge rouges vert verts verte vertes bleu bleus bleue bleues blanc blancs b'+
+   'lanche blanches');
  Words('noir');
  Words('noirs noire noires');
  Words(
- 'gentil gentils gentille gentilles content contents contente contentes heureux heureuse triste');
- Words('tristes fatigu'#195#169' fatigu'#195#169's fatigu'#195#169'e fatigu'#195#169'es');
+ 'gentil gentils gentille gentilles content contents contente contentes heure'+
+   'ux heureuse triste');
+ Words('tristes fatigu'#195#169' fatigu'#195#169's fatigu'#195#169'e fati'+
+   'gu'#195#169'es');
  Words(
- 'deux trois quatre cinq six sept huit neuf dix onze douze cent cents mille million millions');
+ 'deux trois quatre cinq six sept huit neuf dix onze douze cent cents mille m'+
+   'illion millions');
  Words('z'#195#169'ro');
  Words(
- 'chose choses probl'#195#168'me probl'#195#168'mes question questions r'#195#169'ponse');
+ 'chose choses probl'#195#168'me probl'#195#168'mes question questions'+
+   ' r'#195#169'ponse');
  Words('r'#195#169'ponses raison raisons besoin');
  Words('besoins point points cas mani'#195#168're fa'#195#167'on');
- Words('d'#195#169'but fin suite partie parties place places c'#195#180't'#195#169);
+ Words('d'#195#169'but fin suite partie parties place places'+
+   ' c'#195#180't'#195#169);
  Words('c'#195#180't'#195#169's droit droite gauche centre nord sud');
  Words('ouest');
  Words(
- 'vraiment simplement rapidement lentement facilement correctement notamment '#195#169'galement');
+ 'vraiment simplement rapidement lentement facilement correctement notammen'+
+   't '#195#169'galement');
  Words('cependant');
  Words('pourtant ensuite enfin plut'#195#180't presque');
  Words(
- 'attention accord accords nom noms verbe verbes sujet sujets adjectif adjectifs pluriel')
+ 'attention accord accords nom noms verbe verbes sujet sujets adjectif adject'+
+   'ifs pluriel')
  ;
  Words('singulier f'#195#169'minin masculin');
  Words(
- 'merci monsieur madame bon bonne journ'#195#169'e bienvenue bient'#195#180't revoir plaisir');
+ 'merci monsieur madame bon bonne journ'#195#169'e bienvenue bient'#195#180't'+
+   ' revoir plaisir');
  Words('sant'#195#169' vie mort');
  Words('amour paix');
  Words(
- 'pris prise compris comprendre appris apprendre ouvert ouvrir ferm'#195#169' fermer');
+ 'pris prise compris comprendre appris apprendre ouvert ouvrir fe'+
+   'rm'#195#169' fermer');
  Words('re'#195#167'u recevoir');
  Words('envoy'#195#169' envoyer utilis'#195#169' utiliser');
  Words(
- 'besoin envie peur raison tort cours course histoire histoires musique film films photo photos');
+ 'besoin envie peur raison tort cours course histoire histoires musique film '+
+   'films photo photos');
  Words('image images');
  Words('l d j c n s t m qu jusqu lorsqu puisqu aujourd hui est-ce');
 End;
 
 Procedure EnglishWords;
 Begin
- Words('a an the this that these those i you he she it we they me him her us them');
- Words('my your his its our their mine yours hers ours theirs myself yourself himself');
- Words('herself itself ourselves yourselves themselves who whom whose which what');
- Words('am is are was were be been being have has had having do does did done doing');
- Words('will would shall should can could may might must ought need dare not no yes');
- Words('and or but if then else because so although though while until unless since');
- Words('as than whether either neither both all any some each every much many few');
- Words('more most less least other another such same only own enough several none');
- Words('in on at to from by for with without of about above below over under between');
- Words('through across along around against among before after during into onto upon');
- Words('up down out off away back here there where when why how now very too also');
- Words('just still already yet always never ever often sometimes usually again once');
- Words('twice together apart almost quite rather really well even perhaps maybe');
- Words('hello hi goodbye welcome please thanks thank sorry excuse okay ok dear');
- Words('world word words text texts file files document documents line lines page pages');
- Words('spell spelling checker check checks checked checking correct correction corrections');
- Words('error errors mistake mistakes suggestion suggestions dictionary dictionaries');
- Words('english french language languages sentence sentences grammar letter letters');
- Words('write writes writing written wrote read reads reading reader readers book books');
- Words('say says said tell tells told speak speaks speaking spoken talk talks talking');
+ Words('a an the this that these those i you he she it we they me him her us '+
+   'them');
+ Words('my your his its our their mine yours hers ours theirs myself yourself'+
+   ' himself');
+ Words('herself itself ourselves yourselves themselves who whom whose which w'+
+   'hat');
+ Words('am is are was were be been being have has had having do does did done'+
+   ' doing');
+ Words('will would shall should can could may might must ought need dare not '+
+   'no yes');
+ Words('and or but if then else because so although though while until unless'+
+   ' since');
+ Words('as than whether either neither both all any some each every much many'+
+   ' few');
+ Words('more most less least other another such same only own enough several '+
+   'none');
+ Words('in on at to from by for with without of about above below over under '+
+   'between');
+ Words('through across along around against among before after during into on'+
+   'to upon');
+ Words('up down out off away back here there where when why how now very too '+
+   'also');
+ Words('just still already yet always never ever often sometimes usually agai'+
+   'n once');
+ Words('twice together apart almost quite rather really well even perhaps may'+
+   'be');
+ Words('hello hi goodbye welcome please thanks thank sorry excuse okay ok de'+
+   'ar');
+ Words('world word words text texts file files document documents line lines '+
+   'page pages');
+ Words('spell spelling checker check checks checked checking correct correcti'+
+   'on corrections');
+ Words('error errors mistake mistakes suggestion suggestions dictionary dicti'+
+   'onaries');
+ Words('english french language languages sentence sentences grammar letter l'+
+   'etters');
+ Words('write writes writing written wrote read reads reading reader readers '+
+   'book books');
+ Words('say says said tell tells told speak speaks speaking spoken talk talks'+
+   ' talking');
  Words('go goes going gone went come comes coming came get gets getting got');
- Words('make makes making made take takes taking taken took give gives giving given gave');
- Words('see sees seeing seen saw look looks looking looked watch watches watched');
- Words('know knows knowing known knew think thinks thinking thought understand understood');
+ Words('make makes making made take takes taking taken took give gives giving'+
+   ' given gave');
+ Words('see sees seeing seen saw look looks looking looked watch watches watc'+
+   'hed');
+ Words('know knows knowing known knew think thinks thinking thought understan'+
+   'd understood');
  Words('want wants wanted like likes liked love loves loved hate hates hated');
  Words('work works working worked use uses using used try tries trying tried');
  Words('help helps helping helped find finds finding found keep keeps kept');
- Words('learn learns learned learning teach teaches teaching taught study studies');
- Words('play plays playing played run runs running ran walk walks walked walking');
- Words('eat eats eating eaten ate drink drinks drinking drunk drank sleep sleeps slept');
- Words('live lives lived living move moves moved moving leave leaves leaving left');
- Words('put puts putting let lets letting set sets setting sit sits sitting sat');
+ Words('learn learns learned learning teach teaches teaching taught study stu'+
+   'dies');
+ Words('play plays playing played run runs running ran walk walks walked walk'+
+   'ing');
+ Words('eat eats eating eaten ate drink drinks drinking drunk drank sleep sle'+
+   'eps slept');
+ Words('live lives lived living move moves moved moving leave leaves leaving '+
+   'left');
+ Words('put puts putting let lets letting set sets setting sit sits sitting s'+
+   'at');
  Words('stand stands standing stood open opens opened close closes closed');
- Words('start starts started starting stop stops stopped stopping finish finished');
- Words('change changes changed changing turn turns turned turning bring brings brought');
+ Words('start starts started starting stop stops stopped stopping finish fini'+
+   'shed');
+ Words('change changes changed changing turn turns turned turning bring bring'+
+   's brought');
  Words('buy buys buying bought sell sells selling sold pay pays paying paid');
- Words('send sends sending sent receive receives received receiving believe believes');
- Words('believed believing achieve achieved achieving become becomes became become');
+ Words('send sends sending sent receive receives received receiving believe b'+
+   'elieves');
+ Words('believed believing achieve achieved achieving become becomes became b'+
+   'ecome');
  Words('happen happens happened happening occur occurs occurred occurring');
  Words('remember remembers remembered forget forgets forgot forgotten');
- Words('worry worries worried worrying hope hopes hoped hoping wish wishes wished');
- Words('feel feels feeling felt hear hears hearing heard meet meets meeting met');
- Words('good better best bad worse worst new old young great small big large little');
- Words('long short tall high low wide narrow early late first last next previous');
- Words('happy sad easy difficult simple hard possible impossible true false right wrong');
- Words('beautiful nice pretty ugly important different interesting useful careful');
- Words('quick fast slow quiet loud clear clean dirty full empty hot cold warm cool');
+ Words('worry worries worried worrying hope hopes hoped hoping wish wishes wi'+
+   'shed');
+ Words('feel feels feeling felt hear hears hearing heard meet meets meeting m'+
+   'et');
+ Words('good better best bad worse worst new old young great small big large '+
+   'little');
+ Words('long short tall high low wide narrow early late first last next previ'+
+   'ous');
+ Words('happy sad easy difficult simple hard possible impossible true false r'+
+   'ight wrong');
+ Words('beautiful nice pretty ugly important different interesting useful car'+
+   'eful');
+ Words('quick fast slow quiet loud clear clean dirty full empty hot cold warm'+
+   ' cool');
  Words('red green blue yellow black white brown orange purple pink grey gray');
- Words('one two three four five six seven eight nine ten eleven twelve hundred thousand');
- Words('zero million number numbers time times day days night nights morning evening');
- Words('today yesterday tomorrow week weeks month months year years hour hours minute');
- Words('minutes second seconds monday tuesday wednesday thursday friday saturday sunday');
- Words('january february march april may june july august september october november december');
- Words('man men woman women child children boy boys girl girls baby babies person people');
- Words('friend friends family families father mother brother sister son daughter parent parents');
- Words('name names home homes house houses room rooms door doors window windows');
- Words('table tables chair chairs bed beds kitchen garden school schools class classes');
- Words('student students teacher teachers lesson lessons office business company companies');
+ Words('one two three four five six seven eight nine ten eleven twelve hundre'+
+   'd thousand');
+ Words('zero million number numbers time times day days night nights morning '+
+   'evening');
+ Words('today yesterday tomorrow week weeks month months year years hour hour'+
+   's minute');
+ Words('minutes second seconds monday tuesday wednesday thursday friday satur'+
+   'day sunday');
+ Words('january february march april may june july august september october n'+
+   'ovember december');
+ Words('man men woman women child children boy boys girl girls baby babies pe'+
+   'rson people');
+ Words('friend friends family families father mother brother sister son daugh'+
+   'ter parent parents');
+ Words('name names home homes house houses room rooms door doors window windo'+
+   'ws');
+ Words('table tables chair chairs bed beds kitchen garden school schools clas'+
+   's classes');
+ Words('student students teacher teachers lesson lessons office business comp'+
+   'any companies');
  Words('job jobs money price prices shop shops store stores market markets');
- Words('city cities town towns country countries street streets road roads car cars');
- Words('bus buses train trains plane planes boat boats bike bikes bicycle bicycles');
- Words('water food bread milk tea coffee apple apples fruit fruits vegetable vegetables');
- Words('meat fish egg eggs rice potato potatoes tomato tomatoes cheese sugar salt');
- Words('cat cats dog dogs horse horses bird birds animal animals tree trees flower flowers');
- Words('sun moon star stars sky rain snow wind weather sea river mountain mountains');
- Words('computer computers program programs software hardware system systems data');
- Words('information message messages email emails internet network networks website websites');
- Words('screen screens keyboard mouse button buttons folder folders command commands');
- Words('option options parameter parameters code source output input result results');
- Words('report reports test tests testing version versions update updates updated');
- Words('question questions answer answers problem problems solution solutions example examples');
- Words('idea ideas reason reasons fact facts way ways thing things part parts place places');
- Words('story stories history music song songs film films movie movies picture pictures');
- Words('image images photo photos game games team teams life health peace love');
- Words('public private free available special general common local national international');
- Words('quickly slowly carefully correctly especially probably actually certainly');
- Words('really simply usually finally recently suddenly immediately unfortunately');
- Words('beautifully definitely necessary separate receive address addresses tomorrow');
- Words('beginning accommodation environment government successful success business');
- Words('don doesn didn couldn wouldn shouldn isn aren wasn weren hasn haven hadn');
+ Words('city cities town towns country countries street streets road roads ca'+
+   'r cars');
+ Words('bus buses train trains plane planes boat boats bike bikes bicycle bic'+
+   'ycles');
+ Words('water food bread milk tea coffee apple apples fruit fruits vegetable '+
+   'vegetables');
+ Words('meat fish egg eggs rice potato potatoes tomato tomatoes cheese sugar '+
+   'salt');
+ Words('cat cats dog dogs horse horses bird birds animal animals tree trees f'+
+   'lower flowers');
+ Words('sun moon star stars sky rain snow wind weather sea river mountain mou'+
+   'ntains');
+ Words('computer computers program programs software hardware system systems '+
+   'data');
+ Words('information message messages email emails internet network networks w'+
+   'ebsite websites');
+ Words('screen screens keyboard mouse button buttons folder folders command c'+
+   'ommands');
+ Words('option options parameter parameters code source output input result r'+
+   'esults');
+ Words('report reports test tests testing version versions update updates upd'+
+   'ated');
+ Words('question questions answer answers problem problems solution solutions'+
+   ' example examples');
+ Words('idea ideas reason reasons fact facts way ways thing things part parts'+
+   ' place places');
+ Words('story stories history music song songs film films movie movies pictur'+
+   'e pictures');
+ Words('image images photo photos game games team teams life health peace lo'+
+   've');
+ Words('public private free available special general common local national i'+
+   'nternational');
+ Words('quickly slowly carefully correctly especially probably actually certa'+
+   'inly');
+ Words('really simply usually finally recently suddenly immediately unfortuna'+
+   'tely');
+ Words('beautifully definitely necessary separate receive address addresses t'+
+   'omorrow');
+ Words('beginning accommodation environment government successful success bus'+
+   'iness');
+ Words('don doesn didn couldn wouldn shouldn isn aren wasn weren hasn haven h'+
+   'adn');
  Words('mustn needn won shan t s m d re ve ll ain');
  If DictName='en_GB' Then Begin
-  Words('colour colours coloured colouring favourite favourites neighbour neighbours');
-  Words('centre centres theatre theatres metre metres litre litres honour honours');
-  Words('behaviour organise organises organised organising organisation organisations');
-  Words('recognise recognised realise realised travelling travelled traveller travellers');
-  Words('programme programmes defence licence licences practise practised learnt got')
+  Words('colour colours coloured colouring favourite favourites neighbour nei'+
+    'ghbours');
+  Words('centre centres theatre theatres metre metres litre litres honour hon'+
+    'ours');
+  Words('behaviour organise organises organised organising organisation organ'+
+    'isations');
+  Words('recognise recognised realise realised travelling travelled traveller'+
+    ' travellers');
+  Words('programme programmes defence licence licences practise practised lea'+
+    'rnt got')
  End Else Begin
   Words('color colors colored coloring favorite favorites neighbor neighbors');
-  Words('center centers theater theaters meter meters liter liters honor honors');
-  Words('behavior organize organizes organized organizing organization organizations');
-  Words('recognize recognized realize realized traveling traveled traveler travelers');
+  Words('center centers theater theaters meter meters liter liters honor hono'+
+    'rs');
+  Words('behavior organize organizes organized organizing organization organi'+
+    'zations');
+  Words('recognize recognized realize realized traveling traveled traveler tr'+
+    'avelers');
   Words('defense license licenses practice practiced learned gotten')
  End
 End;
@@ -11055,101 +12256,164 @@ Procedure GermanWords;
 Begin
  Words(#195#150'l');
  Words('ich du er sie es wir ihr mich dich ihn uns euch mir dir ihm ihnen');
- Words('mein meine meinen meinem meiner meines dein deine sein seine unser unsere euer eure');
- Words('der die das den dem des ein eine einen einem einer eines kein keine keinen keiner');
- Words('dieser diese dieses diesen diesem jeder jede jedes alle alles beide viele viel wenige');
- Words('etwas nichts man jemand niemand selbst bin bist ist sind seid war warst waren wart');
- Words('gewesen sein habe hast hat haben habt hatte hatten gehabt werde wirst wird werden');
- Words('wurde wurden worden und oder aber denn weil wenn als dass ob obwohl damit bevor');
- Words('nachdem bis seit w'#195#164'hrend sondern also doch nur auch noch schon sehr mehr weniger');
- Words('am an auf aus bei mit nach von zu zum zur f'#195#188'r '#195#188'ber unter vor hinter neben');
+ Words('mein meine meinen meinem meiner meines dein deine sein seine unser un'+
+   'sere euer eure');
+ Words('der die das den dem des ein eine einen einem einer eines kein keine k'+
+   'einen keiner');
+ Words('dieser diese dieses diesen diesem jeder jede jedes alle alles beide v'+
+   'iele viel wenige');
+ Words('etwas nichts man jemand niemand selbst bin bist ist sind seid war war'+
+   'st waren wart');
+ Words('gewesen sein habe hast hat haben habt hatte hatten gehabt werde wirst'+
+   ' wird werden');
+ Words('wurde wurden worden und oder aber denn weil wenn als dass ob obwohl d'+
+   'amit bevor');
+ Words('nachdem bis seit w'#195#164'hrend sondern also doch nur auch noch sch'+
+   'on sehr mehr weniger');
+ Words('am an auf aus bei mit nach von zu zum zur f'#195#188'r '#195#188'ber '+
+   'unter vor hinter neben');
  Words('zwischen');
- Words('ohne gegen durch um im ins beim vom ja nein nicht bitte danke gern gerne heute morgen');
- Words('gestern jetzt hier dort da immer nie niemals oft manchmal bald wieder zusammen allein');
- Words('vielleicht wirklich leider einfach ziemlich besonders kann kannst k'#195#182'nnen');
+ Words('ohne gegen durch um im ins beim vom ja nein nicht bitte danke gern ge'+
+   'rne heute morgen');
+ Words('gestern jetzt hier dort da immer nie niemals oft manchmal bald wieder'+
+   ' zusammen allein');
+ Words('vielleicht wirklich leider einfach ziemlich besonders kann kannst'+
+   ' k'#195#182'nnen');
  Words('k'#195#182'nnt konnte');
- Words('konnten darf darfst d'#195#188'rfen d'#195#188'rft muss musst m'#195#188'ssen m'#195#188'sst');
+ Words('konnten darf darfst d'#195#188'rfen d'#195#188'rft muss musst'+
+   ' m'#195#188'ssen m'#195#188'sst');
  Words('musste mussten soll sollst');
- Words('sollen sollt sollte sollten will willst wollen wollt wollte wollten m'#195#182'chte');
+ Words('sollen sollt sollte sollten will willst wollen wollt wollte wollten'+
+   ' m'#195#182'chte');
  Words('m'#195#182'chten');
- Words('gut gute guten guter gutes besser beste schlecht schlechte klein kleine kleinen');
- Words('gro'#195#159' gro'#195#159'e gro'#195#159'en sch'#195#182'n sch'#195#182'ne sch'#195#182'nen');
+ Words('gut gute guten guter gutes besser beste schlecht schlechte klein klei'+
+   'ne kleinen');
+ Words('gro'#195#159' gro'#195#159'e gro'#195#159'en sch'#195#182'n s'+
+   'ch'#195#182'ne sch'#195#182'nen');
  Words('sch'#195#182'nes neu neue neuen alt alte alten jung junge');
- Words('lang lange kurz kurze hoch hohe niedrig richtig falsch wichtig m'#195#182'glich');
+ Words('lang lange kurz kurze hoch hohe niedrig richtig falsch wichtig'+
+   ' m'#195#182'glich');
  Words('unm'#195#182'glich leicht');
- Words('schwer schnell langsam fr'#195#188'h sp'#195#164't warm kalt hei'#195#159' frei offen');
+ Words('schwer schnell langsam fr'#195#188'h sp'#195#164't warm kalt h'+
+   'ei'#195#159' frei offen');
  Words('geschlossen m'#195#188'de gl'#195#188'cklich');
- Words('traurig freundlich klar sauber leer voll Hallo hallo Welt Tag Tage Nacht N'#195#164'chte');
+ Words('traurig freundlich klar sauber leer voll Hallo hallo Welt Tag Tage Na'+
+   'cht N'#195#164'chte');
  Words('Morgen');
- Words('Abend Woche Wochen Monat Monate Jahr Jahre Stunde Stunden Minute Minuten Zeit Zeiten');
- Words('Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag Januar Februar M'#195#164'rz April');
- Words('Mai Juni Juli August September Oktober November Dezember Mensch Menschen Mann M'#195#164'nner');
- Words('Frau Frauen Kind Kinder Junge Jungen M'#195#164'dchen Baby Familie Vater Mutter Eltern Bruder');
- Words('Schwester Sohn Tochter Freund Freunde Freundin Name Namen Haus H'#195#164'user Wohnung Zimmer');
- Words('T'#195#188'r T'#195#188'ren Fenster Tisch Stuhl Bett K'#195#188'che Garten Schule Schulen');
+ Words('Abend Woche Wochen Monat Monate Jahr Jahre Stunde Stunden Minute Minu'+
+   'ten Zeit Zeiten');
+ Words('Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag Januar Fe'+
+   'bruar M'#195#164'rz April');
+ Words('Mai Juni Juli August September Oktober November Dezember Mensch Mensc'+
+   'hen Mann M'#195#164'nner');
+ Words('Frau Frauen Kind Kinder Junge Jungen M'#195#164'dchen Baby Familie Va'+
+   'ter Mutter Eltern Bruder');
+ Words('Schwester Sohn Tochter Freund Freunde Freundin Name Namen Haus'+
+   ' H'#195#164'user Wohnung Zimmer');
+ Words('T'#195#188'r T'#195#188'ren Fenster Tisch Stuhl Bett K'#195#188'che G'+
+   'arten Schule Schulen');
  Words('Lehrer Lehrerin Sch'#195#188'ler');
- Words('Sch'#195#188'lerin Klasse Universit'#195#164't Buch B'#195#188'cher Seite Seiten Brief Briefe');
+ Words('Sch'#195#188'lerin Klasse Universit'#195#164't Buch B'#195#188'cher S'+
+   'eite Seiten Brief Briefe');
  Words('Wort W'#195#182'rter Satz S'#195#164'tze');
- Words('Text Texte Sprache Sprachen Deutsch Englisch Franz'#195#182'sisch Grammatik Rechtschreibung');
- Words('Fehler Korrektur W'#195#182'rterbuch Vorschlag Vorschl'#195#164'ge Datei Dateien Zeile Zeilen');
+ Words('Text Texte Sprache Sprachen Deutsch Englisch Franz'#195#182'sisch Gra'+
+   'mmatik Rechtschreibung');
+ Words('Fehler Korrektur W'#195#182'rterbuch Vorschlag Vorschl'#195#164'ge Da'+
+   'tei Dateien Zeile Zeilen');
  Words('Zeichen');
- Words('Dokument Dokumente Programm Programme Computer Rechner Tastatur Maus Bildschirm Internet');
- Words('Nachricht Nachrichten Daten System Ausgabe Eingabe Ergebnis Ergebnisse Befehl Befehle');
- Words('Option Optionen Test Tests Version Hilfe Frage Fragen Antwort Antworten Problem Probleme');
- Words('L'#195#182'sung L'#195#182'sungen Beispiel Beispiele Stadt St'#195#164'dte Land');
+ Words('Dokument Dokumente Programm Programme Computer Rechner Tastatur Maus '+
+   'Bildschirm Internet');
+ Words('Nachricht Nachrichten Daten System Ausgabe Eingabe Ergebnis Ergebniss'+
+   'e Befehl Befehle');
+ Words('Option Optionen Test Tests Version Hilfe Frage Fragen Antwort Antwort'+
+   'en Problem Probleme');
+ Words('L'#195#182'sung L'#195#182'sungen Beispiel Beispiele Stadt '+
+   'St'#195#164'dte Land');
  Words('L'#195#164'nder Dorf D'#195#182'rfer Stra'#195#159'e Stra'#195#159'en');
- Words('Weg Wege Auto Autos Bus Zug Z'#195#188'ge Bahn Bahnhof Flugzeug Fahrrad Reise Reisen Arbeit');
+ Words('Weg Wege Auto Autos Bus Zug Z'#195#188'ge Bahn Bahnhof Flugzeug Fahrr'+
+   'ad Reise Reisen Arbeit');
  Words('Beruf');
- Words('B'#195#188'ro Geld Preis Gesch'#195#164'ft Laden Markt Wasser Brot Milch Kaffee Tee Apfel');
+ Words('B'#195#188'ro Geld Preis Gesch'#195#164'ft Laden Markt Wasser Brot Mi'+
+   'lch Kaffee Tee Apfel');
  Words(#195#132'pfel Obst Gem'#195#188'se');
- Words('Fleisch Fisch Ei Eier Reis Kartoffel Kartoffeln Tomate Tomaten K'#195#164'se Zucker Salz Essen');
- Words('Fr'#195#188'hst'#195#188'ck Mittagessen Abendessen Hund Hunde Katze Katzen Tier Tiere Pferd');
+ Words('Fleisch Fisch Ei Eier Reis Kartoffel Kartoffeln Tomate Tomaten'+
+   ' K'#195#164'se Zucker Salz Essen');
+ Words('Fr'#195#188'hst'#195#188'ck Mittagessen Abendessen Hund Hunde Katze K'+
+   'atzen Tier Tiere Pferd');
  Words('Vogel V'#195#182'gel');
- Words('Baum B'#195#164'ume Blume Blumen Sonne Mond Stern Sterne Himmel Regen Schnee Wind Wetter See');
+ Words('Baum B'#195#164'ume Blume Blumen Sonne Mond Stern Sterne Himmel Regen'+
+   ' Schnee Wind Wetter See');
  Words('Meer');
- Words('Fluss Berg Berge Wald Feuer Erde Luft Hand H'#195#164'nde Fu'#195#159' F'#195#188#195#159'e');
+ Words('Fluss Berg Berge Wald Feuer Erde Luft Hand H'#195#164'nde '+
+   'Fu'#195#159' F'#195#188#195#159'e');
  Words('Kopf Auge Augen Ohr Ohren Herz');
- Words('Leben Gesundheit Frieden Liebe Musik Lied Lieder Film Filme Bild Bilder Spiel Spiele');
- Words('Sport Urlaub Deutschland Berlin M'#195#188'nchen '#195#150'sterreich Schweiz gehen geht gehe');
+ Words('Leben Gesundheit Frieden Liebe Musik Lied Lieder Film Filme Bild Bild'+
+   'er Spiel Spiele');
+ Words('Sport Urlaub Deutschland Berlin M'#195#188'nchen '#195#150'sterreich '+
+   'Schweiz gehen geht gehe');
  Words('gehst ging');
- Words('gingen gegangen kommen kommt komme kommst kam kamen gekommen machen macht mache machst');
- Words('gemacht sagen sagt sage sagst sagte gesagt sehen sieht sehe siehst sah gesehen h'#195#182'ren');
- Words('h'#195#182'rt h'#195#182're geh'#195#182'rt lesen liest lese las gelesen schreiben schreibt');
+ Words('gingen gegangen kommen kommt komme kommst kam kamen gekommen machen m'+
+   'acht mache machst');
+ Words('gemacht sagen sagt sage sagst sagte gesagt sehen sieht sehe siehst sa'+
+   'h gesehen h'#195#182'ren');
+ Words('h'#195#182'rt h'#195#182're geh'#195#182'rt lesen liest lese las gele'+
+   'sen schreiben schreibt');
  Words('schreibe geschrieben');
- Words('sprechen spricht spreche gesprochen lernen lernt lerne gelernt arbeiten arbeitet arbeite');
- Words('gearbeitet spielen spielt spiele gespielt wohnen wohnt wohne gewohnt leben lebt lebe gelebt');
- Words('lieben liebt liebe geliebt hei'#195#159'en hei'#195#159't hei'#195#159'e essen isst esse');
+ Words('sprechen spricht spreche gesprochen lernen lernt lerne gelernt arbeit'+
+   'en arbeitet arbeite');
+ Words('gearbeitet spielen spielt spiele gespielt wohnen wohnt wohne gewohnt '+
+   'leben lebt lebe gelebt');
+ Words('lieben liebt liebe geliebt hei'#195#159'en hei'#195#159't h'+
+   'ei'#195#159'e essen isst esse');
  Words('gegessen trinken trinkt');
- Words('trinke getrunken schlafen schl'#195#164'ft schlafe geschlafen fahren f'#195#164'hrt fahre');
+ Words('trinke getrunken schlafen schl'#195#164'ft schlafe geschlafen fahren'+
+   ' f'#195#164'hrt fahre');
  Words('gefahren laufen');
- Words('l'#195#164'uft laufe gelaufen geben gibt gebe gegeben nehmen nimmt nehme genommen finden');
+ Words('l'#195#164'uft laufe gelaufen geben gibt gebe gegeben nehmen nimmt ne'+
+   'hme genommen finden');
  Words('findet');
- Words('finde gefunden wissen wei'#195#159' wusste gewusst denken denkt denke gedacht glauben glaubt');
- Words('glaube geglaubt verstehen versteht verstehe verstanden fragen fragt frage gefragt');
- Words('antworten antwortet helfen hilft helfe geholfen brauchen braucht brauche gebraucht suchen');
- Words('sucht suche gesucht kaufen kauft kaufe gekauft bezahlen bezahlt '#195#182'ffnen');
+ Words('finde gefunden wissen wei'#195#159' wusste gewusst denken denkt denke'+
+   ' gedacht glauben glaubt');
+ Words('glaube geglaubt verstehen versteht verstehe verstanden fragen fragt f'+
+   'rage gefragt');
+ Words('antworten antwortet helfen hilft helfe geholfen brauchen braucht brau'+
+   'che gebraucht suchen');
+ Words('sucht suche gesucht kaufen kauft kaufe gekauft bezahlen bezahl'+
+   't '#195#182'ffnen');
  Words(#195#182'ffnet ge'#195#182'ffnet');
- Words('schlie'#195#159'en schlie'#195#159't geschlossen beginnen beginnt begonnen bleiben bleibt');
+ Words('schlie'#195#159'en schlie'#195#159't geschlossen beginnen beginnt beg'+
+   'onnen bleiben bleibt');
  Words('geblieben bringen');
- Words('bringt gebracht stehen steht gestanden sitzen sitzt gesessen liegen liegt gelegen tragen');
- Words('tr'#195#164'gt getragen zeigen zeigt gezeigt benutzen benutzt korrigieren korrigiert');
+ Words('bringt gebracht stehen steht gestanden sitzen sitzt gesessen liegen l'+
+   'iegt gelegen tragen');
+ Words('tr'#195#164'gt getragen zeigen zeigt gezeigt benutzen benutzt korrigi'+
+   'eren korrigiert');
  Words('pr'#195#188'fen pr'#195#188'ft');
- Words('gepr'#195#188'ft speichern speichert gespeichert '#195#164'ndern '#195#164'ndert');
+ Words('gepr'#195#188'ft speichern speichert gespeichert '#195#164'nder'+
+   'n '#195#164'ndert');
  Words('ge'#195#164'ndert funktionieren funktioniert');
- Words('versuchen versucht freuen freut treffen trifft getroffen halten h'#195#164'lt gehalten');
+ Words('versuchen versucht freuen freut treffen trifft getroffen halten'+
+   ' h'#195#164'lt gehalten');
  Words('vergessen');
- Words('vergisst bekommen bekommt erkl'#195#164'ren erkl'#195#164'rt bestellen bestellt');
+ Words('vergisst bekommen bekommt erkl'#195#164'ren erkl'#195#164'rt bestelle'+
+   'n bestellt');
  Words('w'#195#188'nschen w'#195#188'nscht gew'#195#188'nscht');
- Words('danken dankt gedankt begr'#195#188#195#159'en begr'#195#188#195#159't besuchen besucht reisen');
+ Words('danken dankt gedankt begr'#195#188#195#159'en begr'#195#188#195#159't'+
+   ' besuchen besucht reisen');
  Words('reist gereist rot gr'#195#188'n blau');
- Words('gelb schwarz wei'#195#159' braun grau rosa orange eins zwei drei vier f'#195#188'nf sechs');
+ Words('gelb schwarz wei'#195#159' braun grau rosa orange eins zwei drei vier'+
+   ' f'#195#188'nf sechs');
  Words('sieben acht neun');
- Words('zehn elf zw'#195#182'lf hundert tausend null Million Millionen erste zweite dritte letzte');
+ Words('zehn elf zw'#195#182'lf hundert tausend null Million Millionen erste '+
+   'zweite dritte letzte');
  Words('n'#195#164'chste');
- Words('andere einigen einige deshalb deswegen trotzdem au'#195#159'erdem n'#195#164'mlich bisschen');
+ Words('andere einigen einige deshalb deswegen trotzdem au'#195#159'erdem'+
+   ' n'#195#164'mlich bisschen');
  Words('Gr'#195#188#195#159'e Gru'#195#159);
- Words('gr'#195#182#195#159'er gr'#195#182#195#159'te Spa'#195#159' au'#195#159'en s'#195#188#195#159);
- Words('Fu'#195#159'g'#195#164'nger Fu'#195#159'ball Stra'#195#159'enbahnen Haust'#195#188'r');
+ Words('gr'#195#182#195#159'er gr'#195#182#195#159'te Spa'#195#159' '+
+   'au'#195#159'en s'#195#188#195#159);
+ Words('Fu'#195#159'g'#195#164'nger Fu'#195#159'ball Stra'#195#159'enbahnen H'+
+   'aust'#195#188'r');
  Words('Sonnenlicht');
  Words('Krankenhaus Geburtstag Wochenende Weihnachten');
 End;
@@ -11157,286 +12421,496 @@ End;
 Procedure SpanishWords;
 Begin
  Words(#195#177'and'#195#186);
- Words('yo t'#195#186' '#195#169'l ella usted nosotros nosotras vosotros vosotras ellos ellas ustedes');
- Words('me te se nos os lo la los las le les mi mis tu tus su sus nuestro nuestra nuestros');
- Words('nuestras vuestro vuestra vuestros vuestras m'#195#173'o m'#195#173'a tuyo tuya suyo suya');
+ Words('yo t'#195#186' '#195#169'l ella usted nosotros nosotras vosotros voso'+
+   'tras ellos ellas ustedes');
+ Words('me te se nos os lo la los las le les mi mis tu tus su sus nuestro nue'+
+   'stra nuestros');
+ Words('nuestras vuestro vuestra vuestros vuestras m'#195#173'o m'#195#173'a '+
+   'tuyo tuya suyo suya');
  Words('contigo conmigo');
- Words('el un una unos unas este esta estos estas ese esa esos esas aquel aquella aquellos');
- Words('aquellas esto eso aquello cada todo toda todos todas otro otra otros otras alguno alguna');
- Words('algunos algunas ninguno ninguna mucho mucha muchos muchas poco poca pocos pocas');
- Words('varios varias ambos ambas mismo misma mismos mismas alguien nadie algo nada quien');
- Words('quienes cuyo cuya cuyos cuyas qu'#195#169' qui'#195#169'n cu'#195#161'l cu'#195#161'les');
+ Words('el un una unos unas este esta estos estas ese esa esos esas aquel aqu'+
+   'ella aquellos');
+ Words('aquellas esto eso aquello cada todo toda todos todas otro otra otros '+
+   'otras alguno alguna');
+ Words('algunos algunas ninguno ninguna mucho mucha muchos muchas poco poca p'+
+   'ocos pocas');
+ Words('varios varias ambos ambas mismo misma mismos mismas alguien nadie alg'+
+   'o nada quien');
+ Words('quienes cuyo cuya cuyos cuyas qu'#195#169' qui'#195#169'n '+
+   'cu'#195#161'l cu'#195#161'les');
  Words('cu'#195#161'nto cu'#195#161'nta cu'#195#161'ntos cu'#195#161'ntas');
- Words('soy eres es somos sois son era eras '#195#169'ramos erais eran fui fuiste fue fuimos fuisteis');
- Words('fueron sido siendo ser sea seas seamos se'#195#161'is sean ser'#195#161' ser'#195#161'n');
+ Words('soy eres es somos sois son era eras '#195#169'ramos erais eran fui fu'+
+   'iste fue fuimos fuisteis');
+ Words('fueron sido siendo ser sea seas seamos se'#195#161'is sean s'+
+   'er'#195#161' ser'#195#161'n');
  Words('ser'#195#173'a ser'#195#173'an');
- Words('estoy est'#195#161's est'#195#161' estamos est'#195#161'is est'#195#161'n estaba estabas');
+ Words('estoy est'#195#161's est'#195#161' estamos est'#195#161'is e'+
+   'st'#195#161'n estaba estabas');
  Words('est'#195#161'bamos estaban estado estar');
- Words('est'#195#169' est'#195#169's estemos est'#195#169'n estar'#195#161' estar'#195#161'n');
+ Words('est'#195#169' est'#195#169's estemos est'#195#169'n estar'#195#161' e'+
+   'star'#195#161'n');
  Words('estar'#195#173'a tengo tienes tiene tenemos ten'#195#169'is');
- Words('tienen ten'#195#173'a ten'#195#173'an tuve tuvo tuvieron tenido tener tenga tengan');
+ Words('tienen ten'#195#173'a ten'#195#173'an tuve tuvo tuvieron tenido tener'+
+   ' tenga tengan');
  Words('tendr'#195#161' tendr'#195#161'n');
- Words('he has ha hemos hab'#195#169'is han hab'#195#173'a hab'#195#173'an hubo habido haber hay haya');
+ Words('he has ha hemos hab'#195#169'is han hab'#195#173'a hab'#195#173'an hu'+
+   'bo habido haber hay haya');
  Words('hayan habr'#195#161);
- Words('y e o u pero porque aunque sino si s'#195#173' no ni que como c'#195#179'mo cuando');
+ Words('y e o u pero porque aunque sino si s'#195#173' no ni que como'+
+   ' c'#195#179'mo cuando');
  Words('cu'#195#161'ndo donde d'#195#179'nde');
- Words('mientras entonces pues tambi'#195#169'n tampoco adem'#195#161's as'#195#173' a'#195#186'n aun');
+ Words('mientras entonces pues tambi'#195#169'n tampoco adem'#195#161's '+
+   'as'#195#173' a'#195#186'n aun');
  Words('ya todav'#195#173'a siempre nunca');
- Words('jam'#195#161's ahora hoy ayer ma'#195#177'ana antes despu'#195#169's luego pronto tarde');
+ Words('jam'#195#161's ahora hoy ayer ma'#195#177'ana antes despu'#195#169's '+
+   'luego pronto tarde');
  Words('temprano aqu'#195#173' ah'#195#173' all'#195#173);
- Words('all'#195#161' cerca lejos dentro fuera arriba abajo delante detr'#195#161's m'#195#161's mas');
+ Words('all'#195#161' cerca lejos dentro fuera arriba abajo delante de'+
+   'tr'#195#161's m'#195#161's mas');
  Words('menos muy tan tanto');
- Words('bien mal mejor peor solo sola solamente casi bastante demasiado quiz'#195#161's quiz'#195#161);
+ Words('bien mal mejor peor solo sola solamente casi bastante demasiado qu'+
+   'iz'#195#161's quiz'#195#161);
  Words('realmente');
- Words('de del a al en con sin por para desde hasta entre sobre bajo contra hacia seg'#195#186'n');
+ Words('de del a al en con sin por para desde hasta entre sobre bajo contra h'+
+   'acia seg'#195#186'n');
  Words('durante');
- Words('hola adi'#195#179's gracias favor perd'#195#179'n disculpa disculpe bienvenido bienvenida');
+ Words('hola adi'#195#179's gracias favor perd'#195#179'n disculpa disculpe b'+
+   'ienvenido bienvenida');
  Words('salud saludos');
- Words('buen bueno buena buenos buenas malo mala malos malas nuevo nueva nuevos nuevas');
- Words('viejo vieja viejos viejas joven j'#195#179'venes grande grandes peque'#195#177'o');
+ Words('buen bueno buena buenos buenas malo mala malos malas nuevo nueva nuev'+
+   'os nuevas');
+ Words('viejo vieja viejos viejas joven j'#195#179'venes grande grandes peq'+
+   'ue'#195#177'o');
  Words('peque'#195#177'a peque'#195#177'os');
- Words('peque'#195#177'as bonito bonita bonitos bonitas hermoso hermosa feliz felices triste tristes');
- Words('f'#195#161'cil f'#195#161'ciles dif'#195#173'cil dif'#195#173'ciles importante importantes');
+ Words('peque'#195#177'as bonito bonita bonitos bonitas hermoso hermosa feliz'+
+   ' felices triste tristes');
+ Words('f'#195#161'cil f'#195#161'ciles dif'#195#173'cil dif'#195#173'ciles i'+
+   'mportante importantes');
  Words('posible imposible necesario');
- Words('necesaria diferente diferencias igual iguales r'#195#161'pido r'#195#161'pida lento lenta');
+ Words('necesaria diferente diferencias igual iguales r'#195#161'pido'+
+   ' r'#195#161'pida lento lenta');
  Words('primero primera');
- Words('primer '#195#186'ltimo '#195#186'ltima pr'#195#179'ximo pr'#195#179'xima largo larga corto');
+ Words('primer '#195#186'ltimo '#195#186'ltima pr'#195#179'ximo pr'#195#179'x'+
+   'ima largo larga corto');
  Words('corta alto alta bajo baja');
- Words('caliente fr'#195#173'o fr'#195#173'a limpio limpia abierto abierta cerrado cerrada libre');
+ Words('caliente fr'#195#173'o fr'#195#173'a limpio limpia abierto abierta ce'+
+   'rrado cerrada libre');
  Words('gratis correcto');
- Words('correcta incorrecto verdadero verdadera falso falsa claro clara seguro segura');
- Words('mundo palabra palabras texto textos archivo archivos documento documentos l'#195#173'nea');
+ Words('correcta incorrecto verdadero verdadera falso falsa claro clara segur'+
+   'o segura');
+ Words('mundo palabra palabras texto textos archivo archivos documento docume'+
+   'ntos l'#195#173'nea');
  Words('l'#195#173'neas');
- Words('p'#195#161'gina p'#195#161'ginas letra letras frase frases oraci'#195#179'n oraciones idioma');
+ Words('p'#195#161'gina p'#195#161'ginas letra letras frase frases ora'+
+   'ci'#195#179'n oraciones idioma');
  Words('idiomas lengua lenguas');
- Words('espa'#195#177'ol espa'#195#177'ola espa'#195#177'oles espa'#195#177'olas franc'#195#169's');
+ Words('espa'#195#177'ol espa'#195#177'ola espa'#195#177'oles espa'#195#177'o'+
+   'las franc'#195#169's');
  Words('francesa ingl'#195#169's inglesa alem'#195#161'n alemana');
- Words('gram'#195#161'tica ortograf'#195#173'a error errores falta faltas correcci'#195#179'n');
+ Words('gram'#195#161'tica ortograf'#195#173'a error errores falta faltas cor'+
+   'recci'#195#179'n');
  Words('correcciones diccionario');
- Words('diccionarios sugerencia sugerencias programa programas ordenador ordenadores computadora');
- Words('computadoras sistema sistemas informaci'#195#179'n datos entrada salida resultado resultados');
- Words('informe informes prueba pruebas versi'#195#179'n versiones opci'#195#179'n opciones comando');
+ Words('diccionarios sugerencia sugerencias programa programas ordenador orde'+
+   'nadores computadora');
+ Words('computadoras sistema sistemas informaci'#195#179'n datos entrada sali'+
+   'da resultado resultados');
+ Words('informe informes prueba pruebas versi'#195#179'n versiones op'+
+   'ci'#195#179'n opciones comando');
  Words('comandos');
- Words('c'#195#179'digo fuente pantalla teclado rat'#195#179'n internet mensaje mensajes correo');
+ Words('c'#195#179'digo fuente pantalla teclado rat'#195#179'n internet mensa'+
+   'je mensajes correo');
  Words('electr'#195#179'nico');
- Words('pregunta preguntas respuesta respuestas problema problemas soluci'#195#179'n soluciones');
+ Words('pregunta preguntas respuesta respuestas problema problemas solu'+
+   'ci'#195#179'n soluciones');
  Words('ejemplo');
- Words('ejemplos ayuda n'#195#186'mero n'#195#186'meros nombre nombres direcci'#195#179'n direcciones');
+ Words('ejemplos ayuda n'#195#186'mero n'#195#186'meros nombre nombres direc'+
+   'ci'#195#179'n direcciones');
  Words('tel'#195#169'fono tel'#195#169'fonos');
- Words('d'#195#173'a d'#195#173'as noche noches hora horas minuto minutos segundo segundos semana');
+ Words('d'#195#173'a d'#195#173'as noche noches hora horas minuto minutos seg'+
+   'undo segundos semana');
  Words('semanas mes');
- Words('meses a'#195#177'o a'#195#177'os tiempo tiempos lunes martes mi'#195#169'rcoles jueves viernes');
+ Words('meses a'#195#177'o a'#195#177'os tiempo tiempos lunes martes '+
+   'mi'#195#169'rcoles jueves viernes');
  Words('s'#195#161'bado domingo');
- Words('enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre');
- Words('cero uno dos tres cuatro cinco seis siete ocho nueve diez once doce cien ciento mil');
- Words('mill'#195#179'n millones persona personas hombre hombres mujer mujeres ni'#195#177'o');
+ Words('enero febrero marzo abril mayo junio julio agosto septiembre octubre '+
+   'noviembre diciembre');
+ Words('cero uno dos tres cuatro cinco seis siete ocho nueve diez once doce c'+
+   'ien ciento mil');
+ Words('mill'#195#179'n millones persona personas hombre hombres mujer mujere'+
+   's ni'#195#177'o');
  Words('ni'#195#177'os ni'#195#177'a ni'#195#177'as');
- Words('beb'#195#169' beb'#195#169's familia familias padre madre padres hijo hijos hija hijas hermano');
+ Words('beb'#195#169' beb'#195#169's familia familias padre madre padres hijo'+
+   ' hijos hija hijas hermano');
  Words('hermana');
- Words('abuelo abuela amigo amigos amiga amigas se'#195#177'or se'#195#177'ora se'#195#177'ores');
+ Words('abuelo abuela amigo amigos amiga amigas se'#195#177'or se'#195#177'or'+
+   'a se'#195#177'ores');
  Words('se'#195#177'orita gente');
- Words('casa casas hogar habitaci'#195#179'n habitaciones cuarto cuartos puerta puertas ventana');
+ Words('casa casas hogar habitaci'#195#179'n habitaciones cuarto cuartos puer'+
+   'ta puertas ventana');
  Words('ventanas');
- Words('mesa mesas silla sillas cama camas cocina ba'#195#177'o ba'#195#177'os jard'#195#173'n');
+ Words('mesa mesas silla sillas cama camas cocina ba'#195#177'o ba'#195#177'o'+
+   's jard'#195#173'n');
  Words('jardines escuela escuelas');
- Words('colegio universidad clase clases alumno alumnos alumna profesor profesora estudiante');
- Words('estudiantes lecci'#195#179'n lecciones libro libros cuaderno cuadernos l'#195#161'piz');
+ Words('colegio universidad clase clases alumno alumnos alumna profesor profe'+
+   'sora estudiante');
+ Words('estudiantes lecci'#195#179'n lecciones libro libros cuaderno cuaderno'+
+   's l'#195#161'piz');
  Words('l'#195#161'pices papel');
- Words('ciudad ciudades pueblo pueblos pa'#195#173's pa'#195#173'ses calle calles camino caminos coche');
+ Words('ciudad ciudades pueblo pueblos pa'#195#173's pa'#195#173'ses calle ca'+
+   'lles camino caminos coche');
  Words('coches');
- Words('auto autos autob'#195#186's autobuses tren trenes avi'#195#179'n aviones barco barcos');
+ Words('auto autos autob'#195#186's autobuses tren trenes avi'#195#179'n avio'+
+   'nes barco barcos');
  Words('bicicleta bicicletas');
- Words('viaje viajes estaci'#195#179'n aeropuerto hospital oficina trabajo trabajos dinero precio');
+ Words('viaje viajes estaci'#195#179'n aeropuerto hospital oficina trabajo tr'+
+   'abajos dinero precio');
  Words('precios');
- Words('tienda tiendas mercado mercados empresa empresas negocio negocios agua pan leche caf'#195#169);
+ Words('tienda tiendas mercado mercados empresa empresas negocio negocios agu'+
+   'a pan leche caf'#195#169);
  Words('t'#195#169);
- Words('fruta frutas manzana manzanas naranja naranjas pl'#195#161'tano arroz carne pescado huevo');
+ Words('fruta frutas manzana manzanas naranja naranjas pl'#195#161'tano arroz'+
+   ' carne pescado huevo');
  Words('huevos');
- Words('patata patatas tomate tomates queso az'#195#186'car sal aceite comida desayuno almuerzo cena');
- Words('perro perros gato gatos animal animales caballo caballos p'#195#161'jaro p'#195#161'jaros pez');
+ Words('patata patatas tomate tomates queso az'#195#186'car sal aceite comida'+
+   ' desayuno almuerzo cena');
+ Words('perro perros gato gatos animal animales caballo caballos p'#195#161'j'+
+   'aro p'#195#161'jaros pez');
  Words('peces');
- Words(#195#161'rbol '#195#161'rboles flor flores bosque monta'#195#177'a monta'#195#177'as');
+ Words(
+   #195#161'rbol '#195#161'rboles flor flores bosque monta'#195#177'a mon'+
+   'ta'#195#177'as');
  Words('r'#195#173'o r'#195#173'os mar playa sol luna estrella');
- Words('estrellas cielo tierra lluvia nieve viento fuego aire mano manos pie pies cabeza ojo');
- Words('ojos oreja orejas coraz'#195#179'n vida muerte amor paz m'#195#186'sica canci'#195#179'n');
+ Words('estrellas cielo tierra lluvia nieve viento fuego aire mano manos pie '+
+   'pies cabeza ojo');
+ Words('ojos oreja orejas coraz'#195#179'n vida muerte amor paz m'#195#186'si'+
+   'ca canci'#195#179'n');
  Words('canciones pel'#195#173'cula foto');
- Words('fotos imagen im'#195#161'genes juego juegos deporte equipo fiesta cumplea'#195#177'os Navidad');
+ Words('fotos imagen im'#195#161'genes juego juegos deporte equipo fiesta cum'+
+   'plea'#195#177'os Navidad');
  Words('Espa'#195#177'a Madrid');
- Words('M'#195#169'xico Argentina Chile Colombia Per'#195#186' Am'#195#169'rica Europa verano invierno');
+ Words('M'#195#169'xico Argentina Chile Colombia Per'#195#186' Am'#195#169'ri'+
+   'ca Europa verano invierno');
  Words('primavera oto'#195#177'o');
- Words('rojo roja verde verdes azul azules amarillo amarilla blanco blanca negro negra gris');
- Words('rosa marr'#195#179'n color colores punto puntos parte partes lugar lugares cosa cosas');
+ Words('rojo roja verde verdes azul azules amarillo amarilla blanco blanca ne'+
+   'gro negra gris');
+ Words('rosa marr'#195#179'n color colores punto puntos parte partes lugar lu'+
+   'gares cosa cosas');
  Words('raz'#195#179'n');
- Words('razones verdad historia historias idea ideas luz noche fuerza cara forma formas');
- Words('hacer hago haces hace hacemos hacen hice hizo hecho haciendo har'#195#169' har'#195#161);
+ Words('razones verdad historia historias idea ideas luz noche fuerza cara fo'+
+   'rma formas');
+ Words('hacer hago haces hace hacemos hacen hice hizo hecho haciendo h'+
+   'ar'#195#169' har'#195#161);
  Words('hacemos');
- Words('ir voy vas va vamos vais van iba iban ido yendo vaya vayan fui fue fueron');
- Words('venir vengo vienes viene venimos vienen vino venido decir digo dices dice decimos');
- Words('dicen dijo dicho hablar hablo hablas habla hablamos hablan hablado hablando');
- Words('leer leo lees lee leemos leen le'#195#173'do leyendo escribir escribo escribes escribe');
- Words('escribimos escriben escrito escribiendo ver veo ves ve vemos ven visto viendo');
- Words('mirar miro miras mira miramos miran mirado escuchar escucho escucha escuchan escuchado');
- Words('saber s'#195#169' sabes sabe sabemos saben sab'#195#173'a sab'#195#173'a sabido conocer');
+ Words('ir voy vas va vamos vais van iba iban ido yendo vaya vayan fui fue fu'+
+   'eron');
+ Words('venir vengo vienes viene venimos vienen vino venido decir digo dices '+
+   'dice decimos');
+ Words('dicen dijo dicho hablar hablo hablas habla hablamos hablan hablado ha'+
+   'blando');
+ Words('leer leo lees lee leemos leen le'#195#173'do leyendo escribir escribo'+
+   ' escribes escribe');
+ Words('escribimos escriben escrito escribiendo ver veo ves ve vemos ven vist'+
+   'o viendo');
+ Words('mirar miro miras mira miramos miran mirado escuchar escucho escucha e'+
+   'scuchan escuchado');
+ Words('saber s'#195#169' sabes sabe sabemos saben sab'#195#173'a s'+
+   'ab'#195#173'a sabido conocer');
  Words('conozco conoce conocemos');
- Words('conocen conocido pensar pienso piensas piensa pensamos piensan pensado creer creo cree');
- Words('creemos creen cre'#195#173'do entender entiendo entiendes entiende entendemos entienden');
+ Words('conocen conocido pensar pienso piensas piensa pensamos piensan pensad'+
+   'o creer creo cree');
+ Words('creemos creen cre'#195#173'do entender entiendo entiendes entiende en'+
+   'tendemos entienden');
  Words('entendido');
- Words('comprender comprendo comprende comprenden comprendido aprender aprendo aprende aprendemos');
- Words('aprenden aprendido ense'#195#177'ar ense'#195#177'o ense'#195#177'a ense'#195#177'an');
+ Words('comprender comprendo comprende comprenden comprendido aprender aprend'+
+   'o aprende aprendemos');
+ Words('aprenden aprendido ense'#195#177'ar ense'#195#177'o ense'#195#177'a e'+
+   'nse'#195#177'an');
  Words('ense'#195#177'ado querer quiero quieres quiere');
- Words('queremos quieren querido poder puedo puedes puede podemos pueden pod'#195#173'a');
+ Words('queremos quieren querido poder puedo puedes puede podemos pueden p'+
+   'od'#195#173'a');
  Words('podr'#195#173'an podido');
- Words('deber debo debes debe debemos deben debido necesitar necesito necesita necesitamos');
- Words('necesitan necesitado gustar gusta gustan gustado amar amo amas ama amamos aman amado');
- Words('comer como comes come comemos comen comido comiendo beber bebo bebes bebe bebemos beben');
- Words('bebido vivir vivo vives vive vivimos viven vivido dormir duermo duerme duermen dormido');
- Words('trabajar trabajo trabajas trabaja trabajamos trabajan trabajado estudiar estudio estudias');
- Words('estudia estudiamos estudian estudiado jugar juego juegas juega jugamos juegan jugado');
- Words('correr corro corre corren corrido caminar camino camina caminan caminado comprar compro');
- Words('compra compran comprado vender vendo vende venden vendido pagar pago paga pagan pagado');
- Words('dar doy das da damos dan dado tomar tomo toma toman tomado llevar llevo lleva llevan');
- Words('llevado traer traigo trae traen tra'#195#173'do poner pongo pones pone ponemos ponen puesto');
- Words('salir salgo sale salen salido llegar llego llega llegan llegado pasar paso pasa pasan');
- Words('pasado quedar quedo queda quedan quedado dejar dejo deja dejan dejado buscar busco busca');
- Words('buscan buscado encontrar encuentro encuentra encuentran encontrado esperar espero espera');
- Words('esperan esperado ayudar ayudo ayuda ayudan ayudado abrir abro abre abren abierto');
- Words('cerrar cierro cierra cierran cerrado empezar empiezo empieza empiezan empezado terminar');
- Words('termino termina terminan terminado cambiar cambio cambia cambian cambiado usar uso usa');
- Words('usan usado corregir corrijo corrige corrigen corregido comprobar compruebo comprueba');
- Words('guardar guardo guarda guardan guardado enviar env'#195#173'o env'#195#173'a env'#195#173'an');
+ Words('deber debo debes debe debemos deben debido necesitar necesito necesit'+
+   'a necesitamos');
+ Words('necesitan necesitado gustar gusta gustan gustado amar amo amas ama am'+
+   'amos aman amado');
+ Words('comer como comes come comemos comen comido comiendo beber bebo bebes '+
+   'bebe bebemos beben');
+ Words('bebido vivir vivo vives vive vivimos viven vivido dormir duermo duerm'+
+   'e duermen dormido');
+ Words('trabajar trabajo trabajas trabaja trabajamos trabajan trabajado estud'+
+   'iar estudio estudias');
+ Words('estudia estudiamos estudian estudiado jugar juego juegas juega jugamo'+
+   's juegan jugado');
+ Words('correr corro corre corren corrido caminar camino camina caminan camin'+
+   'ado comprar compro');
+ Words('compra compran comprado vender vendo vende venden vendido pagar pago '+
+   'paga pagan pagado');
+ Words('dar doy das da damos dan dado tomar tomo toma toman tomado llevar lle'+
+   'vo lleva llevan');
+ Words('llevado traer traigo trae traen tra'#195#173'do poner pongo pones pon'+
+   'e ponemos ponen puesto');
+ Words('salir salgo sale salen salido llegar llego llega llegan llegado pasar'+
+   ' paso pasa pasan');
+ Words('pasado quedar quedo queda quedan quedado dejar dejo deja dejan dejado'+
+   ' buscar busco busca');
+ Words('buscan buscado encontrar encuentro encuentra encuentran encontrado es'+
+   'perar espero espera');
+ Words('esperan esperado ayudar ayudo ayuda ayudan ayudado abrir abro abre ab'+
+   'ren abierto');
+ Words('cerrar cierro cierra cierran cerrado empezar empiezo empieza empiezan'+
+   ' empezado terminar');
+ Words('termino termina terminan terminado cambiar cambio cambia cambian camb'+
+   'iado usar uso usa');
+ Words('usan usado corregir corrijo corrige corrigen corregido comprobar comp'+
+   'ruebo comprueba');
+ Words('guardar guardo guarda guardan guardado enviar env'#195#173'o e'+
+   'nv'#195#173'a env'#195#173'an');
  Words('enviado recibir recibo');
- Words('recibe reciben recibido volver vuelvo vuelve vuelven vuelto recordar recuerdo recuerda');
- Words('olvidar olvido olvida olvidado repetir repito repite repetido pedir pido pide pedido');
- Words('gracias actualmente especialmente probablemente simplemente r'#195#161'pidamente lentamente');
- Words('correctamente finalmente completamente f'#195#161'cilmente completamente ping'#195#188'ino');
+ Words('recibe reciben recibido volver vuelvo vuelve vuelven vuelto recordar '+
+   'recuerdo recuerda');
+ Words('olvidar olvido olvida olvidado repetir repito repite repetido pedir p'+
+   'ido pide pedido');
+ Words('gracias actualmente especialmente probablemente simplemente'+
+   ' r'#195#161'pidamente lentamente');
+ Words('correctamente finalmente completamente f'#195#161'cilmente completame'+
+   'nte ping'#195#188'ino');
  Words('ping'#195#188'inos');
- Words('verg'#195#188'enza biling'#195#188'e ling'#195#188#195#173'stica tambi'#195#169'n');
- Words('despu'#195#169's atenci'#195#179'n acci'#195#179'n canci'#195#179'n estaci'#195#179'n');
- Words('ola olas ano anos papa pap'#195#161' mama mam'#195#161' si s'#195#173' el '#195#169'l tu');
+ Words('verg'#195#188'enza biling'#195#188'e ling'#195#188#195#173'stica tam'+
+   'bi'#195#169'n');
+ Words('despu'#195#169's atenci'#195#179'n acci'#195#179'n canci'#195#179'n e'+
+   'staci'#195#179'n');
+ Words('ola olas ano anos papa pap'#195#161' mama mam'#195#161' si'+
+   ' s'#195#173' el '#195#169'l tu');
  Words('t'#195#186' mi m'#195#173' te t'#195#169' de d'#195#169' se s'#195#169);
 End;
 
 Procedure ItalianWords;
 Begin
- Words('io tu lui lei noi voi loro mi ti ci vi si s'#195#169' me te gli le lo la li ne');
- Words('il i l un uno una un altro altra altri altre questo questa questi queste quello quella');
- Words('quelli quelle ci'#195#178' ogni qualche qualsiasi ciascuno ciascuna tutto tutta tutti tutte');
- Words('nessuno nessuna qualcuno qualcuna qualcosa niente nulla molto molta molti molte poco');
- Words('poca pochi poche tanto tanta tanti tante troppo troppa troppi troppe stesso stessa');
- Words('stessi stesse mio mia miei mie tuo tua tuoi tue suo sua suoi sue nostro nostra nostri');
- Words('nostre vostro vostra vostri vostre chi che cui quale quali quanto quanta quanti quante');
- Words('sono sei '#195#168' siamo siete era eri eravamo eravate erano fui fu fummo furono stato stata');
- Words('stati state essere essendo sia siano sar'#195#160' saranno sarei sarebbe sarebbero');
- Words('ho hai ha abbiamo avete hanno avevo aveva avevamo avevate avevano avuto avere avendo');
- Words('abbia abbiano avr'#195#160' avranno avrei avrebbe ebbe ebbero sto stai sta stiamo state stanno');
- Words('stavo stava stavano stato stare stia stiano e ed o oppure ma per'#195#178' perch'#195#169);
+ Words('io tu lui lei noi voi loro mi ti ci vi si s'#195#169' me te gli le lo'+
+   ' la li ne');
+ Words('il i l un uno una un altro altra altri altre questo questa questi que'+
+   'ste quello quella');
+ Words('quelli quelle ci'#195#178' ogni qualche qualsiasi ciascuno ciascuna t'+
+   'utto tutta tutti tutte');
+ Words('nessuno nessuna qualcuno qualcuna qualcosa niente nulla molto molta m'+
+   'olti molte poco');
+ Words('poca pochi poche tanto tanta tanti tante troppo troppa troppi troppe '+
+   'stesso stessa');
+ Words('stessi stesse mio mia miei mie tuo tua tuoi tue suo sua suoi sue nost'+
+   'ro nostra nostri');
+ Words('nostre vostro vostra vostri vostre chi che cui quale quali quanto qua'+
+   'nta quanti quante');
+ Words('sono sei '#195#168' siamo siete era eri eravamo eravate erano fui fu '+
+   'fummo furono stato stata');
+ Words('stati state essere essendo sia siano sar'#195#160' saranno sarei sare'+
+   'bbe sarebbero');
+ Words('ho hai ha abbiamo avete hanno avevo aveva avevamo avevate avevano avu'+
+   'to avere avendo');
+ Words('abbia abbiano avr'#195#160' avranno avrei avrebbe ebbe ebbero sto sta'+
+   'i sta stiamo state stanno');
+ Words('stavo stava stavano stato stare stia stiano e ed o oppure ma p'+
+   'er'#195#178' perch'#195#169);
  Words('poich'#195#169' quindi');
- Words('dunque anche ancora gi'#195#160' sempre mai non n'#195#169' s'#195#172' no forse certamente');
+ Words('dunque anche ancora gi'#195#160' sempre mai non'+
+   ' n'#195#169' s'#195#172' no forse certamente');
  Words('davvero proprio solo');
- Words('soltanto quasi abbastanza cos'#195#172' pi'#195#185' meno troppo bene male meglio peggio come');
+ Words('soltanto quasi abbastanza cos'#195#172' pi'#195#185' meno troppo bene'+
+   ' male meglio peggio come');
  Words('dove quando');
- Words('mentre se senza purch'#195#169' bench'#195#169' affinch'#195#169' cio'#195#168' oggi ieri');
+ Words('mentre se senza purch'#195#169' bench'#195#169' affinch'#195#169' c'+
+   'io'#195#168' oggi ieri');
  Words('domani adesso ora prima dopo poi');
- Words('presto tardi subito spesso talvolta qui qua l'#195#172' l'#195#160' dentro fuori sopra sotto');
+ Words('presto tardi subito spesso talvolta qui qua l'#195#172' l'#195#160' d'+
+   'entro fuori sopra sotto');
  Words('davanti');
- Words('dietro vicino lontano insieme attraverso durante contro verso fino tra fra con su per');
- Words('a ad da di in del dello della dei degli delle al allo alla ai agli alle dal dallo');
- Words('dalla dai dagli dalle nel nello nella nei negli nelle sul sullo sulla sui sugli sulle');
+ Words('dietro vicino lontano insieme attraverso durante contro verso fino tr'+
+   'a fra con su per');
+ Words('a ad da di in del dello della dei degli delle al allo alla ai agli al'+
+   'le dal dallo');
+ Words('dalla dai dagli dalle nel nello nella nei negli nelle sul sullo sulla'+
+   ' sui sugli sulle');
  Words('col coi d all dell dall nell sull quest quell sant c m t s v po');
- Words('ciao buongiorno buonasera buonanotte arrivederci salve grazie prego favore scusa scusi');
- Words('benvenuto benvenuta auguri salute piacere buono buona buoni buone buon cattivo cattiva');
- Words('bello bella belli belle bel brutto brutta grande grandi piccolo piccola piccoli piccole');
- Words('nuovo nuova nuovi nuove vecchio vecchia vecchi vecchie giovane giovani felice felici');
- Words('triste tristi facile facili difficile difficili importante importanti possibile impossibile');
- Words('necessario necessaria diverso diversa uguale uguali giusto giusta sbagliato sbagliata');
- Words('vero vera falso falsa libero libera gratuito gratuita aperto aperta chiuso chiusa');
- Words('lungo lunga corto corta alto alta basso bassa caldo calda freddo fredda veloce lento');
- Words('lenta chiaro chiara pulito pulita vuoto vuota pieno piena pronto pronta sicuro sicura');
- Words('mondo parola parole testo testi file documento documenti riga righe pagina pagine');
- Words('lettera lettere frase frasi lingua lingue italiano italiana italiani italiane francese');
- Words('inglese tedesco spagnolo grammatica ortografia errore errori correzione correzioni');
- Words('correttore dizionario dizionari suggerimento suggerimenti programma programmi codice');
- Words('sorgente computer sistema sistemi informazione informazioni dati ingresso uscita risultato');
- Words('risultati rapporto rapporti prova prove versione versioni opzione opzioni comando comandi');
- Words('schermo tastiera mouse rete internet sito siti messaggio messaggi posta elettronica');
- Words('domanda domande risposta risposte problema problemi soluzione soluzioni esempio esempi');
- Words('aiuto numero numeri nome nomi indirizzo indirizzi telefono telefoni giorno giorni notte');
- Words('notti mattina pomeriggio sera settimana settimane mese mesi anno anni ora ore minuto');
- Words('minuti secondo secondi tempo tempi luned'#195#172' marted'#195#172' mercoled'#195#172);
+ Words('ciao buongiorno buonasera buonanotte arrivederci salve grazie prego f'+
+   'avore scusa scusi');
+ Words('benvenuto benvenuta auguri salute piacere buono buona buoni buone buo'+
+   'n cattivo cattiva');
+ Words('bello bella belli belle bel brutto brutta grande grandi piccolo picco'+
+   'la piccoli piccole');
+ Words('nuovo nuova nuovi nuove vecchio vecchia vecchi vecchie giovane giovan'+
+   'i felice felici');
+ Words('triste tristi facile facili difficile difficili importante importanti'+
+   ' possibile impossibile');
+ Words('necessario necessaria diverso diversa uguale uguali giusto giusta sba'+
+   'gliato sbagliata');
+ Words('vero vera falso falsa libero libera gratuito gratuita aperto aperta c'+
+   'hiuso chiusa');
+ Words('lungo lunga corto corta alto alta basso bassa caldo calda freddo fred'+
+   'da veloce lento');
+ Words('lenta chiaro chiara pulito pulita vuoto vuota pieno piena pronto pron'+
+   'ta sicuro sicura');
+ Words('mondo parola parole testo testi file documento documenti riga righe p'+
+   'agina pagine');
+ Words('lettera lettere frase frasi lingua lingue italiano italiana italiani '+
+   'italiane francese');
+ Words('inglese tedesco spagnolo grammatica ortografia errore errori correzio'+
+   'ne correzioni');
+ Words('correttore dizionario dizionari suggerimento suggerimenti programma p'+
+   'rogrammi codice');
+ Words('sorgente computer sistema sistemi informazione informazioni dati ingr'+
+   'esso uscita risultato');
+ Words('risultati rapporto rapporti prova prove versione versioni opzione opz'+
+   'ioni comando comandi');
+ Words('schermo tastiera mouse rete internet sito siti messaggio messaggi pos'+
+   'ta elettronica');
+ Words('domanda domande risposta risposte problema problemi soluzione soluzio'+
+   'ni esempio esempi');
+ Words('aiuto numero numeri nome nomi indirizzo indirizzi telefono telefoni g'+
+   'iorno giorni notte');
+ Words('notti mattina pomeriggio sera settimana settimane mese mesi anno anni'+
+   ' ora ore minuto');
+ Words('minuti secondo secondi tempo tempi luned'#195#172' marted'#195#172' m'+
+   'ercoled'#195#172);
  Words('gioved'#195#172' venerd'#195#172' sabato domenica');
- Words('gennaio febbraio marzo aprile maggio giugno luglio agosto settembre ottobre novembre');
- Words('dicembre zero uno due tre quattro cinque sei sette otto nove dieci undici dodici cento');
- Words('mille milione milioni primo prima primi prime ultimo ultima ultimi ultime prossimo');
- Words('prossima persona persone uomo uomini donna donne bambino bambini bambina bambine ragazzo');
- Words('ragazzi ragazza ragazze amico amici amica amiche famiglia famiglie padre madre genitori');
- Words('figlio figli figlia figlie fratello fratelli sorella sorelle nonno nonna signore signora');
- Words('casa case stanza stanze camera camere porta porte finestra finestre tavolo tavoli sedia');
- Words('sedie letto letti cucina bagno bagni giardino giardini scuola scuole classe classi');
- Words('studente studenti studentessa insegnante professore professoressa universit'#195#160' libro');
+ Words('gennaio febbraio marzo aprile maggio giugno luglio agosto settembre o'+
+   'ttobre novembre');
+ Words('dicembre zero uno due tre quattro cinque sei sette otto nove dieci un'+
+   'dici dodici cento');
+ Words('mille milione milioni primo prima primi prime ultimo ultima ultimi ul'+
+   'time prossimo');
+ Words('prossima persona persone uomo uomini donna donne bambino bambini bamb'+
+   'ina bambine ragazzo');
+ Words('ragazzi ragazza ragazze amico amici amica amiche famiglia famiglie pa'+
+   'dre madre genitori');
+ Words('figlio figli figlia figlie fratello fratelli sorella sorelle nonno no'+
+   'nna signore signora');
+ Words('casa case stanza stanze camera camere porta porte finestra finestre t'+
+   'avolo tavoli sedia');
+ Words('sedie letto letti cucina bagno bagni giardino giardini scuola scuole '+
+   'classe classi');
+ Words('studente studenti studentessa insegnante professore professoressa uni'+
+   'versit'#195#160' libro');
  Words('libri');
- Words('quaderno quaderni penna penne matita matite carta citt'#195#160' paese paesi strada strade via');
+ Words('quaderno quaderni penna penne matita matite carta citt'#195#160' paes'+
+   'e paesi strada strade via');
  Words('vie');
- Words('macchina macchine automobile automobili auto autobus treno treni aereo aerei nave navi');
- Words('barca barche bicicletta biciclette viaggio viaggi stazione aeroporto ufficio ospedale');
- Words('lavoro lavori denaro soldi prezzo prezzi negozio negozi mercato mercati azienda aziende');
- Words('acqua pane latte caff'#195#168' t'#195#168' frutta mela mele arancia arance banana riso carne');
+ Words('macchina macchine automobile automobili auto autobus treno treni aere'+
+   'o aerei nave navi');
+ Words('barca barche bicicletta biciclette viaggio viaggi stazione aeroporto '+
+   'ufficio ospedale');
+ Words('lavoro lavori denaro soldi prezzo prezzi negozio negozi mercato merca'+
+   'ti azienda aziende');
+ Words('acqua pane latte caff'#195#168' t'#195#168' frutta mela mele arancia '+
+   'arance banana riso carne');
  Words('pesce uovo');
- Words('uova patata patate pomodoro pomodori formaggio zucchero sale olio cibo colazione pranzo');
- Words('cena pasta pizza vino birra cane cani gatto gatti animale animali cavallo cavalli uccello');
- Words('uccelli albero alberi fiore fiori bosco montagna montagne fiume fiumi mare spiaggia sole');
- Words('luna stella stelle cielo terra pioggia neve vento fuoco aria mano mani piede piedi testa');
- Words('occhio occhi orecchio orecchie cuore vita morte amore pace musica canzone canzoni film');
- Words('fotografia fotografie foto immagine immagini gioco giochi sport squadra festa compleanno');
- Words('Natale Italia Roma Milano Venezia Napoli Europa estate inverno primavera autunno rosso');
- Words('rossa verde verdi blu azzurro azzurra giallo gialla bianco bianca nero nera grigio grigia');
- Words('rosa marrone colore colori punto punti parte parti luogo luoghi cosa cose ragione ragioni');
- Words('verit'#195#160' storia storie idea idee luce forza faccia forma forme qualit'#195#160);
+ Words('uova patata patate pomodoro pomodori formaggio zucchero sale olio cib'+
+   'o colazione pranzo');
+ Words('cena pasta pizza vino birra cane cani gatto gatti animale animali cav'+
+   'allo cavalli uccello');
+ Words('uccelli albero alberi fiore fiori bosco montagna montagne fiume fiumi'+
+   ' mare spiaggia sole');
+ Words('luna stella stelle cielo terra pioggia neve vento fuoco aria mano man'+
+   'i piede piedi testa');
+ Words('occhio occhi orecchio orecchie cuore vita morte amore pace musica can'+
+   'zone canzoni film');
+ Words('fotografia fotografie foto immagine immagini gioco giochi sport squad'+
+   'ra festa compleanno');
+ Words('Natale Italia Roma Milano Venezia Napoli Europa estate inverno primav'+
+   'era autunno rosso');
+ Words('rossa verde verdi blu azzurro azzurra giallo gialla bianco bianca ner'+
+   'o nera grigio grigia');
+ Words('rosa marrone colore colori punto punti parte parti luogo luoghi cosa '+
+   'cose ragione ragioni');
+ Words('verit'#195#160' storia storie idea idee luce forza faccia forma forme'+
+   ' qualit'#195#160);
  Words('quantit'#195#160' capacit'#195#160);
- Words('fare faccio fai fa facciamo fate fanno fatto facendo feci fece far'#195#178' far'#195#160);
+ Words('fare faccio fai fa facciamo fate fanno fatto facendo feci fece f'+
+   'ar'#195#178' far'#195#160);
  Words('farebbe');
- Words('andare vado vai va andiamo andate vanno andato andata andando venire vengo vieni viene');
- Words('veniamo venite vengono venuto venuta dire dico dici dice diciamo dite dicono detto');
- Words('parlare parlo parli parla parliamo parlate parlano parlato parlando leggere leggo leggi');
- Words('legge leggiamo leggete leggono letto leggendo scrivere scrivo scrivi scrive scriviamo');
- Words('scrivete scrivono scritto scrivendo vedere vedo vedi vede vediamo vedete vedono visto');
- Words('guardare guardo guarda guardiamo guardano guardato ascoltare ascolto ascolta ascoltano');
- Words('ascoltato sapere so sai sa sappiamo sapete sanno sapevo saputo conoscere conosco conosci');
- Words('conosce conosciamo conoscete conoscono conosciuto pensare penso pensi pensa pensiamo');
- Words('pensano pensato credere credo crede crediamo credono creduto capire capisco capisci');
- Words('capisce capiamo capite capiscono capito comprendere comprendo comprende compreso');
- Words('imparare imparo impara impariamo imparano imparato insegnare insegno insegna insegnato');
- Words('volere voglio vuoi vuole vogliamo volete vogliono voluto vorrei vorrebbe potere posso');
- Words('puoi pu'#195#178' possiamo potete possono potuto potrei potrebbe dovere devo devi deve');
+ Words('andare vado vai va andiamo andate vanno andato andata andando venire '+
+   'vengo vieni viene');
+ Words('veniamo venite vengono venuto venuta dire dico dici dice diciamo dite'+
+   ' dicono detto');
+ Words('parlare parlo parli parla parliamo parlate parlano parlato parlando l'+
+   'eggere leggo leggi');
+ Words('legge leggiamo leggete leggono letto leggendo scrivere scrivo scrivi '+
+   'scrive scriviamo');
+ Words('scrivete scrivono scritto scrivendo vedere vedo vedi vede vediamo ved'+
+   'ete vedono visto');
+ Words('guardare guardo guarda guardiamo guardano guardato ascoltare ascolto '+
+   'ascolta ascoltano');
+ Words('ascoltato sapere so sai sa sappiamo sapete sanno sapevo saputo conosc'+
+   'ere conosco conosci');
+ Words('conosce conosciamo conoscete conoscono conosciuto pensare penso pensi'+
+   ' pensa pensiamo');
+ Words('pensano pensato credere credo crede crediamo credono creduto capire c'+
+   'apisco capisci');
+ Words('capisce capiamo capite capiscono capito comprendere comprendo compren'+
+   'de compreso');
+ Words('imparare imparo impara impariamo imparano imparato insegnare insegno '+
+   'insegna insegnato');
+ Words('volere voglio vuoi vuole vogliamo volete vogliono voluto vorrei vorre'+
+   'bbe potere posso');
+ Words('puoi pu'#195#178' possiamo potete possono potuto potrei potrebbe dove'+
+   're devo devi deve');
  Words('dobbiamo');
- Words('dovete devono dovuto dovrei dovrebbe piacere piace piacciono piaciuto amare amo ama');
- Words('amiamo amano amato mangiare mangio mangi mangia mangiamo mangiate mangiano mangiato');
- Words('bere bevo bevi beve beviamo bevete bevono bevuto vivere vivo vivi vive viviamo vivete');
- Words('vivono vissuto dormire dormo dormi dorme dormiamo dormite dormono dormito lavorare lavoro');
- Words('lavori lavora lavoriamo lavorate lavorano lavorato studiare studio studi studia studiamo');
- Words('studiate studiano studiato giocare gioco gioca giochiamo giocano giocato correre corro');
- Words('corre corrono corso camminare cammino cammina camminano camminato comprare compro compra');
- Words('comprano comprato vendere vendo vende vendono venduto pagare pago paga pagano pagato');
- Words('dare do dai d'#195#160' diamo date danno dato prendere prendo prendi prende prendiamo prendono');
- Words('preso portare porto porta portano portato mettere metto metti mette mettiamo mettono');
- Words('messo uscire esco esci esce usciamo uscite escono uscito arrivare arrivo arriva arrivano');
- Words('arrivato passare passo passa passano passato restare resto resta restano restato');
- Words('lasciare lascio lascia lasciamo lasciano lasciato cercare cerco cerca cercano cercato');
- Words('trovare trovo trovi trova troviamo trovano trovato aspettare aspetto aspetta aspettano');
- Words('aspettato aiutare aiuto aiuta aiutiamo aiutano aiutato aprire apro apri apre apriamo');
- Words('aprono aperto chiudere chiudo chiudi chiude chiudiamo chiudono chiuso iniziare inizio');
- Words('inizia iniziano iniziato finire finisco finisci finisce finiamo finiscono finito');
- Words('cambiare cambio cambia cambiamo cambiano cambiato usare uso usa usiamo usano usato');
- Words('correggere correggo corregge correggono corretto corretta controllare controllo controlla');
- Words('controllato salvare salvo salva salvano salvato inviare invio invia inviano inviato');
- Words('ricevere ricevo riceve ricevono ricevuto tornare torno torna tornano tornato ricordare');
- Words('ricordo ricorda ricordano ricordato dimenticare dimentico dimentica dimenticato chiedere');
- Words('chiedo chiedi chiede chiediamo chiedono chiesto rispondere rispondo risponde risposto');
- Words('scegliere scelgo sceglie scelgono scelto tenere tengo tiene tengono tenuto perdere perso');
- Words('soprattutto purtroppo infatti invece inoltre comunque dunque allora veramente facilmente');
- Words('rapidamente lentamente correttamente finalmente completamente probabilmente sicuramente');
- Words('attenzione azione stazione lezione lezioni emozione emozioni informatica tecnologia');
- Words('perch'#195#169' affinch'#195#169' poich'#195#169' bench'#195#169' '#195#168' s'#195#172);
- Words('n'#195#169' s'#195#169' t'#195#168' d'#195#160' gi'#195#160' gi'#195#185' pi'#195#185);
+ Words('dovete devono dovuto dovrei dovrebbe piacere piace piacciono piaciuto'+
+   ' amare amo ama');
+ Words('amiamo amano amato mangiare mangio mangi mangia mangiamo mangiate man'+
+   'giano mangiato');
+ Words('bere bevo bevi beve beviamo bevete bevono bevuto vivere vivo vivi viv'+
+   'e viviamo vivete');
+ Words('vivono vissuto dormire dormo dormi dorme dormiamo dormite dormono dor'+
+   'mito lavorare lavoro');
+ Words('lavori lavora lavoriamo lavorate lavorano lavorato studiare studio st'+
+   'udi studia studiamo');
+ Words('studiate studiano studiato giocare gioco gioca giochiamo giocano gioc'+
+   'ato correre corro');
+ Words('corre corrono corso camminare cammino cammina camminano camminato com'+
+   'prare compro compra');
+ Words('comprano comprato vendere vendo vende vendono venduto pagare pago pag'+
+   'a pagano pagato');
+ Words('dare do dai d'#195#160' diamo date danno dato prendere prendo prendi '+
+   'prende prendiamo prendono');
+ Words('preso portare porto porta portano portato mettere metto metti mette m'+
+   'ettiamo mettono');
+ Words('messo uscire esco esci esce usciamo uscite escono uscito arrivare arr'+
+   'ivo arriva arrivano');
+ Words('arrivato passare passo passa passano passato restare resto resta rest'+
+   'ano restato');
+ Words('lasciare lascio lascia lasciamo lasciano lasciato cercare cerco cerca'+
+   ' cercano cercato');
+ Words('trovare trovo trovi trova troviamo trovano trovato aspettare aspetto '+
+   'aspetta aspettano');
+ Words('aspettato aiutare aiuto aiuta aiutiamo aiutano aiutato aprire apro ap'+
+   'ri apre apriamo');
+ Words('aprono aperto chiudere chiudo chiudi chiude chiudiamo chiudono chiuso'+
+   ' iniziare inizio');
+ Words('inizia iniziano iniziato finire finisco finisci finisce finiamo finis'+
+   'cono finito');
+ Words('cambiare cambio cambia cambiamo cambiano cambiato usare uso usa usiam'+
+   'o usano usato');
+ Words('correggere correggo corregge correggono corretto corretta controllare'+
+   ' controllo controlla');
+ Words('controllato salvare salvo salva salvano salvato inviare invio invia i'+
+   'nviano inviato');
+ Words('ricevere ricevo riceve ricevono ricevuto tornare torno torna tornano '+
+   'tornato ricordare');
+ Words('ricordo ricorda ricordano ricordato dimenticare dimentico dimentica d'+
+   'imenticato chiedere');
+ Words('chiedo chiedi chiede chiediamo chiedono chiesto rispondere rispondo r'+
+   'isponde risposto');
+ Words('scegliere scelgo sceglie scelgono scelto tenere tengo tiene tengono t'+
+   'enuto perdere perso');
+ Words('soprattutto purtroppo infatti invece inoltre comunque dunque allora v'+
+   'eramente facilmente');
+ Words('rapidamente lentamente correttamente finalmente completamente probabi'+
+   'lmente sicuramente');
+ Words('attenzione azione stazione lezione lezioni emozione emozioni informat'+
+   'ica tecnologia');
+ Words('perch'#195#169' affinch'#195#169' poich'#195#169' ben'+
+   'ch'#195#169' '#195#168' s'#195#172);
+ Words('n'#195#169' s'#195#169' t'#195#168' d'#195#160' gi'#195#160' '+
+   'gi'#195#185' pi'#195#185);
  Words('l'#195#172' l'#195#160' per'#195#178' cio'#195#168' caff'#195#168);
 End;
 
@@ -11516,7 +12990,8 @@ Begin
   V := Matrix[X-1,Y-1]; If A[X]<>B[Y] Then Inc(V);
   If Matrix[X-1,Y]+1<V Then V := Matrix[X-1,Y]+1;
   If Matrix[X,Y-1]+1<V Then V := Matrix[X,Y-1]+1;
-  If (X>1) And (Y>1) Then    If (A[X]=B[Y-1]) And (A[X-1]=B[Y]) Then     If Matrix[X-2,Y-
+  If (X>1) And (Y>1) Then    If (A[X]=B[Y-1]) And (A[X-1]=B[Y]) Then     If
+    Matrix[X-2,Y-
   2]+1<V Then V := Matrix[X-2,Y-2]+1;
   Matrix[X,Y] := V
  End;
@@ -11747,7 +13222,8 @@ Function ChooseSpelling(P, First, Last: Integer; Const Original: String;
                         Const Picks: TSpellPicks; Count: Integer): Integer;
 Var
  SavedCursor: TCursorPos;
- L, A, B, Y, TopY, I, Selected, ResultCode, RowY, WaveX, WaveEnd, WaveY: Integer;
+ L, A, B, Y, TopY, I, Selected, ResultCode, RowY, WaveX, WaveEnd,
+   WaveY: Integer;
  Key: Word;
  PreviousButtons: LongInt;
  Repaint: Boolean;
@@ -11794,7 +13270,8 @@ Begin
    If A<First Then A:=First;
    If B>Last Then B:=Last;
    Y:=VLines[L].Y-ScrollY+VLines[L].Height-2;
-   If (A<B) And (ZoomY(Y)>=DOCAREA_TOP) And (ZoomY(Y)<=DocPhysicalBottom) Then Begin
+   If (A<B) And (ZoomY(Y)>=DOCAREA_TOP) And (ZoomY(Y)<=DocPhysicalBottom) Then
+     Begin
     SetColor(Red);
     WaveX:=ZoomX(LineCharScreenX(L,A));
     WaveEnd:=ZoomX(LineCharScreenX(L,B))-1;
@@ -12057,7 +13534,8 @@ End;
 Procedure ShowHelpContents;
 Const
  Topics: Array[1..7] of String[16] =
-  ('Documents','Edition','Affichage','Insertion','Mise en forme','Orthographe','Statistiques');
+  ('Documents','Edition','Affichage','Insertion','Mise en forme','Orthograp'+
+    'he','Statistiques');
  HelpText: Array[1..7,1..5] of String[43] = (
   ('Ctrl+O ouvre un document.',
    'Ctrl+S enregistre le document courant.',
@@ -12270,19 +13748,32 @@ Type
   Name, OutputName, DataType: Pointer;
   Flags: LongWord;
  End;
-Function WordPrintDlg(Var D:TWordPrintDialog): LongBool; stdcall; external 'comdlg32.dll' name 'PrintDlgW';
-Function WordPrintError: LongWord; stdcall; external 'comdlg32.dll' name 'CommDlgExtendedError';
-Function WordPrintOwner: PtrUInt; stdcall; external 'user32.dll' name 'GetForegroundWindow';
-Function WordGlobalFree(H:PtrUInt): PtrUInt; stdcall; external 'kernel32.dll' name 'GlobalFree';
-Function WordPrintDeleteDC(DC:PtrUInt): LongBool; stdcall; external 'gdi32.dll' name 'DeleteDC';
-Function WordPrintCaps(DC:PtrUInt; Index:LongInt):LongInt; stdcall; external 'gdi32.dll' name 'GetDeviceCaps';
-Function WordStartDoc(DC:PtrUInt; Var Job:TWordPrintJob):LongInt; stdcall; external 'gdi32.dll' name 'StartDocW';
-Function WordStartPage(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'StartPage';
-Function WordEndPage(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'EndPage';
-Function WordEndDoc(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'EndDoc';
-Function WordAbortDoc(DC:PtrUInt):LongInt; stdcall; external 'gdi32.dll' name 'AbortDoc';
-Function WordPrintText(DC:PtrUInt; X,Y:LongInt; S:Pointer; Count:LongInt):LongBool; stdcall; external 'gdi32.dll' name 'TextOutW';
-Function WordPrintMode(DC:PtrUInt; Mode:LongInt):LongInt; stdcall; external 'gdi32.dll' name 'SetBkMode';
+Function WordPrintDlg(Var D:TWordPrintDialog): LongBool; stdcall;
+  external 'comdlg32.dll' name 'PrintDlgW';
+Function WordPrintError: LongWord; stdcall;
+  external 'comdlg32.dll' name 'CommDlgExtendedError';
+Function WordPrintOwner: PtrUInt; stdcall;
+  external 'user32.dll' name 'GetForegroundWindow';
+Function WordGlobalFree(H:PtrUInt): PtrUInt; stdcall;
+  external 'kernel32.dll' name 'GlobalFree';
+Function WordPrintDeleteDC(DC:PtrUInt): LongBool; stdcall;
+  external 'gdi32.dll' name 'DeleteDC';
+Function WordPrintCaps(DC:PtrUInt; Index:LongInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'GetDeviceCaps';
+Function WordStartDoc(DC:PtrUInt; Var Job:TWordPrintJob):LongInt; stdcall;
+  external 'gdi32.dll' name 'StartDocW';
+Function WordStartPage(DC:PtrUInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'StartPage';
+Function WordEndPage(DC:PtrUInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'EndPage';
+Function WordEndDoc(DC:PtrUInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'EndDoc';
+Function WordAbortDoc(DC:PtrUInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'AbortDoc';
+Function WordPrintText(DC:PtrUInt; X,Y:LongInt; S:Pointer;
+  Count:LongInt):LongBool; stdcall; external 'gdi32.dll' name 'TextOutW';
+Function WordPrintMode(DC:PtrUInt; Mode:LongInt):LongInt; stdcall;
+  external 'gdi32.dll' name 'SetBkMode';
 Function WordPrintDIB(DC:PtrUInt; X,Y,W,H,SX,SY,SW,SH:LongInt;
  Bits:Pointer; Var Info:TPDFBitmapInfo; Usage,Operation:LongWord):LongInt;
  stdcall; external 'gdi32.dll' name 'StretchDIBits';
@@ -12338,7 +13829,8 @@ Var
   End Else
    For K:=1 To Length(Value) Do Begin
     U:=Cp437ToUni(Ord(Value[K]));
-    If Not WordPrintText(Dialog.DC,DeviceX(AX+(K-1)*Advance),DeviceY(AY),@U,1) Then OK:=False;
+    If Not WordPrintText(Dialog.DC,DeviceX(AX+(K-1)*Advance),DeviceY(AY),@U,1)
+      Then OK:=False;
    End;
   PDFSelect(Dialog.DC,PreviousFont);
   PDFDelete(Font);
@@ -12444,7 +13936,8 @@ Begin
     End;
     For I:=1 To Doc.PDFGraphicCount Do
      With Doc.PDFGraphics[I] Do
-      If Doc.PDFGraphics[I].Page=PrintPage Then DrawShape(X1,Y1,X2,Y2,Color,Kind=2);
+      If Doc.PDFGraphics[I].Page=PrintPage Then
+        DrawShape(X1,Y1,X2,Y2,Color,Kind=2);
     For L:=1 To VLineCount Do Begin
      If VLines[L].PageIdx<>PrintPage Then Continue;
      P:=VLines[L].ParaIdx;
@@ -12468,13 +13961,15 @@ Begin
       End;
      End Else If Doc.Paragraphs[P].PDF.Active Then Begin
       S:=Copy(ParaText(P),VLines[L].CharStart,VLines[L].CharLen);
-      With Doc.Paragraphs[P] Do DrawText(X,Y,S,Runs[1].Style,PDF.Face,PDF.Height);
+      With Doc.Paragraphs[P] Do
+        DrawText(X,Y,S,Runs[1].Style,PDF.Face,PDF.Height);
      End Else Begin
       For I:=0 To VLines[L].CharLen-1 Do Begin
        J:=VLines[L].CharStart-1+I;
        LocateChar(P,J,R,C);
        With Doc.Paragraphs[P].Runs[R] Do
-        DrawText(LineCharScreenX(L,J)-PageX,Y,Text[C+1],Style,'',RunHeight(Style));
+        DrawText(LineCharScreenX(L,J)-PageX,Y,Text[C+1],Style,'',
+          RunHeight(Style));
       End;
       If VLineIsLastInPara(L) And Doc.Paragraphs[P].BorderBottom Then
        DrawShape(PAGE_MARGIN_L,Y+VLines[L].Height-1,PAGE_W-PAGE_MARGIN_R,
@@ -12489,7 +13984,8 @@ Begin
   End;
   If OK Then StatusMsg:='Document transmis a l''imprimante.'
   Else ShowMessage('Echec de l''impression.');
- End Else If WordPrintError<>0 Then ShowMessage('Impossible d''ouvrir le dialogue d''impression.');
+ End Else If WordPrintError<>0 Then
+   ShowMessage('Impossible d''ouvrir le dialogue d''impression.');
  If Dialog.DC<>0 Then WordPrintDeleteDC(Dialog.DC);
  If Dialog.DevMode<>0 Then WordGlobalFree(Dialog.DevMode);
  If Dialog.DevNames<>0 Then WordGlobalFree(Dialog.DevNames);
@@ -12521,31 +14017,45 @@ Begin
  Case Act Of
   ACT_FILE_NEW    : Begin
                      If Doc.Modified Then
-                      If Not ShowConfirmYN('Discard unsaved changes?') Then Exit;
+                      If Not ShowConfirmYN('Discard unsaved changes?') Then
+                        Exit;
                      InitDocument; LayoutDocument;
                      ClearAllUndo;
                      StatusMsg := 'New document'; NeedsRedraw := True;
                     End;
   ACT_FILE_OPEN   : Begin
                      If Doc.Modified Then
-                      If Not ShowConfirmYN('Discard unsaved changes?') Then Exit;
+                      If Not ShowConfirmYN('Discard unsaved changes?') Then
+                        Exit;
                      FNameTmp := '';
-                     If ShowFileDialog('Open Document', False, 'Documents (*.WPD;*.DOCX;*.DOC;*.PDF)|*.WPD;*.DOCX;*.DOC;*.PDF|PDF (*.PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*.*)|*.*', FNameTmp) Then Begin
+                     If ShowFileDialog('Open Document', False,
+                       'Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WP'+
+                       'D;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GA'+
+                       'T MonsterBook (*.GAT)|*.GAT|PDF (*.PDF)|*.PDF|WPD (*.'+
+                       'WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tou'+
+                       's (*.*)|*.*', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If LoadAnyDocument(FNameTmp) Then Begin
                        LayoutDocument;
                        ClearAllUndo;
                        StatusMsg := 'Opened ' + FNameTmp;
+                       If GatTruncated Then StatusMsg :=
+                         'GAT tronque (500 paragraphes max)';
                       End Else
-                       ShowMessage('Cannot open file (PDF: readable text required): ' + FNameTmp);
+                       ShowMessage('Cannot open file (PDF: readable text requ'+
+                         'ired): ' + FNameTmp);
                      End;
                      NeedsRedraw := True;
                     End;
   ACT_FILE_SAVE   : Begin
                      FNameTmp := Doc.FileName;
                      If (FNameTmp = '') Or (FNameTmp = 'Document1') Then Begin
-                      If Not ShowFileDialog('Save Document', True, 'Documents (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
-                      { .DOC en sortie n'est pas supporte (Phase 9 lecture seule) }
+                      If Not ShowFileDialog('Save Document', True,
+                        'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WP'+
+                        'D (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook'+
+                        ' (*.GAT)|*.GAT', FNameTmp) Then Begin
+                      { .DOC en sortie n'est pas supporte (Phase 9 lecture
+                        seule) }
                        NeedsRedraw := True; Exit;
                       End;
                      End;
@@ -12561,9 +14071,13 @@ Begin
   ACT_FILE_SAVEAS : Begin
                      FNameTmp := Doc.FileName;
                      If FNameTmp = 'Document1' Then FNameTmp := '';
-                     If ShowFileDialog('Save As', True, 'Documents (*.WPD;*.DOCX)|*.WPD;*.DOCX|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX', FNameTmp) Then Begin
+                     If ShowFileDialog('Save As', True,
+                       'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD'+
+                       ' (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook ('+
+                       '*.GAT)|*.GAT', FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
-                      If ExtIsDoc(FNameTmp) And (Not ExtIsDocx(FNameTmp)) Then Begin
+                      If ExtIsDoc(FNameTmp) And (Not ExtIsDocx(FNameTmp)) Then
+                        Begin
                        ShowMessage('Cannot save as .DOC (read-only format)');
                        NeedsRedraw := True; Exit;
                       End;
@@ -12610,8 +14124,8 @@ Begin
   ACT_INS_IMAGE   : Begin
                      FNameTmp := '';
                      If ShowFileDialog('Insert Picture', False,
-                      'Images (*.BMP;*.PCX;*.GIF;*.JPG)|*.BMP;'+
-                      '*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;'+
+                      'Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;'+
+                      '*.GPX;*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;'+
                       '*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|'+
                       'GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|'+
                       '*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;'+
@@ -12644,7 +14158,8 @@ Begin
                       SelApplyStyleBit(STY_BOLD);
                      End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_BOLD;
-                     FmtBar[1].Pressed := (CurrentStyle.Style And STY_BOLD) <> 0;
+                     FmtBar[1].Pressed := (CurrentStyle.Style And STY_BOLD) <>
+                       0;
                      StatusMsg := 'Toggle Bold';
                     End;
   ACT_FMT_ITALIC  : Begin
@@ -12653,7 +14168,8 @@ Begin
                       SelApplyStyleBit(STY_ITALIC);
                      End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_ITALIC;
-                     FmtBar[2].Pressed := (CurrentStyle.Style And STY_ITALIC) <> 0;
+                     FmtBar[2].Pressed := (CurrentStyle.Style And STY_ITALIC) <>
+                       0;
                      StatusMsg := 'Toggle Italic';
                     End;
   ACT_FMT_UNDER   : Begin
@@ -12662,7 +14178,8 @@ Begin
                       SelApplyStyleBit(STY_UNDERLINE);
                      End;
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_UNDERLINE;
-                     FmtBar[3].Pressed := (CurrentStyle.Style And STY_UNDERLINE) <> 0;
+                     FmtBar[3].Pressed := (CurrentStyle.Style And STY_UNDERLINE)
+                       <> 0;
                      StatusMsg := 'Toggle Underline';
                     End;
   ACT_FMT_LEFT    : Begin
@@ -12915,14 +14432,17 @@ Begin
  HandleRibbonKey:=False;If Not RibbonMode Then Exit;Tab:=0;
  Case K Of
   KEY_ALT_F: Tab:=1;KEY_ALT_E: Tab:=2;KEY_ALT_V: Tab:=3;KEY_ALT_I: Tab:=4;
-  KEY_ALT_O: Tab:=5;KEY_ALT_T: Tab:=6;KEY_ALT_A: Tab:=7;KEY_ALT_W: Tab:=8;KEY_ALT_H: Tab:=9;
+  KEY_ALT_O: Tab:=5;KEY_ALT_T: Tab:=6;KEY_ALT_A: Tab:=7;KEY_ALT_W:
+    Tab:=8;KEY_ALT_H: Tab:=9;
  End;
  If Tab>0 Then Begin
-  RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonPressed:=0;ActiveMenu:=0;
+  RibbonTab:=Tab;RibbonKeyboard:=True;RibbonFocus:=0;RibbonPressed:=0;
+    ActiveMenu:=0;
   NeedsRedraw:=True;HandleRibbonKey:=True;Exit;
  End;
  If K=KEY_F10 Then Begin
-  RibbonKeyboard:=Not RibbonKeyboard;RibbonFocus:=0;NeedsRedraw:=True;HandleRibbonKey:=True;Exit;
+  RibbonKeyboard:=Not
+    RibbonKeyboard;RibbonFocus:=0;NeedsRedraw:=True;HandleRibbonKey:=True;Exit;
  End;
  If Not RibbonKeyboard Then Exit;
  HandleRibbonKey:=True;Direction:=0;
@@ -12930,7 +14450,8 @@ Begin
   KEY_LEFT: Direction:=-1;KEY_RIGHT: Direction:=1;
   KEY_UP,271: RibbonMoveFocus(-1);KEY_DOWN,KEY_TAB: RibbonMoveFocus(1);
   KEY_ESC: If RibbonFocus>0 Then RibbonFocus:=0 Else RibbonKeyboard:=False;
-  KEY_ENTER,32: If RibbonFocus=0 Then RibbonMoveFocus(1) Else ExecuteRibbonEntry(RibbonFocus);
+  KEY_ENTER,32: If RibbonFocus=0 Then RibbonMoveFocus(1) Else
+    ExecuteRibbonEntry(RibbonFocus);
   Else Begin RibbonKeyboard:=False;RibbonFocus:=0;HandleRibbonKey:=False;End;
  End;
  If Direction<>0 Then Begin
@@ -12962,15 +14483,24 @@ Begin
    ActiveMenu := 1; MenuItemHover := 1; MenuKeyboardMode := True;
   End;
   KEY_ESC: ;
-  KEY_ALT_F: Begin ActiveMenu := 1; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_E: Begin ActiveMenu := 2; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_V: Begin ActiveMenu := 3; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_I: Begin ActiveMenu := 4; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_O: Begin ActiveMenu := 5; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_T: Begin ActiveMenu := 6; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_A: Begin ActiveMenu := 7; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_W: Begin ActiveMenu := 8; MenuItemHover := 1; MenuKeyboardMode := True; End;
-  KEY_ALT_H: Begin ActiveMenu := 9; MenuItemHover := 1; MenuKeyboardMode := True; End;
+  KEY_ALT_F: Begin ActiveMenu := 1; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_E: Begin ActiveMenu := 2; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_V: Begin ActiveMenu := 3; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_I: Begin ActiveMenu := 4; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_O: Begin ActiveMenu := 5; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_T: Begin ActiveMenu := 6; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_A: Begin ActiveMenu := 7; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_W: Begin ActiveMenu := 8; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
+  KEY_ALT_H: Begin ActiveMenu := 9; MenuItemHover := 1;
+    MenuKeyboardMode := True; End;
   KEY_ALT_X: ExecAction(ACT_FILE_EXIT);
   KEY_F1   : ExecAction(ACT_HLP_CONTENT);
   KEY_F3   : ExecAction(ACT_EDIT_FIND_NEXT);
@@ -12991,7 +14521,8 @@ Begin
   KEY_DEL      : Begin MarkMutation(2); DeleteAtCursor; End;
   KEY_ENTER    : Begin MarkMutation(2); NewParagraphAtCursor; End;
   KEY_TAB      : Begin
-                  If CursorInTable Then NewParagraphAtCursor   { tab = cellule suivante }
+                  If CursorInTable Then NewParagraphAtCursor   { tab = cellule
+                    suivante }
                   Else Begin MarkMutation(1); InsertCharAtCursor(' '); End;
                  End;
  Else
@@ -13092,7 +14623,8 @@ Begin
   If VLines[I].IsImage Then Continue;
   LineY := VLines[I].Y - ScrollY;
   If My < LineY Then D := LineY - My
-  Else If My > LineY + VLines[I].Height - 1 Then D := My - (LineY + VLines[I].Height - 1)
+  Else If My > LineY + VLines[I].Height - 1 Then D := My - (LineY +
+    VLines[I].Height - 1)
   Else D := 0;
   If D < BestDist Then Begin BestDist := D; Best := I; End;
  End;
@@ -13113,7 +14645,8 @@ Begin
    BestOff := 0; BestDist := 32767;
    For Off := 0 To Length(CellTxt) Do Begin
     Pre := Copy(CellTxt, 1, Off);
-    TestX := VLines[Best].X + (ColC - 1) * CellW + TBL_CELL_PAD + TextWidth(Pre);
+    TestX := VLines[Best].X + (ColC - 1) * CellW + TBL_CELL_PAD +
+      TextWidth(Pre);
     D := TestX - Mx;
     If D < 0 Then D := -D;
     If D < BestDist Then Begin BestDist := D; BestOff := Off; End;
@@ -13160,7 +14693,8 @@ Begin
  LeftDown     := (MsBtn And MB_LEFT) <> 0;
  LeftPressed  := LeftDown And ((LastMsBtn And MB_LEFT) = 0);
  LeftReleased := (Not LeftDown) And ((LastMsBtn And MB_LEFT) <> 0);
- If LeftPressed and (ZoomPanLimit>0) and (MsY>DocPhysicalBottom) and (MsY<=DOCAREA_BOTTOM) Then Begin
+ If LeftPressed and (ZoomPanLimit>0) and (MsY>DocPhysicalBottom) and
+   (MsY<=DOCAREA_BOTTOM) Then Begin
   If MsX<20 Then Dec(ZoomPanX,30)
   Else If MsX>SCREEN_W-20 Then Inc(ZoomPanX,30)
   Else ZoomPanX:=-ZoomPanLimit+LongInt(MsX-20)*2*ZoomPanLimit div (SCREEN_W-40);
@@ -13293,7 +14827,8 @@ Begin
      Begin
       ShowTableContextMenu(MsX, MsY, NewP,
        ((Cursor.RunIdx - 1) Div Tables[Doc.Paragraphs[NewP].TableIdx].Cols) + 1,
-       ((Cursor.RunIdx - 1) Mod Tables[Doc.Paragraphs[NewP].TableIdx].Cols) + 1);
+       ((Cursor.RunIdx - 1) Mod Tables[Doc.Paragraphs[NewP].TableIdx].Cols) +
+         1);
      End;
     End Else
      StatusMsg := 'Menu contextuel : clic droit sur un tableau';
@@ -13375,7 +14910,8 @@ Begin
    If NeedsRelayout Then Begin
     LayoutDocument;
    End;
-   { Toujours s'assurer que le curseur reste visible (defile la page si besoin). }
+   { Toujours s'assurer que le curseur reste visible (defile la page si besoin).
+     }
    EnsureCursorVisible;
    { Reset blink ON pendant la frappe : caret toujours visible }
    CursorBlinkOn := True;
@@ -13442,7 +14978,8 @@ Begin
  CommandLineHelpRequested:=False;
  For I:=1 To ParamCount Do Begin
   Arg:=ParamStr(I);For J:=1 To Length(Arg) Do Arg[J]:=UpCase(Arg[J]);
-  If (Arg='/?') Or (Arg='-H') Or (Arg='--HELP') Then Begin CommandLineHelpRequested:=True;Exit;End;
+  If (Arg='/?') Or (Arg='-H') Or (Arg='--HELP') Then Begin
+    CommandLineHelpRequested:=True;Exit;End;
  End;
 End;
 Procedure ShowCommandLineHelp;
@@ -13450,21 +14987,38 @@ Var OutputHelp: Text;
 Begin
  Assign(OutputHelp,'');Rewrite(OutputHelp);
  WriteLn(OutputHelp,'WorDium - Traitement de texte graphique en Pascal.');
- WriteLn(OutputHelp,'Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] [/?]');
+ WriteLn(
+   OutputHelp,'Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] ['+
+   '/?]');
  WriteLn(OutputHelp);
- WriteLn(OutputHelp,'  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut).');
- WriteLn(OutputHelp,'  /RUBANMENU    Onglets et commandes avec icones, style Word 2007 et suivants.');
- WriteLn(OutputHelp,'  /?           Affiche cette aide et quitte sans ouvrir de fenetre.');
+ WriteLn(
+   OutputHelp,'  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut'+
+   ').');
+ WriteLn(
+   OutputHelp,'  /RUBANMENU    Onglets et commandes avec icones, style Word 2'+
+   '007 et suivants.');
+ WriteLn(
+   OutputHelp,'  /?           Affiche cette aide et quitte sans ouvrir de fen'+
+   'etre.');
  WriteLn(OutputHelp,'  -h, --help   Affichent egalement cette aide.');
  WriteLn(OutputHelp,'  document     Fichier a ouvrir au demarrage.');
  WriteLn(OutputHelp);
- WriteLn(OutputHelp,'Les options sont insensibles a la casse ; le dernier mode specifie est utilise.');
+ WriteLn(
+   OutputHelp,'Les options sont insensibles a la casse ; le dernier mode spec'+
+   'ifie est utilise.');
  WriteLn(OutputHelp,'Le document peut etre place avant ou apres les options.');
- WriteLn(OutputHelp,'Entourer les chemins contenant des espaces de guillemets.');
- WriteLn(OutputHelp,'Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"');
- WriteLn(OutputHelp,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.');
- WriteLn(OutputHelp,'Accueil : Alt+E. Les commandes non implementees sont grisees.');
- WriteLn(OutputHelp,'Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitter.');
+ WriteLn(
+   OutputHelp,'Entourer les chemins contenant des espaces de guillemets.');
+ WriteLn(
+   OutputHelp,'Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"');
+ WriteLn(
+   OutputHelp,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entre'+
+   'e et Echap.');
+ WriteLn(
+   OutputHelp,'Accueil : Alt+E. Les commandes non implementees sont grisees.');
+ WriteLn(
+   OutputHelp,'Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitt'+
+   'er.');
  Close(OutputHelp);
 End;
 Procedure ParseCommandLine;
@@ -13483,7 +15037,8 @@ Begin
  End;
  STDBAR_TOP:=CLASSIC_STDBAR_TOP;FMTBAR_TOP:=CLASSIC_FMTBAR_TOP;
  RULER_TOP:=CLASSIC_RULER_TOP;DOCAREA_TOP:=CLASSIC_DOCAREA_TOP;
- If RibbonMode Then Begin STDBAR_TOP:=108;FMTBAR_TOP:=108;RULER_TOP:=108;DOCAREA_TOP:=123;End;
+ If RibbonMode Then Begin
+   STDBAR_TOP:=108;FMTBAR_TOP:=108;RULER_TOP:=108;DOCAREA_TOP:=123;End;
  UpdateViewGeometry;
 End;
 
