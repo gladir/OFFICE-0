@@ -14,6 +14,1869 @@ Uses {$IFDEF FPC}
       Crt,Dos,Graph
      {$ENDIF};
 
+{ ============================================================ }
+{ ===================  LANGUES (FR EN ES IT DE)  ============= }
+{ ============================================================ }
+{ Langue de l'interface : variable d'environnement LANGUAGE.   }
+{   EN = anglais, ES = espagnol, IT = italien, GR (ou DE) =     }
+{   allemand, FR (ou absente) = francais (par defaut).          }
+{ Tr(Texte) retourne la traduction du texte source (la cle).    }
+{ Les textes sont en CP437 (police de l'ecran graphique).       }
+
+Const
+ LANG_FR = 0;
+ LANG_EN = 1;
+ LANG_ES = 2;
+ LANG_IT = 3;
+ LANG_DE = 4;
+ TR_COUNT = 279;
+
+Type
+ TTrRow = Record
+  K : String[255];                       { cle (texte source) }
+  V : Array[0..4] Of String[255];        { FR, EN, ES, IT, DE }
+ End;
+
+Const
+ TrTab : Array[1..TR_COUNT] Of TTrRow = (
+  (K: '&Fichier';
+   V: ('&Fichier',
+    '&File',
+    '&Archivo',
+    '&File',
+    '&Datei')),
+  (K: '&Edition';
+   V: ('&'#144'dition',
+    '&Edit',
+    '&Edici'#162'n',
+    '&Modifica',
+    '&Bearbeiten')),
+  (K: '&Affichage';
+   V: ('&Affichage',
+    '&View',
+    '&Ver',
+    '&Visualizza',
+    '&Ansicht')),
+  (K: '&Insertion';
+   V: ('&Insertion',
+    '&Insert',
+    '&Insertar',
+    '&Inserisci',
+    'E&inf'#129'gen')),
+  (K: 'F&ormat';
+   V: ('F&ormat',
+    'F&ormat',
+    'F&ormato',
+    'F&ormato',
+    'F&ormat')),
+  (K: 'O&utils';
+   V: ('O&utils',
+    '&Tools',
+    '&Herramientas',
+    'S&trumenti',
+    'E&xtras')),
+  (K: '&Tableau';
+   V: ('&Tableau',
+    'T&able',
+    '&Tabla',
+    'Ta&bella',
+    '&Tabelle')),
+  (K: 'Fe&netre';
+   V: ('Fe&n'#136'tre',
+    '&Window',
+    'Ve&ntana',
+    'Fi&nestra',
+    'Fe&nster')),
+  (K: 'Ai&de';
+   V: ('Ai&de',
+    '&Help',
+    'A&yuda',
+    'Ai&uto',
+    '&Hilfe')),
+  (K: 'Accu&eil';
+   V: ('Accu&eil',
+    'Ho&me',
+    'Ini&cio',
+    'Ho&me',
+    '&Start')),
+  (K: '&Nouveau';
+   V: ('&Nouveau',
+    '&New',
+    '&Nuevo',
+    '&Nuovo',
+    '&Neu')),
+  (K: '&Ouvrir...';
+   V: ('&Ouvrir...',
+    '&Open...',
+    '&Abrir...',
+    '&Apri...',
+    #153'&ffnen...')),
+  (K: '&Enregistrer';
+   V: ('&Enregistrer',
+    '&Save',
+    '&Guardar',
+    '&Salva',
+    '&Speichern')),
+  (K: 'Enregistrer &sous...';
+   V: ('Enregistrer &sous...',
+    'Save &As...',
+    'Guardar &como...',
+    'Salva con n&ome...',
+    'Speichern &unter...')),
+  (K: '&Imprimer...';
+   V: ('&Imprimer...',
+    '&Print...',
+    '&Imprimir...',
+    'S&tampa...',
+    '&Drucken...')),
+  (K: '&Quitter';
+   V: ('&Quitter',
+    'E&xit',
+    '&Salir',
+    '&Esci',
+    '&Beenden')),
+  (K: '&Annuler';
+   V: ('&Annuler',
+    'U&ndo',
+    '&Deshacer',
+    'A&nnulla',
+    '&R'#129'ckg'#132'ngig')),
+  (K: '&Retablir';
+   V: ('&R'#130'tablir',
+    '&Redo',
+    '&Rehacer',
+    '&Ripristina',
+    'Wiederh&olen')),
+  (K: 'Co&uper';
+   V: ('Co&uper',
+    'Cu&t',
+    'Cor&tar',
+    'Ta&glia',
+    'Aus&schneiden')),
+  (K: '&Copier';
+   V: ('&Copier',
+    '&Copy',
+    '&Copiar',
+    '&Copia',
+    '&Kopieren')),
+  (K: 'Co&ller';
+   V: ('Co&ller',
+    '&Paste',
+    '&Pegar',
+    '&Incolla',
+    '&Einf'#129'gen')),
+  (K: 'Rec&hercher...';
+   V: ('Rec&hercher...',
+    '&Find...',
+    '&Buscar...',
+    '&Trova...',
+    'S&uchen...')),
+  (K: 'Rechercher &suivant';
+   V: ('Rechercher &suivant',
+    'Find Ne&xt',
+    'Buscar &siguiente',
+    'Trova &successivo',
+    '&Weitersuchen')),
+  (K: 'Re&mplacer...';
+   V: ('Re&mplacer...',
+    'Rep&lace...',
+    'Reemp&lazar...',
+    'Sostit&uisci...',
+    'Erse&tzen...')),
+  (K: '&Normal';
+   V: ('&Normal',
+    '&Normal',
+    '&Normal',
+    '&Normale',
+    '&Normal')),
+  (K: '&Mise en page';
+   V: ('&Mise en page',
+    '&Page Layout',
+    '&Dise'#164'o de p'#160'gina',
+    '&Layout di pagina',
+    '&Seitenlayout')),
+  (K: '&Regle';
+   V: ('&R'#138'gle',
+    '&Ruler',
+    '&Regla',
+    '&Righello',
+    '&Lineal')),
+  (K: '&Zoom...';
+   V: ('&Zoom...',
+    '&Zoom...',
+    '&Zoom...',
+    '&Zoom...',
+    '&Zoom...')),
+  (K: '&Saut de page';
+   V: ('&Saut de page',
+    '&Page Break',
+    '&Salto de p'#160'gina',
+    'Interruzione di &pagina',
+    '&Seitenumbruch')),
+  (K: '&Image...';
+   V: ('&Image...',
+    'Pi&cture...',
+    '&Imagen...',
+    '&Immagine...',
+    '&Bild...')),
+  (K: 'Symbo&le...';
+   V: ('Symbo&le...',
+    'S&ymbol...',
+    'S'#161'mbo&lo...',
+    'Si&mbolo...',
+    'Sy&mbol...')),
+  (K: '&Tableau...';
+   V: ('&Tableau...',
+    '&Table...',
+    '&Tabla...',
+    '&Tabella...',
+    '&Tabelle...')),
+  (K: '&Police...';
+   V: ('&Police...',
+    '&Font...',
+    '&Fuente...',
+    '&Carattere...',
+    '&Schriftart...')),
+  (K: 'Para&graphe...';
+   V: ('Para&graphe...',
+    '&Paragraph...',
+    '&P'#160'rrafo...',
+    '&Paragrafo...',
+    '&Absatz...')),
+  (K: 'G&ras';
+   V: ('G&ras',
+    '&Bold',
+    '&Negrita',
+    '&Grassetto',
+    '&Fett')),
+  (K: '&Italique';
+   V: ('&Italique',
+    '&Italic',
+    'C&ursiva',
+    'Cor&sivo',
+    '&Kursiv')),
+  (K: '&Souligne';
+   V: ('&Soulign'#130,
+    '&Underline',
+    '&Subrayado',
+    'S&ottolineato',
+    '&Unterstrichen')),
+  (K: 'Aligner a g&auche';
+   V: ('Aligner '#133' g&auche',
+    'Align &Left',
+    'Alinear a la &izquierda',
+    'Allinea a si&nistra',
+    '&Linksb'#129'ndig')),
+  (K: '&Centrer';
+   V: ('&Centrer',
+    '&Center',
+    'C&entrar',
+    'Allinea al c&entro',
+    '&Zentriert')),
+  (K: 'Aligner a &droite';
+   V: ('Aligner '#133' &droite',
+    'Align &Right',
+    'Alinear a la &derecha',
+    'Allinea a &destra',
+    '&Rechtsb'#129'ndig')),
+  (K: '&Orthographe...';
+   V: ('&Orthographe...',
+    '&Spelling...',
+    '&Ortograf'#161'a...',
+    '&Ortografia...',
+    '&Rechtschreibung...')),
+  (K: 'Stat&istiques...';
+   V: ('Stat&istiques...',
+    'S&tatistics...',
+    'E&stad'#161'sticas...',
+    'S&tatistiche...',
+    '&Statistik...')),
+  (K: 'O&ptions...';
+   V: ('O&ptions...',
+    '&Options...',
+    'Opcio&nes...',
+    'Op&zioni...',
+    'O&ptionen...')),
+  (K: '&Inserer un tableau...';
+   V: ('&Ins'#130'rer un tableau...',
+    '&Insert Table...',
+    '&Insertar tabla...',
+    '&Inserisci tabella...',
+    'Tabelle &einf'#129'gen...')),
+  (K: '&Supprimer le tableau';
+   V: ('&Supprimer le tableau',
+    '&Delete Table',
+    '&Eliminar tabla',
+    '&Elimina tabella',
+    'Tabelle &l'#148'schen')),
+  (K: '&Cascade';
+   V: ('&Cascade',
+    '&Cascade',
+    '&Cascada',
+    '&Cascata',
+    '&Kaskade')),
+  (K: '&Sommaire...';
+   V: ('&Sommaire...',
+    '&Contents...',
+    '&Contenido...',
+    'S&ommario...',
+    '&Inhalt...')),
+  (K: 'A &propos...';
+   V: ('A &propos...',
+    '&About...',
+    'Acerca &de...',
+    '&Informazioni su...',
+    #154'&ber...')),
+  (K: 'Suivant';
+   V: ('Suivant',
+    'Next',
+    'Siguiente',
+    'Successivo',
+    'Weiter')),
+  (K: 'Gauche';
+   V: ('Gauche',
+    'Left',
+    'Izquierda',
+    'Sinistra',
+    'Links')),
+  (K: 'Centrer';
+   V: ('Centrer',
+    'Center',
+    'Centrar',
+    'Centra',
+    'Zentriert')),
+  (K: 'Droite';
+   V: ('Droite',
+    'Right',
+    'Derecha',
+    'Destra',
+    'Rechts')),
+  (K: 'Justifier';
+   V: ('Justifier',
+    'Justify',
+    'Justificar',
+    'Giustifica',
+    'Blocksatz')),
+  (K: '&Justifier';
+   V: ('&Justifier',
+    '&Justify',
+    '&Justificar',
+    'Giusti&fica',
+    '&Blocksatz')),
+  (K: 'New (Ctrl+N)';
+   V: ('Nouveau (Ctrl+N)',
+    'New (Ctrl+N)',
+    'Nuevo (Ctrl+N)',
+    'Nuovo (Ctrl+N)',
+    'Neu (Strg+N)')),
+  (K: 'Open (Ctrl+O)';
+   V: ('Ouvrir (Ctrl+O)',
+    'Open (Ctrl+O)',
+    'Abrir (Ctrl+O)',
+    'Apri (Ctrl+O)',
+    #153'ffnen (Strg+O)')),
+  (K: 'Save (Ctrl+S)';
+   V: ('Enregistrer (Ctrl+S)',
+    'Save (Ctrl+S)',
+    'Guardar (Ctrl+S)',
+    'Salva (Ctrl+S)',
+    'Speichern (Strg+S)')),
+  (K: 'Print (Ctrl+P)';
+   V: ('Imprimer (Ctrl+P)',
+    'Print (Ctrl+P)',
+    'Imprimir (Ctrl+P)',
+    'Stampa (Ctrl+P)',
+    'Drucken (Strg+P)')),
+  (K: 'Cut (Ctrl+X)';
+   V: ('Couper (Ctrl+X)',
+    'Cut (Ctrl+X)',
+    'Cortar (Ctrl+X)',
+    'Taglia (Ctrl+X)',
+    'Ausschneiden (Strg+X)')),
+  (K: 'Copy (Ctrl+C)';
+   V: ('Copier (Ctrl+C)',
+    'Copy (Ctrl+C)',
+    'Copiar (Ctrl+C)',
+    'Copia (Ctrl+C)',
+    'Kopieren (Strg+C)')),
+  (K: 'Paste (Ctrl+V)';
+   V: ('Coller (Ctrl+V)',
+    'Paste (Ctrl+V)',
+    'Pegar (Ctrl+V)',
+    'Incolla (Ctrl+V)',
+    'Einf'#129'gen (Strg+V)')),
+  (K: 'Undo (Ctrl+Z)';
+   V: ('Annuler (Ctrl+Z)',
+    'Undo (Ctrl+Z)',
+    'Deshacer (Ctrl+Z)',
+    'Annulla (Ctrl+Z)',
+    'R'#129'ckg'#132'ngig (Strg+Z)')),
+  (K: 'Redo (Ctrl+Y)';
+   V: ('R'#130'tablir (Ctrl+Y)',
+    'Redo (Ctrl+Y)',
+    'Rehacer (Ctrl+Y)',
+    'Ripristina (Ctrl+Y)',
+    'Wiederholen (Strg+Y)')),
+  (K: 'Insert Picture';
+   V: ('Ins'#130'rer une image',
+    'Insert Picture',
+    'Insertar imagen',
+    'Inserisci immagine',
+    'Bild einf'#129'gen')),
+  (K: 'Insert Table';
+   V: ('Ins'#130'rer un tableau',
+    'Insert Table',
+    'Insertar tabla',
+    'Inserisci tabella',
+    'Tabelle einf'#129'gen')),
+  (K: 'Bold (Ctrl+B)';
+   V: ('Gras (Ctrl+B)',
+    'Bold (Ctrl+B)',
+    'Negrita (Ctrl+B)',
+    'Grassetto (Ctrl+B)',
+    'Fett (Strg+B)')),
+  (K: 'Italic (Ctrl+I)';
+   V: ('Italique (Ctrl+I)',
+    'Italic (Ctrl+I)',
+    'Cursiva (Ctrl+I)',
+    'Corsivo (Ctrl+I)',
+    'Kursiv (Strg+I)')),
+  (K: 'Underline (Ctrl+U)';
+   V: ('Soulign'#130' (Ctrl+U)',
+    'Underline (Ctrl+U)',
+    'Subrayado (Ctrl+U)',
+    'Sottolineato (Ctrl+U)',
+    'Unterstrichen (Strg+U)')),
+  (K: 'Align Left';
+   V: ('Aligner '#133' gauche',
+    'Align Left',
+    'Alinear a la izquierda',
+    'Allinea a sinistra',
+    'Linksb'#129'ndig')),
+  (K: 'Align Center';
+   V: ('Centrer',
+    'Align Center',
+    'Centrar',
+    'Centra',
+    'Zentriert')),
+  (K: 'Align Right';
+   V: ('Aligner '#133' droite',
+    'Align Right',
+    'Alinear a la derecha',
+    'Allinea a destra',
+    'Rechtsb'#129'ndig')),
+  (K: 'Justify';
+   V: ('Justifier',
+    'Justify',
+    'Justificar',
+    'Giustifica',
+    'Blocksatz')),
+  (K: 'Inserer ligne au-dessus';
+   V: ('Ins'#130'rer une ligne au-dessus',
+    'Insert row above',
+    'Insertar fila arriba',
+    'Inserisci riga sopra',
+    'Zeile oberhalb einf'#129'gen')),
+  (K: 'Inserer ligne en-dessous';
+   V: ('Ins'#130'rer une ligne en dessous',
+    'Insert row below',
+    'Insertar fila abajo',
+    'Inserisci riga sotto',
+    'Zeile unterhalb einf'#129'gen')),
+  (K: 'Supprimer la ligne';
+   V: ('Supprimer la ligne',
+    'Delete row',
+    'Eliminar fila',
+    'Elimina riga',
+    'Zeile l'#148'schen')),
+  (K: 'Inserer colonne a gauche';
+   V: ('Ins'#130'rer une colonne '#133' gauche',
+    'Insert column left',
+    'Insertar columna a la izquierda',
+    'Inserisci colonna a sinistra',
+    'Spalte links einf'#129'gen')),
+  (K: 'Inserer colonne a droite';
+   V: ('Ins'#130'rer une colonne '#133' droite',
+    'Insert column right',
+    'Insertar columna a la derecha',
+    'Inserisci colonna a destra',
+    'Spalte rechts einf'#129'gen')),
+  (K: 'Supprimer la colonne';
+   V: ('Supprimer la colonne',
+    'Delete column',
+    'Eliminar columna',
+    'Elimina colonna',
+    'Spalte l'#148'schen')),
+  (K: 'Proprietes du tableau...';
+   V: ('Propri'#130't'#130's du tableau...',
+    'Table properties...',
+    'Propiedades de la tabla...',
+    'Propriet'#133' tabella...',
+    'Tabelleneigenschaften...')),
+  (K: 'Tableau plein (max 16 lignes).';
+   V: ('Tableau plein (max 16 lignes).',
+    'Table full (max 16 rows).',
+    'Tabla llena (m'#160'x. 16 filas).',
+    'Tabella piena (max 16 righe).',
+    'Tabelle voll (max. 16 Zeilen).')),
+  (K: 'Impossible : le tableau n''a qu''une ligne.';
+   V: ('Impossible : le tableau n''a qu''une ligne.',
+    'Not possible: the table has only one row.',
+    'Imposible: la tabla solo tiene una fila.',
+    'Impossibile: la tabella ha una sola riga.',
+    'Nicht m'#148'glich: Die Tabelle hat nur eine Zeile.')),
+  (K: 'Tableau plein (max 6 colonnes).';
+   V: ('Tableau plein (max 6 colonnes).',
+    'Table full (max 6 columns).',
+    'Tabla llena (m'#160'x. 6 columnas).',
+    'Tabella piena (max 6 colonne).',
+    'Tabelle voll (max. 6 Spalten).')),
+  (K: 'Impossible : le tableau n''a qu''une colonne.';
+   V: ('Impossible : le tableau n''a qu''une colonne.',
+    'Not possible: the table has only one column.',
+    'Imposible: la tabla solo tiene una columna.',
+    'Impossibile: la tabella ha una sola colonna.',
+    'Nicht m'#148'glich: Die Tabelle hat nur eine Spalte.')),
+  (K: 'Tableau : ';
+   V: ('Tableau : ',
+    'Table: ',
+    'Tabla: ',
+    'Tabella: ',
+    'Tabelle: ')),
+  (K: ' lignes x ';
+   V: (' lignes x ',
+    ' rows x ',
+    ' filas x ',
+    ' righe x ',
+    ' Zeilen x ')),
+  (K: ' colonnes';
+   V: (' colonnes',
+    ' columns',
+    ' columnas',
+    ' colonne',
+    ' Spalten')),
+  (K: 'Page ';
+   V: ('Page ',
+    'Page ',
+    'P'#160'gina ',
+    'Pagina ',
+    'Seite ')),
+  (K: ' of ';
+   V: (' sur ',
+    ' of ',
+    ' de ',
+    ' di ',
+    ' von ')),
+  (K: 'Ln ';
+   V: ('Lig ',
+    'Ln ',
+    'L'#161'n ',
+    'Rg ',
+    'Z ')),
+  (K: '  Col ';
+   V: ('  Col ',
+    '  Col ',
+    '  Col ',
+    '  Col ',
+    '  Sp ')),
+  (K: 'Yes';
+   V: ('Oui',
+    'Yes',
+    'S'#161,
+    'S'#141,
+    'Ja')),
+  (K: 'No';
+   V: ('Non',
+    'No',
+    'No',
+    'No',
+    'Nein')),
+  (K: 'Repertoire :';
+   V: ('R'#130'pertoire :',
+    'Directory:',
+    'Directorio:',
+    'Cartella:',
+    'Verzeichnis:')),
+  (K: 'Fichiers :';
+   V: ('Fichiers :',
+    'Files:',
+    'Archivos:',
+    'File:',
+    'Dateien:')),
+  (K: 'Nom :';
+   V: ('Nom :',
+    'Name:',
+    'Nombre:',
+    'Nome:',
+    'Dateiname:')),
+  (K: 'Save';
+   V: ('Enregistrer',
+    'Save',
+    'Guardar',
+    'Salva',
+    'Speichern')),
+  (K: 'Open';
+   V: ('Ouvrir',
+    'Open',
+    'Abrir',
+    'Apri',
+    #153'ffnen')),
+  (K: 'Cancel';
+   V: ('Annuler',
+    'Cancel',
+    'Cancelar',
+    'Annulla',
+    'Abbrechen')),
+  (K: 'Pages';
+   V: ('Pages',
+    'Pages',
+    'P'#160'ginas',
+    'Pagine',
+    'Seiten')),
+  (K: 'Mots';
+   V: ('Mots',
+    'Words',
+    'Palabras',
+    'Parole',
+    'W'#148'rter')),
+  (K: 'Caract'#138'res (avec espaces)';
+   V: ('Caract'#138'res (avec espaces)',
+    'Characters (with spaces)',
+    'Caracteres (con espacios)',
+    'Caratteri (con spazi)',
+    'Zeichen (mit Leerzeichen)')),
+  (K: 'Caract'#138'res (sans espaces)';
+   V: ('Caract'#138'res (sans espaces)',
+    'Characters (no spaces)',
+    'Caracteres (sin espacios)',
+    'Caratteri (senza spazi)',
+    'Zeichen (ohne Leerzeichen)')),
+  (K: 'Paragraphes';
+   V: ('Paragraphes',
+    'Paragraphs',
+    'P'#160'rrafos',
+    'Paragrafi',
+    'Abs'#132'tze')),
+  (K: 'Lignes de texte';
+   V: ('Lignes de texte',
+    'Text lines',
+    'L'#161'neas de texto',
+    'Righe di testo',
+    'Textzeilen')),
+  (K: 'Tableaux';
+   V: ('Tableaux',
+    'Tables',
+    'Tablas',
+    'Tabelle',
+    'Tabellen')),
+  (K: 'Cellules';
+   V: ('Cellules',
+    'Cells',
+    'Celdas',
+    'Celle',
+    'Zellen')),
+  (K: 'Images';
+   V: ('Images',
+    'Images',
+    'Im'#160'genes',
+    'Immagini',
+    'Bilder')),
+  (K: 'Statistiques du document';
+   V: ('Statistiques du document',
+    'Document statistics',
+    'Estad'#161'sticas del documento',
+    'Statistiche del documento',
+    'Dokumentstatistik')),
+  (K: 'Mesure';
+   V: ('Mesure',
+    'Measure',
+    'Medida',
+    'Misura',
+    'Messwert')),
+  (K: 'Total';
+   V: ('Total',
+    'Total',
+    'Total',
+    'Totale',
+    'Gesamt')),
+  (K: 'Valeurs relatives';
+   V: ('Valeurs relatives',
+    'Relative values',
+    'Valores relativos',
+    'Valori relativi',
+    'Relative Werte')),
+  (K: 'Unites differentes';
+   V: ('Unit'#130's diff'#130'rentes',
+    'Different units',
+    'Unidades diferentes',
+    'Unit'#133' diverse',
+    'Verschiedene Einheiten')),
+  (K: 'Fermer';
+   V: ('Fermer',
+    'Close',
+    'Cerrar',
+    'Chiudi',
+    'Schlie'#225'en')),
+  (K: 'Nothing to undo';
+   V: ('Rien '#133' annuler',
+    'Nothing to undo',
+    'Nada que deshacer',
+    'Niente da annullare',
+    'Nichts zum R'#129'ckg'#132'ngigmachen')),
+  (K: 'Undo';
+   V: ('Annulation',
+    'Undo',
+    'Deshacer',
+    'Annulla',
+    'R'#129'ckg'#132'ngig')),
+  (K: 'Nothing to redo';
+   V: ('Rien '#133' r'#130'tablir',
+    'Nothing to redo',
+    'Nada que rehacer',
+    'Niente da ripristinare',
+    'Nichts zum Wiederholen')),
+  (K: 'Redo';
+   V: ('R'#130'tablissement',
+    'Redo',
+    'Rehacer',
+    'Ripristina',
+    'Wiederholen')),
+  (K: 'Find';
+   V: ('Rechercher',
+    'Find',
+    'Buscar',
+    'Trova',
+    'Suchen')),
+  (K: 'Find what:';
+   V: ('Rechercher :',
+    'Find what:',
+    'Buscar:',
+    'Trova:',
+    'Suchen nach:')),
+  (K: 'Found: ';
+   V: ('Trouv'#130' : ',
+    'Found: ',
+    'Encontrado: ',
+    'Trovato: ',
+    'Gefunden: ')),
+  (K: 'Not found: ';
+   V: ('Introuvable : ',
+    'Not found: ',
+    'No encontrado: ',
+    'Non trovato: ',
+    'Nicht gefunden: ')),
+  (K: 'No more matches';
+   V: ('Plus aucune occurrence',
+    'No more matches',
+    'No hay m'#160's coincidencias',
+    'Nessun''altra corrispondenza',
+    'Keine weiteren Treffer')),
+  (K: 'Replace';
+   V: ('Remplacer',
+    'Replace',
+    'Reemplazar',
+    'Sostituisci',
+    'Ersetzen')),
+  (K: 'Replace with:';
+   V: ('Remplacer par :',
+    'Replace with:',
+    'Reemplazar con:',
+    'Sostituisci con:',
+    'Ersetzen durch:')),
+  (K: 'Replace All? (Y/N)';
+   V: ('Tout remplacer ? (O/N)',
+    'Replace All? (Y/N)',
+    #168'Reemplazar todo? (S/N)',
+    'Sostituire tutto? (S/N)',
+    'Alle ersetzen? (J/N)')),
+  (K: ' replacement(s)';
+   V: (' remplacement(s)',
+    ' replacement(s)',
+    ' reemplazo(s)',
+    ' sostituzione/i',
+    ' Ersetzung(en)')),
+  (K: 'Replaced';
+   V: ('Remplac'#130,
+    'Replaced',
+    'Reemplazado',
+    'Sostituito',
+    'Ersetzt')),
+  (K: 'Zoom';
+   V: ('Zoom',
+    'Zoom',
+    'Zoom',
+    'Zoom',
+    'Zoom')),
+  (K: 'Pourcentage (25 a 300 %) :';
+   V: ('Pourcentage (25 '#133' 300 %) :',
+    'Percentage (25 to 300 %):',
+    'Porcentaje (25 a 300 %):',
+    'Percentuale (25-300 %):',
+    'Prozent (25 bis 300 %):')),
+  (K: 'Page';
+   V: ('Page',
+    'Page',
+    'P'#160'gina',
+    'Pagina',
+    'Seite')),
+  (K: 'Largeur';
+   V: ('Largeur',
+    'Width',
+    'Ancho',
+    'Larghezza',
+    'Breite')),
+  (K: 'Annuler';
+   V: ('Annuler',
+    'Cancel',
+    'Cancelar',
+    'Annulla',
+    'Abbrechen')),
+  (K: 'Insertion de symbole';
+   V: ('Insertion de symbole',
+    'Insert Symbol',
+    'Insertar s'#161'mbolo',
+    'Inserisci simbolo',
+    'Symbol einf'#129'gen')),
+  (K: 'Choisir un caractere CP437';
+   V: ('Choisir un caract'#138're CP437',
+    'Choose a CP437 character',
+    'Elegir un car'#160'cter CP437',
+    'Scegli un carattere CP437',
+    'Zeichen CP437 w'#132'hlen')),
+  (K: 'Apercu : ';
+   V: ('Aper'#135'u : ',
+    'Preview: ',
+    'Vista previa: ',
+    'Anteprima: ',
+    'Vorschau: ')),
+  (K: 'Inserer';
+   V: ('Ins'#130'rer',
+    'Insert',
+    'Insertar',
+    'Inserisci',
+    'Einf'#129'gen')),
+  (K: 'Cette cellule est pleine.';
+   V: ('Cette cellule est pleine.',
+    'This cell is full.',
+    'Esta celda est'#160' llena.',
+    'Questa cella '#138' piena.',
+    'Diese Zelle ist voll.')),
+  (K: 'Ce paragraphe est plein.';
+   V: ('Ce paragraphe est plein.',
+    'This paragraph is full.',
+    'Este p'#160'rrafo est'#160' lleno.',
+    'Questo paragrafo '#138' pieno.',
+    'Dieser Absatz ist voll.')),
+  (K: 'Insertion impossible : trop de segments de style.';
+   V: ('Insertion impossible : trop de segments de style.',
+    'Cannot insert: too many style segments.',
+    'Inserci'#162'n imposible: demasiados segmentos de estilo.',
+    'Inserimento impossibile: troppi segmenti di stile.',
+    'Einf'#129'gen nicht m'#148'glich: zu viele Formatsegmente.')),
+  (K: 'Gras';
+   V: ('Gras',
+    'Bold',
+    'Negrita',
+    'Grassetto',
+    'Fett')),
+  (K: 'Italique';
+   V: ('Italique',
+    'Italic',
+    'Cursiva',
+    'Corsivo',
+    'Kursiv')),
+  (K: 'Souligne';
+   V: ('Soulign'#130,
+    'Underline',
+    'Subrayado',
+    'Sottolineato',
+    'Unterstrichen')),
+  (K: 'Police';
+   V: ('Police',
+    'Font',
+    'Fuente',
+    'Carattere',
+    'Schriftart')),
+  (K: 'Taille (6 a 72 pt)';
+   V: ('Taille (6 '#133' 72 pt)',
+    'Size (6 to 72 pt)',
+    'Tama'#164'o (6 a 72 pt)',
+    'Dimensione (6-72 pt)',
+    'Gr'#148#225'e (6 bis 72 pt)')),
+  (K: 'Tab : option   Espace : ouvrir / basculer';
+   V: ('Tab : option   Espace : ouvrir / basculer',
+    'Tab: option   Space: open / toggle',
+    'Tab: opci'#162'n   Espacio: abrir / alternar',
+    'Tab: opzione   Spazio: apri / alterna',
+    'Tab: Option   Leertaste: '#148'ffnen / umschalten')),
+  (K: 'Appliquer';
+   V: ('Appliquer',
+    'Apply',
+    'Aplicar',
+    'Applica',
+    #154'bernehmen')),
+  (K: 'Les cellules utilisent une police fixe.';
+   V: ('Les cellules utilisent une police fixe.',
+    'Table cells use a fixed font.',
+    'Las celdas usan una fuente fija.',
+    'Le celle usano un carattere fisso.',
+    'Zellen verwenden eine feste Schriftart.')),
+  (K: 'Selection trop fragmentee pour appliquer la police.';
+   V: ('S'#130'lection trop fragment'#130'e pour appliquer la police.',
+    'Selection too fragmented to apply the font.',
+    'Selecci'#162'n demasiado fragmentada para la fuente.',
+    'Selezione troppo frammentata per il carattere.',
+    'Auswahl zu fragmentiert f'#129'r die Schriftart.')),
+  (K: 'Centre';
+   V: ('Centre',
+    'Center',
+    'Centro',
+    'Centro',
+    'Zentriert')),
+  (K: 'Justifie';
+   V: ('Justifi'#130,
+    'Justified',
+    'Justificado',
+    'Giustificato',
+    'Blocksatz')),
+  (K: 'Paragraphe';
+   V: ('Paragraphe',
+    'Paragraph',
+    'P'#160'rrafo',
+    'Paragrafo',
+    'Absatz')),
+  (K: 'Retrait gauche (0 a 160 px)';
+   V: ('Retrait gauche (0 '#133' 160 px)',
+    'Left indent (0 to 160 px)',
+    'Sangr'#161'a izquierda (0 a 160 px)',
+    'Rientro sinistro (0-160 px)',
+    'Linker Einzug (0 bis 160 px)')),
+  (K: '] Inclure la premiere ligne';
+   V: ('] Inclure la premi'#138're ligne',
+    '] Include first line',
+    '] Incluir la primera l'#161'nea',
+    '] Includi la prima riga',
+    '] Erste Zeile einbeziehen')),
+  (K: '] Bordure inferieure';
+   V: ('] Bordure inf'#130'rieure',
+    '] Bottom border',
+    '] Borde inferior',
+    '] Bordo inferiore',
+    '] Untere Linie')),
+  (K: '] Saut de page avant';
+   V: ('] Saut de page avant',
+    '] Page break before',
+    '] Salto de p'#160'gina antes',
+    '] Interruzione pagina prima',
+    '] Seitenumbruch davor')),
+  (K: 'Saisir un retrait de 0 a 160 px.';
+   V: ('Saisir un retrait de 0 '#133' 160 px.',
+    'Enter an indent from 0 to 160 px.',
+    'Introduzca una sangr'#161'a de 0 a 160 px.',
+    'Inserire un rientro da 0 a 160 px.',
+    'Einzug von 0 bis 160 px eingeben.')),
+  (K: 'Tab : option   Espace : basculer';
+   V: ('Tab : option   Espace : basculer',
+    'Tab: option   Space: toggle',
+    'Tab: opci'#162'n   Espacio: alternar',
+    'Tab: opzione   Spazio: alterna',
+    'Tab: Option   Leertaste: umschalten')),
+  (K: 'Choisir un paragraphe de texte.';
+   V: ('Choisir un paragraphe de texte.',
+    'Choose a text paragraph.',
+    'Elija un p'#160'rrafo de texto.',
+    'Scegli un paragrafo di testo.',
+    'Textabsatz ausw'#132'hlen.')),
+  (K: 'Orthographe - ';
+   V: ('Orthographe - ',
+    'Spelling - ',
+    'Ortograf'#161'a - ',
+    'Ortografia - ',
+    'Rechtschreibung - ')),
+  (K: 'Mot : ';
+   V: ('Mot : ',
+    'Word: ',
+    'Palabra: ',
+    'Parola: ',
+    'Wort: ')),
+  (K: 'Aucune suggestion';
+   V: ('Aucune suggestion',
+    'No suggestions',
+    'Sin sugerencias',
+    'Nessun suggerimento',
+    'Keine Vorschl'#132'ge')),
+  (K: 'Remplacer';
+   V: ('Remplacer',
+    'Replace',
+    'Reemplazar',
+    'Sostituisci',
+    'Ersetzen')),
+  (K: 'Ignorer';
+   V: ('Ignorer',
+    'Ignore',
+    'Omitir',
+    'Ignora',
+    'Ignorieren')),
+  (K: 'Correction trop longue pour ce paragraphe.';
+   V: ('Correction trop longue pour ce paragraphe.',
+    'Correction too long for this paragraph.',
+    'Correcci'#162'n demasiado larga para este p'#160'rrafo.',
+    'Correzione troppo lunga per questo paragrafo.',
+    'Korrektur zu lang f'#129'r diesen Absatz.')),
+  (K: 'Orthographe : ';
+   V: ('Orthographe : ',
+    'Spelling: ',
+    'Ortograf'#161'a: ',
+    'Ortografia: ',
+    'Rechtschreibung: ')),
+  (K: ' correction(s).';
+   V: (' correction(s).',
+    ' correction(s).',
+    ' correcci'#162'n(es).',
+    ' correzione/i.',
+    ' Korrektur(en).')),
+  (K: 'Automatique';
+   V: ('Automatique',
+    'Automatic',
+    'Autom'#160'tico',
+    'Automatico',
+    'Automatisch')),
+  (K: 'Francais';
+   V: ('Fran'#135'ais',
+    'French',
+    'Franc'#130's',
+    'Francese',
+    'Franz'#148'sisch')),
+  (K: 'Anglais';
+   V: ('Anglais',
+    'English',
+    'Ingl'#130's',
+    'Inglese',
+    'Englisch')),
+  (K: 'Allemand';
+   V: ('Allemand',
+    'German',
+    'Alem'#160'n',
+    'Tedesco',
+    'Deutsch')),
+  (K: 'Italien';
+   V: ('Italien',
+    'Italian',
+    'Italiano',
+    'Italiano',
+    'Italienisch')),
+  (K: 'Espagnol';
+   V: ('Espagnol',
+    'Spanish',
+    'Espa'#164'ol',
+    'Spagnolo',
+    'Spanisch')),
+  (K: 'Options';
+   V: ('Options',
+    'Options',
+    'Opciones',
+    'Opzioni',
+    'Optionen')),
+  (K: 'Affichage';
+   V: ('Affichage',
+    'Display',
+    'Pantalla',
+    'Visualizzazione',
+    'Anzeige')),
+  (K: 'Mode Page';
+   V: ('Mode Page',
+    'Page Mode',
+    'Modo p'#160'gina',
+    'Modalit'#133' pagina',
+    'Seitenmodus')),
+  (K: 'Afficher la regle';
+   V: ('Afficher la r'#138'gle',
+    'Show ruler',
+    'Mostrar regla',
+    'Mostra righello',
+    'Lineal anzeigen')),
+  (K: 'Langue du correcteur';
+   V: ('Langue du correcteur',
+    'Spell-check language',
+    'Idioma del corrector',
+    'Lingua del correttore',
+    'Sprache der Pr'#129'fung')),
+  (K: 'Automatique suit LANGUAGE (francais par defaut).';
+   V: ('Automatique suit LANGUAGE (fran'#135'ais par d'#130'faut).',
+    'Automatic follows LANGUAGE (French by default).',
+    'Autom'#160'tico sigue LANGUAGE (franc'#130's por defecto).',
+    'Automatico segue LANGUAGE (francese predefinito).',
+    'Automatisch folgt LANGUAGE (Standard: Franz'#148'sisch).')),
+  (K: 'Tab : option   Espace : choisir';
+   V: ('Tab : option   Espace : choisir',
+    'Tab: option   Space: choose',
+    'Tab: opci'#162'n   Espacio: elegir',
+    'Tab: opzione   Spazio: scegli',
+    'Tab: Option   Leertaste: w'#132'hlen')),
+  (K: 'Documents';
+   V: ('Documents',
+    'Documents',
+    'Documentos',
+    'Documenti',
+    'Dokumente')),
+  (K: 'Edition';
+   V: (#144'dition',
+    'Editing',
+    'Edici'#162'n',
+    'Modifica',
+    'Bearbeiten')),
+  (K: 'Insertion';
+   V: ('Insertion',
+    'Insert',
+    'Insertar',
+    'Inserimento',
+    'Einf'#129'gen')),
+  (K: 'Mise en forme';
+   V: ('Mise en forme',
+    'Formatting',
+    'Formato',
+    'Formattazione',
+    'Formatierung')),
+  (K: 'Orthographe';
+   V: ('Orthographe',
+    'Spelling',
+    'Ortograf'#161'a',
+    'Ortografia',
+    'Rechtschreibung')),
+  (K: 'Statistiques';
+   V: ('Statistiques',
+    'Statistics',
+    'Estad'#161'sticas',
+    'Statistiche',
+    'Statistik')),
+  (K: 'Sommaire de l''aide WorDium';
+   V: ('Sommaire de l''aide WorDium',
+    'WorDium Help Contents',
+    'Contenido de la ayuda de WorDium',
+    'Sommario della guida di WorDium',
+    'WorDium-Hilfe'#129'bersicht')),
+  (K: 'Fleches : choisir une rubrique';
+   V: ('Fl'#138'ches : choisir une rubrique',
+    'Arrows: choose a topic',
+    'Flechas: elegir un tema',
+    'Frecce: scegli un argomento',
+    'Pfeile: Thema w'#132'hlen')),
+  (K: 'A propos de WorDium';
+   V: ('A propos de WorDium',
+    'About WorDium',
+    'Acerca de WorDium',
+    'Informazioni su WorDium',
+    #154'ber WorDium')),
+  (K: 'Traitement de texte graphique en Pascal';
+   V: ('Traitement de texte graphique en Pascal',
+    'Graphical word processor in Pascal',
+    'Procesador de textos gr'#160'fico en Pascal',
+    'Elaboratore di testi grafico in Pascal',
+    'Grafische Textverarbeitung in Pascal')),
+  (K: 'Auteur';
+   V: ('Auteur',
+    'Author',
+    'Autor',
+    'Autore',
+    'Autor')),
+  (K: 'Licence';
+   V: ('Licence',
+    'License',
+    'Licencia',
+    'Licenza',
+    'Lizenz')),
+  (K: 'Creation';
+   V: ('Cr'#130'ation',
+    'Created',
+    'Creaci'#162'n',
+    'Creazione',
+    'Erstellt')),
+  (K: 'Site';
+   V: ('Site',
+    'Website',
+    'Sitio web',
+    'Sito web',
+    'Website')),
+  (K: 'Imprimante indisponible.';
+   V: ('Imprimante indisponible.',
+    'Printer unavailable.',
+    'Impresora no disponible.',
+    'Stampante non disponibile.',
+    'Drucker nicht verf'#129'gbar.')),
+  (K: 'Document transmis a l''imprimante.';
+   V: ('Document transmis '#133' l''imprimante.',
+    'Document sent to the printer.',
+    'Documento enviado a la impresora.',
+    'Documento inviato alla stampante.',
+    'Dokument an den Drucker gesendet.')),
+  (K: 'Echec de l''impression.';
+   V: (#144'chec de l''impression.',
+    'Printing failed.',
+    'Error de impresi'#162'n.',
+    'Stampa non riuscita.',
+    'Drucken fehlgeschlagen.')),
+  (K: 'Impossible d''ouvrir le dialogue d''impression.';
+   V: ('Impossible d''ouvrir le dialogue d''impression.',
+    'Cannot open the print dialog.',
+    'No se puede abrir el di'#160'logo de impresi'#162'n.',
+    'Impossibile aprire la finestra di stampa.',
+    'Druckdialog kann nicht ge'#148'ffnet werden.')),
+  (K: 'Impression disponible sous Windows.';
+   V: ('Impression disponible sous Windows.',
+    'Printing is available on Windows.',
+    'La impresi'#162'n est'#160' disponible en Windows.',
+    'La stampa '#138' disponibile su Windows.',
+    'Drucken ist unter Windows verf'#129'gbar.')),
+  (K: 'File already exists. Overwrite it?';
+   V: ('Le fichier existe d'#130'j'#133'. L'''#130'craser ?',
+    'File already exists. Overwrite it?',
+    'El archivo existe. '#168'Sobrescribirlo?',
+    'Il file esiste gi'#133'. Sovrascriverlo?',
+    'Datei existiert. '#154'berschreiben?')),
+  (K: 'Discard unsaved changes?';
+   V: ('Abandonner les modifications ?',
+    'Discard unsaved changes?',
+    #168'Descartar los cambios sin guardar?',
+    'Annullare le modifiche non salvate?',
+    'Nicht gespeicherte '#142'nderungen verwerfen?')),
+  (K: 'New document';
+   V: ('Nouveau document',
+    'New document',
+    'Nuevo documento',
+    'Nuovo documento',
+    'Neues Dokument')),
+  (K: 'Open Document';
+   V: ('Ouvrir un document',
+    'Open Document',
+    'Abrir documento',
+    'Apri documento',
+    'Dokument '#148'ffnen')),
+  (K: 'Opened ';
+   V: ('Ouvert : ',
+    'Opened ',
+    'Abierto: ',
+    'Aperto: ',
+    'Ge'#148'ffnet: ')),
+  (K: 'GAT tronque (500 paragraphes max)';
+   V: ('GAT tronqu'#130' (500 paragraphes max)',
+    'GAT truncated (500 paragraphs max)',
+    'GAT truncado (m'#160'x. 500 p'#160'rrafos)',
+    'GAT troncato (max 500 paragrafi)',
+    'GAT gek'#129'rzt (max. 500 Abs'#132'tze)')),
+  (K: 'Cannot open file (PDF: readable text required): ';
+   V: ('Impossible d''ouvrir le fichier (PDF : texte lisible requis) : ',
+    'Cannot open file (PDF: readable text required): ',
+    'No se puede abrir el archivo (PDF: texto legible requerido): ',
+    'Impossibile aprire il file (PDF: testo leggibile richiesto): ',
+    'Datei kann nicht ge'#148'ffnet werden (PDF: lesbarer Text n'#148'tig): ')),
+  (K: 'Save Document';
+   V: ('Enregistrer le document',
+    'Save Document',
+    'Guardar documento',
+    'Salva documento',
+    'Dokument speichern')),
+  (K: 'Saved ';
+   V: ('Enregistr'#130' : ',
+    'Saved ',
+    'Guardado: ',
+    'Salvato: ',
+    'Gespeichert: ')),
+  (K: 'Cannot save file: ';
+   V: ('Impossible d''enregistrer le fichier : ',
+    'Cannot save file: ',
+    'No se puede guardar el archivo: ',
+    'Impossibile salvare il file: ',
+    'Datei kann nicht gespeichert werden: ')),
+  (K: 'Save As';
+   V: ('Enregistrer sous',
+    'Save As',
+    'Guardar como',
+    'Salva con nome',
+    'Speichern unter')),
+  (K: 'Cannot save as .DOC (read-only format)';
+   V: ('Impossible d''enregistrer en .DOC (lecture seule)',
+    'Cannot save as .DOC (read-only format)',
+    'No se puede guardar como .DOC (solo lectura)',
+    'Impossibile salvare come .DOC (sola lettura)',
+    'Speichern als .DOC nicht m'#148'glich (nur Lesen)')),
+  (K: 'Cut (Phase 2+)';
+   V: ('Couper (phase 2+)',
+    'Cut (Phase 2+)',
+    'Cortar (fase 2+)',
+    'Taglia (fase 2+)',
+    'Ausschneiden (Phase 2+)')),
+  (K: 'Copy (Phase 2+)';
+   V: ('Copier (phase 2+)',
+    'Copy (Phase 2+)',
+    'Copiar (fase 2+)',
+    'Copia (fase 2+)',
+    'Kopieren (Phase 2+)')),
+  (K: 'Paste (Phase 2+)';
+   V: ('Coller (phase 2+)',
+    'Paste (Phase 2+)',
+    'Pegar (fase 2+)',
+    'Incolla (fase 2+)',
+    'Einf'#129'gen (Phase 2+)')),
+  (K: 'Page break inserted';
+   V: ('Saut de page ins'#130'r'#130,
+    'Page break inserted',
+    'Salto de p'#160'gina insertado',
+    'Interruzione di pagina inserita',
+    'Seitenumbruch eingef'#129'gt')),
+  (K: 'Picture inserted: ';
+   V: ('Image ins'#130'r'#130'e : ',
+    'Picture inserted: ',
+    'Imagen insertada: ',
+    'Immagine inserita: ',
+    'Bild eingef'#129'gt: ')),
+  (K: 'Cannot load image: ';
+   V: ('Impossible de charger l''image : ',
+    'Cannot load image: ',
+    'No se puede cargar la imagen: ',
+    'Impossibile caricare l''immagine: ',
+    'Bild kann nicht geladen werden: ')),
+  (K: 'Toggle Bold';
+   V: ('Basculer le gras',
+    'Toggle Bold',
+    'Alternar negrita',
+    'Alterna grassetto',
+    'Fett umschalten')),
+  (K: 'Toggle Italic';
+   V: ('Basculer l''italique',
+    'Toggle Italic',
+    'Alternar cursiva',
+    'Alterna corsivo',
+    'Kursiv umschalten')),
+  (K: 'Toggle Underline';
+   V: ('Basculer le soulignement',
+    'Toggle Underline',
+    'Alternar subrayado',
+    'Alterna sottolineato',
+    'Unterstreichen umschalten')),
+  (K: 'Color: Black';
+   V: ('Couleur : noir',
+    'Color: Black',
+    'Color: negro',
+    'Colore: nero',
+    'Farbe: Schwarz')),
+  (K: 'Color #';
+   V: ('Couleur #',
+    'Color #',
+    'Color #',
+    'Colore #',
+    'Farbe #')),
+  (K: 'Le curseur n''est pas dans un tableau.';
+   V: ('Le curseur n''est pas dans un tableau.',
+    'The cursor is not in a table.',
+    'El cursor no est'#160' en una tabla.',
+    'Il cursore non '#138' in una tabella.',
+    'Der Cursor befindet sich nicht in einer Tabelle.')),
+  (K: 'Cascade (single-doc)';
+   V: ('Cascade (document unique)',
+    'Cascade (single-doc)',
+    'Cascada (documento '#163'nico)',
+    'Cascata (documento singolo)',
+    #154'berlappend (ein Dokument)')),
+  (K: 'Action non implementee';
+   V: ('Action non impl'#130'ment'#130'e',
+    'Action not implemented',
+    'Acci'#162'n no implementada',
+    'Azione non implementata',
+    'Aktion nicht implementiert')),
+  (K: 'Menu contextuel : clic droit sur un tableau';
+   V: ('Menu contextuel : clic droit sur un tableau',
+    'Context menu: right-click on a table',
+    'Men'#163' contextual: clic derecho en una tabla',
+    'Menu contestuale: clic destro su una tabella',
+    'Kontextmen'#129': Rechtsklick auf eine Tabelle')),
+  (K: 'Pret. F10=menu, fleches=naviguer, Alt+X=quitter.';
+   V: ('Pr'#136't. F10=menu, fl'#138'ches=naviguer, Alt+X=quitter.',
+    'Ready. F10=menu, arrows=navigate, Alt+X=quit.',
+    'Listo. F10=men'#163', flechas=navegar, Alt+X=salir.',
+    'Pronto. F10=menu, frecce=navigare, Alt+X=esci.',
+    'Bereit. F10=Men'#129', Pfeile=navigieren, Alt+X=beenden.')),
+  (K: 'Cannot open file: ';
+   V: ('Impossible d''ouvrir le fichier : ',
+    'Cannot open file: ',
+    'No se puede abrir el archivo: ',
+    'Impossibile aprire il file: ',
+    'Datei kann nicht ge'#148'ffnet werden: ')),
+  (K: 'Ctrl+O ouvre un document.';
+   V: ('Ctrl+O ouvre un document.',
+    'Ctrl+O opens a document.',
+    'Ctrl+O abre un documento.',
+    'Ctrl+O apre un documento.',
+    'Strg+O '#148'ffnet ein Dokument.')),
+  (K: 'Ctrl+S enregistre le document courant.';
+   V: ('Ctrl+S enregistre le document courant.',
+    'Ctrl+S saves the current document.',
+    'Ctrl+S guarda el documento actual.',
+    'Ctrl+S salva il documento corrente.',
+    'Strg+S speichert das aktuelle Dokument.')),
+  (K: 'Fichier > Enregistrer sous permet de';
+   V: ('Fichier > Enregistrer sous permet de',
+    'File > Save As lets you choose',
+    'Archivo > Guardar como permite',
+    'File > Salva con nome permette di',
+    'Datei > Speichern unter erlaubt es,')),
+  (K: 'choisir un autre nom ou format.';
+   V: ('choisir un autre nom ou format.',
+    'another name or format.',
+    'elegir otro nombre o formato.',
+    'scegliere un altro nome o formato.',
+    'Name oder Format zu '#132'ndern.')),
+  (K: 'Alt+X quitte WorDium.';
+   V: ('Alt+X quitte WorDium.',
+    'Alt+X exits WorDium.',
+    'Alt+X cierra WorDium.',
+    'Alt+X chiude WorDium.',
+    'Alt+X beendet WorDium.')),
+  (K: 'Ctrl+X coupe et Ctrl+C copie.';
+   V: ('Ctrl+X coupe et Ctrl+C copie.',
+    'Ctrl+X cuts and Ctrl+C copies.',
+    'Ctrl+X corta y Ctrl+C copia.',
+    'Ctrl+X taglia e Ctrl+C copia.',
+    'Strg+X schneidet aus, Strg+C kopiert.')),
+  (K: 'Ctrl+V colle le texte.';
+   V: ('Ctrl+V colle le texte.',
+    'Ctrl+V pastes the text.',
+    'Ctrl+V pega el texto.',
+    'Ctrl+V incolla il testo.',
+    'Strg+V f'#129'gt den Text ein.')),
+  (K: 'Ctrl+Z annule la derniere modification.';
+   V: ('Ctrl+Z annule la derni'#138're modification.',
+    'Ctrl+Z undoes the last change.',
+    'Ctrl+Z deshace el '#163'ltimo cambio.',
+    'Ctrl+Z annulla l''ultima modifica.',
+    'Strg+Z: letzte '#142'nderung r'#129'ckg'#132'ngig.')),
+  (K: 'Ctrl+Y retablit une modification.';
+   V: ('Ctrl+Y r'#130'tablit une modification.',
+    'Ctrl+Y redoes a change.',
+    'Ctrl+Y rehace un cambio.',
+    'Ctrl+Y ripristina una modifica.',
+    'Strg+Y wiederholt eine '#142'nderung.')),
+  (K: 'F3 recherche la prochaine occurrence.';
+   V: ('F3 recherche la prochaine occurrence.',
+    'F3 finds the next match.',
+    'F3 busca la siguiente coincidencia.',
+    'F3 trova la corrispondenza successiva.',
+    'F3 sucht das n'#132'chste Vorkommen.')),
+  (K: 'Le menu Affichage permet de changer';
+   V: ('Le menu Affichage permet de changer',
+    'The View menu lets you change',
+    'El men'#163' Ver permite cambiar',
+    'Il menu Visualizza permette di',
+    'Das Men'#129' Ansicht erm'#148'glicht es,')),
+  (K: 'de vue, de zoom ou de masquer la regle.';
+   V: ('de vue, de zoom ou de masquer la r'#138'gle.',
+    'view, zoom or hide the ruler.',
+    'la vista, el zoom u ocultar la regla.',
+    'cambiare vista, zoom o righello.',
+    'Ansicht, Zoom oder Lineal zu '#132'ndern.')),
+  (K: 'Utilisez le mode Page pour visualiser';
+   V: ('Utilisez le mode Page pour visualiser',
+    'Use Page mode to see',
+    'Use el modo P'#160'gina para ver',
+    'Usa la modalit'#133' Pagina per vedere',
+    'Im Seitenmodus sehen Sie')),
+  (K: 'la disposition sur la feuille.';
+   V: ('la disposition sur la feuille.',
+    'the layout on the sheet.',
+    'la disposici'#162'n en la hoja.',
+    'la disposizione sul foglio.',
+    'das Layout auf dem Blatt.')),
+  (K: 'Insertion > Symbole ouvre la grille.';
+   V: ('Insertion > Symbole ouvre la grille.',
+    'Insert > Symbol opens the grid.',
+    'Insertar > S'#161'mbolo abre la cuadr'#161'cula.',
+    'Inserisci > Simbolo apre la griglia.',
+    'Einf'#129'gen > Symbol '#148'ffnet das Raster.')),
+  (K: 'Choisissez un caractere puis Inserer.';
+   V: ('Choisissez un caract'#138're puis Ins'#130'rer.',
+    'Choose a character then Insert.',
+    'Elija un car'#160'cter y pulse Insertar.',
+    'Scegli un carattere poi Inserisci.',
+    'Zeichen w'#132'hlen, dann Einf'#129'gen.')),
+  (K: 'Le menu permet aussi d''inserer une';
+   V: ('Le menu permet aussi d''ins'#130'rer une',
+    'The menu also inserts an',
+    'El men'#163' tambi'#130'n inserta una',
+    'Il menu permette anche di inserire',
+    'Das Men'#129' f'#129'gt auch ein Bild')),
+  (K: 'image ou un tableau.';
+   V: ('image ou un tableau.',
+    'image or a table.',
+    'imagen o una tabla.',
+    'un''immagine o una tabella.',
+    'oder eine Tabelle ein.')),
+  (K: 'Ctrl+Entree insere un saut de page.';
+   V: ('Ctrl+Entr'#130'e ins'#138're un saut de page.',
+    'Ctrl+Enter inserts a page break.',
+    'Ctrl+Intro inserta un salto de p'#160'gina.',
+    'Ctrl+Invio inserisce un salto pagina.',
+    'Strg+Eingabe: Seitenumbruch einf'#129'gen.')),
+  (K: 'Format > Police regle taille et couleur.';
+   V: ('Format > Police r'#138'gle taille et couleur.',
+    'Format > Font sets size and color.',
+    'Formato > Fuente ajusta tama'#164'o y color.',
+    'Formato > Carattere: dimensioni e colore.',
+    'Format > Schriftart: Gr'#148#225'e und Farbe.')),
+  (K: 'Ctrl+B active ou desactive le gras.';
+   V: ('Ctrl+B active ou d'#130'sactive le gras.',
+    'Ctrl+B toggles bold.',
+    'Ctrl+B activa o desactiva la negrita.',
+    'Ctrl+B attiva o disattiva il grassetto.',
+    'Strg+B schaltet Fett um.')),
+  (K: 'Ctrl+I gere l''italique et Ctrl+U souligne.';
+   V: ('Ctrl+I g'#138're l''italique et Ctrl+U souligne.',
+    'Ctrl+I toggles italic, Ctrl+U underlines.',
+    'Ctrl+I cursiva, Ctrl+U subraya.',
+    'Ctrl+I corsivo, Ctrl+U sottolinea.',
+    'Strg+I Kursiv, Strg+U unterstreicht.')),
+  (K: 'Format > Paragraphe regle alignement,';
+   V: ('Format > Paragraphe r'#138'gle alignement,',
+    'Format > Paragraph sets alignment,',
+    'Formato > P'#160'rrafo ajusta alineaci'#162'n,',
+    'Formato > Paragrafo imposta allineamento,',
+    'Format > Absatz legt Ausrichtung,')),
+  (K: 'retrait, bordure et saut de page.';
+   V: ('retrait, bordure et saut de page.',
+    'indent, border and page break.',
+    'sangr'#161'a, borde y salto de p'#160'gina.',
+    'rientro, bordo e interruzione pagina.',
+    'Einzug, Rahmen und Seitenumbruch fest.')),
+  (K: 'F7 lance le correcteur orthographique.';
+   V: ('F7 lance le correcteur orthographique.',
+    'F7 starts the spell checker.',
+    'F7 inicia el corrector ortogr'#160'fico.',
+    'F7 avvia il correttore ortografico.',
+    'F7 startet die Rechtschreibpr'#129'fung.')),
+  (K: 'Choisissez une suggestion puis Remplacer.';
+   V: ('Choisissez une suggestion puis Remplacer.',
+    'Choose a suggestion then Replace.',
+    'Elija una sugerencia y pulse Reemplazar.',
+    'Scegli un suggerimento poi Sostituisci.',
+    'Vorschlag w'#132'hlen, dann Ersetzen.')),
+  (K: 'Ignorer passe au mot suivant.';
+   V: ('Ignorer passe au mot suivant.',
+    'Ignore skips to the next word.',
+    'Omitir pasa a la palabra siguiente.',
+    'Ignora passa alla parola successiva.',
+    'Ignorieren springt zum n'#132'chsten Wort.')),
+  (K: 'Outils > Options permet de choisir';
+   V: ('Outils > Options permet de choisir',
+    'Tools > Options lets you choose',
+    'Herramientas > Opciones permite elegir',
+    'Strumenti > Opzioni permette di scegliere',
+    'Extras > Optionen erlaubt die Wahl')),
+  (K: 'la langue du correcteur.';
+   V: ('la langue du correcteur.',
+    'the spell-check language.',
+    'el idioma del corrector.',
+    'la lingua del correttore.',
+    'der Sprache der Pr'#129'fung.')),
+  (K: 'Outils > Statistiques affiche les';
+   V: ('Outils > Statistiques affiche les',
+    'Tools > Statistics shows the',
+    'Herramientas > Estad'#161'sticas muestra',
+    'Strumenti > Statistiche mostra i',
+    'Extras > Statistik zeigt die')),
+  (K: 'decomptes du document.';
+   V: ('d'#130'comptes du document.',
+    'document counts.',
+    'los recuentos del documento.',
+    'conteggi del documento.',
+    'Z'#132'hlwerte des Dokuments.')),
+  (K: 'Le tableau indique les pages, mots,';
+   V: ('Le tableau indique les pages, mots,',
+    'The table lists pages, words,',
+    'La tabla indica p'#160'ginas, palabras,',
+    'La tabella indica pagine, parole,',
+    'Die Tabelle zeigt Seiten, W'#148'rter,')),
+  (K: 'caracteres, paragraphes, lignes,';
+   V: ('caract'#138'res, paragraphes, lignes,',
+    'characters, paragraphs, lines,',
+    'caracteres, p'#160'rrafos, l'#161'neas,',
+    'caratteri, paragrafi, righe,',
+    'Zeichen, Abs'#132'tze, Zeilen,')),
+  (K: 'tableaux, cellules et images.';
+   V: ('tableaux, cellules et images.',
+    'tables, cells and images.',
+    'tablas, celdas e im'#160'genes.',
+    'tabelle, celle e immagini.',
+    'Tabellen, Zellen und Bilder.')),
+  (K: 'WorDium - Traitement de texte graphique en Pascal.';
+   V: ('WorDium - Traitement de texte graphique en Pascal.',
+    'WorDium - Graphical word processor in Pascal.',
+    'WorDium - Procesador de textos gr'#160'fico en Pascal.',
+    'WorDium - Elaboratore di testi grafico in Pascal.',
+    'WorDium - Grafische Textverarbeitung in Pascal.')),
+  (K: 'Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] [/?]';
+   V: ('Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] [/?]',
+    'Usage: WorDium [/CLASSICMENU | /RUBANMENU] [document] [/?]',
+    'Uso: WorDium [/CLASSICMENU | /RUBANMENU] [documento] [/?]',
+    'Uso: WorDium [/CLASSICMENU | /RUBANMENU] [documento] [/?]',
+    'Verwendung: WorDium [/CLASSICMENU | /RUBANMENU] [Dokument] [/?]')),
+  (K: '  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut).';
+   V: ('  /CLASSICMENU  Menus classiques, style Word 2003 (par d'#130'faut).',
+    '  /CLASSICMENU  Classic menus, Word 2003 style (default).',
+    '  /CLASSICMENU  Men'#163's cl'#160'sicos, estilo Word 2003 (por defecto).',
+    '  /CLASSICMENU  Menu classici, stile Word 2003 (predefinito).',
+    '  /CLASSICMENU  Klassische Men'#129's im Stil von Word 2003 (Standard).')),
+  (K:
+    '  /RUBANMENU    Onglets et commandes avec icones, style Word 2007 et sui'+
+    'vants.';
+   V:
+     ('  /RUBANMENU    Onglets et commandes avec ic'#147'nes, style Word 2007'+
+     ' et suivants.',
+    '  /RUBANMENU    Tabs and commands with icons, Word 2007 style and later.',
+    '  /RUBANMENU    Pesta'#164'as y comandos con iconos, estilo Word 2007 y '+
+      'posteriores.',
+    '  /RUBANMENU    Schede e comandi con icone, stile Word 2007 e successivi.',
+    '  /RUBANMENU    Registerkarten und Befehle mit Symbolen, Stil Word 2007 '+
+      'und neuer.')),
+  (K: '  /?           Affiche cette aide et quitte sans ouvrir de fenetre.';
+   V:
+     ('  /?           Affiche cette aide et quitte sans ouvrir de fen'#136'tr'+
+     'e.',
+    '  /?           Shows this help and exits without opening a window.',
+    '  /?           Muestra esta ayuda y sale sin abrir ninguna ventana.',
+    '  /?           Mostra questa guida ed esce senza aprire finestre.',
+    '  /?           Zeigt diese Hilfe an und beendet ohne Fenster.')),
+  (K: '  -h, --help   Affichent egalement cette aide.';
+   V: ('  -h, --help   Affichent '#130'galement cette aide.',
+    '  -h, --help   Also show this help.',
+    '  -h, --help   Tambi'#130'n muestran esta ayuda.',
+    '  -h, --help   Mostrano anch''essi questa guida.',
+    '  -h, --help   Zeigen ebenfalls diese Hilfe an.')),
+  (K: '  document     Fichier a ouvrir au demarrage.';
+   V: ('  document     Fichier '#133' ouvrir au d'#130'marrage.',
+    '  document     File to open at startup.',
+    '  documento    Archivo que se abre al iniciar.',
+    '  documento    File da aprire all''avvio.',
+    '  Dokument     Beim Start zu '#148'ffnende Datei.')),
+  (K:
+    'Les options sont insensibles a la casse ; le dernier mode specifie est u'+
+    'tilise.';
+   V:
+     ('Les options sont insensibles '#133' la casse ; le dernier mode '+
+     'sp'#130'cifi'#130' est utilis'#130'.',
+    'Options are case-insensitive; the last mode specified is used.',
+    'Las opciones no distinguen may'#163'sculas; se usa el '#163'ltimo modo i'+
+      'ndicado.',
+    'Le opzioni non distinguono maiuscole; si usa l''ultima modalit'#133' ind'+
+      'icata.',
+    'Optionen sind nicht gro'#225'-/kleinschreibungsabh'#132'ngig; der letzte'+
+      ' Modus gilt.')),
+  (K: 'Le document peut etre place avant ou apres les options.';
+   V: ('Le document peut '#136'tre plac'#130' avant ou apr'#138's les options.',
+    'The document may be placed before or after the options.',
+    'El documento puede ir antes o despu'#130's de las opciones.',
+    'Il documento pu'#149' essere posto prima o dopo le opzioni.',
+    'Das Dokument kann vor oder nach den Optionen stehen.')),
+  (K: 'Entourer les chemins contenant des espaces de guillemets.';
+   V: ('Entourer les chemins contenant des espaces de guillemets.',
+    'Enclose paths containing spaces in quotes.',
+    'Ponga entre comillas las rutas con espacios.',
+    'Racchiudere tra virgolette i percorsi con spazi.',
+    'Pfade mit Leerzeichen in Anf'#129'hrungszeichen setzen.')),
+  (K: 'Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"';
+   V: ('Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"',
+    'Example: WorDium /RUBANMENU "C:\Documents\My text.docx"',
+    'Ejemplo: WorDium /RUBANMENU "C:\Documents\Mi texto.docx"',
+    'Esempio: WorDium /RUBANMENU "C:\Documents\Mio testo.docx"',
+    'Beispiel: WorDium /RUBANMENU "C:\Documents\Mein Text.docx"')),
+  (K:
+    'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entree et Echap.';
+   V:
+     ('Ruban : souris, F10 ou Alt+lettre, fl'#138'ches, Tab/Maj+Tab, En'+
+     'tr'#130'e et '#144'chap.',
+    'Ribbon: mouse, F10 or Alt+letter, arrows, Tab/Shift+Tab, Enter and Esc.',
+    'Cinta: rat'#162'n, F10 o Alt+letra, flechas, Tab/May'#163's+Tab, Intro y'+
+      ' Esc.',
+    'Barra multifunzione: mouse, F10 o Alt+lettera, frecce, Tab/Maiusc+Tab, I'+
+      'nvio ed Esc.',
+    'Men'#129'band: Maus, F10 oder Alt+Buchstabe, Pfeile, Tab/Umschalt+Tab, E'+
+      'ingabe und Esc.')),
+  (K: 'Accueil : Alt+E. Les commandes non implementees sont grisees.';
+   V:
+     ('Accueil : Alt+E. Les commandes non impl'#130'ment'#130'es sont gr'+
+     'is'#130'es.',
+    'Home: Alt+M. Unimplemented commands are grayed out.',
+    'Inicio: Alt+C. Los comandos no implementados aparecen atenuados.',
+    'Home: Alt+M. I comandi non implementati sono disattivati.',
+    'Start: Alt+S. Nicht implementierte Befehle sind abgeblendet.')),
+  (K: 'Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitter.';
+   V: ('Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitter.',
+    'Ctrl+N New, Ctrl+O Open, Ctrl+S Save, Alt+X Exit.',
+    'Ctrl+N Nuevo, Ctrl+O Abrir, Ctrl+S Guardar, Alt+X Salir.',
+    'Ctrl+N Nuovo, Ctrl+O Apri, Ctrl+S Salva, Alt+X Esci.',
+    'Strg+N Neu, Strg+O '#153'ffnen, Strg+S Speichern, Alt+X Beenden.')),
+  (K: 'Erreur graphique : ';
+   V: ('Erreur graphique : ',
+    'Graphics error: ',
+    'Error gr'#160'fico: ',
+    'Errore grafico: ',
+    'Grafikfehler: ')),
+  (K:
+    'Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.PD'+
+    'F;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.PDF'+
+    ')|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tous (*'+
+    '.*)|*.*';
+   V:
+     ('Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.'+
+     'PDF;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.'+
+     'PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tou'+
+     's (*.*)|*.*',
+    'Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.PD'+
+      'F;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.P'+
+      'DF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|All'+
+      ' (*.*)|*.*',
+    'Documentos (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.P'+
+      'DF;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.'+
+      'PDF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|To'+
+      'dos (*.*)|*.*',
+    'Documenti (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.PD'+
+      'F;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.P'+
+      'DF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tut'+
+      'ti (*.*)|*.*',
+    'Dokumente (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WPD;*.DOCX;*.DOC;*.PD'+
+      'F;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GAT MonsterBook (*.GAT)|*.GAT|PDF (*.P'+
+      'DF)|*.PDF|WPD (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|All'+
+      'e (*.*)|*.*')),
+  (K:
+    'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DOCX'+
+    ' (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT';
+   V:
+     ('Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DO'+
+     'CX (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT',
+    'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DOCX'+
+      ' (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT',
+    'Documentos (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DOC'+
+      'X (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT',
+    'Documenti (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DOCX'+
+      ' (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT',
+    'Dokumente (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD (*.WPD)|*.WPD|DOCX'+
+      ' (*.DOCX)|*.DOCX|GAT MonsterBook (*.GAT)|*.GAT')),
+  (K:
+    'Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.XBM;*.T'+
+    'IF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF (*.'+
+    'GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;*.'+
+    'TIFF|Tous (*.*)|*.*';
+   V:
+     ('Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.XBM;*'+
+     '.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF '+
+     '(*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TI'+
+     'F;*.TIFF|Tous (*.*)|*.*',
+    'Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.XBM;*.T'+
+      'IF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF ('+
+      '*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TI'+
+      'F;*.TIFF|All (*.*)|*.*',
+    'Im'#160'genes (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.'+
+      'XBM;*.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PC'+
+      'X|GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIF'+
+      'F)|*.TIF;*.TIFF|Todos (*.*)|*.*',
+    'Immagini (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.XBM;*'+
+      '.TIF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF'+
+      ' (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.'+
+      'TIF;*.TIFF|Tutti (*.*)|*.*',
+    'Bilder (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;*.GPX;*.PCX;*.BGX;*.XBM;*.T'+
+      'IF;*.TIFF;*.GIF;*.JPG;*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|GIF ('+
+      '*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TI'+
+      'F;*.TIFF|Alle (*.*)|*.*'))
+  );
+
+Var
+ UILang  : Integer;
+ TrReady : Boolean;
+ TrHash  : Array[0..1023] Of Integer;
+
+Function TrHashOf(Const S: String): Integer;
+Var I: Integer; H: LongInt;
+Begin
+ H := 5381;
+ For I := 1 To Length(S) Do H := (H And $3FFFFF) * 33 + Ord(S[I]);
+ TrHashOf := H And 1023;
+End;
+
+Procedure InitLanguage;
+Var L: String; I, H: Integer;
+Begin
+ L := GetEnv('LANGUAGE');
+ For I := 1 To Length(L) Do L[I] := UpCase(L[I]);
+ L := Copy(L, 1, 2);
+ UILang := LANG_FR;
+ If L = 'EN' Then UILang := LANG_EN
+ Else If L = 'ES' Then UILang := LANG_ES
+ Else If L = 'IT' Then UILang := LANG_IT
+ Else If (L = 'GR') Or (L = 'DE') Then UILang := LANG_DE;
+ FillChar(TrHash, SizeOf(TrHash), 0);
+ For I := 1 To TR_COUNT Do Begin
+  H := TrHashOf(TrTab[I].K);
+  While TrHash[H] <> 0 Do H := (H + 1) And 1023;
+  TrHash[H] := I;
+ End;
+ TrReady := True;
+End;
+
+{ Traduit un texte source ; un texte inconnu est retourne tel quel. }
+Function Tr(Const S: String): String;
+Var H: Integer;
+Begin
+ Tr := S;
+ If Not TrReady Then Exit;
+ H := TrHashOf(S);
+ While TrHash[H] <> 0 Do Begin
+  If TrTab[TrHash[H]].K = S Then Begin
+   Tr := TrTab[TrHash[H]].V[UILang];
+   Exit;
+  End;
+  H := (H + 1) And 1023;
+ End;
+End;
+
+{ Touche "oui" : Y, plus la lettre du mot Oui/Si/Ja de la langue. }
+Function IsYesChar(C: Char): Boolean;
+Begin
+ C := UpCase(C);
+ IsYesChar := (C = 'Y') Or ((UILang = LANG_FR) And (C = 'O')) Or
+   (((UILang = LANG_ES) Or (UILang = LANG_IT)) And (C = 'S')) Or
+   ((UILang = LANG_DE) And (C = 'J'));
+End;
+
+{ Raccourci clavier affiche : Ctrl+ -> Strg+ (allemand), nom de la
+  touche Entree selon la langue. }
+Function TrShortcut(Const S: String): String;
+Var R, E: String; P: Integer;
+Begin
+ R := S;
+ If (UILang = LANG_DE) And (Copy(R, 1, 5) = 'Ctrl+') Then
+  R := 'Strg+' + Copy(R, 6, 255);
+ P := Pos('+Enter', R);
+ If P > 0 Then Begin
+  Case UILang Of
+   LANG_FR : E := 'Entr'#130'e';
+   LANG_ES : E := 'Intro';
+   LANG_IT : E := 'Invio';
+   LANG_DE : E := 'Eingabe';
+  Else E := 'Enter';
+  End;
+  R := Copy(R, 1, P) + E;
+ End;
+ TrShortcut := R;
+End;
+
+{ Lettre Alt d'un libelle de menu : celle qui suit le '&'. }
+Function AltFromCaption(Const Cap: String; Dflt: Char): Char;
+Var P: Integer;
+Begin
+ P := Pos('&', Cap);
+ If (P > 0) And (P < Length(Cap)) Then
+  AltFromCaption := UpCase(Cap[P + 1])
+ Else If UILang = LANG_FR Then AltFromCaption := Dflt
+ Else AltFromCaption := #0;
+End;
+
 Procedure InitializeGraphics;
 Var
  Driver, Mode: Integer;
@@ -34,7 +1897,7 @@ Begin
  End
   Else
  Begin
-  WriteLn('Erreur graphique : ',GraphErrorMsg(ErrCode));
+  WriteLn(Tr('Erreur graphique : '),GraphErrorMsg(ErrCode));
   Halt;
  End;
 End;
@@ -254,8 +2117,8 @@ Type
 
  { --- D??finition d'un menu et de ses items --- }
  TMenuItem = Record
-  Caption   : String[24];
-  Shortcut  : String[10];   { ex. 'Ctrl+S' affich?? ?? droite }
+  Caption   : String[40];
+  Shortcut  : String[16];   { ex. 'Ctrl+S' affich?? ?? droite }
   AltKey    : Char;         { lettre soulign??e, #0 si aucune }
   Separator : Boolean;
   ActionId  : Integer;      { identifiant d'action }
@@ -263,7 +2126,7 @@ Type
  End;
 
  TMenu = Record
-  Caption   : String[12];
+  Caption   : String[20];
   AltKey    : Char;
   X1, X2    : Integer;
   ItemCount : Integer;
@@ -276,7 +2139,7 @@ Type
   X, Y, W, H : Integer;
   IconId     : Integer;
   ActionId   : Integer;
-  Tooltip    : String[24];
+  Tooltip    : String[40];
   Pressed    : Boolean;     { pour boutons toggle (gras/italique...) }
   Separator  : Boolean;
  End;
@@ -690,11 +2553,17 @@ Procedure SetMenuItem(M: Integer; Idx: Integer; Const Cap: String;
                      Act: Integer);
 Begin
  Menus[M].Items[Idx].Caption   := Cap;
- Menus[M].Items[Idx].Shortcut  := Sc;
- Menus[M].Items[Idx].AltKey    := Alt;
+ Menus[M].Items[Idx].Shortcut  := TrShortcut(Sc);
+ Menus[M].Items[Idx].AltKey    := AltFromCaption(Cap, Alt);
  Menus[M].Items[Idx].Separator := Sep;
  Menus[M].Items[Idx].ActionId  := Act;
  Menus[M].Items[Idx].Enabled   := True;
+End;
+
+Procedure SetMenuTitle(M: Integer; Const Cap: String; Alt: Char);
+Begin
+ Menus[M].Caption := Cap;
+ Menus[M].AltKey  := AltFromCaption(Cap, Alt);
 End;
 
 Procedure InitMenus;
@@ -702,101 +2571,133 @@ Var I, MaxW, W, J, X: Integer;
 Begin
  MenuCount := 9;
  { --- D??finition des menus --- }
- Menus[1].Caption := '&Fichier';   Menus[1].AltKey := 'F';
- Menus[2].Caption := '&Edition';   Menus[2].AltKey := 'E';
- Menus[3].Caption := '&Affichage'; Menus[3].AltKey := 'A';
- Menus[4].Caption := '&Insertion'; Menus[4].AltKey := 'I';
- Menus[5].Caption := 'F&ormat';    Menus[5].AltKey := 'O';
- Menus[6].Caption := 'O&utils';    Menus[6].AltKey := 'U';
- Menus[7].Caption := '&Tableau';   Menus[7].AltKey := 'T';
- Menus[8].Caption := 'Fe&netre';   Menus[8].AltKey := 'N';
- Menus[9].Caption := 'Ai&de';      Menus[9].AltKey := 'D';
+ SetMenuTitle(1, Tr('&Fichier'), 'F');
+ SetMenuTitle(2, Tr('&Edition'), 'E');
+ SetMenuTitle(3, Tr('&Affichage'), 'A');
+ SetMenuTitle(4, Tr('&Insertion'), 'I');
+ SetMenuTitle(5, Tr('F&ormat'), 'O');
+ SetMenuTitle(6, Tr('O&utils'), 'U');
+ SetMenuTitle(7, Tr('&Tableau'), 'T');
+ SetMenuTitle(8, Tr('Fe&netre'), 'N');
+ SetMenuTitle(9, Tr('Ai&de'), 'D');
 
  { Fichier }
  Menus[1].ItemCount := 7;
- SetMenuItem(1,1,'&Nouveau',              'Ctrl+N','N',False, ACT_FILE_NEW);
- SetMenuItem(1,2,'&Ouvrir...',            'Ctrl+O','O',False, ACT_FILE_OPEN);
- SetMenuItem(1,3,'&Enregistrer',          'Ctrl+S','E',False, ACT_FILE_SAVE);
- SetMenuItem(1,4,'Enregistrer &sous...',  '',      'S',False, ACT_FILE_SAVEAS);
+ SetMenuItem(1,1,Tr('&Nouveau'),              'Ctrl+N','N',False, ACT_FILE_NEW);
+ SetMenuItem(1,2,Tr('&Ouvrir...'),            'Ctrl+O','O',False,
+   ACT_FILE_OPEN);
+ SetMenuItem(1,3,Tr('&Enregistrer'),          'Ctrl+S','E',False,
+   ACT_FILE_SAVE);
+ SetMenuItem(1,4,Tr('Enregistrer &sous...'),  '',      'S',False,
+   ACT_FILE_SAVEAS);
  SetMenuItem(1,5,'-',                     '',      #0, True, ACT_NONE);
- SetMenuItem(1,6,'&Imprimer...',          'Ctrl+P','I',False, ACT_FILE_PRINT);
- SetMenuItem(1,7,'&Quitter',              'Alt+X', 'Q',False, ACT_FILE_EXIT);
+ SetMenuItem(1,6,Tr('&Imprimer...'),          'Ctrl+P','I',False,
+   ACT_FILE_PRINT);
+ SetMenuItem(1,7,Tr('&Quitter'),              'Alt+X', 'Q',False,
+   ACT_FILE_EXIT);
 
  { Edition }
  Menus[2].ItemCount := 9;
- SetMenuItem(2,1,'&Annuler',              'Ctrl+Z','A',False, ACT_EDIT_UNDO);
- SetMenuItem(2,2,'&Retablir',             'Ctrl+Y','R',False, ACT_EDIT_REDO);
+ SetMenuItem(2,1,Tr('&Annuler'),              'Ctrl+Z','A',False,
+   ACT_EDIT_UNDO);
+ SetMenuItem(2,2,Tr('&Retablir'),             'Ctrl+Y','R',False,
+   ACT_EDIT_REDO);
  SetMenuItem(2,3,'-',                     '',      #0, True, ACT_NONE);
- SetMenuItem(2,4,'Co&uper',               'Ctrl+X','U',False, ACT_EDIT_CUT);
- SetMenuItem(2,5,'&Copier',               'Ctrl+C','C',False, ACT_EDIT_COPY);
- SetMenuItem(2,6,'Co&ller',               'Ctrl+V','L',False, ACT_EDIT_PASTE);
- SetMenuItem(2,7,'Rec&hercher...',        'Ctrl+F','H',False, ACT_EDIT_FIND);
- SetMenuItem(2,8,'Rechercher &suivant',   'F3',    'S',False,
+ SetMenuItem(2,4,Tr('Co&uper'),               'Ctrl+X','U',False, ACT_EDIT_CUT);
+ SetMenuItem(2,5,Tr('&Copier'),               'Ctrl+C','C',False,
+   ACT_EDIT_COPY);
+ SetMenuItem(2,6,Tr('Co&ller'),               'Ctrl+V','L',False,
+   ACT_EDIT_PASTE);
+ SetMenuItem(2,7,Tr('Rec&hercher...'),        'Ctrl+F','H',False,
+   ACT_EDIT_FIND);
+ SetMenuItem(2,8,Tr('Rechercher &suivant'),   'F3',    'S',False,
    ACT_EDIT_FIND_NEXT);
- SetMenuItem(2,9,'Re&mplacer...',         'Ctrl+H','M',False, ACT_EDIT_REPL);
+ SetMenuItem(2,9,Tr('Re&mplacer...'),         'Ctrl+H','M',False,
+   ACT_EDIT_REPL);
 
  { Affichage }
  Menus[3].ItemCount := 4;
- SetMenuItem(3,1,'&Normal',               '',      'N',False, ACT_VIEW_NORMAL);
- SetMenuItem(3,2,'&Mise en page',         '',      'M',False, ACT_VIEW_PAGE);
- SetMenuItem(3,3,'&Regle',                '',      'R',False, ACT_VIEW_RULER);
- SetMenuItem(3,4,'&Zoom...',              '',      'Z',False, ACT_VIEW_ZOOM);
+ SetMenuItem(3,1,Tr('&Normal'),               '',      'N',False,
+   ACT_VIEW_NORMAL);
+ SetMenuItem(3,2,Tr('&Mise en page'),         '',      'M',False,
+   ACT_VIEW_PAGE);
+ SetMenuItem(3,3,Tr('&Regle'),                '',      'R',False,
+   ACT_VIEW_RULER);
+ SetMenuItem(3,4,Tr('&Zoom...'),              '',      'Z',False,
+   ACT_VIEW_ZOOM);
 
  { Insertion }
  Menus[4].ItemCount := 4;
- SetMenuItem(4,1,'&Saut de page',         'Ctrl+Enter','S',False,
+ SetMenuItem(4,1,Tr('&Saut de page'),         'Ctrl+Enter','S',False,
    ACT_INS_PAGEBRK);
- SetMenuItem(4,2,'&Image...',             '',      'I',False, ACT_INS_IMAGE);
- SetMenuItem(4,3,'Symbo&le...',           '',      'L',False, ACT_INS_SYMBOL);
- SetMenuItem(4,4,'&Tableau...',           '',      'T',False, ACT_INS_TABLE);
+ SetMenuItem(4,2,Tr('&Image...'),             '',      'I',False,
+   ACT_INS_IMAGE);
+ SetMenuItem(4,3,Tr('Symbo&le...'),           '',      'L',False,
+   ACT_INS_SYMBOL);
+ SetMenuItem(4,4,Tr('&Tableau...'),           '',      'T',False,
+   ACT_INS_TABLE);
 
  { Format }
  Menus[5].ItemCount := 10;
- SetMenuItem(5,1,'&Police...',            '',      'P',False, ACT_FMT_FONT);
- SetMenuItem(5,2,'Para&graphe...',        '',      'G',False, ACT_FMT_PARA);
+ SetMenuItem(5,1,Tr('&Police...'),            '',      'P',False, ACT_FMT_FONT);
+ SetMenuItem(5,2,Tr('Para&graphe...'),        '',      'G',False, ACT_FMT_PARA);
  SetMenuItem(5,3,'-',                     '',      #0, True, ACT_NONE);
- SetMenuItem(5,4,'G&ras',                 'Ctrl+B','R',False, ACT_FMT_BOLD);
- SetMenuItem(5,5,'&Italique',             'Ctrl+I','I',False, ACT_FMT_ITALIC);
- SetMenuItem(5,6,'&Souligne',             'Ctrl+U','S',False, ACT_FMT_UNDER);
+ SetMenuItem(5,4,Tr('G&ras'),                 'Ctrl+B','R',False, ACT_FMT_BOLD);
+ SetMenuItem(5,5,Tr('&Italique'),             'Ctrl+I','I',False,
+   ACT_FMT_ITALIC);
+ SetMenuItem(5,6,Tr('&Souligne'),             'Ctrl+U','S',False,
+   ACT_FMT_UNDER);
  SetMenuItem(5,7,'-',                     '',      #0, True, ACT_NONE);
- SetMenuItem(5,8,'Aligner a g&auche',     'Ctrl+L','A',False, ACT_FMT_LEFT);
- SetMenuItem(5,9,'&Centrer',              'Ctrl+E','C',False, ACT_FMT_CENTER);
- SetMenuItem(5,10,'Aligner a &droite',    'Ctrl+R','D',False, ACT_FMT_RIGHT);
+ SetMenuItem(5,8,Tr('Aligner a g&auche'),     'Ctrl+L','A',False, ACT_FMT_LEFT);
+ SetMenuItem(5,9,Tr('&Centrer'),              'Ctrl+E','C',False,
+   ACT_FMT_CENTER);
+ SetMenuItem(5,10,Tr('Aligner a &droite'),    'Ctrl+R','D',False,
+   ACT_FMT_RIGHT);
 
  { Outils }
  Menus[6].ItemCount := 3;
- SetMenuItem(6,1,'&Orthographe...',       'F7',    'O',False, ACT_TLS_SPELL);
- SetMenuItem(6,2,'Stat&istiques...',      '',      'I',False, ACT_TLS_WORDS);
- SetMenuItem(6,3,'O&ptions...',           '',      'P',False, ACT_TLS_OPTIONS);
+ SetMenuItem(6,1,Tr('&Orthographe...'),       'F7',    'O',False,
+   ACT_TLS_SPELL);
+ SetMenuItem(6,2,Tr('Stat&istiques...'),      '',      'I',False,
+   ACT_TLS_WORDS);
+ SetMenuItem(6,3,Tr('O&ptions...'),           '',      'P',False,
+   ACT_TLS_OPTIONS);
 
  { Tableau }
  Menus[7].ItemCount := 2;
- SetMenuItem(7,1,'&Inserer un tableau...','',      'I',False, ACT_TBL_INSERT);
- SetMenuItem(7,2,'&Supprimer le tableau', '',      'S',False, ACT_TBL_DELETE);
+ SetMenuItem(7,1,Tr('&Inserer un tableau...'),'',      'I',False,
+   ACT_TBL_INSERT);
+ SetMenuItem(7,2,Tr('&Supprimer le tableau'), '',      'S',False,
+   ACT_TBL_DELETE);
 
  { Fenetre }
  Menus[8].ItemCount := 1;
- SetMenuItem(8,1,'&Cascade',              '',      'C',False, ACT_WIN_CASCADE);
+ SetMenuItem(8,1,Tr('&Cascade'),              '',      'C',False,
+   ACT_WIN_CASCADE);
 
  { Aide }
  Menus[9].ItemCount := 2;
- SetMenuItem(9,1,'&Sommaire...',          'F1',    'S',False, ACT_HLP_CONTENT);
- SetMenuItem(9,2,'A &propos...',          '',      'P',False, ACT_HLP_ABOUT);
+ SetMenuItem(9,1,Tr('&Sommaire...'),          'F1',    'S',False,
+   ACT_HLP_CONTENT);
+ SetMenuItem(9,2,Tr('A &propos...'),          '',      'P',False,
+   ACT_HLP_ABOUT);
 
  { --- Calcul positions X dans la barre de menus --- }
  X := 6;
  If RibbonMode Then Begin
-  Menus[2].Caption:='Accu&eil';Menus[2].ItemCount:=16;
-  Menus[2].Items[8].Caption:='Suivant';
-  SetMenuItem(2,10,'G&ras','Ctrl+B','R',False,ACT_FMT_BOLD);
-  SetMenuItem(2,11,'&Italique','Ctrl+I','I',False,ACT_FMT_ITALIC);
-  SetMenuItem(2,12,'&Souligne','Ctrl+U','S',False,ACT_FMT_UNDER);
-  SetMenuItem(2,13,'Gauche','Ctrl+L','G',False,ACT_FMT_LEFT);
-  SetMenuItem(2,14,'Centrer','Ctrl+E','C',False,ACT_FMT_CENTER);
-  SetMenuItem(2,15,'Droite','Ctrl+R','D',False,ACT_FMT_RIGHT);
-  SetMenuItem(2,16,'Justifier','','J',False,ACT_FMT_JUSTIFY);
+  SetMenuTitle(2,Tr('Accu&eil'),'E');Menus[2].ItemCount:=16;
+  Menus[2].Items[8].Caption:=Tr('Suivant');
+  Menus[2].Items[8].AltKey:=
+   AltFromCaption(Menus[2].Items[8].Caption,'S');
+  SetMenuItem(2,10,Tr('G&ras'),'Ctrl+B','R',False,ACT_FMT_BOLD);
+  SetMenuItem(2,11,Tr('&Italique'),'Ctrl+I','I',False,ACT_FMT_ITALIC);
+  SetMenuItem(2,12,Tr('&Souligne'),'Ctrl+U','S',False,ACT_FMT_UNDER);
+  SetMenuItem(2,13,Tr('Gauche'),'Ctrl+L','G',False,ACT_FMT_LEFT);
+  SetMenuItem(2,14,Tr('Centrer'),'Ctrl+E','C',False,ACT_FMT_CENTER);
+  SetMenuItem(2,15,Tr('Droite'),'Ctrl+R','D',False,ACT_FMT_RIGHT);
+  SetMenuItem(2,16,Tr('Justifier'),'','J',False,ACT_FMT_JUSTIFY);
   Menus[5].ItemCount:=11;
-  SetMenuItem(5,11,'&Justifier','','J',False,ACT_FMT_JUSTIFY);
+  SetMenuItem(5,11,Tr('&Justifier'),'','J',False,ACT_FMT_JUSTIFY);
  End;
  For I := 1 To MenuCount Do Begin
   Menus[I].X1 := X;
@@ -845,17 +2746,17 @@ Var
  I, X, Y, BtnW : Integer;
 Begin
  StdBarCount := 0;
- AddStdBtn(ICN_NEW,    ACT_FILE_NEW,   'New (Ctrl+N)',    False);
- AddStdBtn(ICN_OPEN,   ACT_FILE_OPEN,  'Open (Ctrl+O)',   False);
- AddStdBtn(ICN_SAVE,   ACT_FILE_SAVE,  'Save (Ctrl+S)',   False);
- AddStdBtn(ICN_PRINT,  ACT_FILE_PRINT, 'Print (Ctrl+P)',  True);
- AddStdBtn(ICN_CUT,    ACT_EDIT_CUT,   'Cut (Ctrl+X)',    False);
- AddStdBtn(ICN_COPY,   ACT_EDIT_COPY,  'Copy (Ctrl+C)',   False);
- AddStdBtn(ICN_PASTE,  ACT_EDIT_PASTE, 'Paste (Ctrl+V)',  True);
- AddStdBtn(ICN_UNDO,   ACT_EDIT_UNDO,  'Undo (Ctrl+Z)',   False);
- AddStdBtn(ICN_REDO,   ACT_EDIT_REDO,  'Redo (Ctrl+Y)',   True);
- AddStdBtn(ICN_IMAGE,  ACT_INS_IMAGE,  'Insert Picture',  False);
- AddStdBtn(ICN_TABLE,  ACT_INS_TABLE,  'Insert Table',    False);
+ AddStdBtn(ICN_NEW,    ACT_FILE_NEW,   Tr('New (Ctrl+N)'),    False);
+ AddStdBtn(ICN_OPEN,   ACT_FILE_OPEN,  Tr('Open (Ctrl+O)'),   False);
+ AddStdBtn(ICN_SAVE,   ACT_FILE_SAVE,  Tr('Save (Ctrl+S)'),   False);
+ AddStdBtn(ICN_PRINT,  ACT_FILE_PRINT, Tr('Print (Ctrl+P)'),  True);
+ AddStdBtn(ICN_CUT,    ACT_EDIT_CUT,   Tr('Cut (Ctrl+X)'),    False);
+ AddStdBtn(ICN_COPY,   ACT_EDIT_COPY,  Tr('Copy (Ctrl+C)'),   False);
+ AddStdBtn(ICN_PASTE,  ACT_EDIT_PASTE, Tr('Paste (Ctrl+V)'),  True);
+ AddStdBtn(ICN_UNDO,   ACT_EDIT_UNDO,  Tr('Undo (Ctrl+Z)'),   False);
+ AddStdBtn(ICN_REDO,   ACT_EDIT_REDO,  Tr('Redo (Ctrl+Y)'),   True);
+ AddStdBtn(ICN_IMAGE,  ACT_INS_IMAGE,  Tr('Insert Picture'),  False);
+ AddStdBtn(ICN_TABLE,  ACT_INS_TABLE,  Tr('Insert Table'),    False);
 
  X := 6;
  Y := STDBAR_TOP + 1;
@@ -870,13 +2771,13 @@ Begin
  End;
 
  FmtBarCount := 0;
- AddFmtBtn(ICN_BOLD,    ACT_FMT_BOLD,    'Bold (Ctrl+B)',    False);
- AddFmtBtn(ICN_ITALIC,  ACT_FMT_ITALIC,  'Italic (Ctrl+I)',  False);
- AddFmtBtn(ICN_UNDER,   ACT_FMT_UNDER,   'Underline (Ctrl+U)',False);
- AddFmtBtn(ICN_ALIGN_L, ACT_FMT_LEFT,    'Align Left',       True);
- AddFmtBtn(ICN_ALIGN_C, ACT_FMT_CENTER,  'Align Center',     False);
- AddFmtBtn(ICN_ALIGN_R, ACT_FMT_RIGHT,   'Align Right',      False);
- AddFmtBtn(ICN_ALIGN_J, ACT_FMT_JUSTIFY, 'Justify',          False);
+ AddFmtBtn(ICN_BOLD,    ACT_FMT_BOLD,    Tr('Bold (Ctrl+B)'),    False);
+ AddFmtBtn(ICN_ITALIC,  ACT_FMT_ITALIC,  Tr('Italic (Ctrl+I)'),  False);
+ AddFmtBtn(ICN_UNDER,   ACT_FMT_UNDER,   Tr('Underline (Ctrl+U)'),False);
+ AddFmtBtn(ICN_ALIGN_L, ACT_FMT_LEFT,    Tr('Align Left'),       True);
+ AddFmtBtn(ICN_ALIGN_C, ACT_FMT_CENTER,  Tr('Align Center'),     False);
+ AddFmtBtn(ICN_ALIGN_R, ACT_FMT_RIGHT,   Tr('Align Right'),      False);
+ AddFmtBtn(ICN_ALIGN_J, ACT_FMT_JUSTIFY, Tr('Justify'),          False);
 
  { Police taille combo : on r??serve la place visuelle dans la barre }
  X := 6 + 100;     { apr??s le combo "Times New Roman" }
@@ -5468,9 +7369,9 @@ Var
    End Else Begin
     If II = Hover Then Begin
      FillRectArea(X1+2, IY, X2-2, IY+ItemH-1, Blue);
-     DrawTextAt(X1+8, IY+3, TblCtxLabels[II], White);
+     DrawTextAt(X1+8, IY+3, Tr(TblCtxLabels[II]), White);
     End Else
-     DrawTextAt(X1+8, IY+3, TblCtxLabels[II], Black);
+     DrawTextAt(X1+8, IY+3, Tr(TblCtxLabels[II]), Black);
    End;
   End;
  End;
@@ -5480,6 +7381,9 @@ Begin
  TIdx := Doc.Paragraphs[P].TableIdx;
  ItemH := 14;
  MenuW := 200;
+ For I := 1 To TBL_CTX_ITEMS Do
+  If TextWidth(Tr(TblCtxLabels[I])) + 24 > MenuW Then
+   MenuW := TextWidth(Tr(TblCtxLabels[I])) + 24;
  X1 := Mx;
  Y1 := My;
  X2 := X1 + MenuW;
@@ -5554,7 +7458,7 @@ Begin
        SetCursorToCell(P, Row, Col, 0);
        NeedsRelayout := True;
       End Else
-       ShowMessage('Tableau plein (max 16 lignes).');
+       ShowMessage(Tr('Tableau plein (max 16 lignes).'));
      End;
   2: Begin
       MarkMutation(2);
@@ -5562,11 +7466,11 @@ Begin
        SetCursorToCell(P, Row + 1, Col, 0);
        NeedsRelayout := True;
       End Else
-       ShowMessage('Tableau plein (max 16 lignes).');
+       ShowMessage(Tr('Tableau plein (max 16 lignes).'));
      End;
   3: Begin
       If Tables[TIdx].Rows <= 1 Then Begin
-       ShowMessage('Impossible : le tableau n''a qu''une ligne.');
+       ShowMessage(Tr('Impossible : le tableau n''a qu''une ligne.'));
       End Else Begin
        MarkMutation(2);
        TableDeleteRow(TIdx, Row);
@@ -5581,7 +7485,7 @@ Begin
        SetCursorToCell(P, Row, Col, 0);
        NeedsRelayout := True;
       End Else
-       ShowMessage('Tableau plein (max 6 colonnes).');
+       ShowMessage(Tr('Tableau plein (max 6 colonnes).'));
      End;
   6: Begin
       MarkMutation(2);
@@ -5589,11 +7493,11 @@ Begin
        SetCursorToCell(P, Row, Col + 1, 0);
        NeedsRelayout := True;
       End Else
-       ShowMessage('Tableau plein (max 6 colonnes).');
+       ShowMessage(Tr('Tableau plein (max 6 colonnes).'));
      End;
   7: Begin
       If Tables[TIdx].Cols <= 1 Then Begin
-       ShowMessage('Impossible : le tableau n''a qu''une colonne.');
+       ShowMessage(Tr('Impossible : le tableau n''a qu''une colonne.'));
       End Else Begin
        MarkMutation(2);
        TableDeleteCol(TIdx, Col);
@@ -5605,7 +7509,7 @@ Begin
   9: Begin
       Str(Tables[TIdx].Rows, SR);
       Str(Tables[TIdx].Cols, SC);
-      Msg := 'Tableau : ' + SR + ' lignes x ' + SC + ' colonnes';
+      Msg := Tr('Tableau : ') + SR + Tr(' lignes x ') + SC + Tr(' colonnes');
       ShowMessage(Msg);
      End;
  End;
@@ -6345,7 +8249,7 @@ Begin
   { Num??ro de page en bas }
   SetColor(DarkGray);
   Str(P, StatusMsg);    { r??utilisation tampon }
-  StatusMsg := 'Page ' + StatusMsg;
+  StatusMsg := Tr('Page ') + StatusMsg;
   If Doc.PDFPageCount=0 Then
    ZoomOutTextXY(PX1 + PAGE_W Div 2 - TextWidth(StatusMsg) Div
      2,PY2-12,StatusMsg);
@@ -6391,7 +8295,7 @@ Begin
 
  Str(CurrentPage, SP);
  Str(Doc.PageCount, SC);
- PageStr := 'Page ' + SP + ' of ' + SC;
+ PageStr := Tr('Page ') + SP + Tr(' of ') + SC;
  DrawTextAt(8, STATUSBAR_TOP+5, PageStr, STATUSBAR_FG);
 
  L := FindCursorVLine;
@@ -6399,7 +8303,7 @@ Begin
   Col := Cursor.CharIdx - (VLines[L].CharStart - 1) + 1;
   Str(L, SL);
   Str(Col, SCo);
-  LineColS := 'Ln ' + SL + '  Col ' + SCo;
+  LineColS := Tr('Ln ') + SL + Tr('  Col ') + SCo;
   DrawTextAt(96, STATUSBAR_TOP+5, LineColS, STATUSBAR_FG);
  End;
 
@@ -10135,14 +12039,15 @@ Begin
  DrawTextAt(X1+8, Y1+6, 'WorDium', White);
  DrawTextAt(X1+16, Y1+40, Msg, Black);
  DrawButton3D(X1+100, Y2-30, X1+180, Y2-10, False);
- DrawTextAt(X1+128, Y2-26, 'Yes', Black);
+ DrawTextAt(X1+128, Y2-26, Tr('Yes'), Black);
  DrawButton3D(X1+220, Y2-30, X1+300, Y2-10, False);
- DrawTextAt(X1+250, Y2-26, 'No', Black);
+ DrawTextAt(X1+250, Y2-26, Tr('No'), Black);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
  Done := False;
  Repeat
   If KeyPressed Then Begin
    K := ReadKeyEx;
+   If (K < 256) And IsYesChar(Chr(K)) Then K := Ord('Y');
    Case K Of
     Ord('Y'),Ord('y'),Ord('O'),Ord('o'),KEY_ENTER : Begin OK:=True;  Done:=True;
       End;
@@ -10427,18 +12332,18 @@ Begin
  DrawButton3D(X1, Y1, X2, Y2, False);
  FillRectArea(X1+3, Y1+3, X2-3, Y1+18, Blue);
  DrawTextAt(X1+8, Y1+6, Title, White);
- DrawTextAt(X1+15, Y1+26, 'Repertoire :', Black);
+ DrawTextAt(X1+15, Y1+26, Tr('Repertoire :'), Black);
  RedrawDir;
- DrawTextAt(X1+15, Y1+62, 'Fichiers :', Black);
- DrawTextAt(X1+15, Y1+86, 'Nom :', Black);
+ DrawTextAt(X1+15, Y1+62, Tr('Fichiers :'), Black);
+ DrawTextAt(X1+15, Y1+86, Tr('Nom :'), Black);
  RedrawInput;
  RedrawList;
  RedrawFilter;
  DrawButton3D(OkX1, BY1, OkX1+80, BY2, False);
- If SaveMode Then DrawTextAt(OkX1+25, BY1+4, 'Save', Black)
-             Else DrawTextAt(OkX1+30, BY1+4, 'Open', Black);
+ If SaveMode Then DrawTextAt(OkX1+25, BY1+4, Tr('Save'), Black)
+             Else DrawTextAt(OkX1+30, BY1+4, Tr('Open'), Black);
  DrawButton3D(CnX1, BY1, CnX1+80, BY2, False);
- DrawTextAt(CnX1+22, BY1+4, 'Cancel', Black);
+ DrawTextAt(CnX1+22, BY1+4, Tr('Cancel'), Black);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 
  LastBtn := MsBtn;
@@ -10636,7 +12541,7 @@ Begin
  TW := TextWidth('OK');
  DrawTextAt(OkX1 + 40 - TW Div 2, BY1+4, 'OK', Black);
  DrawButton3D(CnX1, BY1, CnX1+80, BY2, False);
- DrawTextAt(CnX1+22, BY1+4, 'Cancel', Black);
+ DrawTextAt(CnX1+22, BY1+4, Tr('Cancel'), Black);
  {$IFDEF FPC} DrawSoftCursor(MsX, MsY); {$ENDIF}
 
  Done := False;
@@ -10740,17 +12645,17 @@ Begin
  FillRectArea(38,92,602,385,CLR_3D_FACE);
  DrawButton3D(38,92,602,385,False);
  FillRectArea(41,95,599,113,Blue);
- DrawTextAt(50,100,'Statistiques du document',White);
+ DrawTextAt(50,100,Tr('Statistiques du document'),White);
  FillRectArea(53,126,383,148,DarkGray);
- DrawTextAt(65,134,'Mesure',White);
- DrawTextAt(327,134,'Total',White);
+ DrawTextAt(65,134,Tr('Mesure'),White);
+ DrawTextAt(327,134,Tr('Total'),White);
  For I:=1 To 9 Do Begin
   Y:=149+(I-1)*21;
   Ink:=White;
   If Odd(I) Then Ink:=LightGray;
   FillRectArea(53,Y,383,Y+19,Ink);
   FillRectArea(61,Y+6,70,Y+14,Colors[I]);
-  DrawTextAt(77,Y+6,Labels[I],Black);
+  DrawTextAt(77,Y+6,Tr(Labels[I]),Black);
   Str(Totals[I],ValueText);
   DrawTextAt(370-TextWidth(ValueText),Y+6,ValueText,Black);
  End;
@@ -10759,7 +12664,7 @@ Begin
  DrawSunkenRect(52,125,384,338);
  Total:=0;
  For I:=1 To 9 Do Inc(Total,Totals[I]);
- DrawTextAt(416,134,'Valeurs relatives',Black);
+ DrawTextAt(416,134,Tr('Valeurs relatives'),Black);
  If Total>0 Then Begin
   Running:=0;
   StartAngle:=0;
@@ -10777,9 +12682,9 @@ Begin
  End;
  SetColor(DarkGray);
  Circle(492,236,83);
- DrawTextAt(408,325,'Unites differentes',DarkGray);
+ DrawTextAt(408,325,Tr('Unites differentes'),DarkGray);
  DrawButton3D(414,349,515,374,False);
- DrawTextAt(435,358,'Fermer',Black);
+ DrawTextAt(435,358,Tr('Fermer'),Black);
 
  PrevButtons:=MsBtn;
  Repeat
@@ -10968,7 +12873,7 @@ Procedure DoUndo;
 Var Snap: TDocPtr; Cur: TCursorPos;
 Begin
  If UndoCount = 0 Then Begin
-  StatusMsg := 'Nothing to undo'; Exit;
+  StatusMsg := Tr('Nothing to undo'); Exit;
  End;
  PushRedoSnapshot;
  Snap := UndoStack[UndoCount];
@@ -10980,7 +12885,7 @@ Begin
  Dispose(Snap);              { libere juste le record }
  Cursor := Cur;
  NeedsRelayout := True;
- StatusMsg := 'Undo';
+ StatusMsg := Tr('Undo');
  LastMutate := 0;
 End;
 
@@ -10988,7 +12893,7 @@ Procedure DoRedo;
 Var Snap: TDocPtr; Cur: TCursorPos; NewSnap: TDocPtr;
 Begin
  If RedoCount = 0 Then Begin
-  StatusMsg := 'Nothing to redo'; Exit;
+  StatusMsg := Tr('Nothing to redo'); Exit;
  End;
  { Re-push undo (sans clear du redo) }
  New(NewSnap);
@@ -11012,7 +12917,7 @@ Begin
  Dispose(Snap);
  Cursor := Cur;
  NeedsRelayout := True;
- StatusMsg := 'Redo';
+ StatusMsg := Tr('Redo');
  LastMutate := 0;
 End;
 
@@ -11036,16 +12941,16 @@ Procedure DoFindDialog;
 Var S: String;
 Begin
  S := LastFindStr;
- If Not InputBoxDlg('Find', 'Find what:', S, MAX_FIND_LEN) Then Begin
+ If Not InputBoxDlg(Tr('Find'), Tr('Find what:'), S, MAX_FIND_LEN) Then Begin
   NeedsRedraw := True; Exit;
  End;
  If Length(S) = 0 Then Exit;
  LastFindStr := S;
  If FindNextFromCursor(S) Then Begin
   NeedsRelayout := True;
-  StatusMsg := 'Found: ' + S;
+  StatusMsg := Tr('Found: ') + S;
  End Else
-  ShowMessage('Not found: ' + S);
+  ShowMessage(Tr('Not found: ') + S);
 End;
 
 Procedure DoFindNext;
@@ -11061,9 +12966,9 @@ Begin
  End;
  If FindNextFromCursor(LastFindStr) Then Begin
   NeedsRelayout := True;
-  StatusMsg := 'Found: ' + LastFindStr;
+  StatusMsg := Tr('Found: ') + LastFindStr;
  End Else
-  ShowMessage('No more matches');
+  ShowMessage(Tr('No more matches'));
 End;
 
 Procedure DoReplaceDialog;
@@ -11073,22 +12978,24 @@ Var
  K                 : Integer;
 Begin
  SFind := LastFindStr;
- If Not InputBoxDlg('Replace', 'Find what:', SFind, MAX_FIND_LEN) Then Begin
+ If Not InputBoxDlg(Tr('Replace'), Tr('Find what:'), SFind,
+   MAX_FIND_LEN) Then Begin
   NeedsRedraw := True; Exit;
  End;
  If Length(SFind) = 0 Then Exit;
  SRepl := LastReplStr;
- If Not InputBoxDlg('Replace', 'Replace with:', SRepl, MAX_FIND_LEN) Then Begin
+ If Not InputBoxDlg(Tr('Replace'), Tr('Replace with:'), SRepl,
+   MAX_FIND_LEN) Then Begin
   NeedsRedraw := True; Exit;
  End;
  LastFindStr := SFind;
  LastReplStr := SRepl;
  Ans := 'A';
- If Not InputBoxDlg('Replace', 'Replace All? (Y/N)', Ans, 2) Then Begin
+ If Not InputBoxDlg(Tr('Replace'), Tr('Replace All? (Y/N)'), Ans, 2) Then Begin
   NeedsRedraw := True; Exit;
  End;
  NReplaced := 0;
- If (Length(Ans) > 0) And ((Ans[1] = 'Y') Or (Ans[1] = 'y')) Then Begin
+ If (Length(Ans) > 0) And IsYesChar(Ans[1]) Then Begin
   { Replace All : repart du debut. }
   MarkMutation(2);
   Cursor.ParaIdx := 1; Cursor.CharIdx := 0; Cursor.RunIdx := 1;
@@ -11101,7 +13008,7 @@ Begin
    If NReplaced > 10000 Then Break;
   End;
   Str(NReplaced, Ans);
-  StatusMsg := Ans + ' replacement(s)';
+  StatusMsg := Ans + Tr(' replacement(s)');
   NeedsRelayout := True;
  End Else Begin
   { Une seule occurrence depuis cursor }
@@ -11109,10 +13016,10 @@ Begin
    MarkMutation(2);
    For K := 1 To Length(SFind) Do DeleteAtCursor;
    For K := 1 To Length(SRepl) Do InsertCharAtCursor(SRepl[K]);
-   StatusMsg := 'Replaced';
+   StatusMsg := Tr('Replaced');
    NeedsRelayout := True;
   End Else
-   ShowMessage('Not found: ' + SFind);
+   ShowMessage(Tr('Not found: ') + SFind);
  End;
 End;
 
@@ -11159,19 +13066,19 @@ Var Value,Choice,I,X,Y:Integer;K:Word;Text,LabelText:String;
  Begin
   EraseSoftCursor;
   FillRectArea(155,125,485,350,CLR_3D_FACE);DrawButton3D(155,125,485,350,False);
-  FillRectArea(158,128,482,146,Blue);DrawTextAt(165,132,'Zoom',White);
-  DrawTextAt(170,161,'Pourcentage (25 a 300 %) :',Black);
+  FillRectArea(158,128,482,146,Blue);DrawTextAt(165,132,Tr('Zoom'),White);
+  DrawTextAt(170,161,Tr('Pourcentage (25 a 300 %) :'),Black);
   FillRectArea(170,180,265,200,White);DrawSunkenRect(170,180,265,200);
   DrawTextAt(176,186,Text+' %',Black);
   For J:=1 To 8 Do Begin
    BX:=170+((J-1) mod 4)*75;BY:=216+((J-1) div 4)*30;
    DrawButton3D(BX,BY,BX+68,BY+23,Choice=J);
-   If J=7 Then LabelText:='Page' Else If J=8 Then LabelText:='Largeur'
+   If J=7 Then LabelText:=Tr('Page') Else If J=8 Then LabelText:=Tr('Largeur')
    Else Begin Str(Values[J],LabelText);LabelText:=LabelText+' %';End;
    DrawTextAt(BX+5,BY+7,LabelText,Black);
   End;
   DrawButton3D(285,313,365,336,False);DrawTextAt(315,320,'OK',Black);
-  DrawButton3D(385,313,470,336,False);DrawTextAt(397,320,'Annuler',Black);
+  DrawButton3D(385,313,470,336,False);DrawTextAt(397,320,Tr('Annuler'),Black);
   {$IFDEF FPC} DrawSoftCursor(MsX,MsY);{$ENDIF}
  End;
  Procedure Pick(Index:Integer);
@@ -11262,8 +13169,8 @@ Var
   FillRectArea(96,76,536,454,CLR_3D_FACE);
   DrawButton3D(96,76,536,454,False);
   FillRectArea(99,79,533,97,Blue);
-  DrawTextAt(106,83,'Insertion de symbole',White);
-  DrawTextAt(108,105,'Choisir un caractere CP437',Black);
+  DrawTextAt(106,83,Tr('Insertion de symbole'),White);
+  DrawTextAt(108,105,Tr('Choisir un caractere CP437'),Black);
 
   For J := FirstCode To LastCode Do Begin
    { 127 est DEL, reserve aux commandes de controle. }
@@ -11280,12 +13187,12 @@ Var
   End;
 
   Str(Code,Number);
-  DrawTextAt(108,396,'Apercu : '+Chr(Code)+'   CP437 '+Number+
+  DrawTextAt(108,396,Tr('Apercu : ')+Chr(Code)+'   CP437 '+Number+
     '   '+UnicodeLabel(Cp437ToUni(Code)),Black);
   DrawButton3D(326,420,417,443,False);
-  DrawTextAt(339,428,'Inserer',Black);
+  DrawTextAt(339,428,Tr('Inserer'),Black);
   DrawButton3D(427,420,524,443,False);
-  DrawTextAt(443,428,'Annuler',Black);
+  DrawTextAt(443,428,Tr('Annuler'),Black);
  End;
 
  Procedure MoveSelection(Delta: Integer);
@@ -11360,11 +13267,11 @@ Begin
   If CursorInTable Then Begin
    GetCursorCell(X,Y);
    If Length(CellTextOf(Cursor.ParaIdx,X,Y)) >= MAX_CELL_TEXT_LEN Then Begin
-    ShowMessage('Cette cellule est pleine.');
+    ShowMessage(Tr('Cette cellule est pleine.'));
     Exit;
    End;
   End Else If Length(ParaText(Cursor.ParaIdx)) >= MAX_TEXT_LEN Then Begin
-   ShowMessage('Ce paragraphe est plein.');
+   ShowMessage(Tr('Ce paragraphe est plein.'));
    Exit;
   End;
   SelClear;
@@ -11372,7 +13279,7 @@ Begin
   ResetMutation;
   InsertCharAtCursor(Chr(Code));
   If Cursor.CharIdx = OldPos Then
-   ShowMessage('Insertion impossible : trop de segments de style.');
+   ShowMessage(Tr('Insertion impossible : trop de segments de style.'));
  End;
 End;
 
@@ -11419,8 +13326,8 @@ Var
   FillRectArea(110,94,530,404,CLR_3D_FACE);
   DrawButton3D(110,94,530,404,False);
   FillRectArea(113,97,527,116,Blue);
-  DrawTextAt(121,102,'Police',White);
-  DrawTextAt(128,132,'Taille (6 a 72 pt)',Black);
+  DrawTextAt(121,102,Tr('Police'),White);
+  DrawTextAt(128,132,Tr('Taille (6 a 72 pt)'),Black);
   FillRectArea(294,124,376,148,White);
   DrawSunkenRect(294,124,376,148);
   Str(Draft.FontSize,SizeText);
@@ -11430,7 +13337,7 @@ Var
   For I:=1 To 3 Do Begin
    X:=128+(I-1)*124;
    DrawButton3D(X,160,X+112,184,(Draft.Style and Bits[I])<>0);
-   DrawTextAt(X+8,168,Options[I],Black);
+   DrawTextAt(X+8,168,Tr(Options[I]),Black);
    If F=I Then DrawTextAt(X+98,168,'*',Blue);
   End;
   For I:=0 To 15 Do Begin
@@ -11462,11 +13369,11 @@ Var
    Line(384,263+Height,383+Length(Sample)*Height,263+Height);
    {$ENDIF}
   End;
-  DrawTextAt(128,345,'Tab : option   Espace : ouvrir / basculer',Black);
+  DrawTextAt(128,345,Tr('Tab : option   Espace : ouvrir / basculer'),Black);
   DrawButton3D(329,370,414,393,False);
   DrawButton3D(421,370,512,393,False);
-  DrawTextAt(340,378,'Appliquer',Black);
-  DrawTextAt(434,378,'Annuler',Black);
+  DrawTextAt(340,378,Tr('Appliquer'),Black);
+  DrawTextAt(434,378,Tr('Annuler'),Black);
   If F=0 Then DrawTextAt(380,132,'*',Blue);
   If F=4 Then DrawTextAt(508,202,'*',Blue);
   If ListOpen Then Begin
@@ -11491,7 +13398,7 @@ Var
 
 Begin
  If CursorInTable And Not SelHasRange Then Begin
-  ShowMessage('Les cellules utilisent une police fixe.');
+  ShowMessage(Tr('Les cellules utilisent une police fixe.'));
   Exit;
  End;
  Initial:=CurrentStyle;
@@ -11593,7 +13500,7 @@ Begin
     If B>0 Then Inc(Extra);
    End;
    If Doc.Paragraphs[P].RunCount+Extra>MAX_RUNS_PER_PARA Then Begin
-    ShowMessage('Selection trop fragmentee pour appliquer la police.');
+    ShowMessage(Tr('Selection trop fragmentee pour appliquer la police.'));
     Exit;
    End;
   End;
@@ -11646,20 +13553,22 @@ Var
   FillRectArea(108,96,532,395,CLR_3D_FACE);
   DrawButton3D(108,96,532,395,False);
   FillRectArea(111,99,529,118,Blue);
-  DrawTextAt(120,104,'Paragraphe',White);
+  DrawTextAt(120,104,Tr('Paragraphe'),White);
   For J:=0 To 3 Do Begin
    BX:=120+100*J;
    DrawButton3D(BX,128,BX+94,153,A=J);
-   DrawTextAt(BX+7,137,Labels[J],Black);
+   DrawTextAt(BX+7,137,Tr(Labels[J]),Black);
   End;
-  DrawTextAt(122,170,'Retrait gauche (0 a 160 px)',Black);
+  DrawTextAt(122,170,Tr('Retrait gauche (0 a 160 px)'),Black);
   FillRectArea(384,164,448,188,White);
   DrawSunkenRect(384,164,448,188);
   DrawTextAt(392,171,ValueText,Black);
-  DrawTextAt(122,202,'['+Chr(32+56*Ord(AllLines))+'] Inclure la premiere ligne',
+  DrawTextAt(122,
+    202,'['+Chr(32+56*Ord(AllLines))+Tr('] Inclure la premiere ligne'),
     Black);
-  DrawTextAt(122,225,'['+Chr(32+56*Ord(Border))+'] Bordure inferieure',Black);
-  DrawTextAt(122,248,'['+Chr(32+56*Ord(PageBreak))+'] Saut de page avant',
+  DrawTextAt(122,225,'['+Chr(32+56*Ord(Border))+Tr('] Bordure inferieure'),
+    Black);
+  DrawTextAt(122,248,'['+Chr(32+56*Ord(PageBreak))+Tr('] Saut de page avant'),
     Black);
   If F=0 Then DrawTextAt(519,137,'*',Blue)
   Else DrawTextAt(510,171+(F-1)*23,'*',Blue);
@@ -11683,12 +13592,12 @@ Var
   End;
   If Border Then Line(138,327,499,327);
   If (ErrorPos<>0) Or (ValueText='') Or (Length(ValueText)>3) Then
-   DrawTextAt(122,343,'Saisir un retrait de 0 a 160 px.',Black)
-  Else DrawTextAt(122,343,'Tab : option   Espace : basculer',Black);
+   DrawTextAt(122,343,Tr('Saisir un retrait de 0 a 160 px.'),Black)
+  Else DrawTextAt(122,343,Tr('Tab : option   Espace : basculer'),Black);
   DrawButton3D(322,362,414,385,False);
   DrawButton3D(423,362,515,385,False);
-  DrawTextAt(332,370,'Appliquer',Black);
-  DrawTextAt(438,370,'Annuler',Black);
+  DrawTextAt(332,370,Tr('Appliquer'),Black);
+  DrawTextAt(438,370,Tr('Annuler'),Black);
  End;
 
  Procedure ToggleOption;
@@ -11715,7 +13624,7 @@ Begin
  P:=P1;
  While (P<=P2) And Not TextParagraph(P) Do Inc(P);
  If P>P2 Then Begin
-  ShowMessage('Choisir un paragraphe de texte.');
+  ShowMessage(Tr('Choisir un paragraphe de texte.'));
   Exit;
  End;
  A:=Doc.Paragraphs[P].Alignment;
@@ -13235,9 +15144,9 @@ Var
   FillRectArea(110,TopY,530,TopY+186,CLR_3D_FACE);
   DrawButton3D(110,TopY,530,TopY+186,False);
   FillRectArea(113,TopY+3,527,TopY+21,Blue);
-  DrawTextAt(120,TopY+7,'Orthographe - '+DictName,White);
-  DrawTextAt(122,TopY+29,'Mot : '+Copy(Original,1,43),Black);
-  If Count=0 Then DrawTextAt(122,TopY+55,'Aucune suggestion',Black);
+  DrawTextAt(120,TopY+7,Tr('Orthographe - ')+DictName,White);
+  DrawTextAt(122,TopY+29,Tr('Mot : ')+Copy(Original,1,43),Black);
+  If Count=0 Then DrawTextAt(122,TopY+55,Tr('Aucune suggestion'),Black);
   For Row:=1 To Count Do Begin
    TextY:=TopY+45+(Row-1)*17;
    SetColor(Black);
@@ -13246,11 +15155,11 @@ Var
    DrawTextAt(145,TextY+1,Copy(Picks[Row],1,45),Black);
   End;
   DrawButton3D(191,TopY+151,301,TopY+176,False);
-  DrawTextAt(202,TopY+160,'Remplacer',Black);
+  DrawTextAt(202,TopY+160,Tr('Remplacer'),Black);
   DrawButton3D(310,TopY+151,410,TopY+176,False);
-  DrawTextAt(326,TopY+160,'Ignorer',Black);
+  DrawTextAt(326,TopY+160,Tr('Ignorer'),Black);
   DrawButton3D(419,TopY+151,519,TopY+176,False);
-  DrawTextAt(435,TopY+160,'Fermer',Black);
+  DrawTextAt(435,TopY+160,Tr('Fermer'),Black);
  End;
 
 Begin
@@ -13391,7 +15300,7 @@ Begin
    Answer:=Picks[Choice];
    If Answer=Original Then Continue;
    If Length(S)-Length(Original)+Length(Answer)>MAX_TEXT_LEN Then Begin
-    ShowMessage('Correction trop longue pour ce paragraphe.');
+    ShowMessage(Tr('Correction trop longue pour ce paragraphe.'));
     Continue;
    End;
    If Replaced=0 Then Begin PushUndoSnapshot; ResetMutation; SelClear; End;
@@ -13417,7 +15326,7 @@ Begin
  NeedsRedraw:=True;
  If Not Cancelled Then Begin
   Str(Replaced,Answer);
-  ShowMessage('Orthographe : '+Answer+' correction(s).');
+  ShowMessage(Tr('Orthographe : ')+Answer+Tr(' correction(s).'));
  End;
 End;
 
@@ -13438,21 +15347,22 @@ Var
   FillRectArea(100,105,540,375,CLR_3D_FACE);
   DrawButton3D(100,105,540,375,False);
   FillRectArea(103,108,537,127,Blue);
-  DrawTextAt(113,114,'Options',White);
-  DrawTextAt(117,141,'Affichage',Black);
+  DrawTextAt(113,114,Tr('Options'),White);
+  DrawTextAt(117,141,Tr('Affichage'),Black);
   DrawButton3D(117,158,296,183,LayoutMode);
-  DrawTextAt(127,167,'Mode Page',Black);
+  DrawTextAt(127,167,Tr('Mode Page'),Black);
   DrawButton3D(307,158,523,183,ShowRuler);
-  DrawTextAt(317,167,'Afficher la regle',Black);
-  DrawTextAt(117,200,'Langue du correcteur',Black);
+  DrawTextAt(317,167,Tr('Afficher la regle'),Black);
+  DrawTextAt(117,200,Tr('Langue du correcteur'),Black);
   For J:=0 To 5 Do Begin
    X:=117+(J mod 3)*137;
    Y:=219+(J div 3)*30;
    DrawButton3D(X,Y,X+130,Y+24,Language=J);
-   DrawTextAt(X+8,Y+8,Languages[J],Black);
+   DrawTextAt(X+8,Y+8,Tr(Languages[J]),Black);
   End;
-  DrawTextAt(117,289,'Automatique suit LANGUAGE (francais par defaut).',Black);
-  DrawTextAt(117,308,'Tab : option   Espace : choisir',DarkGray);
+  DrawTextAt(117,289,Tr('Automatique suit LANGUAGE (francais par defaut).'),
+    Black);
+  DrawTextAt(117,308,Tr('Tab : option   Espace : choisir'),DarkGray);
   SetColor(Blue);
   Case Focus Of
    0: Rectangle(115,156,298,185);
@@ -13463,9 +15373,9 @@ Var
    Rectangle(X-2,Y-2,X+132,Y+26);
   End;
   DrawButton3D(323,335,419,362,False);
-  DrawTextAt(334,344,'Appliquer',Black);
+  DrawTextAt(334,344,Tr('Appliquer'),Black);
   DrawButton3D(427,335,523,362,False);
-  DrawTextAt(441,344,'Annuler',Black);
+  DrawTextAt(441,344,Tr('Annuler'),Black);
  End;
 
  Procedure Choose;
@@ -13585,7 +15495,7 @@ Var
   FillRectArea(47,102,593,373,CLR_3D_FACE);
   DrawButton3D(47,102,593,373,False);
   FillRectArea(50,105,590,124,Blue);
-  DrawTextAt(58,110,'Sommaire de l''aide WorDium',White);
+  DrawTextAt(58,110,Tr('Sommaire de l''aide WorDium'),White);
   FillRectArea(60,138,216,310,White);
   DrawSunkenRect(59,137,217,311);
   For I:=1 To 7 Do Begin
@@ -13595,15 +15505,15 @@ Var
     FillRectArea(61,TopY,215,TopY+23,Blue);
     Ink:=White;
    End;
-   DrawTextAt(68,TopY+8,Topics[I],Ink);
+   DrawTextAt(68,TopY+8,Tr(Topics[I]),Ink);
   End;
   FillRectArea(227,138,580,310,White);
   DrawSunkenRect(226,137,581,311);
-  DrawTextAt(237,151,Topics[Topic],Blue);
-  For I:=1 To 5 Do DrawTextAt(237,174+(I-1)*19,HelpText[Topic,I],Black);
-  DrawTextAt(61,340,'Fleches : choisir une rubrique',DarkGray);
+  DrawTextAt(237,151,Tr(Topics[Topic]),Blue);
+  For I:=1 To 5 Do DrawTextAt(237,174+(I-1)*19,Tr(HelpText[Topic,I]),Black);
+  DrawTextAt(61,340,Tr('Fleches : choisir une rubrique'),DarkGray);
   DrawButton3D(482,330,580,358,False);
-  DrawTextAt(507,340,'Fermer',Black);
+  DrawTextAt(507,340,Tr('Fermer'),Black);
  End;
 
 Begin
@@ -13691,23 +15601,23 @@ Begin
  FillRectArea(110,76,530,414,CLR_3D_FACE);
  DrawButton3D(110,76,530,414,False);
  FillRectArea(113,79,527,98,Blue);
- DrawTextAt(122,84,'A propos de WorDium',White);
+ DrawTextAt(122,84,Tr('A propos de WorDium'),White);
  DrawIllustration;
  ApplyRunStyle(CurrentStyle);
  DrawTextAt(126,259,'WorDium  1.00',Blue);
- DrawTextAt(126,277,'Traitement de texte graphique en Pascal',Black);
+ DrawTextAt(126,277,Tr('Traitement de texte graphique en Pascal'),Black);
  SetColor(DarkGray);
  Line(126,293,514,293);
- DrawTextAt(126,306,'Auteur',DarkGray);
+ DrawTextAt(126,306,Tr('Auteur'),DarkGray);
  DrawTextAt(235,306,'Sylvain Maltais',Black);
- DrawTextAt(126,324,'Licence',DarkGray);
+ DrawTextAt(126,324,Tr('Licence'),DarkGray);
  DrawTextAt(235,324,'MIT',Black);
- DrawTextAt(126,342,'Creation',DarkGray);
+ DrawTextAt(126,342,Tr('Creation'),DarkGray);
  DrawTextAt(235,342,'2026',Black);
- DrawTextAt(126,360,'Site',DarkGray);
+ DrawTextAt(126,360,Tr('Site'),DarkGray);
  DrawTextAt(235,360,'www.gladir.com/office-0',Blue);
  DrawButton3D(415,378,515,404,False);
- DrawTextAt(440,387,'Fermer',Black);
+ DrawTextAt(440,387,Tr('Fermer'),Black);
 
  PreviousButtons:=MsBtn;
  Repeat
@@ -13906,7 +15816,7 @@ Begin
  Dialog.First:=1; Dialog.Last:=Doc.PageCount; Dialog.Copies:=1;
  Dialog.Flags:=ReturnDC or NoSelection or DriverCopies;
  OK:=WordPrintDlg(Dialog);
- If OK And (Dialog.DC=0) Then ShowMessage('Imprimante indisponible.');
+ If OK And (Dialog.DC=0) Then ShowMessage(Tr('Imprimante indisponible.'));
  If OK And (Dialog.DC<>0) Then Begin
   FirstPage:=1; LastPage:=Doc.PageCount;
   If (Dialog.Flags and PageRange)<>0 Then Begin
@@ -13982,10 +15892,10 @@ Begin
    If OK Then OK:=WordEndDoc(Dialog.DC)>0;
    If Not OK Then WordAbortDoc(Dialog.DC);
   End;
-  If OK Then StatusMsg:='Document transmis a l''imprimante.'
-  Else ShowMessage('Echec de l''impression.');
+  If OK Then StatusMsg:=Tr('Document transmis a l''imprimante.')
+  Else ShowMessage(Tr('Echec de l''impression.'));
  End Else If WordPrintError<>0 Then
-   ShowMessage('Impossible d''ouvrir le dialogue d''impression.');
+   ShowMessage(Tr('Impossible d''ouvrir le dialogue d''impression.'));
  If Dialog.DC<>0 Then WordPrintDeleteDC(Dialog.DC);
  If Dialog.DevMode<>0 Then WordGlobalFree(Dialog.DevMode);
  If Dialog.DevNames<>0 Then WordGlobalFree(Dialog.DevNames);
@@ -13999,7 +15909,7 @@ Begin
  {$IFDEF WINDOWS}
  PrintWordDocument;
  {$ELSE}
- ShowMessage('Impression disponible sous Windows.');
+ ShowMessage(Tr('Impression disponible sous Windows.'));
  {$ENDIF}
 End;
 
@@ -14029,7 +15939,7 @@ Begin
   If Not FileAlreadyExists(FN) Then Begin
    AskSaveFileName := True; Exit;
   End;
-  If ShowConfirmYN('File already exists. Overwrite it?') Then Begin
+  If ShowConfirmYN(Tr('File already exists. Overwrite it?')) Then Begin
    AskSaveFileName := True; Exit;
   End;
  Until False;
@@ -14048,43 +15958,46 @@ Begin
  Case Act Of
   ACT_FILE_NEW    : Begin
                      If Doc.Modified Then
-                      If Not ShowConfirmYN('Discard unsaved changes?') Then
+                      If Not ShowConfirmYN(Tr('Discard unsaved changes?')) Then
                         Exit;
                      InitDocument; LayoutDocument;
                      ClearAllUndo;
-                     StatusMsg := 'New document'; NeedsRedraw := True;
+                     StatusMsg := Tr('New document'); NeedsRedraw := True;
                     End;
   ACT_FILE_OPEN   : Begin
                      If Doc.Modified Then
-                      If Not ShowConfirmYN('Discard unsaved changes?') Then
+                      If Not ShowConfirmYN(Tr('Discard unsaved changes?')) Then
                         Exit;
                      FNameTmp := '';
-                     If ShowFileDialog('Open Document', False,
-                       'Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*.WP'+
+                     If ShowFileDialog(Tr('Open Document'), False,
+                       Tr('Documents (*.WPD;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX)|*'+
+                         '.WP'+
                        'D;*.DOCX;*.DOC;*.PDF;*.GAT;*.GPX|GPX (*.GPX)|*.GPX|GA'+
                        'T MonsterBook (*.GAT)|*.GAT|PDF (*.PDF)|*.PDF|WPD (*.'+
                        'WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|DOC (*.DOC)|*.DOC|Tou'+
-                       's (*.*)|*.*', FNameTmp) Then Begin
+                       's (*.*)|*.*'), FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If LoadAnyDocument(FNameTmp) Then Begin
                        LayoutDocument;
                        ClearAllUndo;
-                       StatusMsg := 'Opened ' + FNameTmp;
+                       StatusMsg := Tr('Opened ') + FNameTmp;
                        If GatTruncated Then StatusMsg :=
-                         'GAT tronque (500 paragraphes max)';
+                         Tr('GAT tronque (500 paragraphes max)');
                       End Else
-                       ShowMessage('Cannot open file (PDF: readable text requ'+
-                         'ired): ' + FNameTmp);
+                       ShowMessage(
+                         Tr('Cannot open file (PDF: readable text requ'+
+                         'ired): ') + FNameTmp);
                      End;
                      NeedsRedraw := True;
                     End;
   ACT_FILE_SAVE   : Begin
                      FNameTmp := Doc.FileName;
                      If (FNameTmp = '') Or (FNameTmp = 'Document1') Then Begin
-                      If Not AskSaveFileName('Save Document',
-                        'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WP'+
+                      If Not AskSaveFileName(Tr('Save Document'),
+                        Tr('Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT'+
+                          '|WP'+
                         'D (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook'+
-                        ' (*.GAT)|*.GAT', FNameTmp) Then Begin
+                        ' (*.GAT)|*.GAT'), FNameTmp) Then Begin
                       { .DOC en sortie n'est pas supporte (Phase 9 lecture
                         seule) }
                        NeedsRedraw := True; Exit;
@@ -14094,30 +16007,32 @@ Begin
                      If SaveAnyDocument(FNameTmp) Then Begin
                       Doc.FileName := FNameTmp;
                       Doc.Modified := False;
-                      StatusMsg := 'Saved ' + FNameTmp;
+                      StatusMsg := Tr('Saved ') + FNameTmp;
                      End Else
-                      ShowMessage('Cannot save file: ' + FNameTmp);
+                      ShowMessage(Tr('Cannot save file: ') + FNameTmp);
                      NeedsRedraw := True;
                     End;
   ACT_FILE_SAVEAS : Begin
                      FNameTmp := Doc.FileName;
                      If FNameTmp = 'Document1' Then FNameTmp := '';
-                     If AskSaveFileName('Save As',
-                       'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD'+
+                     If AskSaveFileName(Tr('Save As'),
+                       Tr('Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|'+
+                         'WPD'+
                        ' (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook ('+
-                       '*.GAT)|*.GAT', FNameTmp) Then Begin
+                       '*.GAT)|*.GAT'), FNameTmp) Then Begin
                       EnsureDocExt(FNameTmp, ExtIsDocx(FNameTmp));
                       If ExtIsDoc(FNameTmp) And (Not ExtIsDocx(FNameTmp)) Then
                         Begin
-                       ShowMessage('Cannot save as .DOC (read-only format)');
+                       ShowMessage(Tr('Cannot save as .DOC (read-only format)')
+                         );
                        NeedsRedraw := True; Exit;
                       End;
                       If SaveAnyDocument(FNameTmp) Then Begin
                        Doc.FileName := FNameTmp;
                        Doc.Modified := False;
-                       StatusMsg := 'Saved ' + FNameTmp;
+                       StatusMsg := Tr('Saved ') + FNameTmp;
                       End Else
-                       ShowMessage('Cannot save file: ' + FNameTmp);
+                       ShowMessage(Tr('Cannot save file: ') + FNameTmp);
                      End;
                      NeedsRedraw := True;
                     End;
@@ -14126,9 +16041,9 @@ Begin
 
   ACT_EDIT_UNDO   : DoUndo;
   ACT_EDIT_REDO   : DoRedo;
-  ACT_EDIT_CUT    : StatusMsg := 'Cut (Phase 2+)';
-  ACT_EDIT_COPY   : StatusMsg := 'Copy (Phase 2+)';
-  ACT_EDIT_PASTE  : StatusMsg := 'Paste (Phase 2+)';
+  ACT_EDIT_CUT    : StatusMsg := Tr('Cut (Phase 2+)');
+  ACT_EDIT_COPY   : StatusMsg := Tr('Copy (Phase 2+)');
+  ACT_EDIT_PASTE  : StatusMsg := Tr('Paste (Phase 2+)');
   ACT_EDIT_FIND   : DoFindDialog;
   ACT_EDIT_REPL   : DoReplaceDialog;
   ACT_EDIT_FIND_NEXT : DoFindNext;
@@ -14149,27 +16064,27 @@ Begin
                       Doc.Paragraphs[Cursor.ParaIdx].PageBreakBefore := True;
                       Doc.Modified  := True;
                       NeedsRelayout := True;
-                      StatusMsg := 'Page break inserted';
+                      StatusMsg := Tr('Page break inserted');
                      End;
                     End;
   ACT_INS_IMAGE   : Begin
                      FNameTmp := '';
-                     If ShowFileDialog('Insert Picture', False,
-                      'Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;'+
+                     If ShowFileDialog(Tr('Insert Picture'), False,
+                      Tr('Images (*.BMP;*.PCX;*.GIF;*.JPG;*.GPX)|*.BMP;'+
                       '*.GPX;*.PCX;*.BGX;*.XBM;*.TIF;*.TIFF;*.GIF;*.JPG;'+
                       '*.JPEG|BMP (*.BMP)|*.BMP|PCX (*.PCX)|*.PCX|'+
                       'GIF (*.GIF)|*.GIF|JPEG (*.JPG;*.JPEG)|'+
                       '*.JPG;*.JPEG|TIFF (*.TIF;*.TIFF)|*.TIF;'+
-                      '*.TIFF|Tous (*.*)|*.*', FNameTmp) Then Begin
+                      '*.TIFF|Tous (*.*)|*.*'), FNameTmp) Then Begin
                       LoadOK := False; ImgBuf := Nil; IW := 0; IH := 0;
                       LoadOK := LoadAnyImage(FNameTmp, ImgBuf, IW, IH);
                       If LoadOK Then Begin
                        MarkMutation(2);
                        InsertImageAtCursor(ImgBuf, IW, IH);
                        LayoutDocument;
-                       StatusMsg := 'Picture inserted: ' + FNameTmp;
+                       StatusMsg := Tr('Picture inserted: ') + FNameTmp;
                       End Else
-                       ShowMessage('Cannot load image: ' + FNameTmp);
+                       ShowMessage(Tr('Cannot load image: ') + FNameTmp);
                      End;
                      NeedsRedraw := True;
                     End;
@@ -14191,7 +16106,7 @@ Begin
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_BOLD;
                      FmtBar[1].Pressed := (CurrentStyle.Style And STY_BOLD) <>
                        0;
-                     StatusMsg := 'Toggle Bold';
+                     StatusMsg := Tr('Toggle Bold');
                     End;
   ACT_FMT_ITALIC  : Begin
                      If SelHasRange Then Begin
@@ -14201,7 +16116,7 @@ Begin
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_ITALIC;
                      FmtBar[2].Pressed := (CurrentStyle.Style And STY_ITALIC) <>
                        0;
-                     StatusMsg := 'Toggle Italic';
+                     StatusMsg := Tr('Toggle Italic');
                     End;
   ACT_FMT_UNDER   : Begin
                      If SelHasRange Then Begin
@@ -14211,7 +16126,7 @@ Begin
                      CurrentStyle.Style := CurrentStyle.Style Xor STY_UNDERLINE;
                      FmtBar[3].Pressed := (CurrentStyle.Style And STY_UNDERLINE)
                        <> 0;
-                     StatusMsg := 'Toggle Underline';
+                     StatusMsg := Tr('Toggle Underline');
                     End;
   ACT_FMT_LEFT    : Begin
                      MarkMutation(2);
@@ -14220,7 +16135,7 @@ Begin
                      FmtBar[4].Pressed := True;  FmtBar[5].Pressed := False;
                      FmtBar[6].Pressed := False; FmtBar[7].Pressed := False;
                      Doc.Modified := True; NeedsRelayout := True;
-                     StatusMsg := 'Align Left';
+                     StatusMsg := Tr('Align Left');
                     End;
   ACT_FMT_CENTER  : Begin
                      MarkMutation(2);
@@ -14229,7 +16144,7 @@ Begin
                      FmtBar[4].Pressed := False; FmtBar[5].Pressed := True;
                      FmtBar[6].Pressed := False; FmtBar[7].Pressed := False;
                      Doc.Modified := True; NeedsRelayout := True;
-                     StatusMsg := 'Align Center';
+                     StatusMsg := Tr('Align Center');
                     End;
   ACT_FMT_RIGHT   : Begin
                      MarkMutation(2);
@@ -14238,7 +16153,7 @@ Begin
                      FmtBar[4].Pressed := False; FmtBar[5].Pressed := False;
                      FmtBar[6].Pressed := True;  FmtBar[7].Pressed := False;
                      Doc.Modified := True; NeedsRelayout := True;
-                     StatusMsg := 'Align Right';
+                     StatusMsg := Tr('Align Right');
                     End;
   ACT_FMT_JUSTIFY : Begin
                      MarkMutation(2);
@@ -14247,15 +16162,15 @@ Begin
                      FmtBar[4].Pressed := False; FmtBar[5].Pressed := False;
                      FmtBar[6].Pressed := False; FmtBar[7].Pressed := True;
                      Doc.Modified := True; NeedsRelayout := True;
-                     StatusMsg := 'Justify';
+                     StatusMsg := Tr('Justify');
                     End;
   ACT_FMT_COLOR   : Begin
                      CurrentStyle.Color := (CurrentStyle.Color + 1) And 15;
                      If CurrentStyle.Color = 0 Then
-                      StatusMsg := 'Color: Black'
+                      StatusMsg := Tr('Color: Black')
                      Else Begin
                       Str(CurrentStyle.Color, StatusMsg);
-                      StatusMsg := 'Color #' + StatusMsg;
+                      StatusMsg := Tr('Color #') + StatusMsg;
                      End;
                     End;
 
@@ -14276,15 +16191,15 @@ Begin
                       NeedsRelayout := True;
                       NeedsRedraw   := True;
                      End Else
-                      ShowMessage('Le curseur n''est pas dans un tableau.');
+                      ShowMessage(Tr('Le curseur n''est pas dans un tableau.'));
                     End;
 
-  ACT_WIN_CASCADE : StatusMsg := 'Cascade (single-doc)';
+  ACT_WIN_CASCADE : StatusMsg := Tr('Cascade (single-doc)');
 
   ACT_HLP_CONTENT : ShowHelpContents;
   ACT_HLP_ABOUT   : ShowAboutDialog;
  Else
-  StatusMsg := 'Action non implementee';
+  StatusMsg := Tr('Action non implementee');
  End;
 End;
 
@@ -14862,7 +16777,7 @@ Begin
          1);
      End;
     End Else
-     StatusMsg := 'Menu contextuel : clic droit sur un tableau';
+     StatusMsg := Tr('Menu contextuel : clic droit sur un tableau');
    End;
   End Else
    StatusMsg := '';
@@ -14925,7 +16840,7 @@ Begin
  CursorBlinkCnt:= 0;
  Sel.Active     := False;
  MouseSelecting := False;
- StatusMsg     := 'Pret. F10=menu, fleches=naviguer, Alt+X=quitter.';
+ StatusMsg     := Tr('Pret. F10=menu, fleches=naviguer, Alt+X=quitter.');
 
  LayoutDocument;
  RenderAll;
@@ -15017,39 +16932,48 @@ Procedure ShowCommandLineHelp;
 Var OutputHelp: Text;
 Begin
  Assign(OutputHelp,'');Rewrite(OutputHelp);
- WriteLn(OutputHelp,'WorDium - Traitement de texte graphique en Pascal.');
+ WriteLn(OutputHelp,Tr('WorDium - Traitement de texte graphique en Pascal.'));
  WriteLn(
-   OutputHelp,'Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] ['+
-   '/?]');
+   OutputHelp,
+     Tr('Utilisation : WorDium [/CLASSICMENU | /RUBANMENU] [document] ['+
+   '/?]'));
  WriteLn(OutputHelp);
  WriteLn(
-   OutputHelp,'  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut'+
-   ').');
+   OutputHelp,
+     Tr('  /CLASSICMENU  Menus classiques, style Word 2003 (par defaut'+
+   ').'));
  WriteLn(
-   OutputHelp,'  /RUBANMENU    Onglets et commandes avec icones, style Word 2'+
-   '007 et suivants.');
+   OutputHelp,
+     Tr('  /RUBANMENU    Onglets et commandes avec icones, style Word 2'+
+   '007 et suivants.'));
  WriteLn(
-   OutputHelp,'  /?           Affiche cette aide et quitte sans ouvrir de fen'+
-   'etre.');
- WriteLn(OutputHelp,'  -h, --help   Affichent egalement cette aide.');
- WriteLn(OutputHelp,'  document     Fichier a ouvrir au demarrage.');
+   OutputHelp,
+     Tr('  /?           Affiche cette aide et quitte sans ouvrir de fen'+
+   'etre.'));
+ WriteLn(OutputHelp,Tr('  -h, --help   Affichent egalement cette aide.'));
+ WriteLn(OutputHelp,Tr('  document     Fichier a ouvrir au demarrage.'));
  WriteLn(OutputHelp);
  WriteLn(
-   OutputHelp,'Les options sont insensibles a la casse ; le dernier mode spec'+
-   'ifie est utilise.');
- WriteLn(OutputHelp,'Le document peut etre place avant ou apres les options.');
+   OutputHelp,
+     Tr('Les options sont insensibles a la casse ; le dernier mode spec'+
+   'ifie est utilise.'));
+ WriteLn(OutputHelp,
+   Tr('Le document peut etre place avant ou apres les options.'));
  WriteLn(
-   OutputHelp,'Entourer les chemins contenant des espaces de guillemets.');
+   OutputHelp,Tr('Entourer les chemins contenant des espaces de guillemets.'));
  WriteLn(
-   OutputHelp,'Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"');
+   OutputHelp,Tr('Exemple : WorDium /RUBANMENU "C:\Documents\Mon texte.docx"'));
  WriteLn(
-   OutputHelp,'Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entre'+
-   'e et Echap.');
+   OutputHelp,
+     Tr('Ruban : souris, F10 ou Alt+lettre, fleches, Tab/Maj+Tab, Entre'+
+   'e et Echap.'));
  WriteLn(
-   OutputHelp,'Accueil : Alt+E. Les commandes non implementees sont grisees.');
+   OutputHelp,
+     Tr('Accueil : Alt+E. Les commandes non implementees sont grisees.'));
  WriteLn(
-   OutputHelp,'Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitt'+
-   'er.');
+   OutputHelp,
+     Tr('Ctrl+N Nouveau, Ctrl+O Ouvrir, Ctrl+S Enregistrer, Alt+X Quitt'+
+   'er.'));
  Close(OutputHelp);
 End;
 Procedure ParseCommandLine;
@@ -15074,6 +16998,7 @@ Begin
 End;
 
 BEGIN
+ InitLanguage;
  If CommandLineHelpRequested Then Begin ShowCommandLineHelp;Halt(0);End;
  ParseCommandLine;
  InitializeGraphics;
@@ -15088,7 +17013,7 @@ BEGIN
    If Not ExtIsPDF(CommandLineFile) Then Doc.FileName := CommandLineFile;
   End
   Else
-   ShowMessage('Cannot open file: ' + CommandLineFile);
+   ShowMessage(Tr('Cannot open file: ') + CommandLineFile);
  End;
  MsAvailable := MouseDriverFound;
  If MsAvailable Then ShowMouse;
