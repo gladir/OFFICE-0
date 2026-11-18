@@ -14004,6 +14004,37 @@ Begin
 End;
 
 
+{ Fichier existant ? (test d'ouverture en lecture) }
+Function FileAlreadyExists(Const FN: String): Boolean;
+Var F: File;
+Begin
+ FileAlreadyExists := False;
+ {$I-} Assign(F, FN); Reset(F, 1); {$I+}
+ If IOResult = 0 Then Begin
+  {$I-} Close(F); {$I+}
+  If IOResult <> 0 Then ;
+  FileAlreadyExists := True;
+ End;
+End;
+
+{ Boite "Enregistrer" : redemande le nom tant que l'utilisateur refuse
+  d'ecraser un fichier existant. Retourne False si annule. }
+Function AskSaveFileName(Const Title, Filter: String;
+                         Var FN: String): Boolean;
+Begin
+ AskSaveFileName := False;
+ Repeat
+  If Not ShowFileDialog(Title, True, Filter, FN) Then Exit;
+  EnsureDocExt(FN, ExtIsDocx(FN));
+  If Not FileAlreadyExists(FN) Then Begin
+   AskSaveFileName := True; Exit;
+  End;
+  If ShowConfirmYN('File already exists. Overwrite it?') Then Begin
+   AskSaveFileName := True; Exit;
+  End;
+ Until False;
+End;
+
 Procedure ExecAction(Act: Integer);
 Var
  FNameTmp : String;
@@ -14050,7 +14081,7 @@ Begin
   ACT_FILE_SAVE   : Begin
                      FNameTmp := Doc.FileName;
                      If (FNameTmp = '') Or (FNameTmp = 'Document1') Then Begin
-                      If Not ShowFileDialog('Save Document', True,
+                      If Not AskSaveFileName('Save Document',
                         'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WP'+
                         'D (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook'+
                         ' (*.GAT)|*.GAT', FNameTmp) Then Begin
@@ -14071,7 +14102,7 @@ Begin
   ACT_FILE_SAVEAS : Begin
                      FNameTmp := Doc.FileName;
                      If FNameTmp = 'Document1' Then FNameTmp := '';
-                     If ShowFileDialog('Save As', True,
+                     If AskSaveFileName('Save As',
                        'Documents (*.WPD;*.DOCX;*.GAT)|*.WPD;*.DOCX;*.GAT|WPD'+
                        ' (*.WPD)|*.WPD|DOCX (*.DOCX)|*.DOCX|GAT MonsterBook ('+
                        '*.GAT)|*.GAT', FNameTmp) Then Begin
